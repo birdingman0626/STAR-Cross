@@ -349,15 +349,26 @@ if(MSVC)
         target_compile_options(STAR PRIVATE /arch:AVX2)
     endif()
 
-    # General MSVC flags
+    # General MSVC-compatible flags (work on both cl.exe and clang-cl)
     target_compile_options(STAR PRIVATE
-        /W4 /MP /EHsc /bigobj
+        /W4 /EHsc /bigobj
         /wd4244 /wd4267 /wd4100 /wd4389 /wd4018 /wd4456 /wd4457  # suppress noisy warnings in upstream code
     )
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_compile_options(STAR PRIVATE /O2 /Ob2 /Oi)
-        target_compile_options(STAR PRIVATE /GL)      # Whole-program optimization
-        target_link_options(STAR PRIVATE /LTCG)       # Link-time code generation
+    endif()
+
+    # Flags specific to cl.exe (not supported by clang-cl)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        target_compile_options(STAR PRIVATE /MP)      # Parallel compilation (Ninja already parallelizes)
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+            target_compile_options(STAR PRIVATE /GL)   # Whole-program optimization
+            target_link_options(STAR PRIVATE /LTCG)    # Link-time code generation
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+            target_compile_options(STAR PRIVATE -flto=thin)  # Clang LTO equivalent
+        endif()
     endif()
 
     # Always generate PDB for debugging crash dumps

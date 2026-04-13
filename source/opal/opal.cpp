@@ -34,9 +34,9 @@ namespace std { using ::isnan; }
 #define VLA_ALLOC(type, name, size) type name[size]
 #endif
 
-// Use native AVX2 intrinsics on compilers that support them (ICX, GCC, Clang)
-// Fall back to SIMDe on MSVC which may not have all intrinsics
-#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER) || (defined(__clang__) && !defined(_MSC_VER)) || (defined(__GNUC__) && !defined(__clang__))
+// Use native AVX2 intrinsics on compilers that support them (ICX, GCC, Clang, clang-cl)
+// Fall back to SIMDe only on pure MSVC (cl.exe) which may not have all intrinsics
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER) || defined(__clang__) || (defined(__GNUC__) && !defined(__clang__))
 #include <immintrin.h>
 #else
 #define SIMDE_ENABLE_NATIVE_ALIASES

@@ -15,7 +15,7 @@ uint compareSeqToGenome(Genome &mapGen, char** s2, uint S, uint N, uint L, uint 
      * dirR forward or reverse direction search on read sequence
      */
 
-    register int64 ii;
+    int64 ii;
 
     uint SAstr=mapGen.SA[iSA];
     bool dirG = (SAstr>>mapGen.GstrandBit) == 0; //forward or reverse strand of the genome
@@ -231,7 +231,7 @@ uint compareSeqToGenome1(Genome &mapGen, char** s2, uint S, uint N, uint L, uint
 
     //TODO no need for complementary sequence
 
-    register int64 ii;
+    int64 ii;
 
     uint SAstr=mapGen.SA[iSA];
     bool dirG = (SAstr>>mapGen.GstrandBit) == 0; //forward or reverse strand of the genome
