@@ -39,7 +39,8 @@ typedef intptr_t ssize_t;
 #define _SSIZE_T_DEFINED
 #endif
 
-// ---------- GCC built-in replacements ----------
+// ---------- GCC built-in replacements (MSVC only, not needed for ICX/Clang) ----------
+#if !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER) && !defined(__clang__)
 #include <intrin.h>
 
 static inline int __builtin_ctz(unsigned int x) {
@@ -63,6 +64,7 @@ static inline int __builtin_clz(unsigned int x) {
 static inline int __builtin_popcount(unsigned int x) {
     return (int)__popcnt(x);
 }
+#endif // !__INTEL_COMPILER && !__INTEL_LLVM_COMPILER && !__clang__
 
 // ---------- 128-bit integer (MSVC has no __uint128_t) ----------
 // Used only in SuffixArrayFuns.cpp for 16-byte loads. Use a struct.

@@ -137,6 +137,13 @@ static __inline int pthread_mutexattr_init(pthread_mutexattr_t *attr) { *attr = 
 static __inline int pthread_mutexattr_settype(pthread_mutexattr_t *attr, int type) { *attr = type; return 0; }
 static __inline int pthread_mutexattr_destroy(pthread_mutexattr_t *attr) { (void)attr; return 0; }
 
+static __inline int pthread_attr_getstacksize(const pthread_attr_t *attr, size_t *stacksize) {
+    (void)attr; *stacksize = 16 * 1024 * 1024; return 0;
+}
+static __inline int pthread_attr_setstacksize(pthread_attr_t *attr, size_t stacksize) {
+    (void)attr; (void)stacksize; return 0;
+}
+
 static __inline int pthread_mutex_init(pthread_mutex_t *mutex, const void *attr) {
     (void)attr;
     InitializeCriticalSection(mutex);
@@ -305,6 +312,43 @@ static __inline double drand48(void) {
 static __inline void srand48(long seed) {
     srand((unsigned int)seed);
 }
+
+static __inline double erand48(unsigned short xsubi[3]) {
+    (void)xsubi;
+    return (double)rand() / RAND_MAX;
+}
+
+static __inline long lrand48(void) {
+    return rand();
+}
+
+static __inline int usleep(unsigned int usec) {
+    Sleep(usec / 1000 > 0 ? usec / 1000 : 1);
+    return 0;
+}
+
+
+// pthread_once / TLS (thread-local storage) support
+typedef INIT_ONCE pthread_once_t;
+#define PTHREAD_ONCE_INIT INIT_ONCE_STATIC_INIT
+typedef DWORD pthread_key_t;
+
+static __inline BOOL CALLBACK _pthread_once_cb(PINIT_ONCE io, PVOID param, PVOID *ctx) {
+    (void)io; (void)ctx;
+    void (*fn)(void) = (void (*)(void))param;
+    fn();
+    return TRUE;
+}
+static __inline int pthread_once(pthread_once_t *once, void (*fn)(void)) {
+    InitOnceExecuteOnce(once, _pthread_once_cb, (PVOID)fn, NULL);
+    return 0;
+}
+static __inline int pthread_key_create(pthread_key_t *key, void (*dtor)(void*)) {
+    (void)dtor; *key = TlsAlloc(); return (*key == TLS_OUT_OF_INDEXES) ? -1 : 0;
+}
+static __inline int pthread_key_delete(pthread_key_t key) { return TlsFree(key) ? 0 : -1; }
+static __inline void *pthread_getspecific(pthread_key_t key) { return TlsGetValue(key); }
+static __inline int pthread_setspecific(pthread_key_t key, const void *val) { return TlsSetValue(key, (LPVOID)val) ? 0 : -1; }
 
 #endif // _WIN32
 #endif // HTSLIB_WIN32_COMPAT_H

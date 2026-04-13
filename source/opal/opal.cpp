@@ -34,9 +34,14 @@ namespace std { using ::isnan; }
 #define VLA_ALLOC(type, name, size) type name[size]
 #endif
 
-// SIMDe is C++ compatible
+// Use native AVX2 intrinsics on compilers that support them (ICX, GCC, Clang)
+// Fall back to SIMDe on MSVC which may not have all intrinsics
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER) || (defined(__clang__) && !defined(_MSC_VER)) || (defined(__GNUC__) && !defined(__clang__))
+#include <immintrin.h>
+#else
 #define SIMDE_ENABLE_NATIVE_ALIASES
-#include <simde_avx2.h> // AVX2 and lower
+#include <simde_avx2.h> // AVX2 and lower via SIMDe
+#endif
 
 #include "opal.h"
 

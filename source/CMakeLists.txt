@@ -344,7 +344,7 @@ if(MSVC)
 
     # General MSVC flags
     target_compile_options(STAR PRIVATE
-        /W4 /MP /EHsc /bigobj
+        /W4 /MP /EHsc /bigobj /Wno-register
         /wd4244 /wd4267 /wd4100 /wd4389 /wd4018 /wd4456 /wd4457  # suppress noisy warnings in upstream code
     )
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -377,7 +377,7 @@ if(MSVC)
 
 else()
     # GCC / Clang
-    target_compile_options(STAR PRIVATE -pipe -Wall -Wextra -O3)
+    target_compile_options(STAR PRIVATE -pipe -Wall -Wextra -O3 -Wno-register)
 
     find_package(OpenMP REQUIRED)
     target_link_libraries(STAR PRIVATE OpenMP::OpenMP_CXX)
