@@ -45,9 +45,11 @@
 
 using namespace std;
 
-#ifdef COMPILE_FOR_MAC
-  //some Mac's idiosyncrasies: standard SHM libraries are very old and missing some definitions
-  #define SHM_NORESERVE 0
+#if defined(COMPILE_FOR_MAC) || defined(__APPLE__)
+  // macOS: SHM_NORESERVE is Linux-specific; define as 0 (no-op)
+  #ifndef SHM_NORESERVE
+    #define SHM_NORESERVE 0
+  #endif
 #endif
 
 #if defined(__mips__) && !defined(SHM_NORESERVE)

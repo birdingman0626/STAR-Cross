@@ -1,7 +1,7 @@
 #include "SoloFeature.h"
 #include "serviceFuns.cpp"
 #include "SimpleGoodTuring/sgt.h"
-#include <math.h>
+#include <cmath>
 #include <numeric>
 #include <unordered_set>
 #include <unordered_map>

@@ -3,6 +3,7 @@
 #include "ErrorWarning.h"
 #include "SoloFeatureTypes.h"
 #include "serviceFuns.cpp"
+#include <cmath>
 
 void SoloFeature::loadRawMatrix()
 {    
