@@ -44,7 +44,7 @@ namespace std { using ::isnan; }
 #include <immintrin.h>
 #else
 #define SIMDE_ENABLE_NATIVE_ALIASES
-#include <simde_avx2.h> // SIMDe: AVX2 emulation for ARM / MSVC cl.exe
+#include "simde_avx2.h" // SIMDe: AVX2 emulation for ARM / MSVC cl.exe
 #endif
 
 #include "opal.h"
