@@ -1,0 +1,5 @@
+#define HTS_CC ""
+#define HTS_CPPFLAGS ""
+#define HTS_CFLAGS ""
+#define HTS_LDFLAGS ""
+#define HTS_LIBS ""

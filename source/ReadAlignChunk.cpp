@@ -1,5 +1,9 @@
 #include "ReadAlignChunk.h"
-#include <pthread.h>
+#ifdef _WIN32
+    #include "wincompat.h"
+#else
+    #include <pthread.h>
+#endif
 #include "ErrorWarning.h"
 
 ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, int iChunk) : P(Pin), mapGen(genomeIn) {//initialize chunk
@@ -18,13 +22,13 @@ ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome 
     RA->iRead=0;
 
     chunkIn=new char* [P.readNends];
-    readInStream=new istringstream* [P.readNends];
-    
+    readInStream=new FixedIStream* [P.readNends];
+
     for (uint ii=0;ii<P.readNends;ii++) {
        chunkIn[ii]=new char[P.chunkInSizeBytesArray];//reserve more space to finish loading one read
        memset(chunkIn[ii],'\n',P.chunkInSizeBytesArray);
-       readInStream[ii] = new istringstream;
-       readInStream[ii]->rdbuf()->pubsetbuf(chunkIn[ii],P.chunkInSizeBytesArray);
+       readInStream[ii] = new FixedIStream;
+       readInStream[ii]->setBuffer(chunkIn[ii],P.chunkInSizeBytesArray);
        RA->readInStream[ii]=readInStream[ii];
     };
 
@@ -32,8 +36,8 @@ ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome 
     if (P.outSAMbool) {
         chunkOutBAM=new char [P.chunkOutBAMsizeBytes];
         RA->outBAMarray=chunkOutBAM;
-        chunkOutBAMstream=new ostringstream;
-        chunkOutBAMstream->rdbuf()->pubsetbuf(chunkOutBAM,P.chunkOutBAMsizeBytes);
+        chunkOutBAMstream=new FixedOStream;
+        chunkOutBAMstream->setBuffer(chunkOutBAM,P.chunkOutBAMsizeBytes);
         RA->outSAMstream=chunkOutBAMstream;
         RA->outSAMstream->seekp(0,ios::beg);
         chunkOutBAMtotal=0;

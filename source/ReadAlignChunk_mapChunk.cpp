@@ -12,9 +12,8 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
     
     RA->statsRA.resetN();
 
-    for (uint ii=0;ii<P.readNends;ii++) {//clear eof and rewind the input streams
-        RA->readInStream[ii]->clear();
-        RA->readInStream[ii]->seekg(0,ios::beg);
+    for (uint ii=0;ii<P.readNends;ii++) {//update buffer size and rewind the input streams
+        readInStream[ii]->setBuffer(chunkIn[ii], chunkInSizeBytesTotal[ii]);
     };
     
     

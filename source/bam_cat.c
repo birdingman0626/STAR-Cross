@@ -50,7 +50,11 @@ THE SOFTWARE.
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include "wincompat.h"
+#else
 #include <unistd.h>
+#endif
 
 #include "htslib/htslib/bgzf.h"
 #include "htslib/htslib/sam.h"

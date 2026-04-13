@@ -1,5 +1,6 @@
 #include "readLoad.h"
 #include "ErrorWarning.h"
+#include <cstdlib>
 
 int readLoad(istream& readInStream, Parameters& P, uint& Lread, uint& LreadOriginal, \
             char* readName, char* Seq, char* SeqNum, char* Qual, vector<ClipMate> &clipOneMate, \
@@ -7,26 +8,42 @@ int readLoad(istream& readInStream, Parameters& P, uint& Lread, uint& LreadOrigi
 {//load one read from a stream
     int readFileType=0;
 
-    if (readInStream.peek()!='@' && readInStream.peek()!='>') 
+    if (readInStream.peek()!='@' && readInStream.peek()!='>')
         return -1; //end of the stream
 
-    string line1;
-    
-    getline(readInStream, line1); //read 1st line
-    istringstream line1str(line1);
-    
-    readName[0]=0;//clear char array
-    line1str >> readName; //TODO check that it does not overflow the array
+    // Read header line directly into readName buffer, then parse fields with char* arithmetic
+    // This avoids std::string + istringstream heap allocations per read
+    static thread_local char line1buf[DEF_readNameLengthMax + 256];
+    readInStream.getline(line1buf, sizeof(line1buf));
+
+    // Parse readName (first token)
+    char *p = line1buf;
+    char *dst = readName;
+    while (*p && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r' && dst - readName < (int)DEF_readNameLengthMax - 1)
+        *dst++ = *p++;
+    *dst = '\0';
+
     if (strlen(readName)>=DEF_readNameLengthMax-1) {
         ostringstream errOut;
         errOut << "EXITING because of FATAL ERROR in reads input: read name is too long:" << readInStream.gcount()<<"\nRead Name="<<readName<<"\nDEF_readNameLengthMax="<<DEF_readNameLengthMax<<'\n';
         errOut << "SOLUTION: increase DEF_readNameLengthMax in IncludeDefine.h and re-compile STAR\n";
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
-    };  
-    
-    line1str >> iReadAll >> readFilter >> readFilesIndex; //extract read number TODO this is needed only for one mate
-    line1str >> std::ws; //skip whitespace before readNameExtra
-    getline(line1str, readNameExtra);
+    };
+
+    // Parse iReadAll, readFilter, readFilesIndex from remaining fields
+    while (*p == ' ' || *p == '\t') ++p;
+    iReadAll = (uint)strtoull(p, &p, 10);
+    while (*p == ' ' || *p == '\t') ++p;
+    if (*p && *p != '\n' && *p != '\r') readFilter = *p++;
+    while (*p == ' ' || *p == '\t') ++p;
+    readFilesIndex = (uint32)strtoul(p, &p, 10);
+    while (*p == ' ' || *p == '\t') ++p;
+
+    // Rest of line is readNameExtra
+    char *extraStart = p;
+    char *extraEnd = p;
+    while (*extraEnd && *extraEnd != '\n' && *extraEnd != '\r') ++extraEnd;
+    readNameExtra.assign(extraStart, extraEnd - extraStart);
 
     readInStream.getline(Seq,DEF_readSeqLengthMax+1); //extract sequence
 

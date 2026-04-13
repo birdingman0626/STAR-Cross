@@ -117,6 +117,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
                 sjFilter[sjA[ii*3+1]] = sjFilter[sjA[ii*3+1]] && ( minDist >= (uint) P.outSJfilterDistToOtherSJmin[(sjA[ii*3+2]+1)/2] );
             };
         };
+        delete[] sjA; // fix memory leak (upstream PR #2676)
     };
 
     //output junctions
@@ -160,4 +161,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
             };
         };
     };
+
+    delete[] sjFilter; // fix memory leak (upstream PR #2676)
+    delete[] sjChunks; // fix memory leak (upstream PR #2676)
 };

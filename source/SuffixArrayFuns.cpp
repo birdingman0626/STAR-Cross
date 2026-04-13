@@ -356,13 +356,21 @@ uint funCalcSAiFromSA(char* gSeq, PackedArray& gSA, Genome &mapGen, uint iSA, in
     bool dirG = (SAstr>>mapGen.GstrandBit) == 0; //forward or reverse strand of the genome
     SAstr &= mapGen.GstrandMask;
     iL4=-1;
-    register uint saind=0;
+    uint saind=0;
     if (dirG)
     {
+#ifdef STAR_UINT128_STRUCT
+        // MSVC: no native 128-bit int, use direct byte access
+        const char *gPtr = gSeq + SAstr;
+        for (int ii=0; ii<L; ii++)
+        {
+            char g2 = gPtr[ii];
+#else
         register uint128 g1=*( (uint128*) (gSeq+SAstr) );
         for (int ii=0; ii<L; ii++)
         {
-            register char g2=(char) g1;
+            char g2=(char) g1;
+#endif
             if (g2>3)
             {
                 iL4=ii;
@@ -371,15 +379,24 @@ uint funCalcSAiFromSA(char* gSeq, PackedArray& gSA, Genome &mapGen, uint iSA, in
             };
             saind=saind<<2;
             saind+=g2;
+#ifndef STAR_UINT128_STRUCT
             g1=g1>>8;
+#endif
         };
         return saind;
     } else
     {
+#ifdef STAR_UINT128_STRUCT
+        const char *gPtr = gSeq + mapGen.nGenome - SAstr - 16;
+        for (int ii=0; ii<L; ii++)
+        {
+            char g2 = gPtr[15-ii];
+#else
         register uint128 g1=*( (uint128*) (gSeq+mapGen.nGenome-SAstr-16) );
         for (int ii=0; ii<L; ii++)
         {
-            register char g2=(char) (g1>>(8*(15-ii)));
+            char g2=(char) (g1>>(8*(15-ii)));
+#endif
             if (g2>3)
             {
                 iL4=ii;

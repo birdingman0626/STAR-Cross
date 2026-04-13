@@ -1,0 +1,76 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+
+      - name: Build with Make (GCC)
+        if: matrix.compiler == 'gcc'
+        run: |
+          cd source
+          make STAR
+
+      - name: Build with CMake (${{ matrix.compiler }})
+        run: |
+          cd source
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            export CC=clang CXX=clang++
+          fi
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j$(nproc)
+
+      - name: Smoke test
+        run: |
+          ./source/build/STAR --version
+          echo "Version check passed"
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install gcc
+
+      - name: Build with CMake
+        run: |
+          cd source
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-14
+          cmake --build build -j$(sysctl -n hw.ncpu)
+
+      - name: Smoke test
+        run: ./source/build/STAR --version
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build with CMake
+        run: |
+          cd source
+          cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cd build
+          nmake
+
+      - name: Smoke test
+        run: source\build\STAR.exe --version

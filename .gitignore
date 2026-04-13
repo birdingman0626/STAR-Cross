@@ -1,10 +1,10 @@
 *.o
 Depend.list
+/data
 
 .project
 .kdev4/
 source.kdev4
-
 
 # Don't track intermediary files from building the manual
 extras/doc-latex/*.aux
@@ -17,8 +17,34 @@ extras/doc-latex/*.toc
 
 # Don't track the STAR binary once it has being built
 source/STAR
+
+# CMake build directories and artifacts
+build*/
+_build/
+CMakeCache.txt
+cmake_install.cmake
+CMakeFiles/
+compile_commands.json
+source/parametersDefault.xxd
+
+# Binaries and libraries
+*.exe
+*.pdb
+*.ilk
+*.a
+*.lib
+*.so
+*.dll
+
+# macOS
 .DS_Store
 *.xcworkspacedata
 *.pbxproj
 *.plist
 *.xcuserstate
+
+# Editor artifacts
+*.swp
+*~
+.vscode/
+.idea/

@@ -1,0 +1,22 @@
+---
+# Conservative clang-tidy config for STAR
+# Run: clang-tidy -p build source/*.cpp
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  performance-*,
+  -performance-avoid-endl,
+  modernize-use-nullptr,
+  modernize-use-override,
+  readability-redundant-*,
+
+# Exclude third-party code
+HeaderFilterRegex: '^(?!.*(htslib|opal|SimpleGoodTuring)).*'
+
+WarningsAsErrors: ''
+
+CheckOptions:
+  - key: bugprone-argument-comment.StrictMode
+    value: false

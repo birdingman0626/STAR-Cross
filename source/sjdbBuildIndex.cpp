@@ -50,7 +50,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     uint64 sjNew=0;
     #pragma omp parallel num_threads(P.runThreadN)
     #pragma omp for schedule (dynamic,1000) reduction(+:sjNew)
-    for (uint isj=0; isj<2*mapGen.sjdbN; isj++) {//find insertion points for each of the sequences
+    for (int64 isj=0; isj<(int64)(2*mapGen.sjdbN); isj++) {//find insertion points for each of the sequences
 
         char** seq1=new char*[2];
         seq1[0]=Gsj+isj*mapGen.sjdbLength;

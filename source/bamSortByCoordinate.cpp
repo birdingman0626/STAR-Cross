@@ -47,7 +47,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
             uint totalMem=0;
             #pragma omp parallel num_threads(P.outBAMsortingThreadNactual)
             #pragma omp for schedule (dynamic,1)
-            for (uint32 ibin1=0; ibin1<nBins; ibin1++) {
+            for (int ibin1=0; ibin1<(int)nBins; ibin1++) {
                 uint32 ibin=nBins-1-ibin1;//reverse order to start with the last bin - unmapped reads
 
                 uint binN=0, binS=0;

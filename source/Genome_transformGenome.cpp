@@ -37,7 +37,7 @@ void Genome::transformGenome(GTF *gtf)
     
     P.inOut->logMain << "transformGenome: processing VCF" << endl;
         
-    map<string,vector<VariantInfo>> vcfVariants[pGe.transform.type];
+    vector<map<string,vector<VariantInfo>>> vcfVariants(pGe.transform.type);
     {//load VCF file: per chromosome, 1 or 2 haplotypes
         ifstream &vcfStream = ifstrOpen(pGe.transform.vcfFile, ERROR_OUT, "SOLUTION: check the path and permissions of the VCF file: "+pGe.transform.vcfFile, P);
         string vcfLine;
@@ -232,15 +232,15 @@ void Genome::transformGandBlocks(map<string,vector<VariantInfo>> &vcfVariants, v
                 array<string,2> &seq = vV[iv].seq;
 
                 //debug
-                char s0[seq[0].size()];
-                convertNucleotidesToNumbers(seq[0].c_str(), s0, seq[0].size());
-                if (memcmp(G+g0, s0, seq[0].size()))
+                vector<char> s0(seq[0].size());
+                convertNucleotidesToNumbers(seq[0].c_str(), s0.data(), seq[0].size());
+                if (memcmp(G+g0, s0.data(), seq[0].size()))
                     cerr <<g0<<" "<<seq[0]<<" "<<G+g0<<endl;
                 //debug
 
-                char s1[seq[1].size()];
-                convertNucleotidesToNumbers(seq[1].c_str(), s1, seq[1].size());
-                memcpy(Gnew+g1, s1, seq[1].size());
+                vector<char> s1(seq[1].size());
+                convertNucleotidesToNumbers(seq[1].c_str(), s1.data(), seq[1].size());
+                memcpy(Gnew+g1, s1.data(), seq[1].size());
                 g0 += seq[0].size();
                 g1 += seq[1].size();
 

@@ -8,7 +8,7 @@
 int ReadAlign::oneRead() {//process one read: load, map, write
 
     //load read name, sequence, quality from the streams into internal arrays
-    int readStatus[P.readNends];
+    std::vector<int> readStatus(P.readNends);
 
     for (uint32 im=0; im<P.readNends; im++) {
         readStatus[im] = readLoad(*(readInStream[im]), P, readLength[im], readLengthOriginal[im], readNameMates[im], Read0[im], Read1[im], Qual0[im], clipMates[im], iReadAll, readFilesIndex, readFilter, readNameExtra[im]);

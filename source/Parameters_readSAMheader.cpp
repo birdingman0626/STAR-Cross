@@ -3,6 +3,10 @@
 #include <fstream>
 #include <sys/stat.h>
 
+#ifdef _WIN32
+#include "wincompat.h"
+#endif
+
 void Parameters::readSAMheader(const string readFilesCommandString, const vector<string> readFilesNames) {
 
     if (readFilesCommandString=="") {//simply read from file
@@ -16,6 +20,26 @@ void Parameters::readSAMheader(const string readFilesCommandString, const vector
         return;
     };
 
+#ifdef _WIN32
+    // Windows: use temp file instead of FIFO
+    string tmpFile=outFileTmp+"tmp.header";
+    ifstream tmpFileIn;
+    for (uint32 ii=0; ii<readFilesNames.size(); ii++) {
+        remove(tmpFile.c_str());
+        string com1=readFilesCommandString + "   " + readFilesNames.at(ii) + " > \"" + tmpFile + "\"";
+        system(com1.c_str());
+        tmpFileIn.open(tmpFile);
+        while (tmpFileIn.good() && tmpFileIn.peek()=='@') {
+            string str1;
+            getline(tmpFileIn,str1);
+            if (str1.substr(1,2)!="HD" && str1.substr(1,2)!="SQ" && (!twoPass.pass2) ) {
+                samHeaderExtra += str1 + '\n';
+            };
+        };
+        tmpFileIn.close();
+    };
+    remove(tmpFile.c_str());
+#else
     string tmpFifo=outFileTmp+"tmp.fifo.header";
     remove(tmpFifo.c_str());
     if (mkfifo(tmpFifo.c_str(), S_IRUSR | S_IWUSR ) != 0) {
@@ -41,4 +65,5 @@ void Parameters::readSAMheader(const string readFilesCommandString, const vector
         };
         tmpFifoIn.close();
     };
+#endif
 };

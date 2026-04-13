@@ -27,7 +27,7 @@ inline uint PackedArray::operator [] (uint ii) {
    uint S=b%8;
 
    uint a1 = *((uint*) (charArray+B));
-   a1 = ((a1>>S)<<wordCompLength)>>wordCompLength;
+   a1 = (a1>>S) & bitRecMask; // bitmask instead of double-shift (upstream PR #791)
    return a1;
 };
 

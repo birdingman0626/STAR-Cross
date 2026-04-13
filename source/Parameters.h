@@ -6,8 +6,12 @@
 #include "ParameterInfo.h"
 #include <map>
 #include "TimeFunctions.h"
-#include <unistd.h>
-#include <signal.h>
+#ifdef _WIN32
+    #include "wincompat.h"
+#else
+    #include <unistd.h>
+    #include <signal.h>
+#endif
 #include "ParametersChimeric.h"
 #include "ParametersSolo.h"
 #include "ParametersClip.h"

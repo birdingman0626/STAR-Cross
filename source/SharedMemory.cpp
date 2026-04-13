@@ -4,13 +4,17 @@
 
 #include "SharedMemory.h"
 #include <sstream>
-#include <sys/mman.h>
-#include <sys/shm.h>
-#include <sys/stat.h>        /* For mode constants */
-#include <fcntl.h>           /* For O_* constants */
-#include <semaphore.h>
-#include <errno.h>
-#include <sys/types.h>
+#ifdef _WIN32
+    #include "wincompat.h"
+#else
+    #include <sys/mman.h>
+    #include <sys/shm.h>
+    #include <sys/stat.h>        /* For mode constants */
+    #include <fcntl.h>           /* For O_* constants */
+    #include <semaphore.h>
+    #include <errno.h>
+    #include <sys/types.h>
+#endif
 
 #if defined(COMPILE_FOR_MAC) || defined(__FreeBSD__)
   //some Mac's idiosyncrasies: standard SHM libraries are very old and missing some definitions

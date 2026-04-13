@@ -1,7 +1,11 @@
 #include "BAMoutput.h"
 #include <sys/stat.h>
 #include "GlobalVariables.h"
-#include <pthread.h>
+#ifdef _WIN32
+    #include "wincompat.h"
+#else
+    #include <pthread.h>
+#endif
 #include "serviceFuns.cpp"
 #include "ThreadControl.h"
 #include "streamFuns.h"

@@ -9,14 +9,25 @@
 
 #include <time.h>
 #include <cmath>
-#include <unistd.h>
+#ifdef _WIN32
+    #include "wincompat.h"
+#else
+    #include <unistd.h>
+#endif
 #include <sys/stat.h>
 
 Genome::Genome (Parameters &P, ParametersGenome &pGe): shmStart(NULL), P(P), pGe(pGe), sharedMemory(NULL)
 {
+#ifdef _WIN32
+    // st_ino is always 0 on Windows NTFS; derive shmKey from path hash instead
+    shmKey = 0;
+    for (size_t i = 0; i < pGe.gDir.size(); i++)
+        shmKey = shmKey * 31 + pGe.gDir[i];
+#else
     struct stat stbuf;
     stat(pGe.gDir.c_str(), &stbuf);
     shmKey=stbuf.st_ino;
+#endif
     genomeOut.g=this;//will change if genomeOut is different from genomeMain
     genomeOut.convYes=false;
     sjdbOverhang = pGe.sjdbOverhang; //will be re-defined later if another value was used for the generated genome

@@ -12,14 +12,24 @@
 #include <ctime>
 #include <iomanip>
 #include <vector>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+
+#ifdef _WIN32
+    #include "wincompat.h"
+    #include <sys/types.h>
+    #include <sys/stat.h>
+    #include <fcntl.h>
+#else
+    #include <sys/types.h>
+    #include <sys/ipc.h>
+    #include <sys/shm.h>
+    #include <sys/mman.h>
+    #include <sys/stat.h>
+    #include <fcntl.h>
+#endif
+
 #include <errno.h>
 #include <limits>
+#include <numeric>
 #include <stdint.h>
 #include <omp.h>
 #include <math.h>
@@ -56,8 +66,21 @@ typedef uint8_t uint8;
 #define int64 long long
 #define int32 int
 
-// this is gcc extension, may need to redefine for other compilers
-#define uint128 __uint128_t
+// 128-bit unsigned integer type
+#if defined(_MSC_VER)
+    // MSVC: no native __uint128_t, defined in wincompat.h as a struct
+    #ifndef STAR_UINT128_STRUCT
+    struct _uint128_t {
+        unsigned long long lo;
+        unsigned long long hi;
+    };
+    #define uint128 _uint128_t
+    #define STAR_UINT128_STRUCT 1
+    #endif
+#else
+    // GCC/Clang extension
+    #define uint128 __uint128_t
+#endif
 
 #define GENOME_spacingChar 5
 
