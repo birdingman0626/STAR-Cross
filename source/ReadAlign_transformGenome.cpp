@@ -25,7 +25,7 @@ void ReadAlign::transformGenome()
     };
         
     if (mapGen.pGe.transform.type==2) {//diploid genome, remove identical transcripts
-        bool keepTr[nTr1];
+        std::vector<bool> keepTr(nTr1);
         for (uint32 ia1=0; ia1<nTr1; ia1++)
             keepTr[ia1]=true;
         

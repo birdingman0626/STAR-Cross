@@ -1,14 +1,42 @@
+#ifdef _MSC_VER
+// Prevent Windows.h min/max macros from breaking std::min/std::max
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
+
 #include <algorithm>
 #include <cassert>
 #include <climits>
 #include <cstdio>
+#include <cmath>
 #include <limits>
 #include <vector>
 
-extern "C" {
+#ifdef _MSC_VER
+// SIMDe uses std::isnan but MSVC may not put isnan in std:: via <cmath> in C++11
+namespace std { using ::isnan; }
+
+// MSVC doesn't support VLAs - use _alloca for stack-allocated variable-length arrays
+#include <malloc.h>
+#define VLA_ALLOC(type, name, size) type* name = (type*)_alloca(sizeof(type) * (size))
+
+// MSVC alignment syntax
+#define ALIGNED_ARRAY(type, name, size, alignment) \
+    type* name = (type*)_aligned_malloc(sizeof(type) * (size), alignment)
+#define ALIGNED_FREE(ptr) _aligned_free(ptr)
+
+// GCC __attribute__ compatibility
+#define __attribute__(x)
+
+#else
+// GCC/Clang: use normal VLAs
+#define VLA_ALLOC(type, name, size) type name[size]
+#endif
+
+// SIMDe is C++ compatible
 #define SIMDE_ENABLE_NATIVE_ALIASES
 #include <simde_avx2.h> // AVX2 and lower
-}
 
 #include "opal.h"
 
@@ -228,7 +256,7 @@ static int searchDatabaseSW_(unsigned char query[], int queryLength,
 
     // Profile query -> here we store preprocessed score data needed in core loop.
     // It is recalculated for each column.
-    __mxxxi P[alphabetLength];
+    std::vector<__mxxxi> P(alphabetLength);
 
     // Load initial sequences
     for (int i = 0; i < SIMD::numSeqs; i++) {
@@ -241,10 +269,10 @@ static int searchDatabaseSW_(unsigned char query[], int queryLength,
     __mxxxi Q = SIMD::set1(gapOpen);
     __mxxxi R = SIMD::set1(gapExt);
 
-    int rowsWithImprovement[queryLength];  // Indexes of rows where one of sequences improved score.
+    std::vector<int> rowsWithImprovement(queryLength);  // Indexes of rows where one of sequences improved score.
 
     // Previous Hs, previous Es, previous F, all signed short.
-    CellEH prevColumn[queryLength];  // Stores results of previous column in matrix.
+    std::vector<CellEH> prevColumn(queryLength);  // Stores results of previous column in matrix.
     // Initialize all values to 0
     for (int i = 0; i < queryLength; i++) {
         prevColumn[i].H = prevColumn[i].E = scoreZeroes;
@@ -667,8 +695,8 @@ static int searchDatabase_(unsigned char query[], int queryLength,
     const __mxxxi R = SIMD::set1(gapExt);
 
     // Previous H column (array), previous E column (array), previous F, all signed short
-    __mxxxi prevHs[queryLength];
-    __mxxxi prevEs[queryLength];
+    std::vector<__mxxxi> prevHs(queryLength);
+    std::vector<__mxxxi> prevEs(queryLength);
     // Initialize all values
     for (int r = 0; r < queryLength; r++) {
         if (MODE == OPAL_MODE_OV)
@@ -699,7 +727,7 @@ static int searchDatabase_(unsigned char query[], int queryLength,
     while (numEndedDbSeqs < dbLength) {
         // -------------------- CALCULATE QUERY PROFILE ------------------------- //
         // TODO: Rognes uses pshufb here, I don't know how/why?
-        __mxxxi P[alphabetLength];
+        std::vector<__mxxxi> P(alphabetLength);
         typename SIMD::type profileRow[SIMD::numSeqs] __attribute__((aligned(SIMD_REG_SIZE / 8)));
         for (unsigned char letter = 0; letter < alphabetLength; letter++) {
             int* scoreMatrixRow = scoreMatrix + letter*alphabetLength;

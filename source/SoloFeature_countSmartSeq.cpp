@@ -40,7 +40,7 @@ void SoloFeature::countSmartSeq()
     vector<vector<typeFeatureUMI>::iterator> cbFeatUMI (nCB + 1);    
     
     #pragma omp parallel for num_threads(P.runThreadN)
-    for (uint32 ired=0; ired<redistrFilesCBfirst.size()-1; ired++) {//TODO: parallelize, each ired is independent here!
+    for (int64 ired=0; ired<(int64)redistrFilesCBfirst.size()-1; ired++) {//TODO: parallelize, each ired is independent here!
         vector<typeFeatureUMI> vFeatureUMI (redistrFilesNreads[ired]);
         
         uint32 iCB1=redistrFilesCBfirst[ired];

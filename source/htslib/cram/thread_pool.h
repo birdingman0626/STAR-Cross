@@ -47,7 +47,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef _THREAD_POOL_H_
 #define _THREAD_POOL_H_
 
-#include <pthread.h>
+#ifdef _WIN32
+    #include "../win32_compat.h"
+#else
+    #include <pthread.h>
+#endif
 
 struct t_pool;
 struct t_results_queue;

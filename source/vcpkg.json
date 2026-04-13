@@ -1,0 +1,7 @@
+{
+    "name": "star",
+    "version": "2.7.11",
+    "dependencies": [
+        "zlib"
+    ]
+}

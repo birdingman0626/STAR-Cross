@@ -6,7 +6,11 @@
 #include "ErrorWarning.h"
 #include "SoloFeatureTypes.h"
 
-#include<unistd.h> // for get_current_dir
+#ifdef _WIN32
+    #include "wincompat.h"
+#else
+    #include<unistd.h> // for get_current_dir
+#endif
 
 
 void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)

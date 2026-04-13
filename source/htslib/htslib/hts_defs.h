@@ -27,6 +27,8 @@ DEALINGS IN THE SOFTWARE.  */
 
 #if __clang__major__ >= 2 || __GNUC__ >= 3
 #define HTS_NORETURN __attribute__ ((__noreturn__))
+#elif defined(_MSC_VER)
+#define HTS_NORETURN __declspec(noreturn)
 #else
 #define HTS_NORETURN
 #endif

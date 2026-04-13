@@ -2,7 +2,12 @@
 #include "ErrorWarning.h"
 #include <fstream>
 #include <sys/stat.h>
-void Parameters::openReadsFiles() 
+
+#ifdef _WIN32
+#include "wincompat.h"
+#endif
+
+void Parameters::openReadsFiles()
 {
     if (readFilesCommandString=="") {//read from file
         for (uint ii=0;ii<readFilesIn.size();ii++) {//open readIn files
@@ -23,6 +28,49 @@ void Parameters::openReadsFiles()
          vector<string> readsCommandFileName;
 
          for (uint imate=0;imate<readFilesNames.size();imate++) {//open readIn files
+
+#ifdef _WIN32
+            // Windows: use temp files + system() instead of FIFO + vfork/exec
+            ostringstream sysCom;
+            sysCom << outFileTmp << "tmp.read" << imate+1;
+            readFilesInTmp.push_back(sysCom.str());
+            remove(readFilesInTmp.at(imate).c_str());
+
+            inOut->logMain << "\n   Input read files for mate "<< imate+1 <<" :\n";
+
+            // Build the command that concatenates all input files through readFilesCommand
+            string fullCommand;
+            for (uint32 ifile=0; ifile<readFilesN; ifile++) {
+                {//try to open the files - throw an error if a file cannot be opened
+                    ifstream rftry(readFilesNames[imate][ifile].c_str());
+                    if (!rftry.good()){
+                        exitWithError("EXITING: because of fatal INPUT file error: could not open read file: " + \
+                                       readFilesNames[imate][ifile] + \
+                                       "\nSOLUTION: check that this file exists and has read permision.\n", \
+                                       std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+                    };
+                    rftry.close();
+                };
+
+                if (ifile > 0) fullCommand += " & ";
+                fullCommand += readFilesCommandString + "   " + "\"" + readFilesNames[imate][ifile] + "\"";
+            };
+
+            // Redirect output to temp file
+            fullCommand += " > \"" + readFilesInTmp.at(imate) + "\"";
+            inOut->logMain << "\n   readsCommand: " << fullCommand << endl;
+
+            readFilesCommandPID[imate]=0;
+            int sysRet = system(fullCommand.c_str());
+            if (sysRet != 0) {
+                ostringstream errOut;
+                errOut << "EXITING: because of fatal EXECUTION error: readFilesCommand failed with exit code " << sysRet << "\n";
+                exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+            };
+
+            inOut->readIn[imate].open(readFilesInTmp.at(imate).c_str());
+#else
+            // POSIX: use FIFO + vfork/exec
             ostringstream sysCom;
             sysCom << outFileTmp <<"tmp.fifo.read"<<imate+1;
             readFilesInTmp.push_back(sysCom.str());
@@ -48,7 +96,7 @@ void Parameters::openReadsFiles()
             readsCommandFile << "exec > \""<<readFilesInTmp.at(imate)<<"\"\n" ; // redirect stdout to temp fifo files
 
             for (uint32 ifile=0; ifile<readFilesN; ifile++) {
-                
+
                 if ( system(("ls -lL " + readFilesNames[imate][ifile] + " > "+ outFileTmp+"/readFilesIn.info 2>&1").c_str()) !=0 )
                     warningMessage(" Could not ls " + readFilesNames[imate][ifile], std::cerr, inOut->logMain, *this);
 
@@ -99,6 +147,7 @@ void Parameters::openReadsFiles()
             };
 
             inOut->readIn[imate].open(readFilesInTmp.at(imate).c_str());
+#endif
         };
 
     };
@@ -107,5 +156,5 @@ void Parameters::openReadsFiles()
     if (readFilesTypeN==10) {//SAM file - skip header lines
         readSAMheader(readFilesCommandString, readFilesNames.at(0));
     };
- 
+
 };

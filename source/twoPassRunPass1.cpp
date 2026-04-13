@@ -66,12 +66,12 @@ void twoPassRunPass1(Parameters &P, Genome &genomeMain, Transcriptome *transcrip
     genomeMain.genomeOut.g = &genomeMain;
 
     //run mapping for Pass1
-    ReadAlignChunk *RAchunk1[P.runThreadN];
+    vector<ReadAlignChunk*> RAchunk1(P.runThreadN);
     for (int ii=0;ii<P1.runThreadN;ii++) {
         RAchunk1[ii]=new ReadAlignChunk(P1, genomeMain, transcriptomeMain, ii);
     };
-    mapThreadsSpawn(P1, RAchunk1);
-    outputSJ(RAchunk1,P1); //collapse and output junctions
+    mapThreadsSpawn(P1, RAchunk1.data());
+    outputSJ(RAchunk1.data(),P1); //collapse and output junctions
 //         for (int ii=0;ii<P1.runThreadN;ii++) {
 //             delete [] RAchunk[ii];
 //         };

@@ -1,19 +1,30 @@
-STAR 2.7.11b
+STAR 2.7.11b (Community Fork)
 ==========
 Spliced Transcripts Alignment to a Reference
 © Alexander Dobin, 2009-2024
 https://www.ncbi.nlm.nih.gov/pubmed/23104886
 
-AUTHOR/SUPPORT
-==============
+> **Fork Notice:** The upstream STAR repository (`alexdobin/STAR`) appears to be unmaintained as of 2025
+> (see [community discussion](https://www.reddit.com/r/bioinformatics/comments/1joyd0p/the_star_aligner_is_unmaintained_now/)).
+> This fork maintains full output compatibility with STAR 2.7.11b while adding **Windows native support**.
+> All changes are validated to produce byte-identical results to the original 2.7.11b release.
+> Development is Vibe Coding driven but output-correctness tested.
+
+ORIGINAL AUTHOR
+===============
 Alex Dobin, dobin@cshl.edu </br>
 https://github.com/alexdobin/STAR/issues </br>
 https://groups.google.com/d/forum/rna-star
 
+FORK MAINTAINER
+===============
+birdingman0626 </br>
+https://github.com/birdingman0626/STAR/issues
+
 HARDWARE/SOFTWARE REQUIREMENTS
 ==============================
   * x86-64 compatible processors
-  * 64 bit Linux or Mac OS X
+  * 64 bit Linux, Mac OS X, or Windows
 
 MANUAL
 ======
@@ -45,8 +56,8 @@ cd STAR-2.7.11b
 git clone https://github.com/alexdobin/STAR.git
 ```
 
-Compile under Linux
--------------------
+Compile under Linux (Make)
+--------------------------
 
 ```bash
 # Compile
@@ -56,6 +67,15 @@ make STAR
 For processors that do not support AVX extensions, specify the target SIMD architecture, e.g.
 ```
 make STAR CXXFLAGS_SIMD=sse
+```
+
+Compile under Linux (CMake - new)
+---------------------------------
+
+```bash
+cd STAR/source
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
 ```
 
 
@@ -74,6 +94,38 @@ $make STARforMacStatic CXX=/usr/local/Cellar/gcc/8.2.0/bin/g++-8
 # 4. Make it availible through the terminal
 $cp STAR /usr/local/bin
 ```
+
+Compile under Windows (MSVC)
+----------------------------
+
+STAR can be built natively on Windows using Microsoft Visual C++ and CMake.
+
+```bash
+# 1. Open "x64 Native Tools Command Prompt for VS"
+# 2. Navigate to STAR source directory
+cd STAR\source
+
+# 3. Configure and build with CMake (zlib is fetched automatically)
+cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
+cd build
+nmake
+
+# 4. The resulting STAR.exe is in the build directory
+STAR.exe --version
+```
+
+Build options:
+```bash
+# Build STARlong variant for long reads
+cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DSTAR_LONG_READS=ON
+
+# Disable AVX2 (for older processors)
+cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DSTAR_USE_AVX2=OFF
+```
+
+**Windows limitations:**
+  * Shared memory genome loading (`--genomeLoad LoadAndKeep/Remove`) is not supported; only `--genomeLoad NoSharedMemory` (the default) is available
+  * `--readFilesCommand` uses temporary files instead of FIFO pipes
 
 All platforms - non-standard gcc
 --------------------------------
@@ -107,6 +159,22 @@ This release was tested with the default parameters for human and mouse genomes.
 Mammal genomes require at least 16GB of RAM, ideally 32GB.
 Please contact the author for a list of recommended parameters for much larger or much smaller genomes.
 
+FORK CHANGES
+============
+
+### Windows Native Support (new)
+  * CMake build system (`source/CMakeLists.txt`) supporting MSVC, GCC, and Clang
+  * Windows compatibility layer (`source/wincompat.h`) providing POSIX API shims
+  * `FixedStreamBuf.h`: cross-platform replacement for `pubsetbuf` (no-op on MSVC)
+  * Automatic zlib download via CMake FetchContent when system zlib is unavailable
+  * All VLAs replaced with `std::vector` for C++ standard compliance
+  * Missing `#include <numeric>` added for MSVC compatibility
+  * Missing mutex initializations fixed (portability bug in upstream)
+  * OpenMP loop variables changed to signed types (MSVC OpenMP 2.0 compliance)
+
+### Bug Fixes (applicable to all platforms)
+  * Initialize all `pthread_mutex_t` members in `ThreadControl` (upstream only initialized 8 of 11)
+  * Fix `stitchAlignToTranscript` declaration/definition `const` mismatch
 
 FUNDING
 =======

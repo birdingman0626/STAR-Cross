@@ -7,8 +7,12 @@
 
 
 #include <string>
-#include <semaphore.h>
-#include <unistd.h>
+#ifdef _WIN32
+    #include "wincompat.h"
+#else
+    #include <semaphore.h>
+    #include <unistd.h>
+#endif
 #include <exception>
 #include <iostream>
 

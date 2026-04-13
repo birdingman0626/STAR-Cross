@@ -2,7 +2,11 @@
 #define THREAD_CONTROL_DEF
 
 #include "ReadAlignChunk.h"
-#include <pthread.h>
+#ifdef _WIN32
+    #include "wincompat.h"
+#else
+    #include <pthread.h>
+#endif
 
 #define MAX_chunkOutBAMposition 100000
 

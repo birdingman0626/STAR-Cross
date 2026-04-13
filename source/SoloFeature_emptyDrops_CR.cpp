@@ -2,6 +2,7 @@
 #include "serviceFuns.cpp"
 #include "SimpleGoodTuring/sgt.h"
 #include <math.h>
+#include <numeric>
 #include <unordered_set>
 #include <map>
 #include <random>

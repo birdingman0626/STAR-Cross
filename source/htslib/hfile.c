@@ -294,10 +294,12 @@ void hclose_abruptly(hFILE *fp)
  * File descriptor backend *
  ***************************/
 
+#ifndef _WIN32
 #include <sys/socket.h>
+#include <unistd.h>
+#endif
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h>
 
 #ifdef _WIN32
 #define HAVE_CLOSESOCKET
@@ -379,9 +381,14 @@ static const struct hFILE_backend fd_backend =
 
 static size_t blksize(int fd)
 {
+#ifdef _WIN32
+    (void)fd;
+    return 4096; // Windows doesn't have st_blksize; use reasonable default
+#else
     struct stat sbuf;
     if (fstat(fd, &sbuf) != 0) return 0;
     return sbuf.st_blksize;
+#endif
 }
 
 static hFILE *hopen_fd(const char *filename, const char *mode)

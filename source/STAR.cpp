@@ -1,3 +1,6 @@
+#ifdef _WIN32
+    #include "wincompat.h"
+#endif
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -156,9 +159,12 @@ int main(int argInN, char *argIn[])
         pthread_mutex_init(&g_threadChunks.mutexInRead, NULL);
         pthread_mutex_init(&g_threadChunks.mutexOutSAM, NULL);
         pthread_mutex_init(&g_threadChunks.mutexOutBAM1, NULL);
+        pthread_mutex_init(&g_threadChunks.mutexOutChimSAM, NULL);
+        pthread_mutex_init(&g_threadChunks.mutexOutChimJunction, NULL);
         pthread_mutex_init(&g_threadChunks.mutexOutUnmappedFastx, NULL);
         pthread_mutex_init(&g_threadChunks.mutexOutFilterBySJout, NULL);
         pthread_mutex_init(&g_threadChunks.mutexStats, NULL);
+        pthread_mutex_init(&g_threadChunks.mutexLogMain, NULL);
         pthread_mutex_init(&g_threadChunks.mutexBAMsortBins, NULL);
         pthread_mutex_init(&g_threadChunks.mutexError, NULL);
     };
@@ -191,20 +197,20 @@ int main(int argInN, char *argIn[])
     // P.inOut->logMain << "mlock value="<<mlockall(MCL_CURRENT|MCL_FUTURE) <<"\n"<<flush;
 
     // prepare chunks and spawn mapping threads
-    ReadAlignChunk *RAchunk[P.runThreadN];
+    vector<ReadAlignChunk*> RAchunk(P.runThreadN);
     for (int ii = 0; ii < P.runThreadN; ii++)
     {
         RAchunk[ii] = new ReadAlignChunk(P, genomeMain, transcriptomeMain, ii);
     };
 
     if (P.runRestart.type != 1)
-        mapThreadsSpawn(P, RAchunk);
+        mapThreadsSpawn(P, RAchunk.data());
 
     if (P.outFilterBySJoutStage == 1)
     { // completed stage 1, go to stage 2
         P.inOut->logMain << "Completed stage 1 mapping of outFilterBySJout mapping\n"
                          << flush;
-        outputSJ(RAchunk, P); // collapse novel junctions
+        outputSJ(RAchunk.data(), P); // collapse novel junctions
         P.readFilesIndex = -1;
 
         P.outFilterBySJoutStage = 2;
@@ -216,7 +222,7 @@ int main(int argInN, char *argIn[])
             };
         };
 
-        mapThreadsSpawn(P, RAchunk);
+        mapThreadsSpawn(P, RAchunk.data());
     };
 
     // close some BAM files
@@ -249,10 +255,10 @@ int main(int argInN, char *argIn[])
     // aggregate output junctions
     // collapse splice junctions from different threads/chunks, and output them
     if (P.runRestart.type != 1 && P.outSJ.yes)
-        outputSJ(RAchunk, P);
+        outputSJ(RAchunk.data(), P);
 
     // solo counts
-    Solo soloMain(RAchunk, P, *RAchunk[0]->chunkTr);
+    Solo soloMain(RAchunk.data(), P, *RAchunk[0]->chunkTr);
     soloMain.processAndOutput();
 
     if (P.quant.geCount.yes)
@@ -269,7 +275,7 @@ int main(int argInN, char *argIn[])
         RAchunk[0]->chunkFilesCat(P.inOut->outSAM, P.outFileTmp + "/Aligned.out.sam.chunk", g_threadChunks.chunkOutN);
     };
 
-    bamSortByCoordinate(P, RAchunk, *genomeMain.genomeOut.g, soloMain);
+    bamSortByCoordinate(P, RAchunk.data(), *genomeMain.genomeOut.g, soloMain);
 
     // wiggle output
     if (P.outWigFlags.yes)

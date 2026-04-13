@@ -1,5 +1,6 @@
 *.o
 Depend.list
+/data
 
 .project
 .kdev4/

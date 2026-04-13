@@ -1,12 +1,14 @@
 #include "ReadAlign.h"
 #include "SuffixArrayFuns.h"
 #include "ErrorWarning.h"
+#include <array>
 
 uint ReadAlign::maxMappableLength2strands(uint pieceStartIn, uint pieceLengthIn, uint iDir, uint iSA1, uint iSA2, uint& maxLbest, uint iFrag) {
     //returns number of mappings, maxMappedLength=mapped length
     uint Nrep=0, indStartEnd[2], maxL;
 
-    uint NrepAll[P.pGe.gSAsparseD], indStartEndAll[P.pGe.gSAsparseD][2], maxLall[P.pGe.gSAsparseD];
+    std::vector<uint> NrepAll(P.pGe.gSAsparseD), maxLall(P.pGe.gSAsparseD);
+    std::vector<std::array<uint,2>> indStartEndAll(P.pGe.gSAsparseD);
     maxLbest=0;
 
     bool dirR = iDir==0;
@@ -108,7 +110,7 @@ uint ReadAlign::maxMappableLength2strands(uint pieceStartIn, uint pieceLengthIn,
 
     for (uint iDist=0; iDist<min(pieceLengthIn,P.pGe.gSAsparseD); iDist++) {//cycle through different distances, store the ones with largest maxL
         if ( (maxLall[iDist]+iDist) == maxLbest) {
-            storeAligns(iDir, (dirR ? pieceStartIn+iDist : pieceStartIn-iDist), NrepAll[iDist], maxLall[iDist], indStartEndAll[iDist], iFrag);
+            storeAligns(iDir, (dirR ? pieceStartIn+iDist : pieceStartIn-iDist), NrepAll[iDist], maxLall[iDist], indStartEndAll[iDist].data(), iFrag);
         };
     };
     return Nrep;
