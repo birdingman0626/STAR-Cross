@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+            build_cmd: |
+              cd source
+              cmake -B build -DCMAKE_BUILD_TYPE=Release
+              cmake --build build -j$(nproc)
+              cp build/STAR STAR-linux-x86_64
+            artifact: source/STAR-linux-x86_64
+          - os: windows-latest
+            name: Windows
+            build_cmd: |
+              cd source
+              cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
+              cd build
+              nmake
+              copy STAR.exe ..\STAR-windows-x86_64.exe
+            artifact: source/STAR-windows-x86_64.exe
+          - os: macos-latest
+            name: macOS
+            build_cmd: |
+              brew install gcc
+              cd source
+              cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-14
+              cmake --build build -j$(sysctl -n hw.ncpu)
+              cp build/STAR STAR-macos-x86_64
+            artifact: source/STAR-macos-x86_64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build
+        run: ${{ matrix.build_cmd }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: STAR-${{ matrix.name }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            STAR-linux-x86_64
+            STAR-windows-x86_64.exe
+            STAR-macos-x86_64

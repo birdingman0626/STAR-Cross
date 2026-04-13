@@ -21,7 +21,7 @@ if(NOT ZLIB_FOUND)
     FetchContent_Declare(
         zlib
         GIT_REPOSITORY https://github.com/madler/zlib.git
-        GIT_TAG v1.3.1
+        GIT_TAG v1.3.2
         GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(zlib)
@@ -344,7 +344,7 @@ if(MSVC)
 
     # General MSVC flags
     target_compile_options(STAR PRIVATE
-        /W4 /MP /EHsc /bigobj /Wno-register
+        /W4 /MP /EHsc /bigobj
         /wd4244 /wd4267 /wd4100 /wd4389 /wd4018 /wd4456 /wd4457  # suppress noisy warnings in upstream code
     )
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")

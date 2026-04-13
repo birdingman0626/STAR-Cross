@@ -44,7 +44,7 @@
 #include <map>
 #include <vector>
 #include <cmath>
-using namespace std;
+// Avoid namespace pollution from header; use explicit std:: qualifications
 
 // Simple Good-Turing class.
 // To use the class, create an SGT object and data to it by calling add() with
@@ -80,19 +80,15 @@ template <class ObsType> class SGT
     
     // Internal representation, as a map from observations to frequencies.
     // After calling analyse(), it provides the estimates as well.
-    typedef map<ObsType, Data, less<ObsType> > DataMap;
+    typedef std::map<ObsType, Data, std::less<ObsType> > DataMap;
 
     // Minimum number of data points for a valid analysis
-#ifdef _WIN32
-#define MinInput (5)
-#else
-    static const unsigned int MinInput = 5;
-#endif
+    static constexpr unsigned int MinInput = 5;
     
     template <class T> double sq(T d) { return ((double) d)*d; }
 
     double smoothed(ObsType i, double intercept, double slope)
-    { return (exp(intercept + slope * log((double) i))); }
+    { return (std::exp(intercept + slope * std::log((double) i))); }
     
     public:
     // Iterator type for iterate();
@@ -111,7 +107,7 @@ template <class ObsType> class SGT
     {
         typename DataMap::iterator i = data.find(observation);
         if (i == data.end())
-            data.insert(make_pair(observation, Data(frequency)));
+            data.insert(std::make_pair(observation, Data(frequency)));
         else
             (*i).second.freq += frequency;
 
@@ -144,9 +140,9 @@ template <class ObsType> class SGT
         PZero = (row1 == data.end()) ? 0 : (*row1).second.freq / (double) bigN;
 
         // Set up internal arrays
-        vector<double> log_obs(rows);
-        vector<double> log_Z(rows);
-        vector<double> rStar(rows);
+        std::vector<double> log_obs(rows);
+        std::vector<double> log_Z(rows);
+        std::vector<double> rStar(rows);
 
         double XYs = 0, Xsquares = 0, meanX = 0, meanY = 0;
         ObsType prevObs = 0;
@@ -161,8 +157,8 @@ template <class ObsType> class SGT
                 ? (double) (2 * obs - prevObs) : (double) (*j).first;
 
             double Z   = 2 * d.freq / (k - prevObs);
-            log_obs[r] = log((double) obs);
-            log_Z[r]   = log(Z);
+            log_obs[r] = std::log((double) obs);
+            log_Z[r]   = std::log(Z);
 
             meanX += log_obs[r];
             meanY += log_Z[r];
@@ -205,7 +201,7 @@ template <class ObsType> class SGT
                 unsigned int freq   = d.freq;
 
                 double x = obs1 * next_n / (double) freq;
-                if (fabs(x - y) <= 1.96 * sqrt(sq(obs1) * next_n
+                if (std::fabs(x - y) <= 1.96 * std::sqrt(sq(obs1) * next_n
                         / (sq(freq)) * (1 + next_n / (double) freq)))
                 {
                     indiffValsSeen = true;
@@ -261,8 +257,8 @@ template <class ObsType> class SGT
     // Get start and end iterators over the data map.
     // You do not derefence these iterators directly, but instead used the
     // access functions, obs, freq and estimate.
-    pair<iterator, iterator> iterate() const
-    { return make_pair(data.begin(), data.end()); }
+    std::pair<iterator, iterator> iterate() const
+    { return std::make_pair(data.begin(), data.end()); }
     
     // Get the observation from an iterator.
     ObsType obs(iterator i) const { return (*i).first; }
