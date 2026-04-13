@@ -309,6 +309,19 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
 
     ///////////////////////////////////////////////////////////////////////////////////
     int dScore=0;
+
+    // Early rejection: skip expensive Transcript copy if the alignment will obviously fail
+    // Inspired by upstream PR #773 (alexey0308)
+    if (trA.nExons>0) {
+        // Check if read gap or genome gap is obviously too large
+        uint rEnd = trA.exons[trA.nExons-1][EX_R] + trA.exons[trA.nExons-1][EX_L];
+        uint gEnd = trA.exons[trA.nExons-1][EX_G] + trA.exons[trA.nExons-1][EX_L];
+        if (WA[iA][WA_rStart] < rEnd && WA[iA][WA_iFrag] == trA.exons[trA.nExons-1][EX_iFrag]) {
+            // Read overlap within same fragment - skip (can't stitch backwards)
+            return;
+        }
+    }
+
     Transcript trAi=trA; //trA copy with this align included, to be used in the 1st recursive call of StitchAlign
     if (trA.nExons>0) {//stitch, a transcript has already been originated
 

@@ -79,17 +79,9 @@ uint ReadAlign::maxMappableLength2strands(uint pieceStartIn, uint pieceLengthIn,
             indStartEnd[1]=iSA2;
             Nrep=indStartEnd[1]-indStartEnd[0]+1;
             maxL=Lind;
-        } else if (iSA1==iSA2 && iSA1noN && iSA2good) {//unique align already, just find maxL
-            if ((iSA1 & mapGen.SAiMarkNmaskC)!=0) {
-                ostringstream errOut;
-                errOut  << "BUG: in ReadAlign::maxMappableLength2strands";
-                exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
-            };
-            indStartEnd[0]=indStartEnd[1]=iSA1;
-            Nrep=1;
-            bool comparRes;
-            maxL=compareSeqToGenome(mapGen, Read1, pieceStart, pieceLength, Lind, iSA1, dirR, comparRes);
         } else {//need SA search, pieceLength>maxL
+            // Note: removed unreliable shortcut for iSA1==iSA2 case that could cause
+            // segfault on certain genomes (upstream PR #535, Nigel Delaney)
             if (iSA2good && iSA1noN) {
                 maxL = Lind; //Lind bases were already matched
             } else {

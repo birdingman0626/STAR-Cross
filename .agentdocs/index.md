@@ -2,6 +2,7 @@
 `workflow/260412-htslib-upgrade.md` - HTSlib 1.3 → 1.21 upgrade plan (deferred - current version works correctly)
 `workflow/260412-release-validation-test.md` - Release validation test plan (reference)
 `workflow/260413-upstream-pr-cherry-picks.md` - Upstream PR cherry-pick plan: 6 PRs worth adopting
+`workflow/260413-algorithmic-optimizations.md` - Algorithm-level optimizations: O(2^n)→DP, O(n²)→O(nL), cache prefetch
 
 ## Completed
 `workflow/done/260412-windows-port.md` - Windows MSVC native build support
