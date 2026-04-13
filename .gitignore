@@ -1,6 +1,7 @@
 *.o
 Depend.list
 /data
+/toolchain/
 
 .project
 .kdev4/
