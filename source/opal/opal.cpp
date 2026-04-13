@@ -35,12 +35,16 @@ namespace std { using ::isnan; }
 #endif
 
 // Use native AVX2 intrinsics on compilers that support them (ICX, GCC, Clang, clang-cl)
-// Fall back to SIMDe only on pure MSVC (cl.exe) which may not have all intrinsics
-#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER) || defined(__clang__) || (defined(__GNUC__) && !defined(__clang__))
+// Use native AVX2 intrinsics on x86_64 with GCC/Clang/ICX.
+// On ARM/aarch64 (e.g. Apple Silicon), immintrin.h does not exist — use SIMDe.
+// Pure MSVC (cl.exe) on x86 also uses SIMDe.
+#if (defined(__x86_64__) || defined(_M_X64)) && \
+    (defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER) || \
+     defined(__clang__) || (defined(__GNUC__) && !defined(__clang__)))
 #include <immintrin.h>
 #else
 #define SIMDE_ENABLE_NATIVE_ALIASES
-#include <simde_avx2.h> // AVX2 and lower via SIMDe
+#include <simde_avx2.h> // SIMDe: AVX2 emulation for ARM / MSVC cl.exe
 #endif
 
 #include "opal.h"
