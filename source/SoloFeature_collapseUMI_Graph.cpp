@@ -133,43 +133,66 @@ void collapseUMIwith1MMlowHalf(uint32 *umiArr, uint32 umiArrayStride, uint32 umi
     };
 };
 
-void graphDepthFirstSearch(uint32 n, vector<vector<uint32>> &nodeEdges, vector <uint32> &nodeColor) 
-{
-    for (const auto &nn : nodeEdges[n]) {
-        if (nodeColor[nn]==(uint32)-1) {//node not visited
-            nodeColor[nn]=nodeColor[n];
-            graphDepthFirstSearch(nn,nodeEdges,nodeColor);
-        };
-    };
-};
+// Union-Find with path compression and union by rank.
+// Replaces recursive DFS which could stack-overflow on long chains.
+static uint32 ufFind(vector<uint32> &parent, uint32 x) {
+    while (parent[x] != x) {
+        parent[x] = parent[parent[x]]; // path compression (halving)
+        x = parent[x];
+    }
+    return x;
+}
 
-uint32 graphNumberOfConnectedComponents(uint32 N, vector<array<uint32,2>> V, vector<uint32> &nodeColor) 
-{//find number of connected components
-    //N=number of nodes
-    //V=edges, list of connected nodes, each pair of nodes listed once
-    //simple recursive DFS
-   
-    nodeColor.resize(N,(uint32)-1); //new color (connected component) for each node (each original color)
+static void ufUnite(vector<uint32> &parent, vector<uint32> &rank, uint32 a, uint32 b) {
+    a = ufFind(parent, a);
+    b = ufFind(parent, b);
+    if (a == b) return;
+    if (rank[a] < rank[b]) swap(a, b);
+    parent[b] = a;
+    if (rank[a] == rank[b]) rank[a]++;
+}
 
-    if (V.size()==0)
+uint32 graphNumberOfConnectedComponents(uint32 N, vector<array<uint32,2>> V, vector<uint32> &nodeColor)
+{//find number of connected components using Union-Find (no recursion, no stack overflow risk)
+    nodeColor.resize(N, (uint32)-1);
+
+    if (V.size() == 0)
         return N;
 
-    vector<vector<uint32>> nodeEdges (N);
-    for (uint32 ii=0; ii<V.size(); ii++) {
-        nodeEdges[V[ii][0]].push_back(V[ii][1]);
-        nodeEdges[V[ii][1]].push_back(V[ii][0]);
-    };
-    
-    uint32 nConnComp=0;
-    for (uint32 ii=0; ii<N; ii++) {
-        if (nodeEdges[ii].size()==0) {//this node is not connected, no need to check. Save time because this happens often
-            ++nConnComp;
-        } else if (nodeColor[ii]==(uint32)-1) {//node not visited
-            ++nConnComp;
-            nodeColor[ii]=ii;
-            graphDepthFirstSearch(ii,nodeEdges,nodeColor);
-        };
-    };
+    // Union-Find
+    vector<uint32> parent(N), ufRank(N, 0);
+    for (uint32 i = 0; i < N; i++) parent[i] = i;
+
+    vector<bool> hasEdge(N, false);
+    for (uint32 ii = 0; ii < V.size(); ii++) {
+        ufUnite(parent, ufRank, V[ii][0], V[ii][1]);
+        hasEdge[V[ii][0]] = true;
+        hasEdge[V[ii][1]] = true;
+    }
+
+    // Assign component colors (root node index = color)
+    uint32 nConnComp = 0;
+    for (uint32 ii = 0; ii < N; ii++) {
+        if (!hasEdge[ii]) {
+            ++nConnComp; // isolated node
+        } else {
+            uint32 root = ufFind(parent, ii);
+            nodeColor[ii] = root;
+        }
+    }
+
+    // Count distinct roots among connected nodes
+    vector<bool> rootSeen(N, false);
+    for (uint32 ii = 0; ii < N; ii++) {
+        if (hasEdge[ii]) {
+            uint32 root = ufFind(parent, ii);
+            if (!rootSeen[root]) {
+                rootSeen[root] = true;
+                ++nConnComp;
+            }
+        }
+    }
+
     return nConnComp;
 };
 

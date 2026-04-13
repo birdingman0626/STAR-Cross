@@ -13,6 +13,17 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
 
     if (iA>=nA && tR2==0) return; //no aligns in the transcript
 
+    // Branch-and-bound pruning: if current score + max possible remaining score
+    // can't beat the best transcript, prune this branch (Problem 1 Phase A)
+    if (*nWinTr > 0 && iA < nA) {
+        // Upper bound: sum all remaining alignment lengths as matches
+        int maxRemaining = 0;
+        for (uint ii = iA; ii < nA; ii++)
+            maxRemaining += (int)WA[ii][WA_Length] * scoreMatch;
+        if (Score + maxRemaining < wTr[0]->maxScore - (int)P.outFilterMultimapScoreRange)
+            return; // can't beat current best
+    }
+
     if (iA>=nA) {//no more aligns to add, finalize the transcript
 
         //extend first

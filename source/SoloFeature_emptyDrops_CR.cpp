@@ -179,17 +179,26 @@ void SoloFeature::emptyDrops_CR()
     typedef struct{uint32 index; double p; double padj;} IndPPadj;
     vector<IndPPadj> pValues(obsLogProb.size());
     {
+        // Pre-sort simulation values per UMI count for O(log n) binary search
+        // instead of O(nSim) linear scan per candidate (Problem 6 optimization)
+        unordered_map<uint32, vector<double>> simByCount;
+        for (uint32 icand=0; icand<obsLogProb.size(); icand++) {
+            auto count1=indCount[icand+iCandFirst].count;
+            if (simByCount.find(count1) == simByCount.end()) {
+                simByCount[count1].reserve(simLogProb.size());
+                for (auto &sp: simLogProb)
+                    simByCount[count1].push_back(sp[count1]);
+                sort(simByCount[count1].begin(), simByCount[count1].end());
+            }
+        }
+
         for (uint32 icand=0; icand<obsLogProb.size(); icand++) {
             pValues[icand].index=indCount[icand+iCandFirst].index;
             auto count1=indCount[icand+iCandFirst].count;
-            
-            //auto funSumLess = [&] (uint32 n, vector<double> sp) { return n + (sp[count1]<obsLogProb[icand]); };
-            //uint32 nLowerP = std::accumulate<uint32>(simLogProb.begin(), simLogProb.end(), 0, funSumLess);
-            uint32 nLowerP=0;
-            //for (uint64 isim=0; isim<simLogProb.size(); isim++) {
-            for (auto &sp: simLogProb) {
-                nLowerP += ( sp[count1]<obsLogProb[icand] );
-            };
+
+            // Binary search: count simulations with lower log-probability
+            auto &sorted = simByCount[count1];
+            uint32 nLowerP = (uint32)(lower_bound(sorted.begin(), sorted.end(), obsLogProb[icand]) - sorted.begin());
 
             pValues[icand].p=double(1+nLowerP)/(1+simLogProb.size());
         };
