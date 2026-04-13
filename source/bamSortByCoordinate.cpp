@@ -92,6 +92,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
                     bamBinNames[ibin] = (char*) bamBinNamesV.at(ibin).c_str();
             };
             bam_cat(bamBinNamesV.size(), bamBinNames, 0, P.outBAMfileCoordName.c_str());
+            delete[] bamBinNames; // fix: memory leak
         };
     };    
 };

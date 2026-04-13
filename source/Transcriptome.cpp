@@ -138,6 +138,8 @@ Transcriptome::Transcriptome (Parameters &Pin) : P(Pin){
             geneFull.g[ii]   = gF[4*ii+3];
         };
 
+        delete[] gF; // fix: memory leak
+
         //calculate eMax
         geneFull.eMax[0]=geneFull.e[0];
         for (uint iex=1;iex<nGe;iex++) {

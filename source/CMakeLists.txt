@@ -10,6 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ---------- Options ----------
 option(STAR_LONG_READS "Build STARlong variant for long reads" OFF)
 option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" ON)
+option(STAR_FAST_MODE "Aggressive optimizations (may change alignment output)" OFF)
 option(STAR_ASAN "Enable AddressSanitizer" OFF)
 
 # ---------- Find or build zlib ----------
@@ -324,6 +325,12 @@ target_compile_definitions(STAR PRIVATE
 
 if(STAR_LONG_READS)
     target_compile_definitions(STAR PRIVATE COMPILE_FOR_LONG_READS)
+endif()
+
+if(STAR_FAST_MODE)
+    target_compile_definitions(STAR PRIVATE STAR_FAST_MODE)
+    set_target_properties(STAR PROPERTIES OUTPUT_NAME "STARfast")
+    message(STATUS "  Fast mode: ON -> binary: STARfast")
 endif()
 
 # ---------- Platform-specific settings ----------
