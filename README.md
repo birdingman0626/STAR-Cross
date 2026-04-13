@@ -198,6 +198,9 @@ FORK CHANGES
 ### Evaluated and Rejected
   * **CUDA GPU acceleration**: Tested on RTX PRO 6000 Blackwell (96GB VRAM). STAR's bottleneck is memory-latent suffix array search, not parallelizable compute. GPU overhead exceeded the gains.
   * **Intel oneAPI/MKL/IPP**: STAR does no linear algebra or signal processing. The remaining 1.4x gap vs Linux is from MSVC's OpenMP 2.0 and code generation, not addressable by Intel libraries.
+  * **HTSlib upgrade (1.3 → 1.21)**: Evaluated and deferred. Current 1.3 has minimal security surface (no CRAM, no network I/O, trusted input only). Upgrade is high-risk (8 years of API changes, new dependencies) with no functional benefit for current use cases.
+  * **Branch-and-bound pruning in alignment stitching** (upstream PR #773/#791 Phase A): Prototype changed transcript scoring order, producing different alignment results (unique mapping count shifted from 843K to 845K on 1M reads). Reverted to preserve output compatibility with upstream STAR.
+  * **stitchWindowAligns early rejection** (upstream PR #773 partial): Same issue — skipping Transcript copies before scoring changes which alignments win in multi-mapping resolution. Reverted for output compatibility.
 
 FUNDING
 =======
