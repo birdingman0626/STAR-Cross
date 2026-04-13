@@ -1,6 +1,6 @@
 # Unit Test Strategy Plan
 
-## Status: Pending
+## Status: Phases 1 & 2 (partial) complete
 Last updated: 2026-04-13
 
 ## Recommendation
@@ -40,36 +40,39 @@ Start with code that is:
 - numerically or combinatorially tricky
 - previously involved in bugs or optimization work
 
-## Phase 1: Establish Test Harness
+## Phase 1: Establish Test Harness ✓ DONE
 
-- [ ] Add a lightweight C++ test target under CMake, driven by `ctest`
-- [ ] Keep the initial harness dependency-free or minimal; avoid large external frameworks unless the maintenance cost is clearly justified
-- [ ] Add CI steps that run unit/component tests on Linux first, then expand to other platforms
+- [x] Add a lightweight C++ test target under CMake, driven by `ctest`
+  - `test/CMakeLists.txt` using doctest v2.4.11 (FetchContent, single-header)
+  - `STAR_BUILD_TESTS` option (ON by default)
+  - `doctest_discover_tests` registers each TEST_CASE as a separate CTest test
+- [x] Keep the initial harness dependency-free or minimal — doctest is a single header, zero external system deps
+- [x] Add CI steps that run unit/component tests on all three platforms (Linux gcc, clang, macOS, Windows MSVC)
 
-## Phase 2: First Wave of High-Value Tests
+## Phase 2: First Wave of High-Value Tests (partial)
 
 ### Pure helper / utility tests
 
-- [ ] `PackedArray`
-- [ ] `binarySearch2`
+- [x] `PackedArray` — 8 tests: bit-width round-trips (1/5/7/8/16/21-bit), adjacency corruption, pointArray, idempotent deallocate
+- [x] `binarySearch2` — 12 tests: empty, single-element, out-of-range, found/not-found, duplicates, large array
 - [ ] `blocksOverlap`
 - [ ] Windows portability helpers in `wincompat.h` where behavior differs from POSIX assumptions
 
 ### STARsolo algorithm/component tests
 
-- [ ] `SoloFeature_collapseUMI_Graph.cpp`
-  - connected components
-  - directional collapse edge cases
-  - long-chain non-recursive behavior
+- [x] `SoloFeature_collapseUMI_Graph.cpp` — connected components tested via extracted `UMIgraph.h`
+  - [x] connected components: N=0, isolated, single edge, chain, two pairs, mixed, star topology
+  - [x] long-chain non-recursive behavior: 10k-node chain
+  - [ ] directional collapse edge cases (`process1MMpair`)
 - [ ] `SoloFeature_emptyDrops_CR.cpp`
-  - p-value counting equivalence
-  - streamed-checkpoint equivalence
-  - no-candidate / low-count edge cases
+  - [ ] p-value counting equivalence
+  - [ ] streamed-checkpoint equivalence
+  - [ ] no-candidate / low-count edge cases
 - [ ] barcode / UMI parsing and filtering logic
 
 ### Regression tests for known bug-prone areas
 
-- [ ] `winBin` / window bin bookkeeping
+- [x] `FastResetVector` / winBin bookkeeping — 9 tests: resize/set/reset/dedup-tracking
 - [ ] Windows-specific read pipeline behavior
 - [ ] file/path handling and temp-file fallbacks
 
