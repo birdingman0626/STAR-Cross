@@ -18,11 +18,8 @@ ReadAlign::ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, in
     if (P.pGe.gType==101) {//SuperTranscriptome
         splGraph = new SpliceGraph(*mapGen.superTr, P, this);
     } else {//standard map algorithm:
-        winBin = new uintWinBin* [2];
-        winBin[0] = new uintWinBin [P.winBinN];
-        winBin[1] = new uintWinBin [P.winBinN];
-        memset(winBin[0],255,sizeof(winBin[0][0])*P.winBinN);
-        memset(winBin[1],255,sizeof(winBin[0][0])*P.winBinN);
+        winBin[0].resize(P.winBinN, uintWinBinMax);
+        winBin[1].resize(P.winBinN, uintWinBinMax);
         //split
         splitR=new uint*[3];
         splitR[0]=new uint[P.maxNsplit]; splitR[1]=new uint[P.maxNsplit]; splitR[2]=new uint[P.maxNsplit];

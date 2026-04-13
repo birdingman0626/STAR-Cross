@@ -1214,6 +1214,7 @@ static std::pair<int, int> calculateBandBorders(int k, int mode, int Q, int T, i
         }
     } else {
         assert(false);  // Invalid alignment mode.
+        return std::make_pair(-1, -1); // unreachable, satisfies compiler
     }
 }
 

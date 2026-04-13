@@ -365,8 +365,7 @@ void Genome::genomeLoad(){//allocate and load Genome
     #endif
 
     if (pGe.gLoad=="LoadAndExit") {
-	uint shmSum=0;
-	for (uint ii=0;ii<shmSize;ii++) shmSum+=shmStart[ii];
+	for (uint ii=0;ii<shmSize;ii++) (void)shmStart[ii]; // 验证共享内存可访问
         P.inOut->logMain << "pGe.gLoad=LoadAndExit: completed, the genome is loaded and kept in RAM, EXITING now.\n"<<flush;
         return;
     };

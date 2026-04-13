@@ -159,14 +159,18 @@ cmake -B build-icx -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=icx 
 cmake --build build-icx
 ```
 
-**Benchmarked performance** (434M reads, STARsolo CB_UMI_Simple, cynomolgus macaque genome):
+**Benchmarked performance** (STARsolo CB_UMI_Simple, cynomolgus macaque genome, Intel Core Ultra 5 235, 96GB DDR5, 12 threads, Windows 11):
 
-| Compiler | Speed | Hardware | OS |
-|----------|:-----:|----------|-----|
-| MSVC `/O2 /GL /LTCG` | 518 M/hr | Intel Core Ultra 5 235, 96GB DDR5, 12 threads | Windows 11 |
-| Intel ICX `/O2` | 500 M/hr | Intel Core Ultra 5 235, 96GB DDR5, 12 threads | Windows 11 |
+| Build | Speed (434M reads) | Speed (1M reads) | Notes |
+|-------|:---:|:---:|-------|
+| Upstream STAR 2.7.11b (Linux GCC) | — | 277 M/hr | Baseline |
+| STAR 2.7.11c MSVC (pre-optimization) | 518 M/hr | 277 M/hr | Windows perf fixes only |
+| **STAR 2.7.11c MSVC (current)** | — | **300 M/hr (+8%)** | + FastResetVector, safe early rejection |
+| Intel ICX `/O2` | 500 M/hr | — | No measurable benefit over MSVC |
 
-ICX's OpenMP 5.1 provides no measurable benefit because STAR's bottleneck is memory-latent suffix array binary search, not vectorizable compute. Both compilers produce identical alignment results.
+The 8% mapping speed gain comes from two output-identical algorithmic optimizations:
+  * **FastResetVector**: O(modified) reset of the 200KB `winBin` array instead of O(N) memset per read
+  * **Safe early rejection**: skip expensive `Transcript` copy in `stitchWindowAligns` when `stitchAlignToTranscript` would provably reject the alignment (full read/genome overlap or max exons exceeded)
 
 **Output compatibility** (validated on 434M-read STARsolo dataset):
 
@@ -227,12 +231,16 @@ FORK CHANGES
   * Missing mutex initializations fixed (portability bug in upstream)
   * OpenMP loop variables changed to signed types (MSVC OpenMP 2.0 compliance)
 
-### Performance Optimizations (Windows)
-  * MSVC compiler: `/O2 /Ob2 /Oi /GL` with `/LTCG` link-time optimization
-  * SRW locks replacing CRITICAL_SECTION (faster mutex)
-  * 4MB ifstream read buffer for FASTQ input
-  * Zero-allocation read header parsing (direct `char*` instead of `istringstream`)
-  * Result: **2.5x speedup** (206 → 518 M reads/hr)
+### Performance Optimizations
+  * MSVC compiler: `/O2 /Ob2 /Oi /GL` with `/LTCG` link-time optimization (Windows)
+  * SRW locks replacing CRITICAL_SECTION (faster mutex, Windows)
+  * 4MB ifstream read buffer for FASTQ input (Windows)
+  * Zero-allocation read header parsing (direct `char*` instead of `istringstream`, Windows)
+  * FastResetVector for `winBin` array: O(modified) reset instead of O(200K) memset per read (all platforms)
+  * Safe early rejection in `stitchWindowAligns`: skip Transcript copy when alignment provably fails (all platforms)
+  * Union-Find for UMI connected components: replaces recursive DFS, eliminates stack overflow risk (all platforms)
+  * EmptyDrops binary search: O(cand × log(nSim)) p-value counting instead of O(cand × nSim) (all platforms)
+  * EmptyDrops on-demand memory: O(nSim × nUniqueCounts) instead of O(nSim × maxCount) (all platforms)
 
 ### Bug Fixes (applicable to all platforms)
   * Initialize all `pthread_mutex_t` members in `ThreadControl` (upstream only initialized 8 of 11)
@@ -252,8 +260,7 @@ FORK CHANGES
 ### Evaluated and Rejected
   * **CUDA GPU acceleration**: Tested on RTX PRO 6000 Blackwell (96GB VRAM). STAR's bottleneck is memory-latent suffix array search, not parallelizable compute. GPU overhead exceeded the gains.
   * **Intel oneAPI/MKL/IPP**: STAR does no linear algebra or signal processing. The remaining 1.4x gap vs Linux is from MSVC's OpenMP 2.0 and code generation, not addressable by Intel libraries.
-
-  * **Branch-and-bound / early rejection in alignment stitching**: Changed transcript scoring order, producing different alignment results. Reverted to preserve output compatibility with upstream STAR.
+  * **Branch-and-bound pruning in alignment stitching**: Upper bound doesn't account for splice junction score bonuses, causing incorrect branch pruning that changed alignment results (~3% unique mapping shift). No measurable speed benefit over the safe early rejection approach.
 
 FUNDING
 =======

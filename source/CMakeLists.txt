@@ -32,7 +32,6 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
 else()
     option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" ON)
 endif()
-option(STAR_FAST_MODE "Aggressive optimizations (may change alignment output)" OFF)
 option(STAR_ASAN "Enable AddressSanitizer" OFF)
 
 # ---------- Find or build zlib ----------
@@ -350,12 +349,6 @@ target_compile_definitions(STAR PRIVATE
 
 if(STAR_LONG_READS)
     target_compile_definitions(STAR PRIVATE COMPILE_FOR_LONG_READS)
-endif()
-
-if(STAR_FAST_MODE)
-    target_compile_definitions(STAR PRIVATE STAR_FAST_MODE)
-    set_target_properties(STAR PROPERTIES OUTPUT_NAME "STARfast")
-    message(STATUS "  Fast mode: ON -> binary: STARfast")
 endif()
 
 # ---------- Platform-specific settings ----------

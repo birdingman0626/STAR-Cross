@@ -11,9 +11,9 @@
 
 void ReadAlign::stitchPieces(char **R, uint Lread) {
 
-    //zero-out winBin
-    memset(winBin[0],255,sizeof(winBin[0][0])*P.winBinN);
-    memset(winBin[1],255,sizeof(winBin[0][0])*P.winBinN);
+    //reset winBin — O(modified) instead of O(N) memset
+    winBin[0].reset();
+    winBin[1].reset();
 
 
 //     for (uint iWin=0;iWin<nWall;iWin++) {//zero out winBin
@@ -99,14 +99,14 @@ void ReadAlign::stitchPieces(char **R, uint Lread) {
             uint wb=WC[iWin][WC_gStart];
             for (uint ii=0; ii<P.winFlankNbins && wb>0 && mapGen.chrBin[(wb-1) >> P.winBinChrNbits]==WC[iWin][WC_Chr];ii++) {
                 wb--;
-                winBin[ WC[iWin][WC_Str] ][ wb ]=(uintWinBin) iWin;
+                winBin[ WC[iWin][WC_Str] ].set(wb, (uintWinBin) iWin);
             };
             WC[iWin][WC_gStart] = wb;
 
             wb=WC[iWin][WC_gEnd];
             for (uint ii=0; ii<P.winFlankNbins && wb+1<P.winBinN && mapGen.chrBin[(wb+1) >> P.winBinChrNbits]==WC[iWin][WC_Chr];ii++) {
                 wb++;
-                winBin[ WC[iWin][WC_Str] ][ wb ]=(uintWinBin) iWin;
+                winBin[ WC[iWin][WC_Str] ].set(wb, (uintWinBin) iWin);
             };
             WC[iWin][WC_gEnd] = wb;
 

@@ -1,10 +1,13 @@
 ## Reference
 `workflow/260412-release-validation-test.md` - Release validation: smoke test (1M reads) + full test (434M reads) procedures
 
+## Active Work
+`workflow/260413-algorithmic-optimizations-retry.md` - Algorithmic optimizations: FastResetVector, safe early rejection, EmptyDrops, Union-Find
+
 ## Plans (Approved, Awaiting Execution)
-`workflow/260413-two-branch-strategy.md` - Two-variant strategy: STAR (compatible) + STARfast (all optimizations) via compile flag
-`workflow/260413-starsolo-qc-report.md` - STARsolo QC report generator: HTML report from Solo.out (no BAM needed)
 `workflow/260413-memory-management-fixes.md` - Memory management: 17 leaks, 5 missing destructors, stream factory refactor
+`workflow/done/260413-two-branch-strategy.md` - Two-variant strategy: STAR (compatible) + STARfast (all optimizations) via compile flag
+`workflow/done/260413-starsolo-qc-report.md` - STARsolo QC report generator: HTML report from Solo.out (no BAM needed)
 `workflow/done/260413-dependency-upgrades.md` - Dependency upgrades: Opal→Parasail, SimpleGoodTuring cleanup (zlib already at 1.3.2)
 `workflow/done/260413-intel-oneapi-integration.md` - Intel ICX compiler for OpenMP 5.x (target: 518→600+ M/hr)
 `workflow/done/260413-devops-improvements.md` - DevOps: release automation, CI testing, Docker, CodeQL, pre-commit hooks
