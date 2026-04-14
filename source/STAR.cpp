@@ -300,12 +300,13 @@ int main(int argInN, char *argIn[])
 
     P.inOut->logMain << "ALL DONE!\n"
                      << flush;
+
+    P.closeReadsFiles(); // kill readFilesCommand child processes before removing temp files
+
     if (P.outTmpKeep == "None")
     {
         sysRemoveDir(P.outFileTmp);
     };
-
-    P.closeReadsFiles(); // this will kill the readFilesCommand processes if necessary
     // genomeMain.~Genome(); //need explicit call because of the 'delete P.inOut' below, which will destroy P.inOut->logStdOut
     if (genomeMain.sharedMemory != NULL)
     { // need explicit call because this destructor will write to files which are deleted by 'delete P.inOut' below

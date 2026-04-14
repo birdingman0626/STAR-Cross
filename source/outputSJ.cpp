@@ -121,8 +121,8 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
     };
 
     //output junctions
-    P.sjAll[0].reserve(allSJ.N);
-    P.sjAll[1].reserve(allSJ.N);
+    // sjAll populated lazily by SoloFeature_processRecords.cpp only when SJ feature is requested
+    // Avoids reserving allSJ.N entries for non-SJ STARsolo runs
 
     if (P.outFilterBySJoutStage!=1) {//output file
         ofstream outSJfileStream((P.outFileNamePrefix+"SJ.out.tab").c_str());
@@ -132,8 +132,6 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
                 oneSJ.junctionPointer(allSJ.data,ii);
                 oneSJ.outputStream(outSJfileStream);//write to file
                 outSJtmpStream << *oneSJ.start <<'\t'<< *oneSJ.gap <<'\n';
-                P.sjAll[0].push_back(*oneSJ.start);
-                P.sjAll[1].push_back(*oneSJ.gap);
             };
         };
         outSJfileStream.close();

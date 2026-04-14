@@ -52,7 +52,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     #pragma omp for schedule (dynamic,1000) reduction(+:sjNew)
     for (int64 isj=0; isj<(int64)(2*mapGen.sjdbN); isj++) {//find insertion points for each of the sequences
 
-        char** seq1=new char*[2];
+        char* seq1[2]; // stack array, not heap (fix: memory leak in loop)
         seq1[0]=Gsj+isj*mapGen.sjdbLength;
         seq1[1]=G1c+isj*mapGen.sjdbLength;
 

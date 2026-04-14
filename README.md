@@ -1,4 +1,4 @@
-STAR 2.7.11b (Community Fork)
+STAR 2.7.11c (Community Fork)
 ==========
 Spliced Transcripts Alignment to a Reference
 © Alexander Dobin, 2009-2024
@@ -6,9 +6,10 @@ https://www.ncbi.nlm.nih.gov/pubmed/23104886
 
 > **Fork Notice:** The upstream STAR repository (`alexdobin/STAR`) appears to be unmaintained as of 2025
 > (see [community discussion](https://www.reddit.com/r/bioinformatics/comments/1joyd0p/the_star_aligner_is_unmaintained_now/)).
-> This fork maintains full output compatibility with STAR 2.7.11b while adding **Windows native support**.
+> This fork maintains full output compatibility with STAR 2.7.11b while adding **Windows native support**,
+> **macOS ARM (Apple Silicon) support**, and upstream bug fixes.
 > All changes are validated to produce byte-identical results to the original 2.7.11b release.
-> Development is Vibe Coding driven but output-correctness tested.
+> Release binaries are versioned as `2.7.11c_<commit>` for traceability.
 
 ORIGINAL AUTHOR
 ===============
@@ -77,65 +78,99 @@ cd STAR/source
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ```
-Compile under Mac OS X
-----------------------
+Compile under Mac OS X (Intel x86_64)
+--------------------------------------
 
 ```bash
 # 1. Install brew (http://brew.sh/)
 # 2. Install gcc with brew:
-$ brew install gcc
-# 3. Build STAR:
-# run 'make' in the source directory
-# note that the path to c++ executable has to be adjusted to its current version
-$cd source
-$make STARforMacStatic CXX=/usr/local/Cellar/gcc/8.2.0/bin/g++-8
-# 4. Make it availible through the terminal
-$cp STAR /usr/local/bin
+$ brew install gcc ninja
+# 3. Find installed g++ version (e.g. g++-15)
+$ GCC_BIN=$(ls $(brew --prefix gcc)/bin/g++-* | sort -V | tail -1)
+$ GCC_VER=$(basename "$GCC_BIN" | grep -oE '[0-9]+$')
+# 4. Build with CMake (must specify both C and CXX to get OpenMP)
+$ cd STAR/source
+$ cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=$(brew --prefix gcc)/bin/gcc-${GCC_VER} \
+    -DCMAKE_CXX_COMPILER=${GCC_BIN}
+$ cmake --build build
+```
+
+Compile under macOS ARM (Apple Silicon / M-series)
+---------------------------------------------------
+
+Same as above. AVX2 is automatically disabled on ARM; the build uses the bundled SIMDe library for SIMD emulation.
+
+```bash
+$ brew install gcc ninja
+$ GCC_BIN=$(ls $(brew --prefix gcc)/bin/g++-* | sort -V | tail -1)
+$ GCC_VER=$(basename "$GCC_BIN" | grep -oE '[0-9]+$')
+$ cd STAR/source
+$ cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=$(brew --prefix gcc)/bin/gcc-${GCC_VER} \
+    -DCMAKE_CXX_COMPILER=${GCC_BIN}
+$ cmake --build build
 ```
 
 Compile under Windows (MSVC)
 ----------------------------
 
 STAR can be built natively on Windows using Microsoft Visual C++ and CMake.
+Ninja is the recommended generator — it parallelizes compilation and is faster than NMake.
 
 ```bash
-# 1. Open "x64 Native Tools Command Prompt for VS"
+# 1. Open "x64 Native Tools Command Prompt for VS 2022"
 # 2. Navigate to STAR source directory
 cd STAR\source
 
-# 3. Configure and build with CMake (zlib is fetched automatically)
-cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
-cd build
-nmake
+# 3. Configure and build with CMake + Ninja (zlib is fetched automatically)
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 
-# 4. The resulting STAR.exe is in the build directory
-STAR.exe --version
+# 4. The resulting STAR.exe is in build\
+build\STAR.exe --version
 ```
 
 Build options:
 ```bash
 # Build STARlong variant for long reads
-cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DSTAR_LONG_READS=ON
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_LONG_READS=ON
 
-# Disable AVX2 (for older processors)
-cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DSTAR_USE_AVX2=OFF
+# Disable AVX2 (for older or ARM processors)
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_USE_AVX2=OFF
+
+# Enable AddressSanitizer for debugging
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DSTAR_ASAN=ON
 ```
 
-**Windows performance:** ~518 M reads/hr with 12 threads on MSVC (vs ~728 M/hr on Linux GCC). The 1.4x gap is primarily due to MSVC's OpenMP 2.0 limitation.
+Compile under Windows (Intel oneAPI ICX)
+-----------------------------------------
 
-**Windows limitations:**
-  * Shared memory genome loading (`--genomeLoad LoadAndKeep/Remove`) is not supported; only `--genomeLoad NoSharedMemory` (the default) is available
-  * `--readFilesCommand` uses temporary files instead of FIFO pipes
+Intel ICX provides OpenMP 5.1 (vs MSVC's 2.0) but benchmarks show similar throughput
+since STAR's bottleneck is memory-latent suffix array search.
 
-**Compiler performance comparison** (434M reads, cynomolgus macaque, 12 threads):
+```bash
+# 1. Open "Intel oneAPI Command Prompt for Intel 64 for Visual Studio 2022"
+# 2. Navigate to STAR source directory
+cd STAR\source
+cmake -B build-icx -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=icx -DCMAKE_C_COMPILER=icx
+cmake --build build-icx
+```
 
-| Compiler | Mapping Speed | OpenMP | Notes |
-|----------|:------------:|:------:|-------|
-| Linux GCC `-O3` | 728 M/hr | 4.5+ | Reference (upstream STAR) |
-| Windows MSVC `/O2 /GL /LTCG` | 518 M/hr | 2.0 | 1.4x slower than Linux |
-| Windows Intel ICX `/O2` | 500 M/hr | 5.1 | ~3% slower than MSVC |
+**Benchmarked performance** (STARsolo CB_UMI_Simple, cynomolgus macaque genome, Intel Core Ultra 5 235, 96GB DDR5, 12 threads, Windows 11):
 
-ICX's OpenMP 5.1 and better auto-vectorizer provide no benefit because STAR's bottleneck is memory-latent suffix array binary search, not vectorizable compute. Both Windows compilers produce identical alignment results.
+| Build | Speed (434M reads) | Speed (1M reads) | Notes |
+|-------|:---:|:---:|-------|
+| Upstream STAR 2.7.11b (Linux GCC) | — | 277 M/hr | Baseline |
+| STAR 2.7.11c MSVC (pre-optimization) | 518 M/hr | 277 M/hr | Windows perf fixes only |
+| **STAR 2.7.11c MSVC (current)** | — | **300 M/hr (+8%)** | + FastResetVector, safe early rejection |
+| Intel ICX `/O2` | 500 M/hr | — | No measurable benefit over MSVC |
+
+The 8% mapping speed gain comes from two output-identical algorithmic optimizations:
+  * **FastResetVector**: O(modified) reset of the 200KB `winBin` array instead of O(N) memset per read
+  * **Safe early rejection**: skip expensive `Transcript` copy in `stitchWindowAligns` when `stitchAlignToTranscript` would provably reject the alignment (full read/genome overlap or max exons exceeded)
 
 **Output compatibility** (validated on 434M-read STARsolo dataset):
 
@@ -147,7 +182,9 @@ ICX's OpenMP 5.1 and better auto-vectorizer provide no benefit because STAR's bo
 
 The EM differences are in the last decimal place (e.g. `1.99063` vs `1.99062`) of multi-mapper probability weights. MSVC differs in 14 of 9.97M Gene entries and 22 of 13.87M GeneFull entries (<0.001%). ICX differs in 506/466 entries (<0.005%) due to Clang-based floating-point codegen diverging more from GCC. These do not affect biological conclusions — cell counts, UMI counts, gene counts, and all filtered matrices are exact matches across all three compilers.
 
-**Note on speed comparison:** The Linux baseline (728 M/hr) was measured on AMD Ryzen 7 5825U (Zen 3, 16MB L3), while Windows numbers (510-518 M/hr) were on Intel Core Ultra 5 235 (Arrow Lake, 12MB L3). The ~1.4x gap is primarily CPU/cache difference, not compiler difference. MSVC and ICX on the same hardware differ by only ~3%.
+**Windows limitations:**
+  * Shared memory genome loading (`--genomeLoad LoadAndKeep/Remove`) is not supported; only `--genomeLoad NoSharedMemory` (the default) is available
+  * `--readFilesCommand` uses temporary files instead of FIFO pipes
 
 All platforms - non-standard gcc
 --------------------------------
@@ -194,12 +231,16 @@ FORK CHANGES
   * Missing mutex initializations fixed (portability bug in upstream)
   * OpenMP loop variables changed to signed types (MSVC OpenMP 2.0 compliance)
 
-### Performance Optimizations (Windows)
-  * MSVC compiler: `/O2 /Ob2 /Oi /GL` with `/LTCG` link-time optimization
-  * SRW locks replacing CRITICAL_SECTION (faster mutex)
-  * 4MB ifstream read buffer for FASTQ input
-  * Zero-allocation read header parsing (direct `char*` instead of `istringstream`)
-  * Result: **2.5x speedup** (206 → 518 M reads/hr)
+### Performance Optimizations
+  * MSVC compiler: `/O2 /Ob2 /Oi /GL` with `/LTCG` link-time optimization (Windows)
+  * SRW locks replacing CRITICAL_SECTION (faster mutex, Windows)
+  * 4MB ifstream read buffer for FASTQ input (Windows)
+  * Zero-allocation read header parsing (direct `char*` instead of `istringstream`, Windows)
+  * FastResetVector for `winBin` array: O(modified) reset instead of O(200K) memset per read (all platforms)
+  * Safe early rejection in `stitchWindowAligns`: skip Transcript copy when alignment provably fails (all platforms)
+  * Union-Find for UMI connected components: replaces recursive DFS, eliminates stack overflow risk (all platforms)
+  * EmptyDrops binary search: O(cand × log(nSim)) p-value counting instead of O(cand × nSim) (all platforms)
+  * EmptyDrops on-demand memory: O(nSim × nUniqueCounts) instead of O(nSim × maxCount) (all platforms)
 
 ### Bug Fixes (applicable to all platforms)
   * Initialize all `pthread_mutex_t` members in `ThreadControl` (upstream only initialized 8 of 11)
@@ -219,8 +260,7 @@ FORK CHANGES
 ### Evaluated and Rejected
   * **CUDA GPU acceleration**: Tested on RTX PRO 6000 Blackwell (96GB VRAM). STAR's bottleneck is memory-latent suffix array search, not parallelizable compute. GPU overhead exceeded the gains.
   * **Intel oneAPI/MKL/IPP**: STAR does no linear algebra or signal processing. The remaining 1.4x gap vs Linux is from MSVC's OpenMP 2.0 and code generation, not addressable by Intel libraries.
-
-  * **Branch-and-bound / early rejection in alignment stitching**: Changed transcript scoring order, producing different alignment results. Reverted to preserve output compatibility with upstream STAR.
+  * **Branch-and-bound pruning in alignment stitching**: Upper bound doesn't account for splice junction score bonuses, causing incorrect branch pruning that changed alignment results (~3% unique mapping shift). No measurable speed benefit over the safe early rejection approach.
 
 FUNDING
 =======

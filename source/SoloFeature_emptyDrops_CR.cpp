@@ -1,9 +1,11 @@
 #include "SoloFeature.h"
 #include "serviceFuns.cpp"
 #include "SimpleGoodTuring/sgt.h"
-#include <math.h>
+#include <cmath>
 #include <numeric>
 #include <unordered_set>
+#include <unordered_map>
+#include <set>
 #include <map>
 #include <random>
 
@@ -150,48 +152,61 @@ void SoloFeature::emptyDrops_CR()
     }
     P.inOut->logMain << timeMonthDayTime(rawTime) << " ... finished observed logProb" <<endl;
     
-    //simulate the probabilities for each cell count
-    vector<vector<double>> simLogProb(pSolo.cellFilter.eDcr.simN);
+    // Simulate and collect p-values with reduced memory
+    // Instead of storing simLogProb[nSim][maxCount+1] (can be GBs),
+    // only checkpoint at UMI counts that candidates actually need.
+    auto maxCount=indCount[iCandFirst].count;
+    uint64 nSim = pSolo.cellFilter.eDcr.simN;
+
+    // Collect unique candidate UMI counts (sorted ascending)
+    set<uint32> neededCountsSet;
+    for (uint32 icand=0; icand<obsLogProb.size(); icand++)
+        neededCountsSet.insert(indCount[icand+iCandFirst].count);
+    vector<uint32> neededCounts(neededCountsSet.begin(), neededCountsSet.end());
+
+    // Build simByCount directly during simulation — O(nSim × nUniqueCounts) memory
+    unordered_map<uint32, vector<double>> simByCount;
+    for (auto c : neededCounts)
+        simByCount[c].reserve(nSim);
+
     {
         std::discrete_distribution<uint32> distrAmb ( ambProfilePnon0.begin(), ambProfilePnon0.end() );
-        auto maxCount=indCount[iCandFirst].count;
-        
-        //#pragma omp parallel for num_threads(P.runThreadN) //does not increase speed significantly - might be useful for larger number of simulations
-        for (uint64 isim=0; isim<simLogProb.size(); isim++) {
-            simLogProb[isim].resize(maxCount+1);
-            simLogProb[isim][0]=0;
 
+        for (uint64 isim=0; isim<nSim; isim++) {
+            // Same RNG seeding and iteration order as original
             std::mt19937 rngGen(19760110LLU*(isim+1));
 
             vector<uint32> currCounts(ambProfilePnon0.size(), 0);
+            double logProb = 0; // running accumulation, same as simLogProb[isim][ic-1] + ...
+            uint32 nextIdx = 0; // index into neededCounts
+
             for (uint32 ic=1; ic<=maxCount; ic++) {
                 uint32 ig1 = distrAmb(rngGen);
                 currCounts[ig1]++;
-                simLogProb[isim][ic] = simLogProb[isim][ic-1] + ambProfileLogPnon0[ig1] + std::log(ic) - std::log(currCounts[ig1]);
+                // Identical accumulation: logProb at ic == simLogProb[isim][ic] in the original
+                logProb += ambProfileLogPnon0[ig1] + std::log(ic) - std::log(currCounts[ig1]);
+
+                // Checkpoint only at needed counts
+                while (nextIdx < neededCounts.size() && neededCounts[nextIdx] == ic) {
+                    simByCount[ic].push_back(logProb);
+                    nextIdx++;
+                }
             };
         };
     };
+
+    // Sort each count's simulation values for binary search
+    for (auto &kv : simByCount)
+        sort(kv.second.begin(), kv.second.end());
+
     time(&rawTime);
     P.inOut->logMain << timeMonthDayTime(rawTime) << " ... finished simulations" <<endl;
-    
-    
+
+
     //p-values
     typedef struct{uint32 index; double p; double padj;} IndPPadj;
     vector<IndPPadj> pValues(obsLogProb.size());
     {
-        // Pre-sort simulation values per UMI count for O(log n) binary search
-        // instead of O(nSim) linear scan per candidate (Problem 6 optimization)
-        unordered_map<uint32, vector<double>> simByCount;
-        for (uint32 icand=0; icand<obsLogProb.size(); icand++) {
-            auto count1=indCount[icand+iCandFirst].count;
-            if (simByCount.find(count1) == simByCount.end()) {
-                simByCount[count1].reserve(simLogProb.size());
-                for (auto &sp: simLogProb)
-                    simByCount[count1].push_back(sp[count1]);
-                sort(simByCount[count1].begin(), simByCount[count1].end());
-            }
-        }
-
         for (uint32 icand=0; icand<obsLogProb.size(); icand++) {
             pValues[icand].index=indCount[icand+iCandFirst].index;
             auto count1=indCount[icand+iCandFirst].count;
@@ -200,7 +215,7 @@ void SoloFeature::emptyDrops_CR()
             auto &sorted = simByCount[count1];
             uint32 nLowerP = (uint32)(lower_bound(sorted.begin(), sorted.end(), obsLogProb[icand]) - sorted.begin());
 
-            pValues[icand].p=double(1+nLowerP)/(1+simLogProb.size());
+            pValues[icand].p=double(1+nLowerP)/(1+nSim);
         };
         //BH
         std::sort(pValues.begin(), pValues.end(), [](const IndPPadj &ip1, const IndPPadj &ip2) {return (ip1.p < ip2.p);} );

@@ -16,9 +16,11 @@
     #include <sys/types.h>
 #endif
 
-#if defined(COMPILE_FOR_MAC) || defined(__FreeBSD__)
-  //some Mac's idiosyncrasies: standard SHM libraries are very old and missing some definitions
-  #define SHM_NORESERVE 0
+#if defined(COMPILE_FOR_MAC) || defined(__APPLE__) || defined(__FreeBSD__)
+  // macOS/FreeBSD: SHM_NORESERVE is Linux-specific; define as 0 (no-op)
+  #ifndef SHM_NORESERVE
+    #define SHM_NORESERVE 0
+  #endif
 #endif
 
 using namespace std;

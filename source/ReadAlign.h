@@ -13,6 +13,7 @@
 #include "ChimericDetection.h"
 #include "SoloRead.h"
 #include "ReadAnnotations.h"
+#include "FastResetVector.h"
 #include "SpliceGraph.h"
 #include "ClipMate.h"
 
@@ -138,7 +139,7 @@ class ReadAlign {
 //         uint fragLength[MAX_N_FRAG], fragStart[MAX_N_FRAG]; //fragment Lengths and Starts in read space
 
         //binned alignments
-        uintWinBin **winBin; //binned genome: window ID (number) per bin
+        FastResetVector<uintWinBin> winBin[2]; //binned genome: window ID (number) per bin
 
         //alignments
         uiPC *PC; //pieces coordinates

@@ -1,5 +1,8 @@
 # Release Validation Test Plan
 
+## Status: Reference Document (permanent)
+Last updated: 2026-04-13
+
 ## Test Tiers
 
 | Tier | Reads | Time | When to Use |

@@ -51,7 +51,7 @@ void ReadAlign::waspMap() {
                 r.back().push_back(y);
             };
         };
-        vvA=move(r);
+        vvA=std::move(r);
     };
 
 

@@ -287,7 +287,6 @@ void ReadAlign::spliceGraphWriteSAM()
                 trMult[nTrOutSAM-1] = alignsGenOut.alMult[nTrOutSAM-1]; //point to new transcsript
             };
         };
-        nTrOutSAM=nTrOutSAM;
     };
 
     for (uint iTr=0; iTr<nTrOutSAM; iTr++) {//write all transcripts            

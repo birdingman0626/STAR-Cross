@@ -69,7 +69,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
                             boolWait=false;
                             totalMem+=newMem;
                         };
-                        sleep(0.1);
+                        sleep(1); // wait for memory (sleep takes unsigned int seconds)
                     };
                     BAMbinSortByCoordinate(ibin,binN,binS,P.runThreadN,P.outBAMsortTmpDir, P, genome, solo);
                     #pragma omp critical
@@ -92,6 +92,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
                     bamBinNames[ibin] = (char*) bamBinNamesV.at(ibin).c_str();
             };
             bam_cat(bamBinNamesV.size(), bamBinNames, 0, P.outBAMfileCoordName.c_str());
+            delete[] bamBinNames; // fix: memory leak
         };
     };    
 };

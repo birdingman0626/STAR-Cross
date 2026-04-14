@@ -10,33 +10,42 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
-
-      - name: Build with Make (GCC)
-        if: matrix.compiler == 'gcc'
         run: |
-          cd source
-          make STAR
+          sudo apt-get update
+          sudo apt-get install -y zlib1g-dev ninja-build
 
-      - name: Build with CMake (${{ matrix.compiler }})
+      - name: Install Clang + OpenMP
+        if: matrix.compiler == 'clang'
+        run: sudo apt-get install -y clang libomp-dev
+
+      - name: Build
         run: |
           cd source
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             export CC=clang CXX=clang++
           fi
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build -j$(nproc)
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
+          cmake --build build
 
       - name: Smoke test
-        run: |
-          ./source/build/STAR --version
-          echo "Version check passed"
+        run: ./source/build/STAR --version
+
+      - name: Unit tests
+        run: ctest --test-dir source/build/test --output-on-failure -j4
+
+      - name: Upload binary
+        if: matrix.compiler == 'gcc'
+        uses: actions/upload-artifact@v4
+        with:
+          name: STAR-linux-x86_64
+          path: source/build/STAR
 
   build-macos:
     runs-on: macos-latest
@@ -44,16 +53,34 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: brew install gcc
+        run: |
+          brew install gcc ninja
+          GCC_BIN=$(ls $(brew --prefix gcc)/bin/g++-* | sort -V | tail -1)
+          GCC_VER=$(basename "$GCC_BIN" | grep -oE '[0-9]+$')
+          echo "GCC_BIN=${GCC_BIN}"       >> $GITHUB_ENV
+          echo "GCC_C_BIN=$(brew --prefix gcc)/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
 
-      - name: Build with CMake
+      - name: Build
         run: |
           cd source
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-14
-          cmake --build build -j$(sysctl -n hw.ncpu)
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER="${GCC_C_BIN}" \
+            -DCMAKE_CXX_COMPILER="${GCC_BIN}" \
+            -DSTAR_BUILD_TESTS=ON
+          cmake --build build
 
       - name: Smoke test
         run: ./source/build/STAR --version
+
+      - name: Unit tests
+        run: ctest --test-dir source/build/test --output-on-failure -j4
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: STAR-macos-aarch64
+          path: source/build/STAR
 
   build-windows:
     runs-on: windows-latest
@@ -65,12 +92,20 @@ jobs:
         with:
           arch: x64
 
-      - name: Build with CMake
+      - name: Build
         run: |
           cd source
-          cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
-          cd build
-          nmake
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
+          cmake --build build
 
       - name: Smoke test
         run: source\build\STAR.exe --version
+
+      - name: Unit tests
+        run: ctest --test-dir source/build/test --output-on-failure -j4
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: STAR-windows-x86_64
+          path: source\build\STAR.exe

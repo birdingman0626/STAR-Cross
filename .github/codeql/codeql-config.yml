@@ -1,0 +1,12 @@
+name: STAR CodeQL configuration
+
+# Exclude vendored third-party code from analysis.
+# Issues in bundled libraries (htslib, SIMDe, opal, SGT) must be tracked
+# and fixed upstream; scanning them produces noise, not actionable findings.
+paths-ignore:
+  - source/htslib       # bundled HTSlib 1.21 (upstream: samtools/htslib)
+  - source/opal         # bundled Opal aligner (upstream: Martinsos/opal)
+  - source/SimpleGoodTuring  # bundled SGT implementation
+
+queries:
+  - uses: security-extended   # OWASP top-10 + security-and-quality suite

@@ -5,12 +5,11 @@
 #include <unordered_map>
 #include "SoloCommon.h"
 #include <bitset>
+#include "UMIgraph.h"
 
 #define def_MarkNoColor  (uint32) -1
 
 void collapseUMIwith1MMlowHalf(uint32 *umiArr, uint32 umiArrayStride, uint32 umiMaskLow, uint32 nU0, uint32 &nU1, uint32 &nU2, uint32 &nC, vector<array<uint32,2>> &vC);
-void graphDepthFirstSearch(uint32 n, vector<vector<uint32>> &nodeEdges, vector <uint32> &nodeColor);
-uint32 graphNumberOfConnectedComponents(uint32 N, vector<array<uint32,2>> V, vector<uint32> &nodeColor);
 
 
 uint32 SoloFeature::umiArrayCorrect_Graph(const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, unordered_map <uintUMI,uintUMI> &umiCorr)
@@ -133,67 +132,5 @@ void collapseUMIwith1MMlowHalf(uint32 *umiArr, uint32 umiArrayStride, uint32 umi
     };
 };
 
-// Union-Find with path compression and union by rank.
-// Replaces recursive DFS which could stack-overflow on long chains.
-static uint32 ufFind(vector<uint32> &parent, uint32 x) {
-    while (parent[x] != x) {
-        parent[x] = parent[parent[x]]; // path compression (halving)
-        x = parent[x];
-    }
-    return x;
-}
-
-static void ufUnite(vector<uint32> &parent, vector<uint32> &rank, uint32 a, uint32 b) {
-    a = ufFind(parent, a);
-    b = ufFind(parent, b);
-    if (a == b) return;
-    if (rank[a] < rank[b]) swap(a, b);
-    parent[b] = a;
-    if (rank[a] == rank[b]) rank[a]++;
-}
-
-uint32 graphNumberOfConnectedComponents(uint32 N, vector<array<uint32,2>> V, vector<uint32> &nodeColor)
-{//find number of connected components using Union-Find (no recursion, no stack overflow risk)
-    nodeColor.resize(N, (uint32)-1);
-
-    if (V.size() == 0)
-        return N;
-
-    // Union-Find
-    vector<uint32> parent(N), ufRank(N, 0);
-    for (uint32 i = 0; i < N; i++) parent[i] = i;
-
-    vector<bool> hasEdge(N, false);
-    for (uint32 ii = 0; ii < V.size(); ii++) {
-        ufUnite(parent, ufRank, V[ii][0], V[ii][1]);
-        hasEdge[V[ii][0]] = true;
-        hasEdge[V[ii][1]] = true;
-    }
-
-    // Assign component colors (root node index = color)
-    uint32 nConnComp = 0;
-    for (uint32 ii = 0; ii < N; ii++) {
-        if (!hasEdge[ii]) {
-            ++nConnComp; // isolated node
-        } else {
-            uint32 root = ufFind(parent, ii);
-            nodeColor[ii] = root;
-        }
-    }
-
-    // Count distinct roots among connected nodes
-    vector<bool> rootSeen(N, false);
-    for (uint32 ii = 0; ii < N; ii++) {
-        if (hasEdge[ii]) {
-            uint32 root = ufFind(parent, ii);
-            if (!rootSeen[root]) {
-                rootSeen[root] = true;
-                ++nConnComp;
-            }
-        }
-    }
-
-    return nConnComp;
-};
 
 

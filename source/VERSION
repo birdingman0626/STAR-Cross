@@ -1,1 +1,3 @@
-#define STAR_VERSION "2.7.11b"
+#ifndef STAR_VERSION
+#define STAR_VERSION "2.7.11c"
+#endif

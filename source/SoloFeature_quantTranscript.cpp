@@ -4,6 +4,7 @@
 #include "TimeFunctions.h"
 #include "SequenceFuns.h"
 #include "SoloCommon.h"
+#include <cmath>
 #include <unordered_map>
 #include <bitset>
 #include "serviceFuns.cpp"

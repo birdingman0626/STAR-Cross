@@ -1,6 +1,6 @@
 # Upstream PR Cherry-Pick Plan
 
-## Status: Pending
+## Status: Plan Complete — Awaiting Execution
 Last updated: 2026-04-13
 
 Reviewed all 16 open PRs on alexdobin/STAR. 6 are worth adopting, 10 are not relevant.
@@ -53,7 +53,7 @@ Reviewed all 16 open PRs on alexdobin/STAR. 6 are worth adopting, 10 are not rel
 ### PR #773 — Mapping performance: skip unnecessary Transcript copies in stitchWindowAligns
 - **Author:** Alexey (alexey0308)
 - **What:** Adds an early-skip predicate `isAlignToSkip()` in `stitchWindowAligns.cpp` to avoid creating expensive `Transcript` object copies when the alignment will be rejected anyway. The `stitchAlignToTranscript` function modifies the Transcript, so STAR copies it before calling — but most copies are wasted because the alignment gets a bad score.
-- **Why adopt:** Author benchmarked **2.4x speedup** on test subset (117 M/hr → 49.5 M/hr reversed). This is a significant algorithmic optimization, not just micro-tuning. Adds `const` correctness throughout.
+- **Why adopt:** Author benchmarked **2.4x speedup** on test subset (49.5 M/hr → 117 M/hr). This is a significant algorithmic optimization, not just micro-tuning. Adds `const` correctness throughout.
 - **Risk:** Medium-high — large diff (426 additions, 321 deletions in `stitchWindowAligns.cpp`), includes formatting changes mixed with logic changes. The core optimization is sound but the PR also reformats significant code. Needs careful review.
 - **Files:** `stitchWindowAligns.cpp` (+426/-321), `stitchAlignToTranscript.cpp/h`, `extendAlign.cpp/h`, `Transcript.h`, several others
 - [ ] Cherry-pick — may need to apply logic change only, skip formatting

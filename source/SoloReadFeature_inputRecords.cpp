@@ -18,8 +18,6 @@ void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32
     int64 cb;
     vector<uint32> trIdDist;
     
-    uint64 nReadsIn = 0;
-
     while (soloInputFeatureUMI(streamReads, featureType, readIndexYes, P.sjAll, iread, cbmatch, feature, umi, trIdDist, readFlagCounts)) {
         if (feature == (uint32)(-1) && !readIndexYes) {//no feature => no record, this can happen for SJs
             streamReads->ignore((uint32)-1, '\n');

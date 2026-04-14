@@ -17,6 +17,9 @@ Last updated: 2026-04-13
 
 ## Measurement
 
-Baseline: 206 M/hr (before optimizations)
-Target: 400+ M/hr
-Needs full benchmarking run to measure actual improvement.
+- Baseline: 206 M/hr (before optimizations)
+- Target: 400+ M/hr
+- **Result: 518 M/hr** (2.5x improvement over baseline)
+- Hardware: Intel Core Ultra 5 235, 96GB DDR5, 12 threads, Windows 11
+- Dataset: 434M reads, STARsolo CB_UMI_Simple, cynomolgus macaque genome
+- Intel ICX tested at 500 M/hr on same hardware — MSVC's OpenMP 2.0 is not the primary bottleneck; STAR's memory-latent SA search limits both compilers equally.

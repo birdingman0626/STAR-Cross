@@ -50,7 +50,7 @@ uint insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char * 
         };
     };
 
-    char** seq1=new char*[2];
+    char* seq1[2]; // stack array (fix: memory leak)
 
     #define GENOME_endFillL 16
     char* seqq=new char [4*nG1+3*GENOME_endFillL];//ends shouldbe filled with 5 to mark boundaries
@@ -315,5 +315,7 @@ uint insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char * 
 //     memcpy(G+mapGen.chrStart[mapGen.nChrReal],seq1[0], nseq1[0]);
 
 
+    delete[] indArray;
+    delete[] seqq;
     return nInd;
 };

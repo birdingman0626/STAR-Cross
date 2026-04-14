@@ -3,6 +3,7 @@
 #include "SoloCommon.h"
 #include "SequenceFuns.h"
 #include "ParametersSolo.h"
+#include <cmath>
 
 void wlAddMismatches(uint32 nMM, uint32 cbLen, vector<uintCB> &wl, vector<uintCB> &wlEd1, vector<uint32> &wlInd1);
 

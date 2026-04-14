@@ -1,6 +1,6 @@
 # Dependency Upgrade Plan
 
-## Status: Pending
+## Status: Plan Complete — Awaiting Execution
 Last updated: 2026-04-13
 
 ## Current State
@@ -8,7 +8,7 @@ Last updated: 2026-04-13
 | Dependency | Current | Latest | Status | Location |
 |---|---|---|---|---|
 | HTSlib | 1.21 | 1.21 | **Up to date** | `source/htslib/` (bundled) |
-| zlib | 1.3.1 | 1.3.2 | **1 patch behind** | CMake FetchContent |
+| zlib | 1.3.2 | 1.3.2 | **Up to date** | CMake FetchContent |
 | Opal | 2014 fork | Dead upstream (2015) | **Replace with Parasail** | `source/opal/` (bundled) |
 | SIMDe | commit `e8b7a2ec` | v0.8.2 | **Removed with Opal** | `source/opal/simde_avx2.h` |
 | SimpleGoodTuring | April 2004 | Same | **No action** | `source/SimpleGoodTuring/` |

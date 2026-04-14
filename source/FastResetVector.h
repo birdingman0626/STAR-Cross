@@ -29,14 +29,16 @@ public:
     T operator[](size_t i) const { return _data[i]; }
 
     T& set(size_t i) {
-        _modified.push_back(i);
+        if (_data[i] == _resetValue)
+            _modified.push_back(i);
         return _data[i];
     }
 
-    // Set value and track modification
+    // Set value and track modification (only tracks first write per index)
     void set(size_t i, T val) {
+        if (_data[i] == _resetValue)
+            _modified.push_back(i);
         _data[i] = val;
-        _modified.push_back(i);
     }
 
     // Reset only modified elements (O(modified) instead of O(N))
