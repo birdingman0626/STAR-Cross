@@ -57,7 +57,7 @@ jobs:
 
       - name: Upload artifact (Linux)
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: STAR-linux-x86_64
           path: STAR-linux-x86_64
@@ -99,7 +99,7 @@ jobs:
 
       - name: Upload artifact (macOS)
         if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: STAR-macos-aarch64
           path: STAR-macos-aarch64
@@ -156,7 +156,7 @@ jobs:
 
       - name: Upload artifact (Windows)
         if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: STAR-windows-x86_64
           path: STAR-windows-x86_64.zip
