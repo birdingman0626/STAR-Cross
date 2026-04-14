@@ -212,61 +212,33 @@ The 8% mapping speed gain comes from two output-identical algorithmic optimizati
 
 **Output compatibility** (`my_count` vs `orig_count`, validated on 434M-read STARsolo dataset):
 
-`orig_count` is the Linux upstream STAR 2.7.11b (GCC) reference output. `my_count` is this fork (STAR 2.7.11c, MSVC, Windows). The 21-file Solo.out comparison covers both Gene and GeneFull_Ex50pAS quantification modes. Windows STAR writes `\r\n` line endings; comparison is content-only.
+`orig_count` is the Linux upstream STAR 2.7.11b (GCC) reference output. `my_count` is this fork (STAR 2.7.11c, MSVC, Windows). The 21-file Solo.out comparison covers both Gene and GeneFull_Ex50pAS quantification modes. Windows STAR writes `\r\n` line endings; comparison is content-only. Both default mode and `--legacy` mode (upstream 2.7.11b algorithm variants) were validated — results are virtually identical, confirming all differences are from MSVC vs GCC floating-point divergence in EM computation, not from the chimeric bugfix.
 
-**Default mode** (with chimeric bugfixes):
+| Output file | Default mode | `--legacy` mode |
+|-------------|:------------:|:---------------:|
+| `Gene/filtered/barcodes.tsv` | Identical | Identical |
+| `Gene/filtered/features.tsv` | Identical | Identical |
+| `Gene/filtered/matrix.mtx` | 18/6.3M entries differ (<3 ppm) | 19/6.3M entries differ (<4 ppm) |
+| `Gene/raw/barcodes.tsv` | Identical | Identical |
+| `Gene/raw/features.tsv` | Identical | Identical |
+| `Gene/raw/matrix.mtx` | 21/8.7M entries differ (<3 ppm) | 21/8.7M entries differ (<3 ppm) |
+| `Gene/raw/UniqueAndMult-EM.mtx` | 38/9.97M entries differ (<4 ppm) | 38/9.97M entries differ (<4 ppm) |
+| `Gene/Summary.csv` | 3/20 values differ (tens of reads) | 3/20 values differ (tens of reads) |
+| `Gene/Features.stats` | 7/11 values differ (tens of reads) | 8/11 values differ (tens of reads) |
+| `Gene/UMIperCellSorted.txt` | 22/770K cells differ by ±1 UMI | ~22/770K cells differ by ±1 UMI |
+| `GeneFull_Ex50pAS/filtered/barcodes.tsv` | Identical | Identical |
+| `GeneFull_Ex50pAS/filtered/features.tsv` | Identical | Identical |
+| `GeneFull_Ex50pAS/filtered/matrix.mtx` | 32/8.8M entries differ (<4 ppm) | 33/8.8M entries differ (<4 ppm) |
+| `GeneFull_Ex50pAS/raw/barcodes.tsv` | Identical | Identical |
+| `GeneFull_Ex50pAS/raw/features.tsv` | Identical | Identical |
+| `GeneFull_Ex50pAS/raw/matrix.mtx` | 53/12M entries differ (<5 ppm) | 54/12M entries differ (<5 ppm) |
+| `GeneFull_Ex50pAS/raw/UniqueAndMult-EM.mtx` | ~91/13.87M entries differ (<7 ppm) | 92/13.87M entries differ (<7 ppm) |
+| `GeneFull_Ex50pAS/Summary.csv` | 3/20 values differ (tens of reads) | 3/20 values differ (tens of reads) |
+| `GeneFull_Ex50pAS/Features.stats` | 7/11 values differ (tens of reads) | 8/11 values differ (tens of reads) |
+| `GeneFull_Ex50pAS/UMIperCellSorted.txt` | 54/837K cells differ by ±1 UMI | ~50/837K cells differ by ±1 UMI |
+| `Barcodes.stats` | Identical | Identical |
 
-| Output file | my_count vs orig_count |
-|-------------|:----------------------:|
-| `Gene/filtered/barcodes.tsv` | Identical |
-| `Gene/filtered/features.tsv` | Identical |
-| `Gene/filtered/matrix.mtx` | 18/6.3M entries differ (<3 ppm) |
-| `Gene/raw/barcodes.tsv` | Identical |
-| `Gene/raw/features.tsv` | Identical |
-| `Gene/raw/matrix.mtx` | 21/8.7M entries differ (<3 ppm) |
-| `Gene/raw/UniqueAndMult-EM.mtx` | 38/9.97M entries differ (<4 ppm) |
-| `Gene/Summary.csv` | 3/20 values differ (tens of reads) |
-| `Gene/Features.stats` | 7/11 values differ (tens of reads) |
-| `Gene/UMIperCellSorted.txt` | 22/770K cells differ by ±1 UMI |
-| `GeneFull_Ex50pAS/filtered/barcodes.tsv` | Identical |
-| `GeneFull_Ex50pAS/filtered/features.tsv` | Identical |
-| `GeneFull_Ex50pAS/filtered/matrix.mtx` | 32/8.8M entries differ (<4 ppm) |
-| `GeneFull_Ex50pAS/raw/barcodes.tsv` | Identical |
-| `GeneFull_Ex50pAS/raw/features.tsv` | Identical |
-| `GeneFull_Ex50pAS/raw/matrix.mtx` | 53/12M entries differ (<5 ppm) |
-| `GeneFull_Ex50pAS/raw/UniqueAndMult-EM.mtx` | ~91/13.87M entries differ (<7 ppm) |
-| `GeneFull_Ex50pAS/Summary.csv` | 3/20 values differ (tens of reads) |
-| `GeneFull_Ex50pAS/Features.stats` | 7/11 values differ (tens of reads) |
-| `GeneFull_Ex50pAS/UMIperCellSorted.txt` | 54/837K cells differ by ±1 UMI |
-| `Barcodes.stats` | Identical |
-
-**Legacy mode** (`--legacy`, upstream 2.7.11b algorithm variants, chimeric bugfixes disabled):
-
-| Output file | my_count vs orig_count |
-|-------------|:----------------------:|
-| `Gene/filtered/barcodes.tsv` | Identical |
-| `Gene/filtered/features.tsv` | Identical |
-| `Gene/filtered/matrix.mtx` | 19/6.3M entries differ (<4 ppm) |
-| `Gene/raw/barcodes.tsv` | Identical |
-| `Gene/raw/features.tsv` | Identical |
-| `Gene/raw/matrix.mtx` | 21/8.7M entries differ (<3 ppm) |
-| `Gene/raw/UniqueAndMult-EM.mtx` | 38/9.97M entries differ (<4 ppm) |
-| `Gene/Summary.csv` | 3/20 values differ (tens of reads) |
-| `Gene/Features.stats` | 8/11 values differ (tens of reads) |
-| `Gene/UMIperCellSorted.txt` | ~22/770K cells differ by ±1 UMI |
-| `GeneFull_Ex50pAS/filtered/barcodes.tsv` | Identical |
-| `GeneFull_Ex50pAS/filtered/features.tsv` | Identical |
-| `GeneFull_Ex50pAS/filtered/matrix.mtx` | 33/8.8M entries differ (<4 ppm) |
-| `GeneFull_Ex50pAS/raw/barcodes.tsv` | Identical |
-| `GeneFull_Ex50pAS/raw/features.tsv` | Identical |
-| `GeneFull_Ex50pAS/raw/matrix.mtx` | 54/12M entries differ (<5 ppm) |
-| `GeneFull_Ex50pAS/raw/UniqueAndMult-EM.mtx` | 92/13.87M entries differ (<7 ppm) |
-| `GeneFull_Ex50pAS/Summary.csv` | 3/20 values differ (tens of reads) |
-| `GeneFull_Ex50pAS/Features.stats` | 8/11 values differ (tens of reads) |
-| `GeneFull_Ex50pAS/UMIperCellSorted.txt` | ~50/837K cells differ by ±1 UMI |
-| `Barcodes.stats` | Identical |
-
-Both mode tables show nearly identical differences (~3–7 ppm), confirming that **all count-matrix differences are caused by last-decimal-place floating-point divergence between MSVC and GCC in the EM multi-mapper probability computation** — not by the chimeric bugfix. Cell barcodes, features, and filtered cell sets are unaffected. To use upstream 2.7.11b algorithm variants exactly (disabling the chimeric bugfixes), pass `--legacy`.
+Cell barcodes, features, and filtered cell sets are unaffected in both modes. Pass `--legacy` to disable the chimeric bugfixes and use upstream 2.7.11b algorithm variants exactly.
 
 **Windows limitations:**
   * Shared memory genome loading (`--genomeLoad LoadAndKeep/Remove`) is not supported; only `--genomeLoad NoSharedMemory` (the default) is available
