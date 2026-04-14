@@ -13,12 +13,15 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
 #  include <windows.h>
 #else
 #  include <csignal>
+#  include <dirent.h>
+#  include <sys/stat.h>
 #  include <sys/wait.h>
 #  include <unistd.h>
 #  ifdef __linux__
@@ -99,6 +102,62 @@ static std::string readFileTail(const std::string& path, size_t maxBytes = 32768
     std::ostringstream ss;
     ss << f.rdbuf();
     return ss.str();
+}
+
+static bool pathExists(const std::string& p) {
+#ifdef _WIN32
+    return GetFileAttributesA(p.c_str()) != INVALID_FILE_ATTRIBUTES;
+#else
+    struct stat st;
+    return stat(p.c_str(), &st) == 0;
+#endif
+}
+
+static bool isDirectory(const std::string& p) {
+#ifdef _WIN32
+    DWORD a = GetFileAttributesA(p.c_str());
+    return (a != INVALID_FILE_ATTRIBUTES) && (a & FILE_ATTRIBUTE_DIRECTORY);
+#else
+    struct stat st;
+    return stat(p.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+#endif
+}
+
+static std::string joinPath(const std::string& a, const std::string& b) {
+    if (a.empty()) return b;
+    char last = a.back();
+    return (last == '/' || last == '\\') ? a + b : a + "/" + b;
+}
+
+// Returns files in dir whose names end with any of the given extensions.
+static std::vector<std::string> listByExt(const std::string& dir,
+                                          const std::vector<std::string>& exts) {
+    std::vector<std::string> out;
+    auto matches = [&](const std::string& name) {
+        for (const auto& e : exts)
+            if (name.size() >= e.size() && name.compare(name.size()-e.size(), e.size(), e) == 0)
+                return true;
+        return false;
+    };
+#ifdef _WIN32
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA((dir + "\\*").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return out;
+    do {
+        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            if (matches(fd.cFileName)) out.push_back(joinPath(dir, fd.cFileName));
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+#else
+    DIR* d = opendir(dir.c_str());
+    if (!d) return out;
+    struct dirent* de;
+    while ((de = readdir(d)))
+        if (de->d_type != DT_DIR && matches(de->d_name))
+            out.push_back(joinPath(dir, de->d_name));
+    closedir(d);
+#endif
+    return out;
 }
 
 static void pollRunning() {
@@ -313,6 +372,9 @@ tr:hover td{background:#fafbff}
 #cmd-box{background:#f8f8f8;border:1px solid #e0e0e0;border-radius:4px;padding:10px 12px;font-family:Consolas,monospace;font-size:.78rem;white-space:pre-wrap;max-height:200px;overflow-y:auto;color:#222;line-height:1.65}
 .cmd-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 .cmd-hdr span{font-size:.76rem;font-weight:500;color:#666}
+.field[data-tip]{position:relative}
+.field[data-tip]>label{cursor:help}
+.field[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:0;min-width:200px;max-width:290px;background:#1e2535;color:#dde3f0;padding:8px 11px;border-radius:5px;font-size:.75rem;font-weight:400;line-height:1.5;white-space:normal;pointer-events:none;z-index:200;box-shadow:0 3px 14px rgba(0,0,0,.35)}
 </style>
 </head>
 <body>
@@ -327,7 +389,7 @@ tr:hover td{background:#fafbff}
 
     <!-- ── Run config ── -->
     <div class="row">
-      <div class="field" style="flex:0 0 160px">
+      <div class="field" style="flex:0 0 160px" data-tip="alignReads: map reads to a genome index. genomeGenerate: build a genome index (do this first). soloCellFiltering: re-filter cell barcodes from existing STARsolo output.">
         <label>Run Mode</label>
         <select id="runMode">
           <option value="alignReads">alignReads</option>
@@ -335,11 +397,12 @@ tr:hover td{background:#fafbff}
           <option value="soloCellFiltering">soloCellFiltering</option>
         </select>
       </div>
-      <div class="field">
+      <div class="field" data-tip="Path to the genome index directory. Built with --runMode genomeGenerate. Must contain SA, Genome, genomeParameters.txt and other index files.">
         <label>Genome Directory</label>
         <input id="genomeDir" type="text" placeholder="/path/to/genome/index">
+        <div id="genomeDirStatus" style="font-size:.76rem;min-height:1.1em"></div>
       </div>
-      <div class="field" style="flex:0 0 70px">
+      <div class="field" style="flex:0 0 70px" data-tip="Number of parallel CPU threads. Set to the number of physical cores for best performance. More threads = faster but proportionally more RAM.">
         <label>Threads</label>
         <input id="threads" type="number" value="4" min="1">
       </div>
@@ -347,15 +410,15 @@ tr:hover td{background:#fafbff}
 
     <!-- Genome generation params -->
     <div class="row" id="genGenRow" style="display:none">
-      <div class="field">
+      <div class="field" data-tip="Reference genome FASTA file(s). Required for genomeGenerate. For human or mouse download the primary assembly FASTA from Ensembl or NCBI. Space-separate multiple files (e.g. per-chromosome).">
         <label>Genome FASTA file(s) <span style="font-weight:400;color:#aaa">(required; space-separated for multiple chromosomes)</span></label>
         <input id="genomeFastaFiles" type="text" placeholder="/data/GRCh38.fa">
       </div>
-      <div class="field" style="flex:0 0 155px">
+      <div class="field" style="flex:0 0 155px" data-tip="Suffix array pre-index string length. Default 14 works for genomes >= 500 MB. For smaller genomes scale down: min(14, floor(log2(genomeSize)/2 - 1)). Example: 100 MB genome needs value 10.">
         <label>genomeSAindexNbases <span style="font-weight:400;color:#aaa">(4-14)</span></label>
         <input id="genomeSAindexNbases" type="number" value="14" min="4" max="14">
       </div>
-      <div class="field" style="flex:0 0 110px">
+      <div class="field" style="flex:0 0 110px" data-tip="Splice junction database overhang. Optimal value is readLength - 1. Default 100 works for most experiments. Set during genome generation; affects novel junction detection sensitivity.">
         <label>sjdbOverhang</label>
         <input id="sjdbOverhang" type="number" value="100" min="1">
       </div>
@@ -363,15 +426,15 @@ tr:hover td{background:#fafbff}
 
     <!-- ── Input reads ── -->
     <div class="row">
-      <div class="field">
+      <div class="field" data-tip="Read 1 FASTQ file(s). For 10x scRNA-seq: the short barcode+UMI read (26-28 bp). For standard RNA-seq: the forward read. Separate multiple lanes with spaces. Compression setting below must match.">
         <label>FASTQ Read 1 <span style="font-weight:400;color:#aaa">(space-separated for multiple lanes)</span></label>
         <input id="r1" type="text" placeholder="/data/R1.fastq.gz">
       </div>
-      <div class="field">
+      <div class="field" data-tip="Read 2 FASTQ file(s). For 10x scRNA-seq: the cDNA read (longer). For standard RNA-seq: the reverse read. Leave blank for single-end sequencing.">
         <label>FASTQ Read 2 <span style="font-weight:400;color:#aaa">(blank = single-end)</span></label>
         <input id="r2" type="text" placeholder="/data/R2.fastq.gz">
       </div>
-      <div class="field" style="flex:0 0 210px">
+      <div class="field" style="flex:0 0 210px" data-tip="Decompression command for compressed input reads. Must match the file extension: zcat for .gz (most common), bzcat for .bz2, zstdcat for .zst. Leave Uncompressed for plain FASTQ.">
         <label>File Compression</label>
         <select id="rfc">
           <option value="">Uncompressed</option>
@@ -389,11 +452,11 @@ tr:hover td{background:#fafbff}
 
     <!-- ── Output ── -->
     <div class="row">
-      <div class="field">
+      <div class="field" data-tip="Prefix for all output files. The directory must already exist. Trailing slash = directory (e.g. /out/ makes /out/Aligned.out.bam). Non-slash suffix adds a name tag (e.g. /out/s1_ makes /out/s1_Aligned.out.bam).">
         <label>Output Prefix <span style="font-weight:400;color:#aaa">(directory must exist)</span></label>
         <input id="outPrefix" type="text" placeholder="/data/output/sample_">
       </div>
-      <div class="field" style="flex:0 0 230px">
+      <div class="field" style="flex:0 0 230px" data-tip="Output alignment format. BAM SortedByCoordinate: required for IGV, featureCounts, HTSeq. BAM Unsorted: faster, use with --quantMode TranscriptomeSAM for RSEM. None: skip alignment output for count-only runs.">
         <label>outSAMtype</label>
         <select id="samtype">
           <option value="BAM SortedByCoordinate">BAM SortedByCoordinate</option>
@@ -406,21 +469,21 @@ tr:hover td{background:#fafbff}
 
     <!-- Alignment options (alignReads only) -->
     <div class="row" id="alignRow" style="display:none">
-      <div class="field" style="flex:0 0 170px">
+      <div class="field" style="flex:0 0 170px" data-tip="2-pass mapping: first pass discovers novel splice junctions, second pass maps with them included. Recommended for improved sensitivity and accuracy. Approximately doubles runtime.">
         <label>twopassMode</label>
         <select id="twopassMode">
           <option value="None">None (1-pass)</option>
           <option value="Basic">Basic (2-pass, recommended)</option>
         </select>
       </div>
-      <div class="field">
+      <div class="field" data-tip="TranscriptomeSAM: output a transcriptome-aligned BAM for RSEM or salmon. GeneCounts: output per-gene read count table (like featureCounts). Can enable both simultaneously.">
         <label>quantMode</label>
         <div class="checks">
           <label><input type="checkbox" class="qmode" value="TranscriptomeSAM"> TranscriptomeSAM</label>
           <label><input type="checkbox" class="qmode" value="GeneCounts"> GeneCounts</label>
         </div>
       </div>
-      <div class="field" style="flex:0 0 175px">
+      <div class="field" style="flex:0 0 175px" data-tip="intronMotif: adds XS:A strand tag required by Cufflinks, StringTie, and DEXSeq for unstranded libraries. Not needed for dUTP-based strand-specific protocols which use the flag bits instead.">
         <label>outSAMstrandField</label>
         <select id="outSAMstrandField">
           <option value="None">None</option>
@@ -433,7 +496,7 @@ tr:hover td{background:#fafbff}
     <div class="sep"></div>
     <div class="sec-label">STARsolo</div>
     <div class="row">
-      <div class="field" style="flex:0 0 190px">
+      <div class="field" style="flex:0 0 190px" data-tip="CB_UMI_Simple: fixed CB+UMI structure (10x Chromium, DropSeq, SeqWell). CB_UMI_Complex: tiled or variable barcode layout (inDrops, custom). SmartSeq: plate-based full-length RNA-seq (no CB/UMI). None: plain alignReads without cell demultiplexing.">
         <label>soloType</label>
         <select id="soloType">
           <option value="">None (plain alignReads)</option>
@@ -442,7 +505,7 @@ tr:hover td{background:#fafbff}
           <option value="SmartSeq">SmartSeq</option>
         </select>
       </div>
-      <div class="field" id="chemWrap" style="flex:0 0 240px;display:none">
+      <div class="field" id="chemWrap" style="flex:0 0 240px;display:none" data-tip="Pre-configured CB+UMI lengths for common platforms. 10x v3/v4: CB16+UMI12 (28 bp R1). 10x v2: CB16+UMI10 (26 bp R1). DropSeq: CB12+UMI8. SeqWell: CB8+UMI8. Custom: enter lengths manually.">
         <label>Chemistry Preset</label>
         <select id="chemPreset">
           <option value="10xv3">10x Chromium v3 / v4 &nbsp;(CB16 UMI12)</option>
@@ -452,11 +515,11 @@ tr:hover td{background:#fafbff}
           <option value="custom">Custom...</option>
         </select>
       </div>
-      <div class="field" id="whitelistWrap" style="display:none">
+      <div class="field" id="whitelistWrap" style="display:none" data-tip="Path to list of valid cell barcodes. For 10x v3/v4: 3M-february-2018.txt.gz. For 10x v2: 737K-august-2016.txt. Download from the Cell Ranger reference data package. Use - to auto-detect (not recommended).">
         <label>CB Whitelist</label>
         <input id="whitelist" type="text" placeholder="/data/3M-february-2018.txt">
       </div>
-      <div class="field" id="clipWrap" style="flex:0 0 170px;display:none">
+      <div class="field" id="clipWrap" style="flex:0 0 170px;display:none" data-tip="CellRanger4: trims TSO and polyA sequences from cDNA reads. Required for 10x v3/v4 libraries to avoid miscounting reads at transcript ends. AdapterTrimST: for STARsolo-specific adapter trimming.">
         <label>clipAdapterType</label>
         <select id="clipAdapterType">
           <option value="">None</option>
@@ -464,7 +527,7 @@ tr:hover td{background:#fafbff}
           <option value="AdapterTrimST">AdapterTrimST</option>
         </select>
       </div>
-      <div class="field" id="soloStrandWrap" style="flex:0 0 155px;display:none">
+      <div class="field" id="soloStrandWrap" style="flex:0 0 155px;display:none" data-tip="Library strand orientation relative to the mRNA. Forward: most 10x Chromium libraries. Reverse: some library kits. Unstranded: non-stranded protocols. Incorrect setting causes major expression miscounting.">
         <label>soloStrand</label>
         <select id="soloStrand">
           <option value="Forward">Forward (default)</option>
@@ -472,7 +535,7 @@ tr:hover td{background:#fafbff}
           <option value="Unstranded">Unstranded</option>
         </select>
       </div>
-      <div class="field" id="soloUMIdedupWrap" style="flex:0 0 200px;display:none">
+      <div class="field" id="soloUMIdedupWrap" style="flex:0 0 200px;display:none" data-tip="UMI deduplication strategy. 1MM_All: merge UMIs within 1 Hamming distance (default, most permissive). 1MM_Directional: directional error correction (recommended for high-depth data). Exact: no correction. NoDedup: count all reads.">
         <label>soloUMIdedup</label>
         <select id="soloUMIdedup">
           <option value="1MM_All">1MM_All (default)</option>
@@ -495,9 +558,10 @@ tr:hover td{background:#fafbff}
       </div>
     </div>
 
-    <!-- soloFeatures / multiMapper / cellFilter -->
+)HTML"
+R"HTML(    <!-- soloFeatures / multiMapper / cellFilter -->
     <div class="row" id="soloFeatRow" style="display:none">
-      <div class="field">
+      <div class="field" data-tip="Gene: counts reads overlapping exons (spliced RNA). GeneFull: counts reads over the full gene body including introns (use for single-nucleus RNA-seq). SJ: splice junction counts. Velocyto: spliced/unspliced/ambiguous counts for RNA velocity.">
         <label>soloFeatures</label>
         <div class="checks">
           <label><input type="checkbox" class="sfeat" value="Gene" checked> Gene</label>
@@ -506,7 +570,7 @@ tr:hover td{background:#fafbff}
           <label><input type="checkbox" class="sfeat" value="Velocyto"> Velocyto</label>
         </div>
       </div>
-      <div class="field" style="flex:0 0 155px">
+      <div class="field" style="flex:0 0 155px" data-tip="How to assign reads mapping to multiple genes. Uniform: distribute equally. EM: expectation-maximization, most accurate but slower. Rescue: simple rescue heuristic. PropUnique: proportional to unique counts.">
         <label>soloMultiMappers</label>
         <select id="soloMM">
           <option value="Uniform">Uniform</option>
@@ -515,7 +579,7 @@ tr:hover td{background:#fafbff}
           <option value="PropUnique">PropUnique</option>
         </select>
       </div>
-      <div class="field" style="flex:0 0 210px">
+      <div class="field" style="flex:0 0 210px" data-tip="Cell filtering method. EmptyDrops_CR: statistical model distinguishing real cells from empty droplets (recommended). CellRanger2 200: knee-point method, min 200 UMIs. TopCells 500: top 500 barcodes by count. None: no filtering, output all barcodes.">
         <label>soloCellFilter</label>
         <select id="cellFilterSel">
           <option value="EmptyDrops_CR">EmptyDrops_CR (recommended)</option>
@@ -533,7 +597,7 @@ tr:hover td{background:#fafbff}
 
     <!-- GTF (optional) -->
     <div class="row">
-      <div class="field">
+      <div class="field" data-tip="Gene annotation in GTF/GFF format. Optional if already baked into the genome index. Required for --quantMode GeneCounts and for STARsolo gene-level output. Download from Ensembl or GENCODE.">
         <label>GTF file <span style="font-weight:400;color:#aaa">(optional, skip if already embedded in genome index)</span></label>
         <input id="gtf" type="text" placeholder="/data/genes.gtf">
       </div>
@@ -544,11 +608,11 @@ tr:hover td{background:#fafbff}
     <details>
       <summary style="cursor:pointer;font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9c9c9c;padding:4px 0;list-style:none">Advanced</summary>
       <div class="row" style="margin-top:10px">
-        <div class="field" style="flex:0 0 175px">
+        <div class="field" style="flex:0 0 175px" data-tip="Max number of loci a read may align to. Reads exceeding this are considered unmapped. Default 10. Set to 1 to keep only uniquely mapping reads. Increase for repetitive element analysis.">
           <label>outFilterMultimapNmax</label>
           <input id="multimapNmax" type="number" value="10" min="1">
         </div>
-        <div class="field" style="flex:0 0 220px">
+        <div class="field" style="flex:0 0 220px" data-tip="RAM limit for BAM coordinate sorting in bytes. 0 = auto-detect from available memory. For large genomes you may need to set this explicitly, e.g. 20000000000 for 20 GB. Increase if sorting fails with an out-of-memory error.">
           <label>limitBAMsortRAM (bytes, 0=auto)</label>
           <input id="limitBAMsortRAM" type="number" value="0" min="0">
         </div>
@@ -610,6 +674,10 @@ let watchId = null;
 
 fetch('/props').then(r=>r.json()).then(d=>{
   document.getElementById('ver').textContent = ' v'+d.version+' \u2022 '+d.platform;
+  if (d.cpuCount > 0) {
+    document.getElementById('threads').value = d.cpuCount;
+    updateCmd();
+  }
 });
 
 // ── Visibility wiring ──
@@ -627,6 +695,64 @@ function onChemPresetChange() {
   document.getElementById('chemCustom').style.display = isCustom ? 'flex' : 'none';
   updateCmd();
 }
+// ── Genome directory probe ──
+let _probeTimer = null;
+function scheduleProbe() {
+  clearTimeout(_probeTimer);
+  _probeTimer = setTimeout(probeGenomeDir, 650);
+}
+async function probeGenomeDir() {
+  const dir = document.getElementById('genomeDir').value.trim();
+  const el  = document.getElementById('genomeDirStatus');
+  if (!dir) { el.innerHTML = ''; return; }
+  el.innerHTML = '<span style="color:#9c9c9c;font-style:italic">checking...</span>';
+  let d;
+  try { d = await fetch('/genome/probe?dir='+encodeURIComponent(dir)).then(r=>r.json()); }
+  catch(e) { el.innerHTML = ''; return; }
+  if (d.type === 'star_index') {
+    el.innerHTML = '<span style="color:#2e7d32">Valid STAR genome index</span>';
+  } else if (d.type === 'cellranger_ref') {
+    const sd = d.starDir || '', gf = d.gtfFile || '';
+    el.innerHTML = '<span style="color:#e65100">CellRanger reference detected \u2014 '
+      + '<button type="button" class="btn-sm" onclick="applyCRRef('+JSON.stringify(sd)+','+JSON.stringify(gf)+')">'
+      + 'Use star/ index + genes/genes.gtf</button></span>';
+  } else if (d.type === 'not_found') {
+    el.innerHTML = '<span style="color:#c62828">Directory not found</span>';
+  } else if (d.type === 'has_source') {
+    const nf = (d.fastaFiles||[]).length, ng = (d.gtfFiles||[]).length;
+    if (nf > 0 || ng > 0) {
+      const hint = [];
+      if (nf) hint.push(nf+' FASTA');
+      if (ng) hint.push(ng+' GTF');
+      el.innerHTML = '<span style="color:#1565c0">Found '+hint.join(', ')+' file(s) \u2014 '
+        + '<button type="button" class="btn-sm" onclick="switchToGenomeGenerate('
+        + JSON.stringify(d.fastaFiles||[])+','+JSON.stringify((d.gtfFiles||[])[0]||'')+')">Switch to genomeGenerate</button></span>';
+    } else {
+      el.innerHTML = '<span style="color:#9c9c9c">No STAR index found \u2014 use genomeGenerate to build one</span>';
+    }
+  } else {
+    el.innerHTML = '<span style="color:#9c9c9c">No STAR index found \u2014 use genomeGenerate to build one</span>';
+  }
+}
+function applyCRRef(starDir, gtfFile) {
+  document.getElementById('genomeDir').value = starDir;
+  if (gtfFile) document.getElementById('gtf').value = gtfFile;
+  document.getElementById('genomeDirStatus').innerHTML =
+    '<span style="color:#2e7d32">Applied: using star/ index</span>';
+  updateCmd();
+}
+function switchToGenomeGenerate(fastas, gtf) {
+  document.getElementById('runMode').value = 'genomeGenerate';
+  onRunModeChange();
+  if (fastas && fastas.length)
+    document.getElementById('genomeFastaFiles').value = fastas.join(' ');
+  if (gtf) document.getElementById('gtf').value = gtf;
+  document.getElementById('genomeDirStatus').innerHTML =
+    '<span style="color:#2e7d32">Switched to genomeGenerate \u2014 set Output Prefix to the index directory</span>';
+  updateCmd();
+}
+document.getElementById('genomeDir').addEventListener('input', scheduleProbe);
+
 function onRunModeChange() {
   const mode = document.getElementById('runMode').value;
   document.getElementById('genGenRow').style.display  = mode==='genomeGenerate' ? 'flex' : 'none';
@@ -915,6 +1041,7 @@ void WebUI::run() {
 #endif
             {"runModes",     json::array({"alignReads","genomeGenerate","soloCellFiltering","webui"})},
             {"webuiVersion", 2},
+            {"cpuCount",     (int)std::thread::hardware_concurrency()},
         };
         res.set_content(body.dump(2), "application/json");
     });
@@ -923,6 +1050,39 @@ void WebUI::run() {
             res.set_content("# STAR WebUI metrics\n", "text/plain; version=0.0.4");
         });
     }
+
+    // Probe a directory: is it a STAR index, a CellRanger ref, or something else?
+    srv.Get("/genome/probe", [](const httplib::Request& req, httplib::Response& res) {
+        std::string dir = req.get_param_value("dir");
+        auto j = [&](json r){ res.set_content(r.dump(), "application/json"); };
+
+        if (dir.empty()) { j({{"type","empty"}}); return; }
+        // Trim trailing separators for consistent probing
+        while (!dir.empty() && (dir.back()=='/' || dir.back()=='\\')) dir.pop_back();
+
+        // Valid STAR index: contains SA + genomeParameters.txt
+        if (pathExists(joinPath(dir,"SA")) && pathExists(joinPath(dir,"genomeParameters.txt"))) {
+            j({{"type","star_index"}}); return;
+        }
+
+        // CellRanger reference: has star/SA subdir (index) + genes/genes.gtf (annotation)
+        if (pathExists(joinPath(dir,"star/SA"))) {
+            json r{{"type","cellranger_ref"},
+                   {"starDir", joinPath(dir,"star")}};
+            std::string gtf = joinPath(dir,"genes/genes.gtf");
+            if (pathExists(gtf)) r["gtfFile"] = gtf;
+            j(r); return;
+        }
+
+        if (!isDirectory(dir)) { j({{"type","not_found"}}); return; }
+
+        // Scan for FASTA and GTF source files the user might want for genomeGenerate
+        auto fastas = listByExt(dir, {".fa",".fasta",".fa.gz",".fasta.gz"});
+        auto gtfs   = listByExt(dir, {".gtf",".gff",".gff3"});
+        j({{"type","has_source"},
+           {"fastaFiles", fastas},
+           {"gtfFiles",   gtfs}});
+    });
 
     srv.Post("/jobs", [&exe](const httplib::Request& req, httplib::Response& res) {
         json body;
