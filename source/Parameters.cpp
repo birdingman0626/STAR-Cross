@@ -36,6 +36,11 @@ Parameters::Parameters() {//initalize parameters info
     parArray.push_back(new ParameterInfoScalar <int> (-1, -1, "runRNGseed", &runRNGseed));
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "legacy", &legacyIn));
 
+    //webui
+    parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "webuiHost",    &webui.host));
+    parArray.push_back(new ParameterInfoScalar <int>    (-1, -1, "webuiPort",    &webui.port));
+    parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "webuiMetrics", &webui.metricsIn));
+
     //genome
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "genomeType", &pGe.gTypeString));    
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "genomeDir", &pGe.gDir));
@@ -356,7 +361,7 @@ void Parameters::inputParameters (int argInN, char* argIn[]) {//input parameters
                 commandLineFile +='\n' + paramName;
                 // Boolean flags: no value expected; inject "True" when flag stands alone.
                 // Add new boolean flag names here as needed.
-                static const string boolFlags[] = {"legacy"};
+                static const string boolFlags[] = {"legacy", "webuiMetrics"};
                 for (const auto &bf : boolFlags) {
                     if (paramName == bf) {
                         bool nextIsValue = (iarg + 1 < argInN) && string(argIn[iarg+1]).substr(0,2) != "--";

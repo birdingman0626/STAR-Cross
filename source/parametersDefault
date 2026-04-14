@@ -36,6 +36,18 @@ legacy                          None
                                 None  ... use current algorithms (default)
                                 True  ... restore 2.7.11b behavior for all result-affecting algorithm changes
 
+### WebUI Parameters (--runMode webui)
+webuiHost                       127.0.0.1
+    string: host/IP to bind the WebUI HTTP server to.
+
+webuiPort                       8080
+    int: TCP port for the WebUI HTTP server.
+
+webuiMetrics                    None
+    string: enable GET /metrics endpoint; specify without a value to activate.
+                                None  ... metrics endpoint disabled (default)
+                                True  ... expose Prometheus-style metrics at GET /metrics
+
 ### Genome Parameters
 genomeDir                   ./GenomeDir/
     string: path to the directory where genome files are stored (for --runMode alignReads) or will be generated (for --runMode generateGenome)

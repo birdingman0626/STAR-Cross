@@ -100,6 +100,26 @@ if(EXISTS "${parasail_SOURCE_DIR}/data/test_small_2.fasta")
          DESTINATION "${CMAKE_SOURCE_DIR}/data")
 endif()
 
+# ---------- cpp-httplib (header-only HTTP server) ----------
+FetchContent_Declare(httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG        v0.20.0
+    GIT_SHALLOW    TRUE
+)
+set(HTTPLIB_COMPILE OFF CACHE BOOL "" FORCE)   # keep header-only, no separate lib
+set(HTTPLIB_REQUIRE_OPENSSL OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(httplib)
+
+# ---------- nlohmann/json (header-only JSON) ----------
+FetchContent_Declare(nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG        v3.11.3
+    GIT_SHALLOW    TRUE
+)
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+set(JSON_Install    OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(nlohmann_json)
+
 # ---------- Generate parametersDefault.xxd ----------
 # Replicate the `xxd -i parametersDefault > parametersDefault.xxd` step
 set(PARAM_DEFAULT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/parametersDefault")
@@ -365,6 +385,7 @@ set(STAR_SOURCES
     signalFromBAM.cpp
     bamRemoveDuplicates.cpp
     BAMbinSortUnmapped.cpp
+    webui/WebUI.cpp
 )
 
 # Prepend source directory
@@ -380,6 +401,11 @@ target_include_directories(STAR PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}  # for parametersDefault.xxd
     ${HTSLIB_DIR}
+    ${httplib_SOURCE_DIR}        # httplib.h
+)
+
+target_include_directories(STAR SYSTEM PRIVATE
+    ${nlohmann_json_SOURCE_DIR}/include  # nlohmann/json.hpp
 )
 
 target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB parasail)

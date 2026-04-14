@@ -44,6 +44,13 @@ class Parameters {
         string legacyIn; //legacy algorithm selection
 
         struct {
+            string host;
+            int    port;
+            string metricsIn; // parsed to metrics in webui mode
+            bool   metrics;
+        } webui;
+
+        struct {
             int32 type;//0 no restart, 1 no mapping - restart from _STARtmp files
         } runRestart; //restart options - in development
         

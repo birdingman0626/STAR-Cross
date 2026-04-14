@@ -35,6 +35,7 @@
 
 #include "htslib/htslib/sam.h"
 #include "parametersDefault.xxd"
+#include "webui/WebUI.h"
 
 void usage(int usageType)
 {
@@ -119,6 +120,13 @@ int main(int argInN, char *argIn[])
                              << flush;
             exit(0);
         };
+    }
+    else if (P.runMode == "webui")
+    {
+        P.webui.metrics = (P.webui.metricsIn != "None");
+        WebUI server(P);
+        server.run();
+        exit(0);
     }
     else
     {
