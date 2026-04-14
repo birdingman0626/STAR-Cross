@@ -46,7 +46,9 @@ struct Job {
     std::string submitTime;
     std::string startTime;
     std::string endTime;
-    int         exitCode = -1;
+    int         exitCode       = -1;
+    bool        generateReport = false;
+    std::string reportPath;
     std::vector<std::string> args;
 #ifdef _WIN32
     HANDLE hProcess = INVALID_HANDLE_VALUE;
@@ -160,6 +162,8 @@ static std::vector<std::string> listByExt(const std::string& dir,
     return out;
 }
 
+static void writeReport(Job& job); // defined below
+
 static void pollRunning() {
     for (auto& [id, job] : g_jobs) {
         if (job.state != "running") continue;
@@ -174,6 +178,7 @@ static void pollRunning() {
             job.exitCode  = (int)ec;
             job.state     = (ec == 0) ? "succeeded" : "failed";
             job.endTime   = nowISO();
+            if (ec == 0 && job.generateReport) writeReport(job);
         }
 #else
         int status = 0;
@@ -181,6 +186,7 @@ static void pollRunning() {
             job.exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
             job.state    = (job.exitCode == 0) ? "succeeded" : "failed";
             job.endTime  = nowISO();
+            if (job.exitCode == 0 && job.generateReport) writeReport(job);
         }
 #endif
     }
@@ -190,7 +196,66 @@ static json jobToJson(const Job& j) {
     return {{"id", j.id}, {"state", j.state}, {"runMode", j.runMode},
             {"cmdLine", j.cmdLine}, {"outputPrefix", j.outputPrefix},
             {"submitTime", j.submitTime}, {"startTime", j.startTime},
-            {"endTime", j.endTime}, {"exitCode", j.exitCode}};
+            {"endTime", j.endTime}, {"exitCode", j.exitCode},
+            {"reportPath", j.reportPath}};
+}
+
+static void writeReport(Job& job) {
+    std::string logFinal = readFileTail(job.outputPrefix + "Log.final.out");
+    std::string logOut   = readFileTail(job.outputPrefix + "Log.out", 4096);
+    std::string path     = job.outputPrefix + "WebUI_Report.html";
+    std::ofstream f(path);
+    if (!f) return;
+
+    auto esc = [](const std::string& s) {
+        std::string r; r.reserve(s.size());
+        for (char c : s) {
+            if      (c=='<') r += "&lt;";
+            else if (c=='>') r += "&gt;";
+            else if (c=='&') r += "&amp;";
+            else             r += c;
+        }
+        return r;
+    };
+
+    f << "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'>"
+         "<title>STAR Report - Job " << job.id << "</title><style>"
+         "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+         "background:#f4f5f7;color:#333;margin:0}"
+         "header{background:#1a1a2e;color:#fff;padding:14px 24px}"
+         "header h1{font-size:1.1rem;font-weight:600;margin:0}"
+         ".wrap{max-width:960px;margin:0 auto;padding:24px}"
+         ".card{background:#fff;border-radius:6px;padding:20px;margin-bottom:16px;"
+         "box-shadow:0 1px 3px rgba(0,0,0,.1)}"
+         "h2{font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;"
+         "color:#666;margin:0 0 10px}"
+         ".meta{display:flex;flex-wrap:wrap;gap:14px 24px;font-size:.86rem}"
+         ".meta span b{color:#333}"
+         "pre{background:#1e1e1e;color:#d4d4d4;padding:14px;border-radius:4px;"
+         "font-family:Consolas,monospace;font-size:.78rem;white-space:pre-wrap;"
+         "overflow-x:auto;margin:0;max-height:500px;overflow-y:auto}"
+         "</style></head><body>"
+         "<header><h1>STAR Run Report</h1></header>"
+         "<div class='wrap'>"
+         "<div class='card'><h2>Summary</h2><div class='meta'>"
+         "<span><b>Job&nbsp;ID:</b> " << job.id << "</span>"
+         "<span><b>Mode:</b> " << esc(job.runMode) << "</span>"
+         "<span><b>Status:</b> " << esc(job.state) << "</span>"
+         "<span><b>Exit&nbsp;code:</b> " << job.exitCode << "</span>"
+         "<span><b>Submitted:</b> " << esc(job.submitTime) << "</span>"
+         "<span><b>Finished:</b> " << esc(job.endTime) << "</span>"
+         "<span><b>Output:</b> " << esc(job.outputPrefix) << "</span>"
+         "</div></div>"
+         "<div class='card'><h2>Command</h2><pre>" << esc(job.cmdLine) << "</pre></div>";
+    if (!logFinal.empty())
+        f << "<div class='card'><h2>Mapping Statistics (Log.final.out)</h2>"
+             "<pre>" << esc(logFinal) << "</pre></div>";
+    if (!logOut.empty())
+        f << "<div class='card'><h2>Run Log tail (Log.out)</h2>"
+             "<pre>" << esc(logOut) << "</pre></div>";
+    f << "</div></body></html>";
+    f.close();
+    job.reportPath = path;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -397,20 +462,9 @@ tr:hover td{background:#fafbff}
           <option value="soloCellFiltering">soloCellFiltering</option>
         </select>
       </div>
-      <div class="field" data-tip="Path to the genome index directory. Built with --runMode genomeGenerate. Must contain SA, Genome, genomeParameters.txt and other index files. Use Find... to browse available indexes.">
+      <div class="field" data-tip="Path to the genome index directory. Built with --runMode genomeGenerate. Must contain SA, Genome, genomeParameters.txt and other index files.">
         <label>Genome Directory</label>
-        <div style="display:flex;gap:5px">
-          <input id="genomeDir" type="text" placeholder="/path/to/genome/index" style="flex:1;min-width:0">
-          <button type="button" class="btn-sm" style="white-space:nowrap;align-self:center" onclick="toggleScanPanel()">Find...</button>
-        </div>
-        <div id="scanPanel" style="display:none;margin-top:6px;border:1px solid #c5cae9;border-radius:4px;padding:9px;background:#f3f4fb">
-          <div style="font-size:.74rem;color:#555;margin-bottom:5px">Scan a folder for STAR indexes and CellRanger references:</div>
-          <div style="display:flex;gap:5px;margin-bottom:6px">
-            <input id="scanBaseDir" type="text" placeholder="e.g. /data/genomes" style="flex:1;min-width:0;font-size:.83rem;padding:4px 7px;border:1px solid #c5cae9;border-radius:4px">
-            <button type="button" class="btn-sm" onclick="scanGenomes()">Search</button>
-          </div>
-          <div id="scanResults" style="font-size:.8rem;color:#888;max-height:200px;overflow-y:auto">Enter a directory above and click Search.</div>
-        </div>
+        <input id="genomeDir" type="text" placeholder="/path/to/genome/index">
         <div id="genomeDirStatus" style="font-size:.76rem;min-height:1.1em"></div>
       </div>
       <div class="field" style="flex:0 0 70px" data-tip="Number of parallel CPU threads. Set to the number of physical cores for best performance. More threads = faster but proportionally more RAM.">
@@ -640,8 +694,12 @@ R"HTML(    <!-- soloFeatures / multiMapper / cellFilter -->
     <div id="cmd-box">STAR ...</div>
 
     <div id="ferr" class="err"></div>
-    <div style="margin-top:14px">
+    <div style="margin-top:14px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
       <button type="submit" class="btn-primary">Submit Job</button>
+      <label style="font-size:.85rem;display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="generateReport" checked>
+        Generate HTML report on completion
+      </label>
     </div>
     <p class="note">Output directory must exist before submitting.</p>
   </form>
@@ -768,58 +826,6 @@ function switchToGenomeGenerate(fastas, gtf) {
   if (gtf) document.getElementById('gtf').value = gtf;
   document.getElementById('genomeDirStatus').innerHTML =
     '<span style="color:#2e7d32">Switched to genomeGenerate \u2014 set Output Prefix to the index directory</span>';
-  updateCmd();
-}
-function toggleScanPanel() {
-  const panel = document.getElementById('scanPanel');
-  const show = panel.style.display === 'none';
-  panel.style.display = show ? 'block' : 'none';
-  if (show) {
-    const cur = document.getElementById('genomeDir').value.trim();
-    if (cur) {
-      const parts = cur.replace(/\\/g,'/').split('/');
-      parts.pop();
-      document.getElementById('scanBaseDir').value = parts.join('/') || cur;
-    }
-    document.getElementById('scanBaseDir').focus();
-  }
-}
-async function scanGenomes() {
-  const base = document.getElementById('scanBaseDir').value.trim();
-  if (!base) return;
-  const el = document.getElementById('scanResults');
-  el.innerHTML = '<span style="color:#9c9c9c;font-style:italic">Scanning...</span>';
-  let items;
-  try { items = await fetch('/genome/scan?base='+encodeURIComponent(base)).then(r=>r.json()); }
-  catch(e) { el.innerHTML = '<span style="color:#c62828">Request failed.</span>'; return; }
-  if (items.error) { el.innerHTML = '<span style="color:#c62828">'+items.error+'</span>'; return; }
-  if (!Array.isArray(items) || !items.length) {
-    el.innerHTML = '<span style="color:#888">No STAR indexes or CellRanger references found here.</span>';
-    return;
-  }
-  el.innerHTML = items.map(r => {
-    const isCR = r.type === 'cellranger_ref';
-    const badge = isCR
-      ? '<span style="background:#fff3e0;color:#e65100;padding:1px 6px;border-radius:3px;font-size:.7rem;font-weight:700">CellRanger</span>'
-      : '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:3px;font-size:.7rem;font-weight:700">STAR index</span>';
-    const gPath = isCR ? (r.starDir||r.path) : r.path;
-    const gtf   = r.gtfFile||'';
-    return '<div style="padding:6px 5px;cursor:pointer;border-radius:4px;border-bottom:1px solid #e8eaf6"'
-      +' onmouseenter="this.style.background=\'#e8eaf6\'" onmouseleave="this.style.background=\'\'"'
-      +' onclick="selectGenome('+JSON.stringify(gPath)+','+JSON.stringify(gtf)+')">'
-      + badge+' <b style="font-family:Consolas,monospace;font-size:.85rem">'+r.name+'</b>'
-      +(gtf?' <span style="color:#9c9c9c;font-size:.72rem">+ GTF</span>':'')
-      +'<div style="color:#9c9c9c;font-size:.71rem;margin-top:2px">'+gPath+'</div>'
-      +'</div>';
-  }).join('');
-}
-function selectGenome(genomePath, gtfFile) {
-  document.getElementById('genomeDir').value = genomePath;
-  if (gtfFile) document.getElementById('gtf').value = gtfFile;
-  document.getElementById('scanPanel').style.display = 'none';
-  document.getElementById('genomeDirStatus').innerHTML =
-    '<span style="color:#2e7d32">Selected</span>';
-  scheduleProbe();
   updateCmd();
 }
 document.getElementById('genomeDir').addEventListener('input', scheduleProbe);
@@ -1019,6 +1025,7 @@ document.getElementById('jform').addEventListener('submit', async e=>{
     genomeFastaFiles:       runMode2==='genomeGenerate' ? document.getElementById('genomeFastaFiles').value.trim().split(/\s+/).filter(Boolean) : [],
     genomeSAindexNbases:    runMode2==='genomeGenerate' ? parseInt(document.getElementById('genomeSAindexNbases').value)||14 : 14,
     sjdbOverhang:           runMode2==='genomeGenerate' ? parseInt(document.getElementById('sjdbOverhang').value)||100 : 100,
+    generateReport:         document.getElementById('generateReport').checked,
     ...chemParams,
   };
   if (readFilesIn.length) body.readFilesIn = readFilesIn;
@@ -1049,6 +1056,7 @@ async function refreshJobs(){
     <td style="font-size:.8rem">${dur(j.startTime,j.state==='running'?null:j.endTime)}</td>
     <td style="white-space:nowrap">
       <button class="btn-log" onclick="viewLogs(${j.id})">Logs</button>
+      ${j.reportPath?`<button class="btn-log" style="margin-left:4px" onclick="window.open('/jobs/${j.id}/report','_blank')">Report</button>`:''}
       ${j.state==='running'?`<button class="btn-cancel" style="margin-left:4px" onclick="cancelJob(${j.id})">Cancel</button>`:''}
     </td>
   </tr>`).join('');
@@ -1232,6 +1240,7 @@ void WebUI::run() {
                 res.set_content(json{{"error","Failed to spawn process (code "+std::to_string(rc)+")"}}.dump(), "application/json");
                 return;
             }
+            job.generateReport = body.value("generateReport", true);
             int jobId = job.id;
             job.args.clear();  // args consumed by spawnJob; free memory
             g_jobs[jobId] = std::move(job);
@@ -1287,6 +1296,19 @@ void WebUI::run() {
             if (!c.empty()) { if (!logs.empty()) logs+="\n\n--- "+std::string(f)+" ---\n"; logs+=c; }
         }
         res.set_content(json{{"logs",logs}}.dump(), "application/json");
+    });
+
+    srv.Get(R"(/jobs/(\d+)/report)", [](const httplib::Request& req, httplib::Response& res) {
+        int id = std::stoi(req.matches[1]);
+        std::string rpath;
+        { std::lock_guard<std::mutex> lk(g_mu);
+          auto it = g_jobs.find(id);
+          if (it == g_jobs.end()) { res.status=404; res.set_content("Not found","text/plain"); return; }
+          rpath = it->second.reportPath; }
+        if (rpath.empty()) { res.status=404; res.set_content("Report not generated","text/plain"); return; }
+        std::string html = readFileTail(rpath, 2*1024*1024);
+        if (html.empty()) { res.status=404; res.set_content("Report file missing","text/plain"); return; }
+        res.set_content(html, "text/html; charset=utf-8");
     });
 
     std::string host = P.webui.host;
