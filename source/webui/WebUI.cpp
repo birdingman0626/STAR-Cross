@@ -397,9 +397,20 @@ tr:hover td{background:#fafbff}
           <option value="soloCellFiltering">soloCellFiltering</option>
         </select>
       </div>
-      <div class="field" data-tip="Path to the genome index directory. Built with --runMode genomeGenerate. Must contain SA, Genome, genomeParameters.txt and other index files.">
+      <div class="field" data-tip="Path to the genome index directory. Built with --runMode genomeGenerate. Must contain SA, Genome, genomeParameters.txt and other index files. Use Find... to browse available indexes.">
         <label>Genome Directory</label>
-        <input id="genomeDir" type="text" placeholder="/path/to/genome/index">
+        <div style="display:flex;gap:5px">
+          <input id="genomeDir" type="text" placeholder="/path/to/genome/index" style="flex:1;min-width:0">
+          <button type="button" class="btn-sm" style="white-space:nowrap;align-self:center" onclick="toggleScanPanel()">Find...</button>
+        </div>
+        <div id="scanPanel" style="display:none;margin-top:6px;border:1px solid #c5cae9;border-radius:4px;padding:9px;background:#f3f4fb">
+          <div style="font-size:.74rem;color:#555;margin-bottom:5px">Scan a folder for STAR indexes and CellRanger references:</div>
+          <div style="display:flex;gap:5px;margin-bottom:6px">
+            <input id="scanBaseDir" type="text" placeholder="e.g. /data/genomes" style="flex:1;min-width:0;font-size:.83rem;padding:4px 7px;border:1px solid #c5cae9;border-radius:4px">
+            <button type="button" class="btn-sm" onclick="scanGenomes()">Search</button>
+          </div>
+          <div id="scanResults" style="font-size:.8rem;color:#888;max-height:200px;overflow-y:auto">Enter a directory above and click Search.</div>
+        </div>
         <div id="genomeDirStatus" style="font-size:.76rem;min-height:1.1em"></div>
       </div>
       <div class="field" style="flex:0 0 70px" data-tip="Number of parallel CPU threads. Set to the number of physical cores for best performance. More threads = faster but proportionally more RAM.">
@@ -424,7 +435,8 @@ tr:hover td{background:#fafbff}
       </div>
     </div>
 
-    <!-- ── Input reads ── -->
+)HTML"
+R"HTML(    <!-- ── Input reads ── -->
     <div class="row">
       <div class="field" data-tip="Read 1 FASTQ file(s). For 10x scRNA-seq: the short barcode+UMI read (26-28 bp). For standard RNA-seq: the forward read. Separate multiple lanes with spaces. Compression setting below must match.">
         <label>FASTQ Read 1 <span style="font-weight:400;color:#aaa">(space-separated for multiple lanes)</span></label>
@@ -674,10 +686,17 @@ let watchId = null;
 
 fetch('/props').then(r=>r.json()).then(d=>{
   document.getElementById('ver').textContent = ' v'+d.version+' \u2022 '+d.platform;
-  if (d.cpuCount > 0) {
-    document.getElementById('threads').value = d.cpuCount;
-    updateCmd();
+  if (d.cpuCount > 0) document.getElementById('threads').value = d.cpuCount;
+  if (d.outDir) {
+    const base = (d.outDir.endsWith('/')||d.outDir.endsWith('\\')) ? d.outDir : d.outDir+'/';
+    const now  = new Date();
+    const ts   = now.getFullYear().toString()
+               + String(now.getMonth()+1).padStart(2,'0')
+               + String(now.getDate()).padStart(2,'0')
+               + '-';
+    document.getElementById('outPrefix').value = base + ts;
   }
+  updateCmd();
 });
 
 // ── Visibility wiring ──
@@ -751,6 +770,58 @@ function switchToGenomeGenerate(fastas, gtf) {
     '<span style="color:#2e7d32">Switched to genomeGenerate \u2014 set Output Prefix to the index directory</span>';
   updateCmd();
 }
+function toggleScanPanel() {
+  const panel = document.getElementById('scanPanel');
+  const show = panel.style.display === 'none';
+  panel.style.display = show ? 'block' : 'none';
+  if (show) {
+    const cur = document.getElementById('genomeDir').value.trim();
+    if (cur) {
+      const parts = cur.replace(/\\/g,'/').split('/');
+      parts.pop();
+      document.getElementById('scanBaseDir').value = parts.join('/') || cur;
+    }
+    document.getElementById('scanBaseDir').focus();
+  }
+}
+async function scanGenomes() {
+  const base = document.getElementById('scanBaseDir').value.trim();
+  if (!base) return;
+  const el = document.getElementById('scanResults');
+  el.innerHTML = '<span style="color:#9c9c9c;font-style:italic">Scanning...</span>';
+  let items;
+  try { items = await fetch('/genome/scan?base='+encodeURIComponent(base)).then(r=>r.json()); }
+  catch(e) { el.innerHTML = '<span style="color:#c62828">Request failed.</span>'; return; }
+  if (items.error) { el.innerHTML = '<span style="color:#c62828">'+items.error+'</span>'; return; }
+  if (!Array.isArray(items) || !items.length) {
+    el.innerHTML = '<span style="color:#888">No STAR indexes or CellRanger references found here.</span>';
+    return;
+  }
+  el.innerHTML = items.map(r => {
+    const isCR = r.type === 'cellranger_ref';
+    const badge = isCR
+      ? '<span style="background:#fff3e0;color:#e65100;padding:1px 6px;border-radius:3px;font-size:.7rem;font-weight:700">CellRanger</span>'
+      : '<span style="background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:3px;font-size:.7rem;font-weight:700">STAR index</span>';
+    const gPath = isCR ? (r.starDir||r.path) : r.path;
+    const gtf   = r.gtfFile||'';
+    return '<div style="padding:6px 5px;cursor:pointer;border-radius:4px;border-bottom:1px solid #e8eaf6"'
+      +' onmouseenter="this.style.background=\'#e8eaf6\'" onmouseleave="this.style.background=\'\'"'
+      +' onclick="selectGenome('+JSON.stringify(gPath)+','+JSON.stringify(gtf)+')">'
+      + badge+' <b style="font-family:Consolas,monospace;font-size:.85rem">'+r.name+'</b>'
+      +(gtf?' <span style="color:#9c9c9c;font-size:.72rem">+ GTF</span>':'')
+      +'<div style="color:#9c9c9c;font-size:.71rem;margin-top:2px">'+gPath+'</div>'
+      +'</div>';
+  }).join('');
+}
+function selectGenome(genomePath, gtfFile) {
+  document.getElementById('genomeDir').value = genomePath;
+  if (gtfFile) document.getElementById('gtf').value = gtfFile;
+  document.getElementById('scanPanel').style.display = 'none';
+  document.getElementById('genomeDirStatus').innerHTML =
+    '<span style="color:#2e7d32">Selected</span>';
+  scheduleProbe();
+  updateCmd();
+}
 document.getElementById('genomeDir').addEventListener('input', scheduleProbe);
 
 function onRunModeChange() {
@@ -788,7 +859,8 @@ function getChemParams() {
        soloBarcodeReadLength: document.getElementById('disableStrictLen').checked?0:1};
 }
 
-function buildCmd() {
+)HTML"
+R"HTML(function buildCmd() {
   const args = [];
   const flag = (k,...vs) => { args.push('--'+k); vs.forEach(v=>args.push(qarg(v))); };
 
@@ -1042,6 +1114,7 @@ void WebUI::run() {
             {"runModes",     json::array({"alignReads","genomeGenerate","soloCellFiltering","webui"})},
             {"webuiVersion", 2},
             {"cpuCount",     (int)std::thread::hardware_concurrency()},
+            {"outDir",       P.outFileNamePrefix},
         };
         res.set_content(body.dump(2), "application/json");
     });
@@ -1082,6 +1155,50 @@ void WebUI::run() {
         j({{"type","has_source"},
            {"fastaFiles", fastas},
            {"gtfFiles",   gtfs}});
+    });
+
+    // Scan a parent directory and return all valid STAR indexes / CellRanger refs inside it.
+    srv.Get("/genome/scan", [](const httplib::Request& req, httplib::Response& res) {
+        std::string base = req.get_param_value("base");
+        while (!base.empty() && (base.back()=='/' || base.back()=='\\')) base.pop_back();
+        if (!isDirectory(base)) {
+            res.set_content(json{{"error","Not a directory"}}.dump(), "application/json");
+            return;
+        }
+        json results = json::array();
+        auto probe = [&](const std::string& name, const std::string& sub) {
+            if (pathExists(joinPath(sub,"SA")) && pathExists(joinPath(sub,"genomeParameters.txt"))) {
+                results.push_back({{"name",name},{"path",sub},{"type","star_index"}});
+            } else if (pathExists(joinPath(sub,"star/SA"))) {
+                json e = {{"name",name},{"path",sub},{"type","cellranger_ref"},
+                          {"starDir",joinPath(sub,"star")}};
+                std::string gtf = joinPath(sub,"genes/genes.gtf");
+                if (pathExists(gtf)) e["gtfFile"] = gtf;
+                results.push_back(e);
+            }
+        };
+#ifdef _WIN32
+        WIN32_FIND_DATAA fd;
+        HANDLE h = FindFirstFileA((base + "\\*").c_str(), &fd);
+        if (h != INVALID_HANDLE_VALUE) {
+            do {
+                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+                    strcmp(fd.cFileName,".") != 0 && strcmp(fd.cFileName,"..") != 0)
+                    probe(fd.cFileName, joinPath(base, fd.cFileName));
+            } while (FindNextFileA(h, &fd));
+            FindClose(h);
+        }
+#else
+        DIR* dir = opendir(base.c_str());
+        if (dir) {
+            struct dirent* de;
+            while ((de = readdir(dir)))
+                if (de->d_type == DT_DIR && strcmp(de->d_name,".") != 0 && strcmp(de->d_name,"..") != 0)
+                    probe(de->d_name, joinPath(base, de->d_name));
+            closedir(dir);
+        }
+#endif
+        res.set_content(results.dump(2), "application/json");
     });
 
     srv.Post("/jobs", [&exe](const httplib::Request& req, httplib::Response& res) {
