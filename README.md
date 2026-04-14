@@ -183,6 +183,32 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_USE_AVX2=OFF
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DSTAR_ASAN=ON
 ```
 
+Compile under Windows (clang-cl, no VS install required)
+---------------------------------------------------------
+
+If Visual Studio is not installed, `scripts/bootstrap_toolchain.ps1` downloads portable CMake, Ninja, and LLVM/clang-cl into a local `toolchain/` directory — no admin rights, no system changes.
+
+```powershell
+# 1. Download and cache tools (~500 MB one-time download)
+powershell -ExecutionPolicy Bypass -File scripts\bootstrap_toolchain.ps1
+
+# The script prints exact build commands on completion, e.g.:
+cmake -S source -B source\build-clangcl -G Ninja `
+  -DCMAKE_MAKE_PROGRAM=toolchain\ninja\ninja.exe `
+  -DCMAKE_C_COMPILER=toolchain\llvm\bin\clang-cl.exe `
+  -DCMAKE_CXX_COMPILER=toolchain\llvm\bin\clang-cl.exe `
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build source\build-clangcl
+```
+
+Or with vcpkg for system-managed zlib (optional — zlib is fetched automatically via FetchContent if not found):
+
+```powershell
+cmake -S source -B source\build -G Ninja -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+cmake --build source\build
+```
+
 Compile under Windows (Intel oneAPI ICX)
 -----------------------------------------
 
@@ -203,12 +229,14 @@ cmake --build build-icx
 |-------|:---:|:---:|-------|
 | Upstream STAR 2.7.11b (Linux GCC) | — | 277 M/hr | Baseline |
 | STAR 2.7.11c MSVC (pre-optimization) | 518 M/hr | 277 M/hr | Windows perf fixes only |
-| **STAR 2.7.11c MSVC (current)** | — | **300 M/hr (+8%)** | + FastResetVector, safe early rejection |
+| **STAR 2.7.11c MSVC (current, `--legacy`)** | — | **300 M/hr (+8%)** | + FastResetVector, safe early rejection |
+| **STAR 2.7.11c MSVC (current, default)** | — | **~310 M/hr (est.)** | + branch-and-bound pruning |
 | Intel ICX `/O2` | 500 M/hr | — | No measurable benefit over MSVC |
 
-The 8% mapping speed gain comes from two output-identical algorithmic optimizations:
-  * **FastResetVector**: O(modified) reset of the 200KB `winBin` array instead of O(N) memset per read
-  * **Safe early rejection**: skip expensive `Transcript` copy in `stitchWindowAligns` when `stitchAlignToTranscript` would provably reject the alignment (full read/genome overlap or max exons exceeded)
+The speed gains come from three optimizations:
+  * **FastResetVector** (both modes): O(modified) reset of the 200KB `winBin` array instead of O(N) memset per read — output-identical
+  * **Safe early rejection** (both modes): skip expensive `Transcript` copy in `stitchWindowAligns` when `stitchAlignToTranscript` would provably reject the alignment — output-identical
+  * **Branch-and-bound pruning** (non-legacy only): prune recursion branches whose score upper bound cannot beat the best transcript found so far; +0.62% unique mapping rate vs upstream 2.7.11b; disabled by `--legacy`
 
 **Output compatibility** (`my_count` vs `orig_count`, validated on 434M-read STARsolo dataset):
 
