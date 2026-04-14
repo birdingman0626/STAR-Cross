@@ -41,6 +41,7 @@ class Parameters {
         mode_t runDirPerm;
         string runDirPermIn; //permission for directores created at run-time
         int runRNGseed; //random number generator seed
+        string legacyIn; //legacy algorithm selection
 
         struct {
             int32 type;//0 no restart, 1 no mapping - restart from _STARtmp files

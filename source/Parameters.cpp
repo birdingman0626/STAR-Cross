@@ -34,6 +34,7 @@ Parameters::Parameters() {//initalize parameters info
     parArray.push_back(new ParameterInfoScalar <int> (-1, -1, "runThreadN", &runThreadN));
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "runDirPerm", &runDirPermIn));
     parArray.push_back(new ParameterInfoScalar <int> (-1, -1, "runRNGseed", &runRNGseed));
+    parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "legacy", &legacyIn));
 
     //genome
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "genomeType", &pGe.gTypeString));    

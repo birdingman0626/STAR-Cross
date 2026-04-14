@@ -14,6 +14,7 @@ class ParametersChimeric
         uint mainSegmentMultNmax;
 
         uint multimapScoreRange, multimapNmax, nonchimScoreDropMin;
+        bool legacyScoring; //use upstream 2.7.11b chimeric overlap/exon-selection algorithm
 
         vector<int> outJunctionFormat;
 

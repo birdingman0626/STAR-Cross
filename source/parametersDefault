@@ -31,6 +31,10 @@ runDirPerm                      User_RWX
 runRNGseed                      777
     int: random number generator seed.
 
+legacy                          None
+    string: enable legacy (upstream STAR 2.7.11b) algorithm variants.
+                                None            ... use current algorithms (default)
+                                ChimericScoring ... use upstream chimeric overlap/exon-selection algorithm; produces output byte-identical to STAR 2.7.11b
 
 ### Genome Parameters
 genomeDir                   ./GenomeDir/

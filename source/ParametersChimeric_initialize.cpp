@@ -9,7 +9,17 @@ void ParametersChimeric::initialize(Parameters *pPin)
     out.junctions=false;
     out.samOld=false;
     out.bamHardClip=true;//default
-    
+    if (pPin->legacyIn == "ChimericScoring") {
+        legacyScoring = true;
+    } else if (pPin->legacyIn == "None") {
+        legacyScoring = false;
+    } else {
+        ostringstream errOut;
+        errOut << "EXITING because of FATAL INPUT ERROR: unknown value for --legacy: " << pPin->legacyIn << "\n";
+        errOut << "SOLUTION: use --legacy None or --legacy ChimericScoring\n";
+        exitWithError(errOut.str(), std::cerr, pPin->inOut->logMain, EXIT_CODE_PARAMETER, *pPin);
+    }
+
     if (segmentMin==0)
         return;
     
