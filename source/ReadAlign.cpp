@@ -8,7 +8,7 @@ ReadAlign::ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, in
 {
     readNmates=P.readNmates; //not readNends
     //RNGs
-    rngMultOrder.seed(P.runRNGseed*(iChunk+1));
+    rngMultOrder.seed((uint64_t)P.runRNGseed*(iChunk+1));
     rngUniformReal0to1=std::uniform_real_distribution<double> (0.0, 1.0);
     //transcriptome
     if ( P.quant.trSAM.yes ) {

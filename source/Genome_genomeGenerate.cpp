@@ -349,8 +349,6 @@ void Genome::genomeGenerate() {
     };
 
     time ( &rawTime );
-    timeString=asctime(localtime ( &rawTime ));
-    timeString.erase(timeString.end()-1,timeString.end());
     P.inOut->logMain     << timeMonthDayTime(rawTime) <<" ... finished generating suffix array\n" <<flush;
     *P.inOut->logStdOut  << timeMonthDayTime(rawTime) <<" ... finished generating suffix array\n" <<flush;
 
@@ -404,10 +402,6 @@ void Genome::genomeGenerate() {
     SAiOut.close();
 
     SApass1.deallocateArray();
-
-    time(&rawTime);
-    timeString=asctime(localtime ( &rawTime ));
-    timeString.erase(timeString.end()-1,timeString.end());
 
     time(&rawTime);
     P.inOut->logMain    << timeMonthDayTime(rawTime) << " ..... finished successfully\n" <<flush;
