@@ -6,7 +6,46 @@
 int chimericAlignScore (ChimericSegment & seg1, ChimericSegment & seg2)
 {
     int chimScore=0;
-    uint chimOverlap = seg2.roS>seg1.roS ?  (seg2.roS>seg1.roE ? 0 : seg1.roE-seg2.roS+1) : (seg2.roE<seg1.roS ? 0 : seg2.roE-seg1.roS+1);
+    // Compute read-space overlap across all exon blocks of both segments.
+    // The scalar min/max approach is inaccurate for multi-exon or multi-mate layouts;
+    // sweep sorted block intervals instead.
+    uint chimOverlap = [&seg1, &seg2]() -> uint {
+        auto exonROBlocks = [](const ChimericSegment &seg) -> vector<pair<uint,uint>> {
+            vector<pair<uint,uint>> blocks;
+            blocks.reserve(seg.align.nExons);
+            for (uint iex = 0; iex < seg.align.nExons; ++iex) {
+                uint roS = seg.align.Str == 0
+                    ? seg.align.exons[iex][EX_R]
+                    : seg.align.Lread - seg.align.exons[iex][EX_R] - seg.align.exons[iex][EX_L];
+                uint roE = seg.align.Str == 0
+                    ? seg.align.exons[iex][EX_R] + seg.align.exons[iex][EX_L] - 1
+                    : seg.align.Lread - seg.align.exons[iex][EX_R] - 1;
+                // Shift paired-end coords past the inter-mate gap byte
+                if (roS > seg.align.readLength[0]) roS--;
+                if (roE > seg.align.readLength[0]) roE--;
+                blocks.push_back({roS, roE});
+            }
+            sort(blocks.begin(), blocks.end());
+            return blocks;
+        };
+
+        vector<pair<uint,uint>> blocks1 = exonROBlocks(seg1);
+        vector<pair<uint,uint>> blocks2 = exonROBlocks(seg2);
+
+        uint overlap = 0;
+        uint i1 = 0, i2 = 0;
+        while (i1 < blocks1.size() && i2 < blocks2.size()) {
+            uint s = max(blocks1[i1].first,  blocks2[i2].first);
+            uint e = min(blocks1[i1].second, blocks2[i2].second);
+            if (s <= e)
+                overlap += e - s + 1;
+            uint e1 = blocks1[i1].second;
+            uint e2 = blocks2[i2].second;
+            if (e1 <= e2) ++i1;
+            if (e2 <= e1) ++i2;
+        }
+        return overlap;
+    }();
     bool diffMates=(seg1.roE < seg1.align.readLength[0] && seg2.roS >= seg1.align.readLength[0]) || (seg2.roE < seg1.align.readLength[0] && seg1.roS >= seg1.align.readLength[0]);
 
     //segment lengths && (different mates || small gap between segments)
