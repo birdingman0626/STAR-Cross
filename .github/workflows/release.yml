@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Override release tag (e.g. v2.7.11c_abc1234). Leave empty to auto-generate from commit.'
+        description: 'Release tag (e.g. v2.7.11c). Leave blank to auto-generate from commit hash.'
         required: false
         default: ''
 
@@ -18,19 +18,17 @@ jobs:
         include:
           - os: ubuntu-latest
             name: Linux
-
-          - os: windows-latest
-            name: Windows
-
           - os: macos-latest
             name: macOS
+          - os: windows-latest
+            name: Windows
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      # ---- Linux ----
-      - name: Install Linux dependencies
+      # ── Linux ──────────────────────────────────────────────────────────────
+      - name: Install dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
@@ -40,14 +38,22 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           cd source
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
           cmake --build build
+
+      - name: Unit tests (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: ctest --test-dir source/build/test --output-on-failure -j4
 
       - name: Package (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           cp source/build/STAR STAR-linux-x86_64
           chmod +x STAR-linux-x86_64
+
+      - name: Smoke test (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: ./STAR-linux-x86_64 --version
 
       - name: Upload artifact (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -56,14 +62,14 @@ jobs:
           name: STAR-linux-x86_64
           path: STAR-linux-x86_64
 
-      # ---- macOS ----
-      - name: Install macOS dependencies
+      # ── macOS ──────────────────────────────────────────────────────────────
+      - name: Install dependencies (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           brew install gcc ninja
           GCC_BIN=$(ls $(brew --prefix gcc)/bin/g++-* | sort -V | tail -1)
           GCC_VER=$(basename "$GCC_BIN" | grep -oE '[0-9]+$')
-          echo "GCC_BIN=${GCC_BIN}" >> $GITHUB_ENV
+          echo "GCC_BIN=${GCC_BIN}"       >> $GITHUB_ENV
           echo "GCC_C_BIN=$(brew --prefix gcc)/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
 
       - name: Build (macOS)
@@ -73,14 +79,23 @@ jobs:
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER="${GCC_C_BIN}" \
-            -DCMAKE_CXX_COMPILER="${GCC_BIN}"
+            -DCMAKE_CXX_COMPILER="${GCC_BIN}" \
+            -DSTAR_BUILD_TESTS=ON
           cmake --build build
+
+      - name: Unit tests (macOS)
+        if: matrix.os == 'macos-latest'
+        run: ctest --test-dir source/build/test --output-on-failure -j4
 
       - name: Package (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           cp source/build/STAR STAR-macos-aarch64
           chmod +x STAR-macos-aarch64
+
+      - name: Smoke test (macOS)
+        if: matrix.os == 'macos-latest'
+        run: ./STAR-macos-aarch64 --version
 
       - name: Upload artifact (macOS)
         if: matrix.os == 'macos-latest'
@@ -89,7 +104,7 @@ jobs:
           name: STAR-macos-aarch64
           path: STAR-macos-aarch64
 
-      # ---- Windows ----
+      # ── Windows ────────────────────────────────────────────────────────────
       - name: Setup MSVC
         if: matrix.os == 'windows-latest'
         uses: ilammy/msvc-dev-cmd@v1
@@ -100,18 +115,21 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           cd source
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
           cmake --build build
+
+      - name: Unit tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: ctest --test-dir source/build/test --output-on-failure -j4
 
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          # Staging directory
           New-Item -ItemType Directory -Force -Path staging | Out-Null
           Copy-Item source\build\STAR.exe staging\
 
-          # Copy MSVC CRT DLLs (msvcp140, vcruntime140, etc.)
+          # Bundle MSVC CRT and OpenMP DLLs
           $redistDir = $env:VCToolsRedistDir
           if ($redistDir) {
             $crtDir = Join-Path $redistDir "x64\Microsoft.VC143.CRT"
@@ -120,24 +138,16 @@ jobs:
                         Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty FullName
             }
             if ($crtDir -and (Test-Path $crtDir)) {
-              Copy-Item "$crtDir\msvcp140.dll"      staging\ -ErrorAction SilentlyContinue
-              Copy-Item "$crtDir\vcruntime140.dll"  staging\ -ErrorAction SilentlyContinue
-              Copy-Item "$crtDir\vcruntime140_1.dll" staging\ -ErrorAction SilentlyContinue
+              foreach ($dll in @("msvcp140.dll","vcruntime140.dll","vcruntime140_1.dll")) {
+                Copy-Item "$crtDir\$dll" staging\ -ErrorAction SilentlyContinue
+              }
             }
+            $ompDll = Get-ChildItem "$redistDir\x64" -Recurse -Filter "vcomp*.dll" -ErrorAction SilentlyContinue |
+                      Sort-Object Name -Descending | Select-Object -First 1
+            if ($ompDll) { Copy-Item $ompDll.FullName staging\ }
           }
 
-          # Copy OpenMP runtime (vcomp*.dll)
-          $ompDll = Get-ChildItem "$env:VCToolsRedistDir\x64" -Recurse -Filter "vcomp*.dll" -ErrorAction SilentlyContinue |
-                    Sort-Object Name -Descending | Select-Object -First 1
-          if ($ompDll) {
-            Copy-Item $ompDll.FullName staging\
-          }
-
-          # Show what's in the package
-          Write-Host "=== Package contents ==="
           Get-ChildItem staging\ | Format-Table Name, Length
-
-          # Zip it up
           Compress-Archive -Path staging\* -DestinationPath STAR-windows-x86_64.zip
 
       - name: Smoke test (Windows)
@@ -151,16 +161,7 @@ jobs:
           name: STAR-windows-x86_64
           path: STAR-windows-x86_64.zip
 
-      # ---- Smoke test (Unix) ----
-      - name: Smoke test (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: ./STAR-linux-x86_64 --version
-
-      - name: Smoke test (macOS)
-        if: matrix.os == 'macos-latest'
-        run: ./STAR-macos-aarch64 --version
-
-  # Always create a GitHub Release
+  # ── Publish release (only after all three builds + tests pass) ────────────
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -173,9 +174,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-
-      - name: List downloaded files
-        run: ls -lh
 
       - name: Determine release tag
         id: tag

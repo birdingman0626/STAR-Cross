@@ -49,3 +49,7 @@ source/parametersDefault.xxd
 *~
 .vscode/
 .idea/
+
+# Local tool configs
+.claude/
+.omx/

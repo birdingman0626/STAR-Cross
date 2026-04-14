@@ -15,12 +15,20 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zlib1g-dev ninja-build
+
       - uses: github/codeql-action/init@v3
         with:
           languages: cpp
+
       - name: Build
         run: |
           cd source
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=OFF
           cmake --build build -j$(nproc)
+
       - uses: github/codeql-action/analyze@v3

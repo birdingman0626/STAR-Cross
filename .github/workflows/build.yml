@@ -21,11 +21,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zlib1g-dev ninja-build
 
-      - name: Install Clang
+      - name: Install Clang + OpenMP
         if: matrix.compiler == 'clang'
         run: sudo apt-get install -y clang libomp-dev
 
-      - name: Build with CMake
+      - name: Build
         run: |
           cd source
           if [ "${{ matrix.compiler }}" = "clang" ]; then
@@ -35,14 +35,12 @@ jobs:
           cmake --build build
 
       - name: Smoke test
-        run: |
-          ./source/build/STAR --version
-          echo "Version check passed"
+        run: ./source/build/STAR --version
 
-      - name: Run unit tests
+      - name: Unit tests
         run: ctest --test-dir source/build/test --output-on-failure -j4
 
-      - name: Upload artifact
+      - name: Upload binary
         if: matrix.compiler == 'gcc'
         uses: actions/upload-artifact@v4
         with:
@@ -57,13 +55,12 @@ jobs:
       - name: Install dependencies
         run: |
           brew install gcc ninja
-          # Resolve exact versioned paths (e.g. g++-15, gcc-15)
           GCC_BIN=$(ls $(brew --prefix gcc)/bin/g++-* | sort -V | tail -1)
           GCC_VER=$(basename "$GCC_BIN" | grep -oE '[0-9]+$')
-          echo "GCC_BIN=${GCC_BIN}" >> $GITHUB_ENV
+          echo "GCC_BIN=${GCC_BIN}"       >> $GITHUB_ENV
           echo "GCC_C_BIN=$(brew --prefix gcc)/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
 
-      - name: Build with CMake
+      - name: Build
         run: |
           cd source
           cmake -B build -G Ninja \
@@ -76,13 +73,13 @@ jobs:
       - name: Smoke test
         run: ./source/build/STAR --version
 
-      - name: Run unit tests
+      - name: Unit tests
         run: ctest --test-dir source/build/test --output-on-failure -j4
 
-      - name: Upload artifact
+      - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: STAR-macos-x86_64
+          name: STAR-macos-aarch64
           path: source/build/STAR
 
   build-windows:
@@ -95,7 +92,7 @@ jobs:
         with:
           arch: x64
 
-      - name: Build with CMake (Ninja)
+      - name: Build
         run: |
           cd source
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
@@ -104,10 +101,10 @@ jobs:
       - name: Smoke test
         run: source\build\STAR.exe --version
 
-      - name: Run unit tests
-        run: ctest --test-dir source\build\test --output-on-failure -j4
+      - name: Unit tests
+        run: ctest --test-dir source/build/test --output-on-failure -j4
 
-      - name: Upload artifact
+      - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: STAR-windows-x86_64
