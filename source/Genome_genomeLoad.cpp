@@ -128,7 +128,7 @@ void Genome::genomeLoad(){//allocate and load Genome
     if (P1.pGe.gTypeString=="SuperTranscriptome")
         pGe.gType=101;
 
-    P.inOut->logMain << "Started loading the genome: " << asctime (localtime ( &rawtime ))<<"\n"<<flush;
+    P.inOut->logMain << "Started loading the genome: " << timeMonthDayTime(rawtime) <<"\n"<<flush;
 
     ifstream GenomeIn, SAin, SAiIn;
 
@@ -348,7 +348,7 @@ void Genome::genomeLoad(){//allocate and load Genome
     };
 
     time ( &rawtime );
-    P.inOut->logMain << "Finished loading the genome: " << asctime (localtime ( &rawtime )) <<"\n"<<flush;
+    P.inOut->logMain << "Finished loading the genome: " << timeMonthDayTime(rawtime) <<"\n"<<flush;
 
     #ifdef COMPILE_FOR_MAC
     {

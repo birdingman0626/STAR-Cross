@@ -12,10 +12,10 @@ CXXFLAGSextra ?=
 CXX ?= g++
 
 # pre-defined flags
-LDFLAGS_shared := -pthread -Lhtslib -Bstatic -lhts -Bdynamic -lz
-LDFLAGS_static := -static -static-libgcc -pthread -Lhtslib -lhts -lz
-LDFLAGS_Mac :=-pthread -lz htslib/libhts.a
-LDFLAGS_Mac_static :=-pthread -lz -static-libgcc htslib/libhts.a
+LDFLAGS_shared := -pthread -Lhtslib -Bstatic -lhts -Bdynamic -lz -lparasail
+LDFLAGS_static := -static -static-libgcc -pthread -Lhtslib -lhts -lz -lparasail
+LDFLAGS_Mac :=-pthread -lz htslib/libhts.a -lparasail
+LDFLAGS_Mac_static :=-pthread -lz -static-libgcc htslib/libhts.a -lparasail
 LDFLAGS_gdb := $(LDFLAGS_shared)
 
 DATE_FMT = --iso-8601=seconds
@@ -51,7 +51,7 @@ CXXFLAGS_gdb := -O0 -g3 $(CXXFLAGS_common)
 
 ##########################################################################################################
 OBJECTS = systemFunctions.o funPrimaryAlignMark.o \
-	SoloFeature_collapseUMI_Graph.o SoloFeature_collapseUMIall.o ParametersClip_initialize.o ClipMate_clip.o ClipCR4.o opal/opal.o ClipMate_clipChunk.o ClipMate_initialize.o \
+	SoloFeature_collapseUMI_Graph.o SoloFeature_collapseUMIall.o ParametersClip_initialize.o ClipMate_clip.o ClipCR4.o ClipMate_clipChunk.o ClipMate_initialize.o \
 	SoloFeature_loadRawMatrix.o SoloFeature_emptyDrops_CR.o soloInputFeatureUMI.o SoloFeature_countSmartSeq.o SoloFeature_redistributeReadsByCB.o \
 	SoloFeature_quantTranscript.o SoloFeature_sumThreads.o SoloFeature_countVelocyto.o SoloFeature_countCBgeneUMI.o \
 	Transcriptome_classifyAlign.o Transcriptome_geneFullAlignOverlap_ExonOverIntron.o Transcriptome_alignExonOverlap.o \
@@ -104,13 +104,9 @@ SOURCES := $(wildcard *.cpp) $(wildcard *.c)
 
 all: cleanCompileInfo STAR$(SFX)
 
-opal/opal.o : opal/opal.cpp opal/opal.h
-	cd opal && \
-	$(CXX) -c -I./ -std=c++17 $(CPPFLAGS) $(CXXFLAGS) $(CXXFLAGSextra) $(CXXFLAGS_SIMD) opal.cpp
-
 .PHONY: clean
 clean:
-	'rm' -f *.o opal/opal.o STAR STARstatic STARlong Depend.list parametersDefault.xxd
+	'rm' -f *.o STAR STARstatic STARlong Depend.list parametersDefault.xxd
 
 .PHONY: CLEAN
 CLEAN: clean

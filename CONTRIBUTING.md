@@ -24,12 +24,23 @@ cd source && make STAR
 3. **No new warnings** on MSVC `/W4` or GCC `-Wall -Wextra`
 4. **Output compatibility is mandatory** — changes that alter integer count matrices require explicit justification
 
-## Vendored Code Policy
+## Dependency Inventory
 
-`source/htslib/`, `source/opal/`, `source/SimpleGoodTuring/` are bundled dependencies. Patches must:
+| Dependency | Location | Role | Replaceable? | Allowed includers |
+|---|---|---|---|---|
+| **HTSlib 1.21** | `source/htslib/` (bundled) | BAM/SAM/CRAM I/O | No (deep, cross-cutting) | Any source file via `htslib/*.h` |
+| **Parasail v2.6.2** | CMake FetchContent | Adapter clipping alignment | Yes (narrow scope) | `ClipCR4.h/.cpp` only |
+| **SimpleGoodTuring** | `source/SimpleGoodTuring/` (bundled) | EmptyDrops ambient smoothing | No (tiny, stable algorithm) | `SoloFeature_emptyDrops_CR.cpp` only |
+| **zlib** | System or CMake FetchContent | Compression | No (standard library) | Via HTSlib; STAR does not include directly |
+
+### Vendored Code Policy
+
+`source/htslib/` and `source/SimpleGoodTuring/` are bundled dependencies. Patches must:
 - Document the upstream source and version
 - Explain why the patch is needed
 - Be verified with a smoke test
+
+**Rule:** Do not add new direct includes from vendored directories without justification. Keep adapter clipping behind `ClipCR4`, SGT usage inside `SoloFeature_emptyDrops_CR.cpp`.
 
 ## Code Style
 

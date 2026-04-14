@@ -91,8 +91,8 @@ void SoloFeature::collapseUMIperCB(uint32 iCB, vector<uint32> &umiArray, vector<
     
     vector<unordered_map <uintUMI,uintUMI>> umiCorrected(nGenes);
 
-    if (countCellGeneUMI.size() < countCellGeneUMIindex[iCB] + nGenes*countMatStride)
-        countCellGeneUMI.resize((countCellGeneUMI.size() + nGenes*countMatStride )*2);//allocated vector too small
+    if (countCellGeneUMI.size() < countCellGeneUMIindex[iCB] + (uint64_t)nGenes*countMatStride)
+        countCellGeneUMI.resize((countCellGeneUMI.size() + (uint64_t)nGenes*countMatStride)*2);//allocated vector too small
     
     nGenePerCB[iCB]=0;
     nUMIperCB[iCB]=0;

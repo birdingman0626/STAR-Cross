@@ -50,7 +50,8 @@ Please include:
 **Out of scope (report to upstream instead):**
 - Issues in bundled third-party libraries:
   - **HTSlib** → [samtools/htslib](https://github.com/samtools/htslib/security)
-  - **Opal** → [Martinsos/opal](https://github.com/Martinsos/opal)
+- Issues in build-time dependencies fetched via CMake FetchContent:
+  - **Parasail** → [jeffdaily/parasail](https://github.com/jeffdaily/parasail)
 - Issues in the reference genome or annotation files (not part of this codebase)
 - Denial-of-service via crafted input files (STAR is a bioinformatics CLI tool,
   not a network service; malicious input files are considered out of scope)
@@ -63,6 +64,7 @@ are tracked upstream and are excluded from this repository's CodeQL scanning:
 | Library | Version | Upstream |
 |---------|---------|----------|
 | HTSlib  | 1.21    | [samtools/htslib](https://github.com/samtools/htslib) |
-| Opal    | (bundled) | [Martinsos/opal](https://github.com/Martinsos/opal) |
-| SIMDe   | (via opal) | [simd-everywhere/simde](https://github.com/simd-everywhere/simde) |
 | SimpleGoodTuring | (bundled) | N/A |
+
+Additionally, **Parasail v2.6.2** is fetched at build time via CMake FetchContent
+([jeffdaily/parasail](https://github.com/jeffdaily/parasail)) for adapter clipping.

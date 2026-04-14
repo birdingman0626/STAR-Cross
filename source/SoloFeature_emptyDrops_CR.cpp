@@ -246,10 +246,10 @@ double logMultinomialPDFsparse(const vector<double> &ambProfileLogP, const vecto
     uint32 sumCount=0;
     double sumLogFac=0.0, sumCountLogP=0.0;
     for (uint32 ig=0; ig<nGenes; ig++) {
-        auto count1 = countCellGeneUMI[start+ig*stride+shift];
+        auto count1 = countCellGeneUMI[start+(uint64_t)ig*stride+shift];
         sumCount += count1;
         sumLogFac += logFactorial[count1];
-        sumCountLogP += ambProfileLogP[countCellGeneUMI[start+ig*stride]] * count1;
+        sumCountLogP += ambProfileLogP[countCellGeneUMI[start+(uint64_t)ig*stride]] * count1;
     };
     
     return logFactorial[sumCount] - sumLogFac + sumCountLogP;

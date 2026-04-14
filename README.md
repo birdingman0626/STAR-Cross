@@ -172,15 +172,35 @@ The 8% mapping speed gain comes from two output-identical algorithmic optimizati
   * **FastResetVector**: O(modified) reset of the 200KB `winBin` array instead of O(N) memset per read
   * **Safe early rejection**: skip expensive `Transcript` copy in `stitchWindowAligns` when `stitchAlignToTranscript` would provably reject the alignment (full read/genome overlap or max exons exceeded)
 
-**Output compatibility** (validated on 434M-read STARsolo dataset):
+**Output compatibility** (`my_count` vs `orig_count`, validated on 434M-read STARsolo dataset):
 
-| Output File | MSVC vs Linux (GCC) | ICX vs Linux (GCC) |
-|-------------|:-------------------:|:------------------:|
-| 19 integer count matrices (raw + filtered) | Byte-identical | Byte-identical |
-| 2 EM probability files (`UniqueAndMult-EM.mtx`) | 14-22 entries differ | 466-506 entries differ |
-| All statistics (Summary.csv, Features.stats, etc.) | Byte-identical | Byte-identical |
+`orig_count` is the Linux upstream STAR 2.7.11b (GCC) reference output. `my_count` is this fork (STAR 2.7.11c, MSVC, Windows). The 21-file Solo.out comparison covers both Gene and GeneFull_Ex50pAS quantification modes. Windows STAR writes `\r\n` line endings; comparison is content-only.
 
-The EM differences are in the last decimal place (e.g. `1.99063` vs `1.99062`) of multi-mapper probability weights. MSVC differs in 14 of 9.97M Gene entries and 22 of 13.87M GeneFull entries (<0.001%). ICX differs in 506/466 entries (<0.005%) due to Clang-based floating-point codegen diverging more from GCC. These do not affect biological conclusions — cell counts, UMI counts, gene counts, and all filtered matrices are exact matches across all three compilers.
+| Output file | my_count vs orig_count |
+|-------------|:----------------------:|
+| `Gene/filtered/barcodes.tsv` | Identical |
+| `Gene/filtered/features.tsv` | Identical |
+| `Gene/filtered/matrix.mtx` | 18/6.3M entries differ (<3 ppm) |
+| `Gene/raw/barcodes.tsv` | Identical |
+| `Gene/raw/features.tsv` | Identical |
+| `Gene/raw/matrix.mtx` | 21/8.7M entries differ (<3 ppm) |
+| `Gene/raw/UniqueAndMult-EM.mtx` | 38/9.97M entries differ (<4 ppm) |
+| `Gene/Summary.csv` | 3/20 values differ (tens of reads) |
+| `Gene/Features.stats` | 7/11 values differ (tens of reads) |
+| `Gene/UMIperCellSorted.txt` | 22/770K cells differ by ±1 UMI |
+| `GeneFull_Ex50pAS/filtered/barcodes.tsv` | Identical |
+| `GeneFull_Ex50pAS/filtered/features.tsv` | Identical |
+| `GeneFull_Ex50pAS/filtered/matrix.mtx` | 32/8.8M entries differ (<4 ppm) |
+| `GeneFull_Ex50pAS/raw/barcodes.tsv` | Identical |
+| `GeneFull_Ex50pAS/raw/features.tsv` | Identical |
+| `GeneFull_Ex50pAS/raw/matrix.mtx` | 53/12M entries differ (<5 ppm) |
+| `GeneFull_Ex50pAS/raw/UniqueAndMult-EM.mtx` | ~91/13.87M entries differ (<7 ppm) |
+| `GeneFull_Ex50pAS/Summary.csv` | 3/20 values differ (tens of reads) |
+| `GeneFull_Ex50pAS/Features.stats` | 7/11 values differ (tens of reads) |
+| `GeneFull_Ex50pAS/UMIperCellSorted.txt` | 54/837K cells differ by ±1 UMI |
+| `Barcodes.stats` | Identical |
+
+The small count differences (1–5 ppm) are caused by the chimeric bugfix (ggpeti/STAR cherry-pick) reclassifying a handful of reads at chimeric junctions — reads that were previously mis-scored by the upstream code. The EM files additionally contain last-decimal-place float differences from MSVC vs GCC floating-point codegen. Cell barcodes, features, filtered cell sets, and overall mapping statistics are unaffected.
 
 **Windows limitations:**
   * Shared memory genome loading (`--genomeLoad LoadAndKeep/Remove`) is not supported; only `--genomeLoad NoSharedMemory` (the default) is available

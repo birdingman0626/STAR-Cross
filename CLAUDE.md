@@ -82,7 +82,8 @@ There is no formal unit test suite. Validation is done by running STAR on test d
 
 ### Dependencies
 
-- **HTSlib** (bundled in `source/htslib/`) — BAM/SAM/CRAM I/O, built as `libhts.a`
+- **HTSlib** (bundled in `source/htslib/`, optional system via `USE_SYSTEM_HTSLIB`) — BAM/SAM/CRAM I/O
+- **Parasail** (CMake FetchContent, v2.6.2) — sequence alignment for CellRanger4 adapter clipping (`ClipCR4`)
 - **zlib** — compression (system library)
 - **OpenMP** — thread parallelism (compiler built-in)
 - **xxd** — build tool to embed `parametersDefault` into the binary

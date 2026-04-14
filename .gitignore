@@ -19,6 +19,9 @@ extras/doc-latex/*.toc
 # Don't track the STAR binary once it has being built
 source/STAR
 
+# Parasail test fixture copied at cmake configure time (not source content)
+source/data/
+
 # CMake build directories and artifacts
 build*/
 _build/

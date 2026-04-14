@@ -25,7 +25,7 @@ void ClipMate::clipChunk(char *chArr, uint64 chSize)
             
             
             
-            cr4->opalFillOneSeq(idb, chA1, rL);
+            cr4->fillOneSeq(idb, chA1, rL);
             
             cr4->storeClip[idb] = (uint8*) (chA2+1);//store the position of "+" character - we will record the clipped length there
             
@@ -38,11 +38,11 @@ void ClipMate::clipChunk(char *chArr, uint64 chSize)
             };
         };
 
-        cr4->opalAlign((uint8_t*) adSeqNum.data(), adSeqNum.size(), dbN1);
+        cr4->align((uint8_t*) adSeqNum.data(), adSeqNum.size(), dbN1);
 
         for (int idb=0; idb<dbN1; idb++) {//store results
-            int L = cr4->opalRes[idb].endLocationTarget+1;
-            int S = cr4->opalRes[idb].score;
+            int L = cr4->alignRes[idb].endLocationTarget+1;
+            int S = cr4->alignRes[idb].score;
             
             bool L0 = S<20 || (S==20 && L>26) || (S==21 && L>30);
             

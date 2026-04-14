@@ -61,6 +61,45 @@ if(NOT ZLIB_FOUND)
     endif()
 endif()
 
+# ---------- Parasail (sequence alignment for adapter clipping) ----------
+if(NOT FETCHCONTENT_DECLARED)
+    include(FetchContent)
+endif()
+set(BUILD_SHARED_LIBS_SAVED ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+# Parasail's cmake_minimum_required predates CMake 4.x policy enforcement
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+    set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
+endif()
+FetchContent_Declare(parasail
+    GIT_REPOSITORY https://github.com/jeffdaily/parasail.git
+    GIT_TAG v2.6.2
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(parasail)
+set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_SAVED} CACHE BOOL "" FORCE)
+
+# Parasail builds its own test/app executables unconditionally. Exclude them from
+# the default ALL target so they don't cause build failures on newer compilers
+# (e.g. test_verify_traces fails with GCC 15 on macOS due to int8_t* / int* mismatch).
+# test_verify is kept as an explicit build target for CTest (see below).
+foreach(_pt IN ITEMS
+        test_verify_tables test_verify_rowcols test_verify_traces test_verify_cigars
+        parasail_aligner parasail_stats)
+    if(TARGET ${_pt})
+        set_target_properties(${_pt} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    endif()
+endforeach()
+
+# Parasail's test_verify registers a CTest entry using ${CMAKE_SOURCE_DIR}/data/... which,
+# under FetchContent, resolves to the STAR source dir rather than the parasail source dir.
+# Copy the required test fixture to the location the test expects.
+if(EXISTS "${parasail_SOURCE_DIR}/data/test_small_2.fasta")
+    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/data")
+    file(COPY "${parasail_SOURCE_DIR}/data/test_small_2.fasta"
+         DESTINATION "${CMAKE_SOURCE_DIR}/data")
+endif()
+
 # ---------- Generate parametersDefault.xxd ----------
 # Replicate the `xxd -i parametersDefault > parametersDefault.xxd` step
 set(PARAM_DEFAULT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/parametersDefault")
@@ -77,7 +116,18 @@ add_custom_command(
 )
 add_custom_target(generate_xxd DEPENDS "${PARAM_DEFAULT_XXD}")
 
-# ---------- htslib sources ----------
+# ---------- HTSlib ----------
+option(USE_SYSTEM_HTSLIB "Use system-installed HTSlib instead of bundled" OFF)
+
+if(USE_SYSTEM_HTSLIB)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(HTS REQUIRED IMPORTED_TARGET htslib)
+    # Create an alias target so the rest of the build uses 'hts' uniformly
+    add_library(hts ALIAS PkgConfig::HTS)
+    set(HTSLIB_DIR "" CACHE INTERNAL "")
+    message(STATUS "Using system HTSlib: ${HTS_VERSION}")
+else()
+
 set(HTSLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/htslib")
 set(HTSLIB_SOURCES
     # Core htslib 1.21
@@ -155,6 +205,8 @@ else()
     target_compile_options(hts PRIVATE -w)
 endif()
 
+endif() # USE_SYSTEM_HTSLIB
+
 # ---------- STAR sources ----------
 set(STAR_SOURCES
     systemFunctions.cpp
@@ -164,7 +216,6 @@ set(STAR_SOURCES
     ParametersClip_initialize.cpp
     ClipMate_clip.cpp
     ClipCR4.cpp
-    opal/opal.cpp
     ClipMate_clipChunk.cpp
     ClipMate_initialize.cpp
     SoloFeature_loadRawMatrix.cpp
@@ -331,7 +382,7 @@ target_include_directories(STAR PRIVATE
     ${HTSLIB_DIR}
 )
 
-target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB)
+target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB parasail)
 
 # ---------- Compile-time defines ----------
 # Build date/place
@@ -411,12 +462,6 @@ if(MSVC)
     # Linux default is 8MB; STAR with STARsolo needs more
     target_link_options(STAR PRIVATE /STACK:16777216)
 
-    # opal uses SIMDe which needs AVX2 and local includes
-    set_source_files_properties(
-        ${CMAKE_CURRENT_SOURCE_DIR}/opal/opal.cpp
-        PROPERTIES COMPILE_FLAGS "/arch:AVX2 /I${CMAKE_CURRENT_SOURCE_DIR}/opal"
-    )
-
 else()
     # GCC / Clang
     target_compile_options(STAR PRIVATE -pipe -Wall -Wextra -O3 -Wno-register)
@@ -426,10 +471,6 @@ else()
 
     if(STAR_USE_AVX2)
         target_compile_options(STAR PRIVATE -mavx2)
-        set_source_files_properties(
-            ${CMAKE_CURRENT_SOURCE_DIR}/opal/opal.cpp
-            PROPERTIES COMPILE_FLAGS "-mavx2"
-        )
     endif()
 
     target_link_libraries(STAR PRIVATE pthread)

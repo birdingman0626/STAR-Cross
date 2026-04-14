@@ -9,7 +9,8 @@ void ParametersChimeric::initialize(Parameters *pPin)
     out.junctions=false;
     out.samOld=false;
     out.bamHardClip=true;//default
-    
+    legacyScoring = (pPin->legacyIn != "None");
+
     if (segmentMin==0)
         return;
     
