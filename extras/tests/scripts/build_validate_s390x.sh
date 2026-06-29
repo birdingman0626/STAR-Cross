@@ -21,6 +21,18 @@ print("byteorder:", sys.byteorder)
 PY
 
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=OFF
+
+# parasail's cpuid.c stubs out the x86 CPUID inline-asm for arm/powerpc but omits
+# s390x, so on s390x it tries to compile the x86 asm and fails ("inconsistent
+# operand constraints"). s390x is non-x86 and belongs in the same stub group;
+# patch the FetchContent'd copy (post-configure, pre-build). Upstream parasail
+# omission — worth reporting to jeffdaily/parasail.
+CPUID="build/_deps/parasail-src/src/cpuid.c"
+if [ -f "$CPUID" ]; then
+    sed -i '/__arm__.*__PPC64__/ s/defined(__PPC64__)/defined(__PPC64__) || defined(__s390__) || defined(__s390x__)/' "$CPUID"
+    grep -q "__s390x__" "$CPUID" && echo "patched parasail cpuid.c for s390x" || echo "WARNING: parasail cpuid.c patch did not apply"
+fi
+
 cmake --build build -j2
 
 ./build/STAR --version
