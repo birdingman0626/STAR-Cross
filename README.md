@@ -1,4 +1,4 @@
-STAR 2.7.11c (Community Fork)
+STAR-Cross (Community Fork of STAR)
 ==========
 Spliced Transcripts Alignment to a Reference
 © Alexander Dobin, 2009-2024
@@ -6,10 +6,11 @@ https://www.ncbi.nlm.nih.gov/pubmed/23104886
 
 > **Fork Notice:** The upstream STAR repository (`alexdobin/STAR`) appears to be unmaintained as of 2025
 > (see [community discussion](https://www.reddit.com/r/bioinformatics/comments/1joyd0p/the_star_aligner_is_unmaintained_now/)).
-> This fork maintains full output compatibility with STAR 2.7.11b while adding **Windows native support**,
-> **macOS ARM (Apple Silicon) support**, and upstream bug fixes.
-> All changes are validated to produce byte-identical results to the original 2.7.11b release.
-> Release binaries are versioned as `2.7.11c_<commit>` for traceability.
+> **STAR-Cross** is a cross-platform community fork derived from STAR 2.7.11c. It maintains output
+> compatibility with STAR 2.7.11b while adding **Windows native support**, **macOS ARM (Apple Silicon)
+> support**, **big-endian support**, **referenceless CRAM output**, and upstream bug/perf fixes.
+> Alignment output is validated to be byte-identical to the original 2.7.11b release.
+> Releases start at **v0.0.1**; the binary reports its version as `STAR-Cross 0.0.1_<commit>`.
 
 ORIGINAL AUTHOR
 ===============
@@ -338,6 +339,7 @@ FORK CHANGES
   * **Big-endian support** (`source/byteOrder.h`): the genome, suffix array and packed arrays are accessed as a little-endian byte stream regardless of host byte order, fixing the "next index is smaller than previous" failure on big-endian hosts (s390x, ppc64). Guarded so little-endian builds keep the native single-instruction load (zero performance/behavior change); only known big-endian compiles take the portable byte-wise path. Ported from the patch in upstream issue #2690. *Compile-validated only — no big-endian runner in CI.*
 
 ### Performance Optimizations
+  * Multicore `genomeGenerate` suffix-array build (upstream PR #2687): parallel prefix-bucketed chunk sort with sub-binning, optional in-memory chunk retention, and a "skip first word" comparator fast-path. Index output is **byte-identical** to the previous builder (verified in CI across thread counts and chunk layouts via `extras/tests/scripts/validate_genome_equivalence.sh`). Reconciled with the big-endian-safe comparator and MSVC (no native `__uint128`).
   * MSVC compiler: `/O2 /Ob2 /Oi /GL` with `/LTCG` link-time optimization (Windows)
   * SRW locks replacing CRITICAL_SECTION (faster mutex, Windows)
   * 4MB ifstream read buffer for FASTQ input (Windows)
@@ -357,6 +359,7 @@ FORK CHANGES
     - Trim stitched transcripts to the junction-relevant side before rescoring
     - Fix cross-mate `roStart` computation (`a2.Lread` instead of `a1.Lread` on negative strand)
   * macOS: spawn `readFilesCommand` via `posix_spawnp` instead of `vfork()`+`execlp()`+`exit()`, fixing "Failed spawning readFilesCommand" with gzipped input on macOS (upstream issue #2663). Avoids the undefined behavior of calling `exit()` in a `vfork` child. POSIX-only path; the Windows `system()`-based path is unchanged.
+  * Allow the WASP `vW:i` tag in SAM output, not just BAM (upstream PR #2617): `--waspOutputMode` no longer requires `--outSAMtype BAM`, and `vW` is emitted in the SAM/CRAM paths.
 
 ### Project Quality
   * C++17 standard (upgraded from C++11)
