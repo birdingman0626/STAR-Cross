@@ -237,7 +237,7 @@ void Parameters::samAttributes(){//everything related to SAM attributes
     samAttrRequiresBAM(outSAMattrPresent.rB, "rB");
     samAttrRequiresBAM(outSAMattrPresent.vG, "vG");
     samAttrRequiresBAM(outSAMattrPresent.vA, "vA");
-    samAttrRequiresBAM(outSAMattrPresent.vW, "vW");
+    // vW (WASP) is emitted for SAM output too (upstream PR #2617), so no BAM requirement.
     samAttrRequiresBAM(outSAMattrPresent.GX, "GX");
     samAttrRequiresBAM(outSAMattrPresent.GN, "GN");
     

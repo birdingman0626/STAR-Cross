@@ -201,12 +201,8 @@ void Parameters::inputParameters_validate() {
         exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
 
-     if (wasp.yes && outSAMtype.at(0)!="BAM") {
-        ostringstream errOut;
-        errOut <<"EXITING because of FATAL INPUT ERROR: --waspOutputMode requires output to BAM file\n";
-        errOut <<"SOLUTION: re-run STAR with --waspOutputMode ... and --outSAMtype BAM ... \n";
-        exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
-    };
+    // WASP vW tag is now emitted for SAM as well as BAM/CRAM output (upstream PR #2617),
+    // so --waspOutputMode no longer requires BAM.
 
     //quantification parameters
     quant.yes=false;
