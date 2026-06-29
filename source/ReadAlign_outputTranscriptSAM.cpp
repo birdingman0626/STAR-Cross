@@ -336,9 +336,13 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
                 case ATTR_rB:
                 case ATTR_vG:
                 case ATTR_vA:
+                    break;
                 case ATTR_vW:
+                    if (waspType!=-1)
+                        *outStream << "\tvW:i:" << (int32) waspType;//WASP filtering tag, also allowed in SAM output (upstream PR #2617)
+                    break;
                 case ATTR_GX:
-                case ATTR_GN:                    
+                case ATTR_GN:
                     break;
                 default:
                     ostringstream errOut;

@@ -93,7 +93,7 @@ void fstreamWriteBig(std::ofstream &S, char* A, unsigned long long N, std::strin
 };
 
 std::ofstream &ofstrOpen (std::string fileName, std::string errorID, Parameters &P) {//open file 'fileName', generate error if cannot open
-    std::ofstream & ofStream = *new std::ofstream(fileName.c_str(), std::fstream::out | std::fstream::trunc);
+    std::ofstream & ofStream = *new std::ofstream(fileName.c_str(), std::fstream::out | std::fstream::trunc | std::fstream::binary);//binary mode: avoid Windows text-mode corruption of binary data (LF->CRLF, 0x1A as EOF)
     if (ofStream.fail()) {//
         ostringstream errOut;
         errOut << errorID<<": exiting because of *OUTPUT FILE* error: could not create output file "<< fileName <<"\n";
@@ -109,11 +109,11 @@ std::fstream &fstrOpen (std::string fileName, std::string errorID, Parameters &P
 
     std::fstream *fStreamP;
     if (flagDelete) {//truncate the file if it exists
-        fStreamP = new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc);
+        fStreamP = new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc | std::fstream::binary);
     } else {//try to open exising file
-        fStreamP=new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out );
+        fStreamP=new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::binary );
         if (fStreamP->fail()) //did not work <= file does not exist => open with trunc (the above command does not work on new file)
-            fStreamP = new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc);
+            fStreamP = new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc | std::fstream::binary);
     };
     
     if (fStreamP->fail()) {//
@@ -127,7 +127,7 @@ std::fstream &fstrOpen (std::string fileName, std::string errorID, Parameters &P
 
 std::ifstream & ifstrOpen (std::string fileName, std::string errorID, std::string solutionString, Parameters &P) {
     //open file 'fileName', generate error if cannot open
-    std::ifstream & ifStream = *new std::ifstream(fileName.c_str());
+    std::ifstream & ifStream = *new std::ifstream(fileName.c_str(), std::ios::binary);//binary mode: avoid Windows text-mode corruption of binary data (CRLF->LF, 0x1A as EOF)
     if (ifStream.fail()) {//
         ostringstream errOut;
         errOut << errorID<<": exiting because of *INPUT FILE* error: could not open input file "<< fileName <<"\n";

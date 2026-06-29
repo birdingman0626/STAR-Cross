@@ -163,6 +163,7 @@ class Parameters {
 
         //SAM output
         string outBAMfileCoordName, outBAMfileUnsortedName, outQuantBAMfileName;
+        string outCRAMfileCoordName, outCRAMfileUnsortedName;//referenceless CRAM outputs (--outSAMtype CRAM)
         string samHeader, samHeaderHD, samHeaderSortedCoord, samHeaderExtra;
         string outSAMmode,  outSAMorder, outSAMprimaryFlag;
         vector<string> outSAMattributes, outSAMheaderHD, outSAMheaderPG;
@@ -184,6 +185,7 @@ class Parameters {
         int outBAMcompression;
         vector <string> outSAMtype;
         bool outBAMunsorted, outBAMcoord, outSAMbool;
+        bool outCRAMbool;//true when --outSAMtype CRAM: produce BAM then transcode to referenceless CRAM
         uint32 outBAMcoordNbins;
         uint32 outBAMsortingBinsN;//user-defined number of bins for sorting
         string outBAMsortTmpDir;

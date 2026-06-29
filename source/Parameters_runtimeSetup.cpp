@@ -155,12 +155,22 @@ void Parameters::inputParameters_runtimeSetup() {
     outSAMbool=false;
     outBAMunsorted=false;
     outBAMcoord=false;
+    outCRAMbool=false;
     if (runMode=="alignReads" && outSAMmode != "None") {//open SAM file and write header
-        if (outSAMtype.at(0)=="BAM") {
+        if (outSAMtype.at(0)=="BAM" || outSAMtype.at(0)=="CRAM") {
+            //CRAM reuses the proven BAM output path and is transcoded to referenceless
+            //CRAM at finalization (see bamToCramReferenceless / STAR.cpp)
+            outCRAMbool = (outSAMtype.at(0)=="CRAM");
+            if (outCRAMbool && outStd!="Log") {
+                ostringstream errOut;
+                errOut <<"EXITING because of fatal PARAMETER error: --outSAMtype CRAM is not compatible with --outStd "<<outStd<<"\n";
+                errOut <<"SOLUTION: re-run STAR with --outStd Log (the default) when using --outSAMtype CRAM\n";
+                exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+            };
             if (outSAMtype.size()<2) {
                 ostringstream errOut;
-                errOut <<"EXITING because of fatal PARAMETER error: missing BAM option\n";
-                errOut <<"SOLUTION: re-run STAR with one of the allowed values of --outSAMtype BAM Unsorted OR SortedByCoordinate OR both\n";
+                errOut <<"EXITING because of fatal PARAMETER error: missing "<<outSAMtype.at(0)<<" option\n";
+                errOut <<"SOLUTION: re-run STAR with one of the allowed values of --outSAMtype "<<outSAMtype.at(0)<<" Unsorted OR SortedByCoordinate OR both\n";
                 exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
             };
             for (uint32 ii=1; ii<outSAMtype.size(); ii++) {
@@ -171,7 +181,7 @@ void Parameters::inputParameters_runtimeSetup() {
                 } else {
                     ostringstream errOut;
                     errOut <<"EXITING because of fatal input ERROR: unknown value for the word " <<ii+1<<" of outSAMtype: "<< outSAMtype.at(ii) <<"\n";
-                    errOut <<"SOLUTION: re-run STAR with one of the allowed values of --outSAMtype BAM Unsorted or SortedByCoordinate or both\n";
+                    errOut <<"SOLUTION: re-run STAR with one of the allowed values of --outSAMtype "<<outSAMtype.at(0)<<" Unsorted or SortedByCoordinate or both\n";
                     exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
                 };
             };
@@ -182,6 +192,8 @@ void Parameters::inputParameters_runtimeSetup() {
                 } else {
                     outBAMfileUnsortedName=outFileNamePrefix + "Aligned.out.bam";
                 };
+                if (outCRAMbool)
+                    outCRAMfileUnsortedName=outFileNamePrefix + "Aligned.out.cram";
                 inOut->outBAMfileUnsorted = bgzf_open(outBAMfileUnsortedName.c_str(),("w"+to_string((long long) outBAMcompression)).c_str());
             };
             if (outBAMcoord) {
@@ -190,6 +202,8 @@ void Parameters::inputParameters_runtimeSetup() {
                 } else {
                     outBAMfileCoordName=outFileNamePrefix + "Aligned.sortedByCoord.out.bam";
                 };
+                if (outCRAMbool)
+                    outCRAMfileCoordName=outFileNamePrefix + "Aligned.sortedByCoord.out.cram";
                 inOut->outBAMfileCoord = bgzf_open(outBAMfileCoordName.c_str(),("w"+to_string((long long) outBAMcompression)).c_str());
                 if (outBAMsortingThreadN==0) {
                     outBAMsortingThreadNactual=min(6, runThreadN);
@@ -223,7 +237,7 @@ void Parameters::inputParameters_runtimeSetup() {
         } else {
             ostringstream errOut;
             errOut <<"EXITING because of fatal input ERROR: unknown value for the first word of outSAMtype: "<< outSAMtype.at(0) <<"\n";
-            errOut <<"SOLUTION: re-run STAR with one of the allowed values of outSAMtype: BAM or SAM \n"<<flush;
+            errOut <<"SOLUTION: re-run STAR with one of the allowed values of outSAMtype: BAM, CRAM, or SAM \n"<<flush;
             exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
         };
     };
