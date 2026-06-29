@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(STAR VERSION 2.7.11 LANGUAGES CXX C)
+project(STAR VERSION 0.0.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,8 +21,9 @@ endif()
 if(NOT GIT_COMMIT_HASH)
     set(GIT_COMMIT_HASH "unknown")
 endif()
-# Override STAR_VERSION at compile time: "2.7.11c_<hash>"
-add_compile_definitions(STAR_VERSION="2.7.11c_${GIT_COMMIT_HASH}")
+# Override STAR_VERSION at compile time: "STAR-Cross 0.0.1_<hash>"
+# (STAR-Cross fork versioning; derived from upstream STAR 2.7.11c)
+add_compile_definitions(STAR_VERSION="STAR-Cross 0.0.1_${GIT_COMMIT_HASH}")
 
 # ---------- Options ----------
 option(STAR_LONG_READS "Build STARlong variant for long reads" OFF)
@@ -407,10 +408,14 @@ target_include_directories(STAR PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}  # for parametersDefault.xxd
     ${HTSLIB_DIR}
-    ${httplib_SOURCE_DIR}        # httplib.h
 )
 
+# Third-party header-only deps as SYSTEM includes: suppresses their compiler
+# warnings and excludes them from CodeQL analysis (CodeQL skips system headers),
+# which is the reliable way to drop alerts in #include'd third-party headers such
+# as httplib.h (paths-ignore does not filter headers pulled into compiled TUs).
 target_include_directories(STAR SYSTEM PRIVATE
+    ${httplib_SOURCE_DIR}                # httplib.h (cpp-httplib)
     ${nlohmann_json_SOURCE_DIR}/include  # nlohmann/json.hpp
 )
 
@@ -517,7 +522,7 @@ endif()
 # ---------- Testing ----------
 enable_testing()
 add_test(NAME version_check COMMAND STAR --version)
-set_tests_properties(version_check PROPERTIES PASS_REGULAR_EXPRESSION "2\\.7\\.11")
+set_tests_properties(version_check PROPERTIES PASS_REGULAR_EXPRESSION "0\\.0\\.1")
 
 option(STAR_BUILD_TESTS "Build unit tests (requires network access for doctest)" ON)
 if(STAR_BUILD_TESTS)

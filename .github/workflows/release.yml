@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag (e.g. v2.7.11c). Leave blank to auto-generate from commit hash.'
+        description: 'Release tag (e.g. v0.0.1). Leave blank to auto-generate from commit hash.'
         required: false
         default: ''
 
@@ -184,14 +184,14 @@ jobs:
             echo "tag=${{ inputs.tag_name }}" >> $GITHUB_OUTPUT
           else
             SHORT_SHA=$(git rev-parse --short HEAD)
-            echo "tag=2.7.11c_${SHORT_SHA}" >> $GITHUB_OUTPUT
+            echo "tag=0.0.1_${SHORT_SHA}" >> $GITHUB_OUTPUT
           fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          name: STAR ${{ steps.tag.outputs.tag }}
+          name: STAR-Cross ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
           files: |
             STAR-linux-x86_64
