@@ -20,8 +20,9 @@ void PackedArray::writePacked( uint jj, uint x) {
    uint S=b%8LLU;
 
    x = x << S;
-   uint* a1 = (uint*) (charArray+B);
-   *a1 = ( (*a1) & ~(bitRecMask<<S) ) | x;
+   uint a1 = loadUintLE(charArray+B); // little-endian byte stream (native load on LE)
+   a1 = ( a1 & ~(bitRecMask<<S) ) | x;
+   storeUintLE(charArray+B, a1);
 };
 
 void PackedArray::pointArray(char* pointerCharIn) {
