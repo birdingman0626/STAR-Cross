@@ -144,3 +144,27 @@ jobs:
         run: |
           chmod +x extras/tests/scripts/validate_genome_equivalence.sh
           extras/tests/scripts/validate_genome_equivalence.sh "$GITHUB_WORKSPACE/STAR_old" "$GITHUB_WORKSPACE/STAR_new"
+
+  # Memory-safety of the splice-junction insertion path (sjdbBuildIndex) under
+  # AddressSanitizer. Regression coverage for the funCalcSAi out-of-bounds read
+  # (upstream issue #2657) and the #2687 sjdb sort rewrite.
+  asan-sjdb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zlib1g-dev ninja-build
+
+      - name: Build with AddressSanitizer
+        run: |
+          cd source
+          cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_BUILD_TESTS=OFF -DSTAR_ASAN=ON
+          cmake --build build-asan
+
+      - name: sjdb insertion memory-safety (issue #2657)
+        run: |
+          chmod +x extras/tests/scripts/validate_sjdb_asan.sh
+          extras/tests/scripts/validate_sjdb_asan.sh "$GITHUB_WORKSPACE/source/build-asan/STAR"
