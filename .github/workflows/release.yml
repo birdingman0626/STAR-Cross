@@ -17,11 +17,17 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            name: Linux
-          - os: macos-latest
-            name: macOS
+            name: Linux-x86_64
+            asset: STAR-linux-x86_64
+          - os: macos-latest      # Apple Silicon (arm64)
+            name: macOS-arm64
+            asset: STAR-macos-aarch64
+          - os: macos-13          # Intel (x86_64)
+            name: macOS-x86_64
+            asset: STAR-macos-x86_64
           - os: windows-latest
-            name: Windows
+            name: Windows-x86_64
+            asset: STAR-windows-x86_64
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -48,23 +54,16 @@ jobs:
       - name: Package (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          cp source/build/STAR STAR-linux-x86_64
-          chmod +x STAR-linux-x86_64
+          cp source/build/STAR "${{ matrix.asset }}"
+          chmod +x "${{ matrix.asset }}"
 
       - name: Smoke test (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: ./STAR-linux-x86_64 --version
+        run: ./${{ matrix.asset }} --version
 
-      - name: Upload artifact (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          name: STAR-linux-x86_64
-          path: STAR-linux-x86_64
-
-      # ── macOS ──────────────────────────────────────────────────────────────
+      # ── macOS (arm64 on macos-latest, x86_64 on macos-13) ───────────────────
       - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
+        if: startsWith(matrix.os, 'macos')
         run: |
           brew install gcc ninja
           GCC_BIN=$(ls $(brew --prefix gcc)/bin/g++-* | sort -V | tail -1)
@@ -73,7 +72,7 @@ jobs:
           echo "GCC_C_BIN=$(brew --prefix gcc)/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
 
       - name: Build (macOS)
-        if: matrix.os == 'macos-latest'
+        if: startsWith(matrix.os, 'macos')
         run: |
           cd source
           cmake -B build -G Ninja \
@@ -84,25 +83,18 @@ jobs:
           cmake --build build
 
       - name: Unit tests (macOS)
-        if: matrix.os == 'macos-latest'
+        if: startsWith(matrix.os, 'macos')
         run: ctest --test-dir source/build/test --output-on-failure -j4
 
       - name: Package (macOS)
-        if: matrix.os == 'macos-latest'
+        if: startsWith(matrix.os, 'macos')
         run: |
-          cp source/build/STAR STAR-macos-aarch64
-          chmod +x STAR-macos-aarch64
+          cp source/build/STAR "${{ matrix.asset }}"
+          chmod +x "${{ matrix.asset }}"
 
       - name: Smoke test (macOS)
-        if: matrix.os == 'macos-latest'
-        run: ./STAR-macos-aarch64 --version
-
-      - name: Upload artifact (macOS)
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          name: STAR-macos-aarch64
-          path: STAR-macos-aarch64
+        if: startsWith(matrix.os, 'macos')
+        run: ./${{ matrix.asset }} --version
 
       # ── Windows ────────────────────────────────────────────────────────────
       - name: Setup MSVC
@@ -148,22 +140,62 @@ jobs:
           }
 
           Get-ChildItem staging\ | Format-Table Name, Length
-          Compress-Archive -Path staging\* -DestinationPath STAR-windows-x86_64.zip
+          Compress-Archive -Path staging\* -DestinationPath "${{ matrix.asset }}.zip"
 
       - name: Smoke test (Windows)
         if: matrix.os == 'windows-latest'
         run: staging\STAR.exe --version
 
-      - name: Upload artifact (Windows)
+      # ── Upload (binary for unix, .zip for windows) ──────────────────────────
+      - name: Upload artifact (unix)
+        if: matrix.os != 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+      - name: Upload artifact (windows)
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7
         with:
-          name: STAR-windows-x86_64
-          path: STAR-windows-x86_64.zip
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}.zip
 
-  # ── Publish release (only after all three builds + tests pass) ────────────
+  # ── Big-endian (s390x) build under QEMU emulation ──────────────────────────
+  # GitHub has no big-endian runners, so build and validate inside an emulated
+  # s390x Debian container. This also runs the big-endian code path end-to-end
+  # (--version + a tiny genomeGenerate), validating the byteOrder.h fix on a real
+  # big-endian target.
+  build-bigendian:
+    runs-on: ubuntu-latest
+    # Emulated build is slow/experimental: never block the release on it. The
+    # s390x binary is attached when it succeeds; otherwise the release still ships
+    # the native binaries (a missing file is skipped by the publish step).
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up QEMU (s390x)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: s390x
+
+      - name: Build + validate STAR on s390x (big-endian)
+        run: |
+          docker run --rm --platform linux/s390x -v "$PWD":/src -w /src \
+            debian:bookworm bash extras/tests/scripts/build_validate_s390x.sh
+          cp source/build/STAR STAR-linux-s390x
+          chmod +x STAR-linux-s390x
+
+      - name: Upload artifact (s390x)
+        uses: actions/upload-artifact@v7
+        with:
+          name: STAR-linux-s390x
+          path: STAR-linux-s390x
+
+  # ── Publish release (only after all platform builds + tests pass) ──────────
   release:
-    needs: build
+    needs: [build, build-bigendian]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -195,5 +227,7 @@ jobs:
           generate_release_notes: true
           files: |
             STAR-linux-x86_64
-            STAR-windows-x86_64.zip
+            STAR-linux-s390x
             STAR-macos-aarch64
+            STAR-macos-x86_64
+            STAR-windows-x86_64.zip
