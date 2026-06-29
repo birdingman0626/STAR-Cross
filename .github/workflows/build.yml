@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
   build-linux:
@@ -14,7 +14,7 @@ jobs:
       matrix:
         compiler: [gcc, clang]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -50,7 +50,7 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
@@ -85,7 +85,7 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -109,3 +109,38 @@ jobs:
         with:
           name: STAR-windows-x86_64
           path: source\build\STAR.exe
+
+  # Verify the genomeGenerate suffix-array rewrite (PR #2687) produces a
+  # byte-identical index vs the baseline on main, and is deterministic across
+  # thread counts and chunk layouts.
+  validate-genome-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # need main history to build the baseline
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zlib1g-dev ninja-build
+
+      - name: Build candidate (this branch)
+        run: |
+          cd source
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=OFF
+          cmake --build build
+          cp build/STAR "$GITHUB_WORKSPACE/STAR_new"
+
+      - name: Build baseline (main, pre-#2687)
+        run: |
+          git worktree add /tmp/star-main origin/main
+          cd /tmp/star-main/source
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=OFF
+          cmake --build build
+          cp build/STAR "$GITHUB_WORKSPACE/STAR_old"
+
+      - name: Genome-index equivalence (old vs new, 1 vs 16 threads, multi-chunk)
+        run: |
+          chmod +x extras/tests/scripts/validate_genome_equivalence.sh
+          extras/tests/scripts/validate_genome_equivalence.sh "$GITHUB_WORKSPACE/STAR_old" "$GITHUB_WORKSPACE/STAR_new"
