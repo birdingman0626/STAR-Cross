@@ -132,11 +132,13 @@ R"HTML(
         <label>Output Prefix <span style="font-weight:400;color:#aaa">(directory must exist)</span></label>
         <input id="outPrefix" type="text" placeholder="/data/output/sample_">
       </div>
-      <div class="field" style="flex:0 0 230px" data-tip="Output alignment format. BAM SortedByCoordinate: required for IGV, featureCounts, HTSeq. BAM Unsorted: faster, use with --quantMode TranscriptomeSAM for RSEM. None: skip alignment output for count-only runs.">
+      <div class="field" style="flex:0 0 230px" data-tip="Output alignment format. BAM SortedByCoordinate: required for IGV, featureCounts, HTSeq. BAM Unsorted: faster, use with --quantMode TranscriptomeSAM for RSEM. CRAM: smaller referenceless CRAM (no reference FASTA needed). None: skip alignment output for count-only runs.">
         <label>outSAMtype</label>
         <select id="samtype">
           <option value="BAM SortedByCoordinate">BAM SortedByCoordinate</option>
           <option value="BAM Unsorted">BAM Unsorted</option>
+          <option value="CRAM SortedByCoordinate">CRAM SortedByCoordinate</option>
+          <option value="CRAM Unsorted">CRAM Unsorted</option>
           <option value="SAM">SAM</option>
           <option value="None">None (count only)</option>
         </select>

@@ -2,6 +2,7 @@
 #define PACKEDARRAY_DEF
 
 #include "IncludeDefine.h"
+#include "byteOrder.h"
 
 class PackedArray {
     private:
@@ -26,7 +27,7 @@ inline uint PackedArray::operator [] (uint ii) {
    uint B=b/8;
    uint S=b%8;
 
-   uint a1 = *((uint*) (charArray+B));
+   uint a1 = loadUintLE(charArray+B); // little-endian byte stream (native load on LE)
    a1 = (a1>>S) & bitRecMask; // bitmask instead of double-shift (upstream PR #791)
    return a1;
 };

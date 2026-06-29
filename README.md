@@ -24,8 +24,9 @@ https://github.com/birdingman0626/STAR/issues
 
 HARDWARE/SOFTWARE REQUIREMENTS
 ==============================
-  * x86-64 compatible processors
+  * x86-64 compatible processors, or ARM64/AArch64 (incl. Apple Silicon)
   * 64 bit Linux, Mac OS X, or Windows
+  * little-endian or big-endian hosts (big-endian, e.g. s390x/ppc64, is compile-supported but not part of CI)
 
 MANUAL
 ======
@@ -331,6 +332,11 @@ FORK CHANGES
   * Pure C++ implementation using cpp-httplib + nlohmann/json; no Node.js required
   * Child-process execution model keeps the server stable across run failures
 
+### Output Formats & Portability (new)
+  * **Referenceless CRAM output** (`--outSAMtype CRAM Unsorted|SortedByCoordinate`): STAR produces its normal BAM via the proven output path, then transcodes it to CRAM at finalization using bundled HTSlib (`source/cramOutput.cpp`). Uses `CRAM_OPT_NO_REF`, so **no external reference FASTA is required**. CRAM is typically ~10–25% smaller than BAM on full-quality data (the gain comes from CRAM's rANS/quality/read-name codecs, not reference compression). On conversion failure the original BAM is kept and the run continues. Applies to the main `Aligned.*` outputs; the transcriptome BAM (`--quantMode TranscriptomeSAM`) stays BAM for RSEM/Salmon compatibility. Selectable in the Web UI.
+  * **ARM64 / Apple Silicon**: native arm64 builds; AVX2 auto-disabled on ARM (CMake) and `-march=armv8-a+simd` selected in the Makefile. macOS native build target added: `make STARforMac CXX=clang++` (links libomp dynamically).
+  * **Big-endian support** (`source/byteOrder.h`): the genome, suffix array and packed arrays are accessed as a little-endian byte stream regardless of host byte order, fixing the "next index is smaller than previous" failure on big-endian hosts (s390x, ppc64). Guarded so little-endian builds keep the native single-instruction load (zero performance/behavior change); only known big-endian compiles take the portable byte-wise path. Ported from the patch in upstream issue #2690. *Compile-validated only — no big-endian runner in CI.*
+
 ### Performance Optimizations
   * MSVC compiler: `/O2 /Ob2 /Oi /GL` with `/LTCG` link-time optimization (Windows)
   * SRW locks replacing CRITICAL_SECTION (faster mutex, Windows)
@@ -350,6 +356,7 @@ FORK CHANGES
     - Better exon-pair selection for chimeric junctions (overlapping cross-reference exon, not just first/last)
     - Trim stitched transcripts to the junction-relevant side before rescoring
     - Fix cross-mate `roStart` computation (`a2.Lread` instead of `a1.Lread` on negative strand)
+  * macOS: spawn `readFilesCommand` via `posix_spawnp` instead of `vfork()`+`execlp()`+`exit()`, fixing "Failed spawning readFilesCommand" with gzipped input on macOS (upstream issue #2663). Avoids the undefined behavior of calling `exit()` in a `vfork` child. POSIX-only path; the Windows `system()`-based path is unchanged.
 
 ### Project Quality
   * C++17 standard (upgraded from C++11)

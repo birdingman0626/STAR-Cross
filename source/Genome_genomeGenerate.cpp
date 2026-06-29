@@ -28,33 +28,32 @@ uint globalL;
 
 inline int funCompareSuffixes ( const void *a, const void *b){
 
-    uint *ga=(uint*)((globalG-7LLU)+(*((uint*)a)));
-    uint *gb=(uint*)((globalG-7LLU)+(*((uint*)b)));
+    const char *ga=(globalG-7LLU)+(*((uint*)a));
+    const char *gb=(globalG-7LLU)+(*((uint*)b));
 
     uint jj=0;
     int  ii=0;
     uint va=0,vb=0;
-    uint8 *va1, *vb1;
 
     while (jj < globalL) {
-        va=*(ga-jj);
-        vb=*(gb-jj);
+        va=loadUintLE(ga-8*jj); // little-endian 8-byte load (native on LE)
+        vb=loadUintLE(gb-8*jj);
 
         #define has5(v) ((((v)^0x0505050505050505) - 0x0101010101010101) & ~((v)^0x0505050505050505) & 0x8080808080808080)
 
         if (has5(va) && has5(vb))
         {//there is 5 in the sequence - only compare bytes before 5
-            va1=(uint8*) &va;
-            vb1=(uint8*) &vb;
             for (ii=7;ii>=0;ii--)
-            {
-                if (va1[ii]>vb1[ii])
+            {//extract byte ii via shift: portable regardless of host byte order
+                uchar va1=(uchar)((va>>(8*ii))&0xffLLU);
+                uchar vb1=(uchar)((vb>>(8*ii))&0xffLLU);
+                if (va1>vb1)
                 {
                     return 1;
-                } else if (va1[ii]<vb1[ii])
+                } else if (va1<vb1)
                 {
                     return -1;
-                } else if (va1[ii]==5)
+                } else if (va1==5)
                 {//va=vb at the end of chr
                     if ( *((uint*)a) > *((uint*)b) )
                     {//anti-stable order,since indexes are sorted in the reverse order

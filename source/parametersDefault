@@ -305,6 +305,7 @@ outSAMtype                      SAM
     strings: type of SAM/BAM output
                                 1st word:
                                 BAM  ... output BAM without sorting
+                                CRAM ... output referenceless CRAM (BAM is produced then transcoded to CRAM; no external reference FASTA required)
                                 SAM  ... output SAM without sorting
                                 None ... no SAM/BAM output
                                 2nd, 3rd:

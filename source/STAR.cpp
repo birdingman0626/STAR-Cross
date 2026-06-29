@@ -21,6 +21,7 @@
 #include "sysRemoveDir.h"
 #include "BAMfunctions.h"
 #include "bamSortByCoordinate.h"
+#include "cramOutput.h"
 #include "Transcriptome.h"
 #include "signalFromBAM.h"
 #include "mapThreadsSpawn.h"
@@ -294,6 +295,23 @@ int main(int argInN, char *argIn[])
                          << flush;
         string wigOutFileNamePrefix = P.outFileNamePrefix + "Signal";
         signalFromBAM(P.outBAMfileCoordName, wigOutFileNamePrefix, P);
+    };
+
+    // CRAM output: transcode the finished BAM output(s) to referenceless CRAM.
+    // Done after wiggle (which reads the sorted BAM) so the intermediate BAM is
+    // still present. Reuses STAR's proven BAM path; only the final container changes.
+    if (P.outCRAMbool)
+    {
+        if (P.outBAMunsorted)
+        {
+            *(P.inOut->logStdOut) << timeMonthDayTime() << " ..... started CRAM conversion (unsorted)\n" << flush;
+            bamToCramReferenceless(P.outBAMfileUnsortedName, P.outCRAMfileUnsortedName, P);
+        };
+        if (P.outBAMcoord)
+        {
+            *(P.inOut->logStdOut) << timeMonthDayTime() << " ..... started CRAM conversion (sorted)\n" << flush;
+            bamToCramReferenceless(P.outBAMfileCoordName, P.outCRAMfileCoordName, P);
+        };
     };
 
     g_statsAll.writeLines(P.inOut->outChimJunction, P.pCh.outJunctionFormat, "#", STAR_VERSION + string("   ") + P.commandLine);

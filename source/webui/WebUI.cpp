@@ -712,6 +712,7 @@ void WebUI::run() {
 
         // Top-level known files
         for (const char* name : {"Aligned.sortedByCoord.out.bam", "Aligned.out.bam",
+                                  "Aligned.sortedByCoord.out.cram", "Aligned.out.cram",
                                   "Aligned.out.sam", "SJ.out.tab",
                                   "Log.final.out", "Log.out", "WebUI_Report.html"}) {
             addFile(name);
