@@ -319,6 +319,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
                 int64 ind1=funCalcSAi(Gsj+indArray[2*iSJ+1],iL);
                 while (ind1 < (int64)(ii-mapGen.genomeSAindexStart[iL]) && indArray[2*iSJ]-1<iSA2) {
                     ++iSJ;
+                    if (iSJ>=nInd) break;//reached the sentinel: indArray[2*nInd+1]==(uint64)-999, so funCalcSAi(Gsj-999,...) would read out of bounds before Gsj and can segfault (upstream issue #2657). Stopping here yields the intended "no matching junction" -> else branch.
                     ind1=funCalcSAi(Gsj+indArray[2*iSJ+1],iL);
                 };
                 if (ind1 == (int64)(ii-mapGen.genomeSAindexStart[iL]) ) {
