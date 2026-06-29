@@ -383,6 +383,7 @@ set(STAR_SOURCES
     serviceFuns.cpp
     GlobalVariables.cpp
     BAMoutput.cpp
+    cramOutput.cpp
     BAMfunctions.cpp
     ReadAlign_alignBAM.cpp
     BAMbinSortByCoordinate.cpp
