@@ -27,11 +27,13 @@ add_compile_definitions(STAR_VERSION="STAR-Cross 0.0.1_${GIT_COMMIT_HASH}")
 
 # ---------- Options ----------
 option(STAR_LONG_READS "Build STARlong variant for long reads" OFF)
-# AVX2 is x86-only; auto-disable on ARM/Apple Silicon
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
-    option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" OFF)
-else()
+# AVX2 is x86-only; enable it only on x86_64/AMD64 and auto-disable on every
+# other architecture (ARM64/Apple Silicon, s390x, ppc64, ...) so -mavx2 is never
+# passed to a non-x86 compiler.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64|x64")
     option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" ON)
+else()
+    option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" OFF)
 endif()
 option(STAR_ASAN "Enable AddressSanitizer" OFF)
 
