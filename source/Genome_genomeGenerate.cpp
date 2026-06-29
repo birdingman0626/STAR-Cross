@@ -499,8 +499,8 @@ void Genome::genomeGenerate() {
                     int tid=omp_get_thread_num();
                     uint* threadPrefCount=saThreadPrefCount+(uint) tid*batchPrefN;
                     #pragma omp for schedule(static)
-                    for (uint iScan=0;iScan<genomeScanN;iScan++) {
-                        uint ii=iScan*pGe.gSAsparseD;
+                    for (int64 iScan=0;iScan<(int64)genomeScanN;iScan++) {//signed index: MSVC OpenMP 2.0
+                        uint ii=(uint)iScan*pGe.gSAsparseD;
                         if (G[ii]<4) {
                             uint p1=funSAsortPrefix(G,ii,indPrefLen);
                             if (p1>=batchPrefStart && p1<batchPrefEnd) {
@@ -536,8 +536,8 @@ void Genome::genomeGenerate() {
                     int tid=omp_get_thread_num();
                     uint* threadPrefStart=saThreadPrefStart+(uint) tid*batchPrefN;
                     #pragma omp for schedule(static)
-                    for (uint iScan=0;iScan<genomeScanN;iScan++) {
-                        uint ii=iScan*pGe.gSAsparseD;
+                    for (int64 iScan=0;iScan<(int64)genomeScanN;iScan++) {//signed index: MSVC OpenMP 2.0
+                        uint ii=(uint)iScan*pGe.gSAsparseD;
                         if (G[ii]<4) {
                             uint p1=funSAsortPrefix(G,ii,indPrefLen);
                             if (p1>=batchPrefStart && p1<batchPrefEnd) {

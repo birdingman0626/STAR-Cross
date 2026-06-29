@@ -52,9 +52,9 @@ static void SAindexScanEventsParallel(char *G, PackedArray &SA, Parameters &P, G
     vector<vector<SAindexEvent> > eventsByChunk(chunkN);
 
     #pragma omp parallel for num_threads(threadN) schedule(static)
-    for (uint iChunk=0; iChunk<chunkN; iChunk++) {
-        const uint iStart=iSA1 + nSA*iChunk/chunkN;
-        const uint iEnd=iSA1 + nSA*(iChunk+1)/chunkN;
+    for (int64 iChunk=0; iChunk<(int64)chunkN; iChunk++) {//signed index: MSVC OpenMP 2.0
+        const uint iStart=iSA1 + nSA*(uint)iChunk/chunkN;
+        const uint iEnd=iSA1 + nSA*((uint)iChunk+1)/chunkN;
 
         vector<SAindexEvent> &chunkEvents=eventsByChunk[iChunk];
         chunkEvents.reserve((iEnd-iStart)/32+1);

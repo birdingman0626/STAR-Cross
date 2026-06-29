@@ -60,7 +60,7 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint nInd, 
         uint tid=(uint) omp_get_thread_num();
         uint64* threadBucketCount=bucketCount.data()+tid*bucketN;
         #pragma omp for schedule(static)
-        for (uint ii=0; ii<nInd; ii++) {
+        for (int64 ii=0; ii<(int64)nInd; ii++) {//signed index: MSVC OpenMP 2.0
             ++threadBucketCount[sjdbSortBucket(indArray[2*ii],keyRange,bucketN)];
         };
     };
@@ -89,7 +89,7 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint nInd, 
         uint tid=(uint) omp_get_thread_num();
         uint64* threadBucketStart=bucketThreadStart.data()+tid*bucketN;
         #pragma omp for schedule(static)
-        for (uint ii=0; ii<nInd; ii++) {
+        for (int64 ii=0; ii<(int64)nInd; ii++) {//signed index: MSVC OpenMP 2.0
             uint iBucket=sjdbSortBucket(indArray[2*ii],keyRange,bucketN);
             uint64 jj=threadBucketStart[iBucket]++;
             indArray1[2*jj]=indArray[2*ii];
