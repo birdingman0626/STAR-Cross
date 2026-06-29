@@ -91,6 +91,7 @@ std::string artifactType(const std::string& name) {
     if (ends(".tsv"))   return "tsv";
     if (ends(".csv"))   return "csv";
     if (ends(".bam"))   return "bam";
+    if (ends(".cram"))  return "cram";
     if (ends(".sam"))   return "sam";
     if (ends(".tab"))   return "tab";
     if (ends(".html"))  return "html";

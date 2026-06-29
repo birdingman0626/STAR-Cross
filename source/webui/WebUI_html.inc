@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>STAR WebUI</title>
+<title>STAR-Cross WebUI</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f5f7;color:#333}
@@ -53,7 +53,7 @@ tr:hover td{background:#fafbff}
 </head>
 <body>
 <header>
-  <h1>STAR WebUI<small id="ver"></small></h1>
+  <h1>STAR-Cross WebUI<small id="ver"></small></h1>
 </header>
 <div class="wrap">
 
@@ -132,11 +132,13 @@ R"HTML(
         <label>Output Prefix <span style="font-weight:400;color:#aaa">(directory must exist)</span></label>
         <input id="outPrefix" type="text" placeholder="/data/output/sample_">
       </div>
-      <div class="field" style="flex:0 0 230px" data-tip="Output alignment format. BAM SortedByCoordinate: required for IGV, featureCounts, HTSeq. BAM Unsorted: faster, use with --quantMode TranscriptomeSAM for RSEM. None: skip alignment output for count-only runs.">
+      <div class="field" style="flex:0 0 230px" data-tip="Output alignment format. BAM SortedByCoordinate: required for IGV, featureCounts, HTSeq. BAM Unsorted: faster, use with --quantMode TranscriptomeSAM for RSEM. CRAM: smaller referenceless CRAM (no reference FASTA needed). None: skip alignment output for count-only runs.">
         <label>outSAMtype</label>
         <select id="samtype">
           <option value="BAM SortedByCoordinate">BAM SortedByCoordinate</option>
           <option value="BAM Unsorted">BAM Unsorted</option>
+          <option value="CRAM SortedByCoordinate">CRAM SortedByCoordinate</option>
+          <option value="CRAM Unsorted">CRAM Unsorted</option>
           <option value="SAM">SAM</option>
           <option value="None">None (count only)</option>
         </select>
@@ -360,7 +362,7 @@ const CHEM = {
 let watchId = null;
 
 fetch('/props').then(r=>r.json()).then(d=>{
-  document.getElementById('ver').textContent = ' v'+d.version+' \u2022 '+d.platform;
+  document.getElementById('ver').textContent = ' \u2022 '+d.version+' \u2022 '+d.platform;
   if (d.cpuCount > 0) document.getElementById('threads').value = d.cpuCount;
   if (d.outDir) {
     const base = (d.outDir.endsWith('/')||d.outDir.endsWith('\\')) ? d.outDir : d.outDir+'/';
