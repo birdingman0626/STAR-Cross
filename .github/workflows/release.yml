@@ -210,7 +210,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU (s390x)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: s390x
       - name: Build + validate STAR on s390x (big-endian)
