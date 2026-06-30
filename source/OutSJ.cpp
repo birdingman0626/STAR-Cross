@@ -113,11 +113,12 @@ void Junction::collapseOneSJ(char* isj1P, char* isjP, Parameters& P) {//collapse
            //*(isj1P+motifP) = *(isjP+motifP) ; 
     };
     if (*(isj1P+annotP) < *(isjP+annotP) ) {
-            stringstream errOut;
-            errOut <<"EXITING because  of BUG: different annotation status for the same junction while collapsing junctions:"\
-                   <<*(uint*)(isj1P+startP) <<" "<<*(uint32*)(isj1P+gapP) <<" "<<int(*(char*)(isj1P+annotP)) <<" "<<int(*(char*)(isjP+annotP))<<"\n";
-            exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
-
-           //*(isj1P+annotP) = *(isjP+annotP) ;
+            // The same junction can legitimately be detected both de-novo (annot=0)
+            // and via the annotation database (annot=1), e.g. when an annotated
+            // junction is also found independently by a read before annotation
+            // matching. Reconcile to the annotated status ("annot wins") rather
+            // than aborting with a fatal BUG (upstream issue #2695); this matches
+            // this function's documented intent to "choose max ... annot".
+            *(isj1P+annotP) = *(isjP+annotP);
     };
 };

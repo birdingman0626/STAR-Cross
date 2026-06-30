@@ -308,6 +308,22 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
     };
 
     ///////////////////////////////////////////////////////////////////////////////////
+    // Branch-and-bound pruning (non-legacy mode only).
+    // Computes an upper bound on the score achievable from the current recursion state:
+    //   current Score + max possible score from remaining aligns (each align fully matches
+    //   + one sjdbScore junction bonus).
+    // If this upper bound cannot beat the best transcript found so far minus the
+    // multimap score window, the entire subtree is pruned — no output change is possible.
+    if (!P.pCh.legacyScoring && *nWinTr > 0 && iA < nA) {
+        int maxRemaining = 0;
+        for (uint ii = iA; ii < nA; ii++) {
+            maxRemaining += (int)WA[ii][WA_Length] * scoreMatch;
+            if ((int)WA[ii][WA_sjA] >= 0) maxRemaining += P.pGe.sjdbScore;
+        }
+        if (Score + maxRemaining < wTr[0]->maxScore - (int)P.outFilterMultimapScoreRange)
+            return;
+    }
+
     int dScore=0;
 
     // Skip the expensive Transcript copy when stitchAlignToTranscript would definitely

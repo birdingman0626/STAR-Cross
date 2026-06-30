@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(STAR VERSION 2.7.11 LANGUAGES CXX C)
+project(STAR VERSION 0.0.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,16 +21,19 @@ endif()
 if(NOT GIT_COMMIT_HASH)
     set(GIT_COMMIT_HASH "unknown")
 endif()
-# Override STAR_VERSION at compile time: "2.7.11c_<hash>"
-add_compile_definitions(STAR_VERSION="2.7.11c_${GIT_COMMIT_HASH}")
+# Override STAR_VERSION at compile time: "STAR-Cross 0.0.1_<hash>"
+# (STAR-Cross fork versioning; derived from upstream STAR 2.7.11c)
+add_compile_definitions(STAR_VERSION="STAR-Cross 0.0.1_${GIT_COMMIT_HASH}")
 
 # ---------- Options ----------
 option(STAR_LONG_READS "Build STARlong variant for long reads" OFF)
-# AVX2 is x86-only; auto-disable on ARM/Apple Silicon
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
-    option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" OFF)
-else()
+# AVX2 is x86-only; enable it only on x86_64/AMD64 and auto-disable on every
+# other architecture (ARM64/Apple Silicon, s390x, ppc64, ...) so -mavx2 is never
+# passed to a non-x86 compiler.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64|x64")
     option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" ON)
+else()
+    option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" OFF)
 endif()
 option(STAR_ASAN "Enable AddressSanitizer" OFF)
 
@@ -99,6 +102,26 @@ if(EXISTS "${parasail_SOURCE_DIR}/data/test_small_2.fasta")
     file(COPY "${parasail_SOURCE_DIR}/data/test_small_2.fasta"
          DESTINATION "${CMAKE_SOURCE_DIR}/data")
 endif()
+
+# ---------- cpp-httplib (header-only HTTP server) ----------
+FetchContent_Declare(httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG        v0.20.0
+    GIT_SHALLOW    TRUE
+)
+set(HTTPLIB_COMPILE OFF CACHE BOOL "" FORCE)   # keep header-only, no separate lib
+set(HTTPLIB_REQUIRE_OPENSSL OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(httplib)
+
+# ---------- nlohmann/json (header-only JSON) ----------
+FetchContent_Declare(nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG        v3.11.3
+    GIT_SHALLOW    TRUE
+)
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+set(JSON_Install    OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(nlohmann_json)
 
 # ---------- Generate parametersDefault.xxd ----------
 # Replicate the `xxd -i parametersDefault > parametersDefault.xxd` step
@@ -274,6 +297,10 @@ set(STAR_SOURCES
     PackedArray.cpp
     SuffixArrayFuns.cpp
     Parameters.cpp
+    Parameters_register.cpp
+    Parameters_inputSources.cpp
+    Parameters_runtimeSetup.cpp
+    Parameters_validateInput.cpp
     Parameters_samAttributes.cpp
     InOutStreams.cpp
     SequenceFuns.cpp
@@ -359,12 +386,15 @@ set(STAR_SOURCES
     serviceFuns.cpp
     GlobalVariables.cpp
     BAMoutput.cpp
+    cramOutput.cpp
     BAMfunctions.cpp
     ReadAlign_alignBAM.cpp
     BAMbinSortByCoordinate.cpp
     signalFromBAM.cpp
     bamRemoveDuplicates.cpp
     BAMbinSortUnmapped.cpp
+    webui/WebUI.cpp
+    webui/WebUI_report.cpp
 )
 
 # Prepend source directory
@@ -380,6 +410,15 @@ target_include_directories(STAR PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}  # for parametersDefault.xxd
     ${HTSLIB_DIR}
+)
+
+# Third-party header-only deps as SYSTEM includes: suppresses their compiler
+# warnings and excludes them from CodeQL analysis (CodeQL skips system headers),
+# which is the reliable way to drop alerts in #include'd third-party headers such
+# as httplib.h (paths-ignore does not filter headers pulled into compiled TUs).
+target_include_directories(STAR SYSTEM PRIVATE
+    ${httplib_SOURCE_DIR}                # httplib.h (cpp-httplib)
+    ${nlohmann_json_SOURCE_DIR}/include  # nlohmann/json.hpp
 )
 
 target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB parasail)
@@ -485,7 +524,7 @@ endif()
 # ---------- Testing ----------
 enable_testing()
 add_test(NAME version_check COMMAND STAR --version)
-set_tests_properties(version_check PROPERTIES PASS_REGULAR_EXPRESSION "2\\.7\\.11")
+set_tests_properties(version_check PROPERTIES PASS_REGULAR_EXPRESSION "0\\.0\\.1")
 
 option(STAR_BUILD_TESTS "Build unit tests (requires network access for doctest)" ON)
 if(STAR_BUILD_TESTS)

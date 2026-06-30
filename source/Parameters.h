@@ -44,6 +44,13 @@ class Parameters {
         string legacyIn; //legacy algorithm selection
 
         struct {
+            string host;
+            int    port;
+            string metricsIn; // parsed to metrics in webui mode
+            bool   metrics;
+        } webui;
+
+        struct {
             int32 type;//0 no restart, 1 no mapping - restart from _STARtmp files
         } runRestart; //restart options - in development
         
@@ -156,6 +163,7 @@ class Parameters {
 
         //SAM output
         string outBAMfileCoordName, outBAMfileUnsortedName, outQuantBAMfileName;
+        string outCRAMfileCoordName, outCRAMfileUnsortedName;//referenceless CRAM outputs (--outSAMtype CRAM)
         string samHeader, samHeaderHD, samHeaderSortedCoord, samHeaderExtra;
         string outSAMmode,  outSAMorder, outSAMprimaryFlag;
         vector<string> outSAMattributes, outSAMheaderHD, outSAMheaderPG;
@@ -177,6 +185,7 @@ class Parameters {
         int outBAMcompression;
         vector <string> outSAMtype;
         bool outBAMunsorted, outBAMcoord, outSAMbool;
+        bool outCRAMbool;//true when --outSAMtype CRAM: produce BAM then transcode to referenceless CRAM
         uint32 outBAMcoordNbins;
         uint32 outBAMsortingBinsN;//user-defined number of bins for sorting
         string outBAMsortTmpDir;
@@ -375,5 +384,12 @@ class Parameters {
     void readSAMheader(const string readFilesCommandString, const vector<string> readFilesNames);
     void samAttributes();
     void samAttrRequiresBAM(bool attrYes, string attrTag);
+
+private:
+    // Private helpers called from the constructor and inputParameters()
+    void registerParameters();                        // Parameters_register.cpp
+    void inputParameters_parseSources(int argInN, char* argIn[]); // Parameters_inputSources.cpp
+    void inputParameters_runtimeSetup();              // Parameters_runtimeSetup.cpp
+    void inputParameters_validate();                  // Parameters_validateInput.cpp
 };
 #endif  // Parameters.h

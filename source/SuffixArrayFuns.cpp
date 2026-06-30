@@ -359,8 +359,9 @@ uint funCalcSAiFromSA(char* gSeq, PackedArray& gSA, Genome &mapGen, uint iSA, in
     uint saind=0;
     if (dirG)
     {
-#ifdef STAR_UINT128_STRUCT
-        // MSVC: no native 128-bit int, use direct byte access
+#if defined(STAR_UINT128_STRUCT) || STAR_BIG_ENDIAN
+        // No native 128-bit int (MSVC) or big-endian host: read the genome byte
+        // stream directly, which is correct regardless of host byte order.
         const char *gPtr = gSeq + SAstr;
         for (int ii=0; ii<L; ii++)
         {
@@ -379,14 +380,14 @@ uint funCalcSAiFromSA(char* gSeq, PackedArray& gSA, Genome &mapGen, uint iSA, in
             };
             saind=saind<<2;
             saind+=g2;
-#ifndef STAR_UINT128_STRUCT
+#if !defined(STAR_UINT128_STRUCT) && !STAR_BIG_ENDIAN
             g1=g1>>8;
 #endif
         };
         return saind;
     } else
     {
-#ifdef STAR_UINT128_STRUCT
+#if defined(STAR_UINT128_STRUCT) || STAR_BIG_ENDIAN
         const char *gPtr = gSeq + mapGen.nGenome - SAstr - 16;
         for (int ii=0; ii<L; ii++)
         {
