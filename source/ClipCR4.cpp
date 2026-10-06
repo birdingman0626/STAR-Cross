@@ -20,6 +20,7 @@ ClipCR4::ClipCR4()
 
     storeClip.resize(dbN);
     alignRes.resize(dbN);
+    queryCharsBuf.reserve(128);
 };
 
 ClipCR4::~ClipCR4()
@@ -53,17 +54,20 @@ void ClipCR4::align(uint8 *query, uint32 queryLen, int dbN1)
 {
     // Convert numeric query (0=A,1=C,2=G,3=T,4=N) to ASCII characters
     static const char numToChar[] = {'A', 'C', 'G', 'T', 'N'};
-    uint32 qLen = min(queryLen, queryBufSize);
-    for (uint32 i = 0; i < qLen; i++)
+    queryCharsBuf.resize(queryLen);
+    for (uint32 i = 0; i < queryLen; i++)
         queryCharsBuf[i] = numToChar[query[i]];
 
     // Build query profile once; reuse for all database sequences
     parasail_profile_t *profile = parasail_profile_create_16(
-        queryCharsBuf, qLen, scoreMatrix);
+        queryCharsBuf.data(), queryLen, scoreMatrix);
 
     for (int idb = 0; idb < dbN1; idb++) {
         // Semi-global alignment (all ends free = overlap mode, like Opal's OPAL_MODE_OV)
-        parasail_result_t *res = parasail_sg_striped_profile_16(
+        // The striped recurrence does not preserve Opal overlap scores for
+        // adjacent opposing gaps at these low penalties. Scan does; scores and
+        // endpoints both affect the CellRanger4 clipping decision.
+        parasail_result_t *res = parasail_sg_scan_profile_16(
             profile, dbSeqs[idb], readLen, gapOpen, gapExt);
 
         alignRes[idb].score = parasail_result_get_score(res);

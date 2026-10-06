@@ -2,6 +2,7 @@
 Depend.list
 /data
 /toolchain/
+__pycache__/
 
 .project
 .kdev4/

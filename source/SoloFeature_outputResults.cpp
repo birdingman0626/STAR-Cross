@@ -39,7 +39,9 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
             for (uint32 ii=0; ii<Trans.nGe; ii++) {
                 geneStr << Trans.geID[ii] <<"\t"<< (Trans.geName[ii].empty() ? Trans.geID[ii] : Trans.geName[ii]);
                 if (pSolo.outFormat.featuresGeneField3!="-") {
-                    geneStr <<'\t'<< pSolo.outFormat.featuresGeneField3;
+                    geneStr <<'\t'<< (pSolo.outFormat.featuresGeneField3 == "+"
+                        ? (Trans.geBiotype[ii].empty() ? "MissingGeneType" : Trans.geBiotype[ii])
+                        : pSolo.outFormat.featuresGeneField3);
                 };
                 geneStr << '\n';
             };

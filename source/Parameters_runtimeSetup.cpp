@@ -10,6 +10,7 @@
 
 //for mkdir
 #include <sys/stat.h>
+#include <cerrno>
 
 // Compute runtime variables, create temp directory, open output BAM/SAM files,
 // and dispatch early-exit run modes (inputAlignmentsFromBAM).
@@ -37,14 +38,27 @@ void Parameters::inputParameters_runtimeSetup() {
     };
 
     if (outTmpDir=="-") {
+#ifdef _WIN32
+        // On Windows, default to the system temp directory so decompressed reads
+        // are never written to a slow SMB network share when --outFileNamePrefix
+        // points to one (e.g. \\server\share\prefix). PID keeps concurrent
+        // instances isolated.
+        {
+            const char* sysTmp = getenv("TEMP");
+            if (!sysTmp) sysTmp = getenv("TMP");
+            if (!sysTmp) sysTmp = ".";
+            outFileTmp = string(sysTmp) + "/STAR_" + to_string((int)GetCurrentProcessId()) + "/";
+        }
+#else
         outFileTmp=outFileNamePrefix +"_STARtmp/";
+#endif
         if (runRestart.type!=1)
             sysRemoveDir (outFileTmp);
     } else {
         outFileTmp=outTmpDir + "/";
     };
 
-    if (mkdir (outFileTmp.c_str(),runDirPerm)!=0 && runRestart.type!=1) {
+    if (mkdir (outFileTmp.c_str(),runDirPerm)!=0 && errno != EEXIST && runRestart.type!=1) {
         ostringstream errOut;
         errOut <<"EXITING because of fatal ERROR: could not make temporary directory: "<< outFileTmp<<"\n";
         errOut <<"SOLUTION: (i) please check the path and writing permissions \n (ii) if you specified --outTmpDir, and this directory exists - please remove it before running STAR\n"<<flush;
@@ -215,7 +229,12 @@ void Parameters::inputParameters_runtimeSetup() {
                 outBAMsortingBinStart[0]=1;//this initial value means that the bin sizes have not been determined yet
 
                 outBAMsortTmpDir=outFileTmp+"/BAMsort/";
-                mkdir(outBAMsortTmpDir.c_str(),runDirPerm);
+                if (mkdir(outBAMsortTmpDir.c_str(),runDirPerm)!=0 && errno != EEXIST) {
+                    ostringstream errOut;
+                    errOut <<"EXITING because of fatal ERROR: could not make BAMsort temporary directory: "<< outBAMsortTmpDir<<"\n";
+                    errOut <<"SOLUTION: please check the path and writing permissions\n"<<flush;
+                    exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+                };
             };
         } else if (outSAMtype.at(0)=="SAM") {
             if (outSAMtype.size()>1)

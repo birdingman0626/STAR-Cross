@@ -38,7 +38,13 @@ jobs:
         run: ./source/build/STAR --version
 
       - name: Unit tests
-        run: ctest --test-dir source/build/test --output-on-failure -j4
+        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
+
+      - name: Validation harness failure gates
+        run: python3 -m unittest discover -s scripts -p 'test_*py'
+
+      - name: Miniature STAR integration
+        run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build/STAR"
 
       - name: Upload binary
         if: matrix.compiler == 'gcc'
@@ -74,7 +80,7 @@ jobs:
         run: ./source/build/STAR --version
 
       - name: Unit tests
-        run: ctest --test-dir source/build/test --output-on-failure -j4
+        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
@@ -102,7 +108,7 @@ jobs:
         run: source\build\STAR.exe --version
 
       - name: Unit tests
-        run: ctest --test-dir source/build/test --output-on-failure -j4
+        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
 
       - name: Upload binary
         uses: actions/upload-artifact@v7

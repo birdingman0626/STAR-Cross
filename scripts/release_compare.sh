@@ -4,7 +4,7 @@
 #
 # Returns exit code 0 if all files match, 1 if any fail
 
-set -e
+set -euo pipefail
 
 ORIG="${1:?Usage: $0 <orig_dir> <new_dir>}"
 NEW="${2:?Usage: $0 <orig_dir> <new_dir>}"
@@ -42,7 +42,9 @@ for f in \
   Solo.out/GeneFull_Ex50pAS/raw/UniqueAndMult-EM.mtx \
 ; do
   if [ ! -f "$ORIG/$f" ]; then
-    echo "SKIP: $f (not in reference)"
+    echo "FAIL: $f (missing in reference)"
+    PASS=false
+    FAIL_COUNT=$((FAIL_COUNT + 1))
     continue
   fi
   if [ ! -f "$NEW/$f" ]; then
@@ -57,7 +59,7 @@ for f in \
     OK_COUNT=$((OK_COUNT + 1))
   else
     # Check if it's an EM file with FP rounding
-    NDIFF=$(diff <(tr -d '\r' < "$ORIG/$f") <(tr -d '\r' < "$NEW/$f") | grep "^[<>]" | wc -l)
+    NDIFF=$( { diff <(tr -d '\r' < "$ORIG/$f") <(tr -d '\r' < "$NEW/$f") || true; } | { grep "^[<>]" || true; } | wc -l)
     NTOTAL=$(wc -l < "$ORIG/$f")
     echo "FAIL: $f ($NDIFF lines differ out of $NTOTAL)"
     PASS=false

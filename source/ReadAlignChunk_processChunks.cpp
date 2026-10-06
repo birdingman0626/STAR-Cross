@@ -11,6 +11,7 @@ inline void removeStringEndControl(string &str);
 void ReadAlignChunk::processChunks() {//read-map-write chunks
     noReadsLeft=false; //true if there no more reads left in the file
     bool newFile=false; //new file marker in the input stream
+    vector<string> headerExtra(P.readNends); //reuse comment storage across reads
     while (!noReadsLeft) {//continue until the input EOF
             //////////////read a chunk from input files and store in memory
         if (P.outFilterBySJoutStage<2) {//read chunks from input file
@@ -117,25 +118,35 @@ void ReadAlignChunk::processChunks() {//read-map-write chunks
                         if (P.outSAMreadIDnumber) {
                             readID="@"+to_string(P.iReadAll);
                         };
-                        //read the second field of the read name line
+                        // Preserve each mate's original comment after STAR's internal
+                        // bookkeeping fields (including Illumina sample indexes).
+                        getline(P.inOut->readIn[0], headerExtra[0]);
+                        removeStringEndControl(headerExtra[0]);
+                        for (uint imate=1; imate<P.readNends; imate++) {
+                            getline(P.inOut->readIn[imate], headerExtra[imate]);
+                            removeStringEndControl(headerExtra[imate]);
+                            const size_t comment = headerExtra[imate].find_first_of(" \t");
+                            if (comment == string::npos) headerExtra[imate].clear();
+                            else headerExtra[imate].erase(0, comment);
+                        }
                         char passFilterIllumina='N';
-                        if (P.inOut->readIn[0].peek()!='\n') {//2nd field exists
-                            string field2;
-                            P.inOut->readIn[0] >> field2;
-                            if (field2.length()>=3 && field2[1]==':' && field2[2]=='Y' && field2[3]==':' )
+                        if (!headerExtra[0].empty()) {
+                            const size_t field2 = headerExtra[0].find_first_not_of(" \t");
+                            if (field2 != string::npos && headerExtra[0].size()-field2>=4 &&
+                                headerExtra[0][field2+1]==':' && headerExtra[0][field2+2]=='Y' && headerExtra[0][field2+3]==':' )
                                 passFilterIllumina='Y';
                         };
                         
                         //add extra information to readID line
                         readID += ' '+ to_string(P.iReadAll)+' '+passFilterIllumina+' '+to_string(P.readFilesIndex);
 
-                        //ignore the rest of the read name for both mates
-                        for (uint imate=0; imate<P.readNends; imate++)
-                            P.inOut->readIn[imate].ignore(DEF_readNameSeqLengthMax,'\n');
-
                         //copy the same readID to both mates
                         for (uint imate=0; imate<P.readNends; imate++) {
-                            chunkInSizeBytesTotal[imate] += 1 + readID.copy(chunkIn[imate] + chunkInSizeBytesTotal[imate], readID.size(),0);
+                            if (readID.size() + headerExtra[imate].size() >= DEF_readNameLengthMax)
+                                exitWithError("EXITING: FASTQ header including comment is too long\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+                            chunkInSizeBytesTotal[imate] += readID.copy(chunkIn[imate] + chunkInSizeBytesTotal[imate], readID.size(),0);
+                            chunkInSizeBytesTotal[imate] += headerExtra[imate].copy(chunkIn[imate] + chunkInSizeBytesTotal[imate], headerExtra[imate].size(),0);
+                            chunkInSizeBytesTotal[imate]++;
                             chunkIn[imate][chunkInSizeBytesTotal[imate]-1]='\n';
                         };
                     };
@@ -297,6 +308,6 @@ inline uint64 fastqReadOneLine(ifstream &streamIn, char *arrIn)
 
 inline void removeStringEndControl(string &str)
 {//removes control character (including space) from the end of the string
-    if (int(str.back())<33)
+    if (!str.empty() && int(str.back())<33)
         str.pop_back();
 };

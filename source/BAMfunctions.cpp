@@ -1,5 +1,7 @@
 #include "BAMfunctions.h"
 #include "htslib/htslib/kstring.h"
+#include "samAux.h"
+#include "ErrorWarning.h"
 
 
 string bam_cigarString (bam1_t *b) {//output CIGAR string
@@ -144,9 +146,9 @@ int bamAttrArrayWrite(const vector<int32> &attr, const char* tagName, char* attr
     return 4+sizeof(int32)+sizeof(int32)*attr.size();
 };
 
-int bamAttrArrayWriteSAMtags(string &attrStr, char *attrArray, Parameters &P) {//write bam record into attrArray for string attribute attString
+int bamAttrArrayWriteSAMtags(string &attrStr, char *attrArray, size_t capacity, Parameters &P) {
     size_t pos1=0, pos2=0;
-    int nattr=0;
+    string selected;
     do {//cycle over multiple tags separated by tab
         pos2 = attrStr.find('\t',pos1);
         string attr1 = attrStr.substr(pos1, pos2-pos1); //substring containing one tag
@@ -155,40 +157,25 @@ int bamAttrArrayWriteSAMtags(string &attrStr, char *attrArray, Parameters &P) {/
         if (attr1.empty())
             continue; //extra tab at the beginning, or consecutive tabs
             
-        uint16_t tagn = * ( (uint16_t*) attr1.c_str() );
+        if (attr1.size()<5 || attr1[2]!=':' || attr1[4]!=':')
+            exitWithError("EXITING: malformed SAM auxiliary field\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+        uint16_t tagn;
+        memcpy(&tagn, attr1.data(), sizeof(tagn));
         if ( !P.readFiles.samAttrKeepAll && P.readFiles.samAttrKeep.count(tagn)==0 )
             continue; //skip tags not contained the list            
 
-        switch (attr1.at(3)) {//TODO: support other tag types (vector tags)
-            case 'i':
-            {
-                int32 a1=stol(attr1.substr(5));
-                nattr += bamAttrArrayWrite(a1,attr1.c_str(),attrArray+nattr);
-                break;
-            };
-            case 'A':
-            {
-                char a1=attr1.at(5);
-                nattr += bamAttrArrayWrite(a1,attr1.c_str(),attrArray+nattr);
-                break;
-            };
-                break;
-            case 'Z':
-            {
-                string a1=attr1.substr(5);
-                nattr += bamAttrArrayWrite(a1,attr1.c_str(),attrArray+nattr);
-                break;
-            };
-            case 'f':
-            {
-                float a1=stof(attr1.substr(5));
-                nattr += bamAttrArrayWrite(a1,attr1.c_str(),attrArray+nattr);
-                break;
-            };
-        };
+        if (!selected.empty()) selected += '\t';
+        selected += attr1;
     } while (pos2 != string::npos);
 
-    return nattr;
+    try {
+        const auto bytes = samAuxBytes(selected, capacity);
+        if (!bytes.empty()) memcpy(attrArray, bytes.data(), bytes.size());
+        return static_cast<int>(bytes.size());
+    } catch (const std::exception &error) {
+        exitWithError(string("EXITING: ")+error.what()+"\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+        return 0;
+    }
 };
 
 

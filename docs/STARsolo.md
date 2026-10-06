@@ -455,4 +455,6 @@ soloCellFilter              CellRanger2.2 3000 0.99 10
 
 soloOutFormatFeaturesGeneField3	"Gene Expression"
 	string(s):				field 3 in the Gene features.tsv file. If "-", then no 3rd field is output.
+	                            If "+", output the GTF gene biotype (or MissingGeneType when absent).
+	                            Biotypes are not 10x modalities; keep the default for standard 10x readers.
 ```

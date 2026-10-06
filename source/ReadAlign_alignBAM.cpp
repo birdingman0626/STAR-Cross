@@ -482,7 +482,9 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
         };
 
         if (P.readFilesTypeN==10 && !P.readFiles.samAttrKeepNone) {
-            attrN+=bamAttrArrayWriteSAMtags(readNameExtra[Mate], attrOutArray+attrN, P);
+            if (attrN > BAM_ATTR_MaxSize)
+                exitWithError("EXITING: BAM attributes exceed buffer capacity\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+            attrN+=bamAttrArrayWriteSAMtags(readNameExtra[Mate], attrOutArray+attrN, BAM_ATTR_MaxSize-attrN, P);
         };
 ////////////////////////////// prepare sequence and qualities
         char seqMate[DEF_readSeqLengthMax+1], qualMate[DEF_readSeqLengthMax+1];

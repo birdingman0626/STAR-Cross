@@ -20,11 +20,6 @@ void ClipMate::clipChunk(char *chArr, uint64 chSize)
             
             char *chA2 = findChar(chA1, '\n');
             uint32 rL = (uint32) (chA2-chA1);
-            //debug
-            string tmp1(chA1, 91);
-            
-            
-            
             cr4->fillOneSeq(idb, chA1, rL);
             
             cr4->storeClip[idb] = (uint8*) (chA2+1);//store the position of "+" character - we will record the clipped length there

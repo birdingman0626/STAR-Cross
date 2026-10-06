@@ -43,9 +43,8 @@ private:
     char* dbSeqArr;
     char** dbSeqs;
 
-    // Pre-allocated buffer for numeric-to-ASCII query conversion (avoids heap alloc per call)
-    static constexpr uint32 queryBufSize = 128;
-    char queryCharsBuf[queryBufSize];
+    // Reused buffer; do not silently truncate user-supplied adapters.
+    vector<char> queryCharsBuf;
 };
 
 #endif

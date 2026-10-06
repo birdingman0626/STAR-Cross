@@ -5,7 +5,7 @@
 # that proves correctness after any change to algorithm code.
 #
 # Usage:
-#   scripts/validate_build.sh [--star-exe /path/to/STAR] [--data-dir /path/to/data]
+#   scripts/validate_build.sh [--star-exe /path/to/STAR] [--data-dir /path/to/data] [--ref-exe /path/to/STAR.before]
 #
 # Environment variables (override command-line):
 #   STAR_EXE        path to the STAR binary to test
@@ -54,20 +54,19 @@ if [[ "$VERSION" != *"STAR"* ]]; then
 fi
 pass "Version check"
 
-# ── Step 2: Unit tests (if CTest is available) ────────────────────────────────
+# ── Step 2: Unit tests (required; doctest registers individual test names) ──
 echo "=== Step 2: Unit tests ==="
 BUILD_DIR="$(dirname "$STAR_EXE")"
-if command -v ctest &>/dev/null && [[ -f "$BUILD_DIR/CTestTestfile.cmake" ]]; then
-  pushd "$BUILD_DIR" > /dev/null
-  if ctest --output-on-failure -R star_tests 2>&1; then
+if command -v ctest &>/dev/null && [[ -f "$BUILD_DIR/test/CTestTestfile.cmake" ]]; then
+  if ctest --test-dir "$BUILD_DIR/test" --no-tests=error --output-on-failure 2>&1; then
     pass "Unit tests"
   else
     fail "Unit tests failed"
     exit 3
   fi
-  popd > /dev/null
 else
-  echo "  ctest not available or no CTestTestfile.cmake in $BUILD_DIR — skipping"
+  fail "Unit tests unavailable in $BUILD_DIR/test; build with STAR_BUILD_TESTS=ON"
+  exit 3
 fi
 
 # ── Step 3: Smoke test ────────────────────────────────────────────────────────
@@ -78,24 +77,41 @@ SMOKE_R2="$DATA_DIR/fastq/R2_1M.fastq"
 GENOME_DIR="$DATA_DIR/genome_cynomolgus"
 GTF="$DATA_DIR/genome_cynomolgus/Macaca_fascicularis_6.0.115.cellranger_filtered.gtf"
 WHITELIST="$DATA_DIR/whitelists/3M-february-2018.txt"
-SMOKE_REF="$DATA_DIR/smoke_ref/Tibia-plate-S-3-batch1"
-SMOKE_OUT="$DATA_DIR/smoke_out_validate/Tibia-plate-S-3-batch1"
+SMOKE_REF="$DATA_DIR/smoke_ref"
 
-if [[ ! -f "$SMOKE_R1" || ! -f "$SMOKE_R2" ]]; then
-  echo "  Smoke FASTQ files not found in $DATA_DIR/fastq/ — skipping smoke test"
-  echo "  (Run: zcat <R1.gz> | head -4000000 > $SMOKE_R1 to prepare)"
-  exit 0
+if [[ ! -s "$SMOKE_R1" || ! -s "$SMOKE_R2" ]]; then
+  fail "Required smoke FASTQs missing in $DATA_DIR/fastq/"
+  exit 3
+fi
+
+for required in "$GENOME_DIR/Genome" "$GTF" "$WHITELIST"; do
+  [[ -s "$required" ]] || { fail "Required input missing: $required"; exit 3; }
+done
+if [[ -n "${STAR_REF_EXE:-}" ]]; then
+  [[ -x "$STAR_REF_EXE" ]] || { fail "Reference binary unavailable: $STAR_REF_EXE"; exit 3; }
+else
+  for feature in Gene GeneFull_Ex50pAS; do
+    for artifact in matrix.mtx barcodes.tsv features.tsv; do
+      [[ -s "$SMOKE_REF/Solo.out/$feature/raw/$artifact" ]] || {
+        fail "Required reference missing: $feature/raw/$artifact"; exit 3;
+      }
+    done
+  done
 fi
 
 # Time the run
 START_T=$SECONDS
 
-rm -rf "$SMOKE_OUT"
+VALIDATION_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/star-validation.XXXXXX")
+SMOKE_OUT="$VALIDATION_ROOT/candidate"
 mkdir -p "$SMOKE_OUT"
+echo "Evidence retained at: $VALIDATION_ROOT"
+THREADS="${STAR_TEST_THREADS:-8}"
 
-"$STAR_EXE" \
+run_smoke() {
+"$1" \
   --runMode alignReads \
-  --runThreadN "$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)" \
+  --runThreadN "$THREADS" \
   --genomeDir "$GENOME_DIR" \
   --readFilesIn "$SMOKE_R2" "$SMOKE_R1" \
   --sjdbGTFfile "$GTF" \
@@ -109,8 +125,21 @@ mkdir -p "$SMOKE_OUT"
   --soloMultiMappers EM \
   --soloCellFilter EmptyDrops_CR \
   --outSAMtype None \
-  --outFileNamePrefix "$SMOKE_OUT/" \
+  --outFileNamePrefix "$2/" \
   2>&1
+local reads
+reads=$(awk -F'|' '/Number of input reads/ {gsub(/[[:space:]]/, "", $2); print $2}' "$2/Log.final.out")
+if [[ ! "$reads" =~ ^[0-9]+$ ]] || (( reads == 0 )); then
+  fail "Smoke run did not verify nonzero processed reads: $2"
+  return 3
+fi
+}
+if [[ -n "${STAR_REF_EXE:-}" ]]; then
+  SMOKE_REF="$VALIDATION_ROOT/reference"
+  mkdir -p "$SMOKE_REF"
+  run_smoke "$STAR_REF_EXE" "$SMOKE_REF"
+fi
+run_smoke "$STAR_EXE" "$SMOKE_OUT"
 
 ELAPSED=$((SECONDS - START_T))
 echo "  Run time: ${ELAPSED}s"
@@ -133,7 +162,8 @@ for f in \
       PASS=false
     fi
   else
-    echo "  [SKIP] No reference for $f"
+    fail "Missing reference for $f"
+    PASS=false
   fi
 done
 

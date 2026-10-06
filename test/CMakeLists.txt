@@ -21,6 +21,7 @@ FetchContent_MakeAvailable(doctest)
 set(STAR_TEST_SOURCES
     ${STAR_SOURCE_DIR}/PackedArray.cpp
     ${STAR_SOURCE_DIR}/binarySearch2.cpp
+    ${STAR_SOURCE_DIR}/ClipCR4.cpp
 )
 
 add_executable(star_tests
@@ -33,6 +34,9 @@ add_executable(star_tests
     unit/test_blocksOverlap.cpp
     unit/test_EmptyDrops.cpp
     unit/test_UMIgraph_directedCollapse.cpp
+    unit/test_samAux.cpp
+    unit/test_BGZF.cpp
+    unit/test_ClipCR4.cpp
     ${STAR_TEST_SOURCES}
 )
 
@@ -44,7 +48,7 @@ target_include_directories(star_tests PRIVATE
 
 # IncludeDefine.h includes <omp.h>; the test binary must link OpenMP
 find_package(OpenMP REQUIRED)
-target_link_libraries(star_tests PRIVATE OpenMP::OpenMP_CXX)
+target_link_libraries(star_tests PRIVATE OpenMP::OpenMP_CXX hts parasail)
 
 # ---------- Platform-specific settings (mirrors source/CMakeLists.txt) ----------
 if(MSVC)
