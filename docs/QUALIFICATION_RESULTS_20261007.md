@@ -242,3 +242,38 @@ noise-calibrated performance/scaling remain separate work. Experimental graph
 alignment output requires an explicit algorithm/output-contract repair and
 independent oracle, not a memory-cleanup patch. No C++20 promotion, commit,
 push or release publication was performed in this continuation.
+
+## Transcriptome / Solo aggregates (next local continuation)
+
+The preceding ownership batch was committed and pushed as `b4b1eec`.
+This continuation scopes shared Transcriptome metadata, Solo aggregate objects,
+feature summaries/pointer arrays and heap-created streams, while preserving
+chunk-local counts and algorithm-facing raw views. C++17 remains the default;
+CUDA and long reads are disabled in these builds.
+
+- Native Windows Release CTest: **98/98**. Linux Release and ASan/UBSan CTest:
+  **100/100** each. Miniature reference comparisons passed on all three builds,
+  including ordinary/WASP/two-pass lifecycle paths and exact matrices/axes for
+  Gene, GeneFull, GeneFull_ExonOverIntron, GeneFull_Ex50pAS and Velocyto.
+- The tiny Solo fixture previously used homopolymer UMI `AAAA`, filtered by the
+  default policy, so empty-matrix equality was insufficient evidence. It now
+  uses `ACGT` and explicitly requires positive Gene counts. No production
+  filtering policy was relaxed. Failed exploratory logs remain preserved.
+- LeakSanitizer with a two-thread, positive-count five-feature Solo fixture:
+  preserved pre-change binary **87926 bytes / 148 allocations**; final candidate
+  **zero reported leaks**, exit 0. Receipts: `aggregate-before-positive-leak.log`
+  and `aggregate-after-leak.log` under the local qualification directory. No
+  full-CLI leak suppression was used for this targeted check.
+- The first 100000 synchronized-pair native comparison passed the full scientific
+  contract: BAM multiset/scientific header, SJ, declared raw/filtered/EM matrices,
+  axes, Velocity layers and scientific final fields. The final whitelist-stream
+  cleanup is independently rechecked in `aggregate-final-100k-20261007/result.json`.
+  Single-run timing is not a performance acceptance test; reference/candidate
+  language versions, run order and cache state are confounded.
+
+Local logs use `aggregate-*` under `data/validation/qualification-20261007/`.
+The standalone filtering experiment failed on a pre-existing single-barcode
+boundary; the attempted normal-return change was withdrawn. That mode is not
+qualified by this batch. Rare SmartSeq/Transcript3p paths, fatal-exit unwinding,
+hosted platform/CUDA checks and noise-calibrated scaling remain unverified.
+No C++20 default promotion or binary release is part of this continuation.

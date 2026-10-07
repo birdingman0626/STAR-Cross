@@ -18,9 +18,12 @@ void SoloFeature::countCBgeneUMI()
         P.inOut->logMain << timeMonthDayTime(rawTime) << " ... Allocated and initialized readInfo array, nReadsInput = " << nReadsInput <<endl;        
     };
 
-    rGeneUMI = new uint32[rguStride*nReadsMapped]; //big array for all CBs - each element is gene and UMI
-    rCBp = new uint32*[nCB+1];
-    uint32 **rCBpa = new uint32*[pSolo.cbWLsize+1];
+    std::unique_ptr<uint32[]> recordsStorage(new uint32[rguStride*nReadsMapped]);
+    rGeneUMI=recordsStorage.get(); // mutable algorithm view, allocation base never changes
+    std::unique_ptr<uint32*[]> barcodePointers(new uint32*[nCB+1]);
+    rCBp=barcodePointers.get();
+    std::unique_ptr<uint32*[]> whitelistPointers(new uint32*[pSolo.cbWLsize+1]);
+    uint32 **rCBpa=whitelistPointers.get();
     
     rCBp[0]=rGeneUMI;
     rCBpa[0]=rGeneUMI;
@@ -103,9 +106,9 @@ void SoloFeature::countCBgeneUMI()
         
     P.inOut->logMain << "RAM for solo feature "<< SoloFeatureTypes::Names[featureType] <<"\n"
                      <<  linuxProcMemory() << flush;        
-    delete[] rGeneUMI;
-    delete[] rCBp;
-    delete[] rCBpa;
+    recordsStorage.reset(); rGeneUMI=nullptr;
+    barcodePointers.reset(); rCBp=nullptr;
+    whitelistPointers.reset();
     
     time(&rawTime);
     P.inOut->logMain << timeMonthDayTime(rawTime) << " ... Finished collapsing UMIs" <<endl;

@@ -17,6 +17,9 @@
 
 class SoloFeature {
 private:
+    std::unique_ptr<SoloReadFeature> summaryStorage;
+    std::unique_ptr<SoloReadFeature*[]> threadFeatureViews;
+    std::vector<std::unique_ptr<fstream>> redistributionStorage;
     Parameters &P;
     ReadAlignChunk **RAchunk;    
     Transcriptome &Trans;
@@ -30,7 +33,7 @@ private:
 public:
     ParametersSolo &pSolo;
 
-    SoloReadFeature *readFeatSum, **readFeatAll;
+    SoloReadFeature *readFeatSum=nullptr, **readFeatAll=nullptr;
     SoloReadBarcode *readBarSum;
 
     const int32 featureType;   
@@ -39,9 +42,9 @@ public:
     uint32 nCB;
     uint32 featuresNumber; //number of features (i.e. genes, SJs, etc)
 
-    uint32 *rGeneUMI;//mapped reads sorted by CB
-    uint32 *rCBn;//number of reads for detected CBs in the whitelist
-    uint32 **rCBp;//array of pointers to each CB sub-array
+    uint32 *rGeneUMI=nullptr;//mapped reads sorted by CB; temporary borrow
+    uint32 *rCBn=nullptr;//number of reads for detected CBs in the whitelist
+    uint32 **rCBp=nullptr;//array of pointers to each CB sub-array; temporary borrow
 
     vector<uint32> indCB;//index of detected CBs in the whitelist
     vector<uint32> indCBwl; //reverse of indCB: index of WL CBs in detected CB list
@@ -80,6 +83,8 @@ public:
     vector <fstream*> redistrFilesStreams;
 
     SoloFeature(Parameters &Pin, ReadAlignChunk **RAchunk, Transcriptome &inTrans, int32 feTy, SoloReadBarcode *readBarSumIn, SoloFeature **soloFeatAll);
+    SoloFeature(const SoloFeature&) = delete;
+    SoloFeature& operator=(const SoloFeature&) = delete;
     void clearLarge(); //clear large vectors
     void processRecords();
     void sumThreads();

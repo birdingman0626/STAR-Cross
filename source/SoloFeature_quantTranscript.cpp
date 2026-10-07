@@ -21,6 +21,7 @@ void SoloFeature::quantTranscript()
     std::set<uint32> clusterInd; //cluster index for each cluster - the integer from clusterCBfile 
     {//load cluster information
         ifstream &clusterStream = ifstrOpen(pSolo.clusterCBfile, ERROR_OUT, "SOLUTION: check the path and permissions of the cluster CB file: " + pSolo.clusterCBfile, P);
+        std::unique_ptr<ifstream> clusterInputStorage(&clusterStream);
         string seq1;
         while (clusterStream >> seq1) {
             uint32 icl1;
@@ -72,6 +73,7 @@ void SoloFeature::quantTranscript()
         double norm1 = std::accumulate(trDistFun.begin(), trDistFun.end(), 0.0);
         
         ofstream *streamTrDistFun = &ofstrOpen(outputPrefix+"transcriptEndDistanceDistribution.txt",ERROR_OUT, P);
+        std::unique_ptr<ofstream> transcriptDistanceStorage(streamTrDistFun);
         for (auto & ff : trDistFun) {
             ff = ff/norm1;
             *streamTrDistFun << ff <<'\n';
@@ -300,6 +302,7 @@ void SoloFeature::quantTranscript()
     {//output counting matrix
         string matrixFileName=outputPrefix+pSolo.outFileNames[3];
         ofstream &countMatrixStream=ofstrOpen(matrixFileName,ERROR_OUT, P);
+        std::unique_ptr<ofstream> matrixStreamStorage(&countMatrixStream);
         countMatrixStream <<"%%MatrixMarket matrix coordinate real general\n%\n";
         
         uint32 nCellGeneEntries = 0;
@@ -319,6 +322,7 @@ void SoloFeature::quantTranscript()
     };
     
     ofstream &outStr=ofstrOpen(outputPrefix+"/features.tsv",ERROR_OUT, P);        
+    std::unique_ptr<ofstream> featureStreamStorage(&outStr);
     for (uint32 ii=0; ii<Trans.nTr; ii++)
         outStr << Trans.trID[ii] <<"\t"<< Trans.trLen[ii] <<"\t"<< Trans.geName[Trans.trGene[ii]] << '\n';
     outStr.close();

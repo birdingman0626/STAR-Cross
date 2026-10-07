@@ -6,6 +6,7 @@
 void SoloFeature::statsOutput()
 {
     ofstream &strOut=ofstrOpen(outputPrefix+"Summary.csv", ERROR_OUT, P);
+    std::unique_ptr<ofstream> summaryStreamStorage(&strOut);
     //Sequencing
     strOut << "Number of Reads," << g_statsAll.readN <<'\n';
     strOut << "Reads With Valid Barcodes," << 1.0 - double( readBarSum->stats.numInvalidBarcodes() + readFeatSum->stats.numInvalidBarcodes() )/g_statsAll.readN <<'\n';
@@ -73,6 +74,7 @@ void SoloFeature::statsOutput()
 
         //output UMI per cell, sorted
         ofstream &strOutUMIperCell = ofstrOpen(outputPrefix+"UMIperCellSorted.txt", ERROR_OUT, P);
+        std::unique_ptr<ofstream> umiStreamStorage(&strOutUMIperCell);
 
         for (auto & n : nUMIperCBsorted) {
             if (n==0)
@@ -87,6 +89,7 @@ void SoloFeature::statsOutput()
     ///////////////////////////////////////////////// readStatsOutput
     if (pSolo.readStatsYes[featureType]) {
         ofstream &strOut=ofstrOpen(outputPrefix+"CellReads.stats", ERROR_OUT, P);
+        std::unique_ptr<ofstream> cellReadStreamStorage(&strOut);
 
         strOut << "CB";
         for (auto &sn: readFlagCounts.statNames)

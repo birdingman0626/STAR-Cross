@@ -3,6 +3,7 @@
 #include "ClipMate.h"
 #include "Genome.h"
 #include "ReadAlign.h"
+#include "Solo.h"
 #include <type_traits>
 
 static_assert(!std::is_copy_assignable<Genome>::value, "Genome snapshots cannot replace an owner");
@@ -10,6 +11,10 @@ static_assert(!std::is_copy_constructible<Genome>::value, "Genome borrowing must
 static_assert(!std::is_copy_constructible<ReadAlign>::value, "ReadAlign owns thread arenas");
 static_assert(!std::is_copy_constructible<Quantifications>::value, "Quantifications owns counts");
 static_assert(!std::is_copy_constructible<ClipMate>::value, "ClipMate owns its CR4 scorer");
+static_assert(std::is_copy_constructible<Transcriptome>::value, "Chunks share metadata storage");
+static_assert(!std::is_copy_assignable<Transcriptome>::value, "Do not rebind loaded metadata views");
+static_assert(!std::is_copy_constructible<Solo>::value, "Solo owns aggregate feature storage");
+static_assert(!std::is_copy_constructible<SoloFeature>::value, "Feature summaries have a unique owner");
 
 TEST_CASE("Genome parameter readers release registrations without closing borrowed streams") {
     InOutStreams streams;

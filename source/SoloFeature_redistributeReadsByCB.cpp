@@ -43,9 +43,11 @@ void SoloFeature::redistributeReadsByCB()
     
     //open output files
     redistrFilesStreams.resize(redistrFilesNreads.size());
+    redistributionStorage.resize(redistrFilesNreads.size());
     for (uint32 ii=0; ii<redistrFilesNreads.size(); ii++) {
         //open file with flagDelete=true
-        redistrFilesStreams[ii] = &fstrOpen(P.outFileTmp + "solo"+SoloFeatureTypes::Names[featureType]+"_redistr_"+std::to_string(ii), ERROR_OUT, P, true);
+        redistributionStorage[ii].reset(&fstrOpen(P.outFileTmp + "solo"+SoloFeatureTypes::Names[featureType]+"_redistr_"+std::to_string(ii), ERROR_OUT, P, true));
+        redistrFilesStreams[ii]=redistributionStorage[ii].get();
     };
 
     //main cycle

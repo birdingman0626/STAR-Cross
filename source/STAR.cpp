@@ -140,8 +140,9 @@ int main(int argInN, char *argIn[])
     Transcriptome inactiveTranscriptome(P, false);
     Transcriptome *transcriptomeMain = &inactiveTranscriptome;
 
-    // this will execute --runMode soloCellFiltering and exit
+    // This executes --runMode soloCellFiltering and exits.
     Solo soloCellFilter(P, *transcriptomeMain);
+    std::unique_ptr<Transcriptome> transcriptomeStorage;
 
     ////////////////////////////////////////////////////////////////////////
     ///////////////////////////////// Genome
@@ -187,7 +188,8 @@ int main(int argInN, char *argIn[])
 
     if (P.quant.yes)
     { // load transcriptome
-        transcriptomeMain = new Transcriptome(P);
+        transcriptomeStorage.reset(new Transcriptome(P));
+        transcriptomeMain = transcriptomeStorage.get();
     };
 
     // initialize Stats
@@ -347,6 +349,7 @@ int main(int argInN, char *argIn[])
         chunk->chunkOutBAMunsorted.reset();
         chunk->chunkOutBAMquant.reset();
     }
+    soloMain.releaseStorage(); // aggregate borrowers finish before chunks/temp files
     chunkOwners.clear(); // workers joined; Solo/BAM consumers completed; streams still alive
     std::fill(RAchunk.begin(), RAchunk.end(), nullptr);
 

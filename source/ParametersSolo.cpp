@@ -315,6 +315,7 @@ void ParametersSolo::initialize(Parameters *pPin)
         } else {
             cbWLyes=true;
             ifstream & cbWlStream = ifstrOpen(soloCBwhitelist[0], ERROR_OUT, "SOLUTION: check the path and permissions of the CB whitelist file: " + soloCBwhitelist[0], *pP);
+            std::unique_ptr<ifstream> whitelistStreamStorage(&cbWlStream);
             string seq1;
             while (cbWlStream >> seq1) {
                 if (seq1.size() != cbL) {

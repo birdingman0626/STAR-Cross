@@ -22,6 +22,7 @@ void SoloFeature::loadRawMatrix()
     //load counting matrix
     string matrixFileName=inputPrefix+pSolo.outFileNames[3];
     ifstream &matStream=ifstrOpen(matrixFileName, ERROR_OUT, "SOLUTION: check path and permission for the matrix file" + matrixFileName, P);
+    std::unique_ptr<ifstream> matrixStreamStorage(&matStream);
 
     //header
     while (matStream.peek() == '%') {
@@ -125,6 +126,7 @@ void SoloFeature::loadRawMatrix()
     
     {//load barcodes
         ifstream &wlstream = ifstrOpen(inputPrefix+pSolo.outFileNames[2], ERROR_OUT, "SOLUTION: check the path and permissions of the barcodes file", P);
+        std::unique_ptr<ifstream> whitelistStreamStorage(&wlstream);
         pSolo.cbWLstr.resize(nCB1);
         for (auto &cb: pSolo.cbWLstr)
             std::getline(wlstream, cb);
@@ -132,8 +134,10 @@ void SoloFeature::loadRawMatrix()
     
     {//copy features
         std::ifstream &infeat  = ifstrOpen(inputPrefix + pSolo.outFileNames[1], ERROR_OUT, "SOLUTION: check the path and permissions of the features file", P);
+        std::unique_ptr<ifstream> featureInputStorage(&infeat);
         createDirectory(outputPrefixFiltered, P.runDirPerm, "Solo output directory", P);
         std::ofstream &outfeat = ofstrOpen(outputPrefixFiltered + pSolo.outFileNames[1], ERROR_OUT, P);
+        std::unique_ptr<ofstream> featureOutputStorage(&outfeat);
         outfeat << infeat.rdbuf();
         outfeat.close();
     };

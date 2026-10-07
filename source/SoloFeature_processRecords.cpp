@@ -28,6 +28,7 @@ void SoloFeature::processRecords()
     //prepare for feature-specific counting:
     if (featureType==SoloFeatureTypes::SJ && P.sjAll[0].empty()) {
         ifstream &sjIn = ifstrOpen(P.outFileTmp+"SJ.start_gap.tsv",  ERROR_OUT, "SOLUTION: re-run STAR", P);
+        std::unique_ptr<ifstream> junctionInputStorage(&sjIn);
         P.sjAll[0].reserve(10000000);
         P.sjAll[1].reserve(10000000);
         uint64 start1, gap1;
@@ -62,6 +63,7 @@ void SoloFeature::processRecords()
 
     //output
     ofstream *statsStream = &ofstrOpen(outputPrefix+"Features.stats",ERROR_OUT, P);
+    std::unique_ptr<ofstream> statsStorage(statsStream);
     readFeatSum->statsOut(*statsStream);
     statsStream->close();
     

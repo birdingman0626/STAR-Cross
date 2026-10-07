@@ -266,15 +266,21 @@ def main():
     cdna = root / "cdna.fastq"
     barcode = root / "barcode.fastq"
     cdna.write_text("@cell\n" + sequence[120:170] + "\n+\n" + "I"*50 + "\n")
-    barcode.write_text("@cell\nACGTACGTAAAA\n+\nIIIIIIIIIIII\n")
+    # A homopolymer UMI is filtered by default and would make every matrix empty.
+    barcode.write_text("@cell\nACGTACGTACGT\n+\nIIIIIIIIIIII\n")
+    solo_features = ("Gene", "GeneFull", "GeneFull_ExonOverIntron", "GeneFull_Ex50pAS", "Velocyto")
     solo = common + ["--readFilesIn", str(cdna), str(barcode), "--soloType", "CB_UMI_Simple",
                      "--soloCBwhitelist", str(whitelist), "--soloCBlen", "8", "--soloUMIstart", "9",
                      "--soloUMIlen", "4", "--soloCellFilter", "None", "--outSAMtype", "None",
-                     "--soloFeatures", "Gene", "GeneFull_Ex50pAS", "Velocyto"]
+                     "--soloFeatures", *solo_features]
     default = run("solo-default", solo)
     biotype = run("solo-biotype", solo + ["--soloOutFormatFeaturesGeneField3", "+"])
     two = run("solo-two-column", solo + ["--soloOutFormatFeaturesGeneField3", "-"])
     default_features = (default / "Solo.out/Gene/raw/features.tsv").read_text()
+    gene_matrix = (default / "Solo.out/Gene/raw/matrix.mtx").read_text().splitlines()
+    gene_rows = [line.split() for line in gene_matrix if line and not line.startswith("%")]
+    assert int(gene_rows[0][2]) > 0 and sum(int(row[2]) for row in gene_rows[1:]) > 0
+    checks.append("non-homopolymer UMI yields positive gene counts, not vacuous empty-matrix equivalence")
     assert "Gene Expression" in default_features
     assert "protein_coding" in (biotype / "Solo.out/Gene/raw/features.tsv").read_text()
     assert "MissingGeneType" in (biotype / "Solo.out/Gene/raw/features.tsv").read_text()
@@ -285,7 +291,7 @@ def main():
     checks.append("native Velocity always emits all three required raw layers")
     if args.ref_exe:
         solo_before = run("solo-before", solo, args.ref_exe)
-        for feature in ("Gene", "GeneFull_Ex50pAS", "Velocyto"):
+        for feature in solo_features:
             folder = default / "Solo.out" / feature / "raw"
             artifacts = list(folder.glob("*.mtx")) + list(folder.glob("*.tsv"))
             assert artifacts, feature

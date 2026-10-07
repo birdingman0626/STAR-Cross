@@ -5,8 +5,10 @@ SoloFeature::SoloFeature(Parameters &Pin, ReadAlignChunk **RAchunk, Transcriptom
             : P(Pin), RAchunk(RAchunk), Trans(inTrans), soloFeatAll(soloFeatAll), pSolo(P.pSolo), readBarSum(readBarSumIn), featureType(feTy)
 {
     if (featureType>=0) {//otherwise we do not need these arrays - e.g. with --runMode soloCellFiltering 
-        readFeatSum = new SoloReadFeature(featureType,P,-1);
-        readFeatAll = new SoloReadFeature*[P.runThreadN];
+        summaryStorage.reset(new SoloReadFeature(featureType,P,-1));
+        readFeatSum=summaryStorage.get();
+        threadFeatureViews.reset(new SoloReadFeature*[P.runThreadN]);
+        readFeatAll=threadFeatureViews.get();
     };
     
     //number of features

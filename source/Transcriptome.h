@@ -45,6 +45,8 @@ public:
 
     //methods:
     Transcriptome (Parameters &Pin, bool load=true); //load=false creates a valid inactive placeholder
+    Transcriptome(const Transcriptome&) = default; // metadata shared; counts still chunk-local
+    Transcriptome& operator=(const Transcriptome&) = delete;
     uint32 quantAlign (Transcript &aG, Transcript *aTall);//transform coordinates for all aligns from genomic in RA to transcriptomic in RAtr
     void geneCountsAddAlign(uint nA, Transcript **aAll, vector<int32> &gene1); //add one alignment to gene counts
     void quantsAllocate(); //allocate quants structure
@@ -56,6 +58,16 @@ public:
     void alignExonOverlap(uint nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat);
 
 private:
+    struct MetadataStorage {
+        std::unique_ptr<uint[]> trS, trE, trEmax;
+        std::unique_ptr<uint32[]> trExI, trGene, trLen, exSE, exLenCum;
+        std::unique_ptr<uint16[]> trExN;
+        std::unique_ptr<uint8[]> trStr;
+        std::unique_ptr<uint64[]> exonStart, exonEnd, exonEndMax, geneStart, geneEnd, geneEndMax;
+        std::unique_ptr<uint8[]> exonStrand, geneStrand;
+        std::unique_ptr<uint32[]> exonGene, exonTranscript, geneIndex;
+    };
+    std::shared_ptr<MetadataStorage> metadataStorage;
     Parameters &P; //normal "genomic" parameters
 
 };

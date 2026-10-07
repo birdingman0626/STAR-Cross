@@ -52,3 +52,28 @@ SysV load/keep/remove modes were compared against NoSharedMemory. Windows still
 supports only NoSharedMemory. These tests do not prove atomic last-user decisions
 against concurrent new admissions, all syscall-failure paths, or orphan-free
 constructor failure. Do not mark all of O3 complete from this bounded work.
+
+## Transcriptome / Solo aggregate continuation
+
+Transcriptome copies share a named metadata allocation owner, preserving the
+existing per-thread raw views without duplicating the large annotation arrays.
+ID/name vectors retain their existing copy behavior. Quantification counts
+remain independently allocated and owned by each ReadAlignChunk. The root
+Transcriptome is scoped in main; copies still borrow Parameters and must not
+outlive it. Copy assignment is forbidden rather than silently rebinding it.
+
+Solo owns the aggregate barcode summary, feature objects and feature-pointer
+array. Each SoloFeature owns its summary, borrowed-thread pointer array and
+redistribution streams; it does not own the thread feature objects. Explicit
+idempotent aggregate teardown occurs after all sorting/tag consumers and before
+chunk teardown/temp deletion. Destructors do not access those borrowed chunks
+or logging streams. Temporary counting arrays retain their original early-free
+points, sizes and uninitialized allocation semantics. Heap-created annotation,
+whitelist, counting and reporting streams now have local owners.
+
+These changes qualify ordinary short-read Gene, GeneFull variants and Velocity
+paths. SmartSeq/Transcript3p redistribution, allocation failures and fatal exits
+still require independent fixtures. Standalone soloCellFiltering retains its
+process-exit contract: an attempted test exposed a pre-existing single-barcode
+boundary (loadRawMatrix leaves nCB as the final zero-based index). It is not
+silently repaired in an ownership-only change or claimed as leak-qualified.

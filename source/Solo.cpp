@@ -8,20 +8,25 @@ Solo::Solo(ReadAlignChunk **RAchunkIn, Parameters &Pin, Transcriptome &inTrans)
     if ( pSolo.type == 0 )
         return;
     
-    readBarSum = new SoloReadBarcode(P);
+    barcodeStorage.reset(new SoloReadBarcode(P));
+    readBarSum=barcodeStorage.get();
     
     if ( pSolo.type == pSolo.SoloTypes::CB_samTagOut )
         return;
 
-    soloFeat = new SoloFeature*[pSolo.nFeatures];
-    for (uint32 ii=0; ii<pSolo.nFeatures; ii++)
-        soloFeat[ii] = new SoloFeature(P, RAchunk, Trans, pSolo.features[ii], readBarSum, soloFeat);
+    featureViews.reset(new SoloFeature*[pSolo.nFeatures]);
+    soloFeat=featureViews.get();
+    featureStorage.reserve(pSolo.nFeatures);
+    for (uint32 ii=0; ii<pSolo.nFeatures; ii++) {
+        featureStorage.emplace_back(new SoloFeature(P, RAchunk, Trans, pSolo.features[ii], readBarSum, soloFeat));
+        soloFeat[ii]=featureStorage.back().get();
+    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////////// post-mapping processing only
 //overloaded: only soloCellFiltering
 Solo::Solo(Parameters &Pin, Transcriptome &inTrans)
-          :  P(Pin), Trans(inTrans), pSolo(P.pSolo)
+          :  RAchunk(nullptr), P(Pin), Trans(inTrans), pSolo(P.pSolo)
 {
     if ( P.runMode != "soloCellFiltering" )
         return; //passing through, return back to executing STAR
@@ -31,17 +36,27 @@ Solo::Solo(Parameters &Pin, Transcriptome &inTrans)
     time( &timeCurrent);
     *P.inOut->logStdOut << timeMonthDayTime(timeCurrent) << " ..... starting SoloCellFiltering" <<endl;
     
-    soloFeat = new SoloFeature*[1];
+    featureViews.reset(new SoloFeature*[1]);
+    soloFeat=featureViews.get();
     
-    soloFeat[0] = new SoloFeature(P, NULL, Trans, -1, NULL, soloFeat);
+    featureStorage.emplace_back(new SoloFeature(P, NULL, Trans, -1, NULL, soloFeat));
+    soloFeat[0]=featureStorage.back().get();
     soloFeat[0]->loadRawMatrix();
     soloFeat[0]->cellFiltering();
     
     time( &timeCurrent);
     *P.inOut->logStdOut << timeMonthDayTime(timeCurrent) << " ..... finished successfully\n" <<flush;
     P.inOut->logMain  << "ALL DONE!\n" << flush;
-    exit(0);
+    exit(0); // Standalone filtering retains its existing process-exit contract.
 };
+
+void Solo::releaseStorage() {
+    featureStorage.clear();
+    featureViews.reset();
+    soloFeat=nullptr;
+    barcodeStorage.reset();
+    readBarSum=nullptr;
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -60,6 +75,7 @@ void Solo::processAndOutput()
         };
 
         ofstream *statsStream = &ofstrOpen(P.outFileNamePrefix+pSolo.outFileNames[0]+"Barcodes.stats",ERROR_OUT, P);
+        std::unique_ptr<ofstream> statsStorage(statsStream);
         readBarSum->statsOut(*statsStream);
         statsStream->close();
 

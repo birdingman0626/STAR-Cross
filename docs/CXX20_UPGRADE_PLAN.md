@@ -5,6 +5,24 @@ preset and GCC/Clang CI lanes enable qualification without silently changing
 the minimum supported compiler. No performance improvement is assumed from
 changing the language switch alone.
 
+## Current decision after the ownership continuation
+
+Keep the release default at **C++17**. Named RAII owners, shared metadata,
+unaligned-safe byte operations and deterministic resource release do not require
+C++20. No measured hot-path benefit or release requirement currently justifies
+raising the minimum. Keep the opt-in C++20 lane; validate the *current* source
+revision, not the historical 93-case candidate, before any promotion.
+
+The most relevant future use is a bounded non-owning buffer interface using
+`std::span`. It does not own/free storage, extend its lifetime, or guarantee
+automatic bounds checking for every access. It complements the ownership work;
+it is not a replacement. See [Microsoft's span requirements and semantics](https://learn.microsoft.com/en-us/cpp/standard-library/span-class?view=msvc-170).
+CUDA language/host support must be checked against the selected toolkit and host
+compiler, not inferred from CPU-only success; see [NVIDIA's nvcc guide](https://docs.nvidia.com/cuda/cuda-compiler-driver-nvcc/index.html).
+Do not introduce modules, coroutines or parallel STL without a specific measured
+need. The existing all-platform, scientific-equality, sanitizer and calibrated
+performance gates below still apply.
+
 ## Completed prerequisites
 
 - [x] Configurable 17/20 language level and extensions disabled.

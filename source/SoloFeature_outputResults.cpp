@@ -36,6 +36,7 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
         case SoloFeatureTypes::VelocytoSimple :
         {
             ofstream &geneStr=ofstrOpen(outputPrefixMat+pSolo.outFileNames[1],ERROR_OUT, P);
+            std::unique_ptr<ofstream> geneStreamStorage(&geneStr);
             for (uint32 ii=0; ii<Trans.nGe; ii++) {
                 geneStr << Trans.geID[ii] <<"\t"<< (Trans.geName[ii].empty() ? Trans.geID[ii] : Trans.geName[ii]);
                 if (pSolo.outFormat.featuresGeneField3!="-") {
@@ -70,6 +71,7 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
     ////////////////////////////////////////////////////////////////////////////
     //write barcodes.tsv
     ofstream &cbStr=ofstrOpen(outputPrefixMat+pSolo.outFileNames[2],ERROR_OUT, P);
+    std::unique_ptr<ofstream> barcodeStreamStorage(&cbStr);
     uint64 nCellGeneEntries=0;//total number of non-zero cell/gene combinations (entries in the output matrix)
     if (cellFilterYes) {//filtered cells
         for (uint32 icb=0; icb<nCB; icb++) {
@@ -108,6 +110,7 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
             matrixFileName += pSolo.outFileNames[3];
         };
         ofstream &countMatrixStream=ofstrOpen(matrixFileName,ERROR_OUT, P);
+        std::unique_ptr<ofstream> matrixStreamStorage(&countMatrixStream);
         
         //header
         countMatrixStream <<"%%MatrixMarket matrix coordinate integer general\n";
@@ -233,6 +236,7 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
 
 
                 ofstream &countMatrixStream=ofstrOpen(matrixFileName, ERROR_OUT, P);
+                std::unique_ptr<ofstream> matrixStreamStorage(&countMatrixStream);
                 
                 //header
                 countMatrixStream <<"%%MatrixMarket matrix coordinate real general\n";
