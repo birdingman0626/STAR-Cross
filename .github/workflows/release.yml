@@ -194,7 +194,7 @@ jobs:
         run: |
           docker run --rm --platform linux/s390x -v "$PWD":/src -w /src \
             -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
-            debian:bookworm bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt'
+            debian:trixie bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt'
           cp source/build/STAR STAR-linux-s390x
           chmod +x STAR-linux-s390x
           test "$(cat s390x-version.txt)" = "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)"

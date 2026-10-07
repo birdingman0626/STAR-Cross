@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build STAR for s390x (big-endian) and validate the byteOrder fix end-to-end.
 # Intended to run inside an emulated s390x Debian container (see release.yml):
-#   docker run --platform linux/s390x -v "$PWD":/src -w /src debian:bookworm \
+#   docker run --platform linux/s390x -v "$PWD":/src -w /src debian:trixie \
 #       bash extras/tests/scripts/build_validate_s390x.sh
 set -euxo pipefail
 
