@@ -19,7 +19,8 @@ SoloReadFeature::SoloReadFeature(int32 feTy, Parameters &Pin, int iChunk)
 
     if (iChunk>=0) {
         //open with flagDelete=false, i.e. try to keep file if it exists
-        streamReads = &fstrOpen(P.outFileTmp+"/solo"+SoloFeatureTypes::Names[featureType]+'_'+std::to_string(iChunk), ERROR_OUT, P, false);
+        streamStorage.reset(&fstrOpen(P.outFileTmp+"/solo"+SoloFeatureTypes::Names[featureType]+'_'+std::to_string(iChunk), ERROR_OUT, P, false));
+        streamReads=streamStorage.get();
     };
     
     if (featureType==SoloFeatureTypes::Transcript3p)

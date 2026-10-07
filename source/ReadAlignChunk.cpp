@@ -11,32 +11,36 @@ ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome 
     iThread=iChunk;
 
     if ( P.quant.yes ) {//allocate transcriptome structures
-        chunkTr=new Transcriptome(*TrIn);
+        transcriptomeStorage.reset(new Transcriptome(*TrIn));
+        chunkTr=transcriptomeStorage.get();
         chunkTr->quantsAllocate();
+        if (P.quant.geCount.yes) quantificationStorage.reset(chunkTr->quants);
     } else {
         chunkTr=NULL;
     };
 
-    RA = new ReadAlign(P, mapGen, chunkTr, iChunk);//new local copy of RA for each chunk
+    alignStorage.reset(new ReadAlign(P, mapGen, chunkTr, iChunk));
+    RA=alignStorage.get();
 
     RA->iRead=0;
 
-    chunkIn=new char* [P.readNends];
-    readInStream=new FixedIStream* [P.readNends];
+    inputPointers.reset(new char* [P.readNends]); chunkIn=inputPointers.get();
+    inputStreamPointers.reset(new FixedIStream* [P.readNends]); readInStream=inputStreamPointers.get();
+    inputStorage.resize(P.readNends); inputStreams.resize(P.readNends);
 
     for (uint ii=0;ii<P.readNends;ii++) {
-       chunkIn[ii]=new char[P.chunkInSizeBytesArray];//reserve more space to finish loading one read
+       inputStorage[ii].reset(new char[P.chunkInSizeBytesArray]); chunkIn[ii]=inputStorage[ii].get();
        memset(chunkIn[ii],'\n',P.chunkInSizeBytesArray);
-       readInStream[ii] = new FixedIStream;
+       inputStreams[ii].reset(new FixedIStream); readInStream[ii]=inputStreams[ii].get();
        readInStream[ii]->setBuffer(chunkIn[ii],P.chunkInSizeBytesArray);
        RA->readInStream[ii]=readInStream[ii];
     };
 
 
     if (P.outSAMbool) {
-        chunkOutBAM=new char [P.chunkOutBAMsizeBytes];
+        outputStorage.reset(new char [P.chunkOutBAMsizeBytes]); chunkOutBAM=outputStorage.get();
         RA->outBAMarray=chunkOutBAM;
-        chunkOutBAMstream=new FixedOStream;
+        outputStreamStorage.reset(new FixedOStream); chunkOutBAMstream=outputStreamStorage.get();
         chunkOutBAMstream->setBuffer(chunkOutBAM,P.chunkOutBAMsizeBytes);
         RA->outSAMstream=chunkOutBAMstream;
         RA->outSAMstream->seekp(0,ios::beg);
@@ -65,14 +69,14 @@ ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome 
     };
 
     if (P.outSJ.yes) {
-        chunkOutSJ  = new OutSJ (P.limitOutSJcollapsed, P, mapGen);
+        junctionStorage.reset(new OutSJ (P.limitOutSJcollapsed, P, mapGen)); chunkOutSJ=junctionStorage.get();
         RA->chunkOutSJ  = chunkOutSJ;
     } else {
         RA->chunkOutSJ  = NULL;
     };
 
     if (P.outFilterBySJoutStage == 1) {
-        chunkOutSJ1 = new OutSJ (P.limitOutSJcollapsed, P, mapGen);
+        filteredJunctionStorage.reset(new OutSJ (P.limitOutSJcollapsed, P, mapGen)); chunkOutSJ1=filteredJunctionStorage.get();
         RA->chunkOutSJ1 = chunkOutSJ1;
     } else {
         RA->chunkOutSJ1  = NULL;
@@ -101,13 +105,11 @@ ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome 
     };
 
     if (P.wasp.yes) {
-        RA->waspRA= new ReadAlign(Pin,genomeIn,TrIn,iChunk);
+        waspStorage.reset(new ReadAlign(Pin,genomeIn,TrIn,iChunk)); RA->waspRA=waspStorage.get();
     };
     if (P.peOverlap.yes) {
-        RA->peMergeRA= new ReadAlign(Pin,genomeIn,TrIn,iChunk);
-        delete RA->peMergeRA->chunkOutChimJunction;
-        RA->peMergeRA->chunkOutChimJunction=RA->chunkOutChimJunction;//point to the same out-stream
-        RA->peMergeRA->chimDet->ostreamChimJunction=RA->peMergeRA->chunkOutChimJunction;
+        mergedStorage.reset(new ReadAlign(Pin,genomeIn,TrIn,iChunk)); RA->peMergeRA=mergedStorage.get();
+        RA->peMergeRA->borrowChimericJunctionStream(RA->chunkOutChimJunction);
         RA->peMergeRA->outBAMunsorted=RA->outBAMunsorted;
         RA->peMergeRA->outBAMcoord=RA->outBAMcoord;
     };

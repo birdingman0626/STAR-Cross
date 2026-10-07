@@ -125,6 +125,34 @@ def main():
                                       "--outSAMunmapped", "Within"])
     assert len(bam_records(mapped / "Aligned.out.bam")) == len(fragments)
     checks.append("real miniature genome and mapped/spliced/unmapped BAM")
+    # Exercise actual destruction after worker join and pass1 index growth,
+    # including auxiliary ReadAlign objects sharing the chimeric output stream.
+    complement = str.maketrans("ACGTN", "TGCAN")
+    mate = root / "paired-mate.fastq"
+    mate.write_text("".join(f"@r{i}\n{s.translate(complement)[::-1]}\n+\n{'I'*len(s)}\n"
+                            for i, s in enumerate(fragments)))
+    vcf = root / "variants.vcf"
+    ref = sequence[120]
+    alt = next(base for base in "ACGT" if base != ref)
+    vcf.write_text("##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsample\n"
+                   f"chr1\t121\t.\t{ref}\t{alt}\t.\tPASS\t.\tGT\t0/1\n")
+    lifecycle_modes = {
+        "two-pass": ["--readFilesIn", str(reads), "--twopassMode", "Basic", "--limitSjdbInsertNsj", "1000"],
+        "merged-chimeric": ["--readFilesIn", str(reads), str(mate), "--peOverlapNbasesMin", "10",
+                             "--chimSegmentMin", "12", "--chimMultimapNmax", "10", "--chimOutType", "Junctions", "WithinBAM"],
+        "wasp": ["--readFilesIn", str(reads), "--varVCFfile", str(vcf), "--waspOutputMode", "SAMtag",
+                 "--outSAMattributes", "Standard", "vW"],
+    }
+    for label, mode in lifecycle_modes.items():
+        options = common + mode + ["--outSAMtype", "BAM", "Unsorted", "--outSAMunmapped", "Within"]
+        after = run("lifecycle-" + label, options)
+        assert bam_records(after / "Aligned.out.bam")
+        if args.ref_exe:
+            before = run("lifecycle-before-" + label, options, args.ref_exe)
+            assert bam_records(before / "Aligned.out.bam") == bam_records(after / "Aligned.out.bam")
+            assert scientific_final_fields(before / "Log.final.out") == scientific_final_fields(after / "Log.final.out")
+            assert (before / "SJ.out.tab").read_bytes() == (after / "SJ.out.tab").read_bytes()
+    checks.append("worker/arena teardown for two-pass, merged paired/chimeric and WASP auxiliary alignments")
     if args.shared_memory:
         # The unique fixture index determines its IPC key. Removal is confined to
         # this index, and finally cleans a failed fixture without touching others.

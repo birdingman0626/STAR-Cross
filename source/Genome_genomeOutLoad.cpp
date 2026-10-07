@@ -29,6 +29,7 @@ void Genome::genomeOutLoad(){//allocate and load *output* Genome
     ifstream GenomeIn;
     nGenome = OpenStream("Genome", GenomeIn, 0);
     G=new char[nGenome];
+    sequenceStorage.reset(G);
     //uint64 genomeReadBytesN = 
     fstreamReadBig(GenomeIn,G,nGenome);
     GenomeIn.close();

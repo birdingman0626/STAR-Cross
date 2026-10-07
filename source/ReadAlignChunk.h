@@ -24,7 +24,6 @@ public:
     OutSJ *chunkOutSJ, *chunkOutSJ1;
 
     std::unique_ptr<BAMoutput> chunkOutBAMcoord, chunkOutBAMunsorted, chunkOutBAMquant;
-    Quantifications *chunkQuants;
     
     FixedIStream** readInStream;
     FixedOStream*  chunkOutBAMstream;
@@ -46,5 +45,15 @@ public:
 
     Genome &mapGen;
 private:
+    std::unique_ptr<Transcriptome> transcriptomeStorage;
+    std::unique_ptr<Quantifications> quantificationStorage;
+    std::unique_ptr<char*[]> inputPointers;
+    std::unique_ptr<FixedIStream*[]> inputStreamPointers;
+    std::vector<std::unique_ptr<char[]>> inputStorage;
+    std::vector<std::unique_ptr<FixedIStream>> inputStreams;
+    std::unique_ptr<char[]> outputStorage;
+    std::unique_ptr<FixedOStream> outputStreamStorage;
+    std::unique_ptr<OutSJ> junctionStorage, filteredJunctionStorage;
+    std::unique_ptr<ReadAlign> alignStorage, waspStorage, mergedStorage;
 };
 #endif

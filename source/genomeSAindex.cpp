@@ -92,7 +92,7 @@ static void SAindexScanEventsParallel(char *G, PackedArray &SA, Parameters &P, G
 
 void genomeSAindex(char * G, PackedArray & SA, Parameters & P, PackedArray & SAi, Genome &mapGen)
  {
-    mapGen.genomeSAindexStart = new uint [mapGen.pGe.gSAindexNbases+1];
+    mapGen.allocateSAindexStarts(mapGen.pGe.gSAindexNbases+1);
     mapGen.genomeSAindexStart[0]=0;
     for (uint ii=1;ii<=mapGen.pGe.gSAindexNbases;ii++) {//L-mer indices starts
         mapGen.genomeSAindexStart[ii] = mapGen.genomeSAindexStart[ii-1] + ( 1LLU<<(2*ii) );

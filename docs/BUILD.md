@@ -45,6 +45,7 @@ Install Visual Studio C++ Build Tools, CMake and Ninja. Open an x64 developer
 command prompt, then run:
 
 ```bat
+chcp 65001 > nul
 cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel 8
 build\STAR.exe --version
@@ -54,6 +55,10 @@ For Ninja builds, use a compiler diagnostic language/code page consistently at
 configure and build time. If localized `showIncludes` output is not tracked,
 reconfigure in a fresh build directory and confirm header edits rebuild consumers.
 Use `VSLANG=1033` when the English compiler resources are installed.
+With localized MSVC, set `chcp 65001` before both configuration and compilation;
+do not reuse a directory configured with a mismatched diagnostic code page.
+Check `ninja -C build -t deps CMakeFiles/STAR.dir/ReadAlign.cpp.obj`: it must list
+the relevant project headers, not just report a successfully linked binary.
 
 For redistribution, include the required MSVC and OpenMP runtime DLLs alongside
 `STAR.exe`; the GitHub release workflow handles this packaging.
@@ -134,3 +139,20 @@ embedded server with `python scripts/test_webui.py --star-exe <binary>`.
 Full CLI sanitizer integration disables leak detection for existing
 process-lifetime allocations; sanitized unit tests retain leak detection.
 CPU ASan/UBSan do not validate CUDA device accesses.
+
+Exercise experimental genome ownership separately:
+
+```sh
+python3 scripts/test_experimental_genomes.py --star-exe <STAR> --ref-exe <reference-STAR> --long-exe <STARlong>
+```
+
+The optional long-read executable must be built with `STAR_LONG_READS=ON`;
+the default build remains C++17 with long reads and CUDA disabled. The fixture
+checks actual 1200/1600-base exonic/spliced reads, not just compilation.
+Super-transcriptome checks validate index equality, real graph diagnostic scores
+and teardown only. Its upstream alignment output and mapping statistics are
+unfinished; this is **not** qualification for scientific alignment delivery.
+BAM/CRAM requests now fail explicitly instead of silently returning empty output.
+Use `--outSAMtype None` for experimental graph diagnostics. Use a Full genome
+for supported alignment/counting output. Preserve fixture receipts, including
+failed qualification attempts; they are not release results.

@@ -24,7 +24,7 @@ Genome::Genome (Parameters &P, ParametersGenome &pGe): shmStart(NULL), P(P), pGe
     for (size_t i = 0; i < pGe.gDir.size(); i++)
         shmKey = shmKey * 31 + pGe.gDir[i];
 #else
-    struct stat stbuf;
+    struct stat stbuf{};
     stat(pGe.gDir.c_str(), &stbuf);
     shmKey=stbuf.st_ino;
 #endif
@@ -34,19 +34,41 @@ Genome::Genome (Parameters &P, ParametersGenome &pGe): shmStart(NULL), P(P), pGe
     sjdbLength = pGe.sjdbOverhang==0 ? 0 : pGe.sjdbOverhang*2+1;
 };
 
-// Genome::~Genome()
-// {
-//     if (sharedMemory != NULL)
-//         delete sharedMemory;
-//     sharedMemory = NULL;
-// }
+Genome::Genome(const Genome& s, Snapshot)
+    : shmKey(s.shmKey), shmStart(s.shmStart), P(s.P), pGe(s.pGe), sharedMemory(s.sharedMemory),
+      G(s.G), G1(s.G1), nGenome(s.nGenome), nG1alloc(s.nG1alloc),
+      SA(s.SA), SAinsert(s.SAinsert), SApass1(s.SApass1), SApass2(s.SApass2), SAi(s.SAi), Var(s.Var),
+      nGenomeInsert(s.nGenomeInsert), nGenomePass1(s.nGenomePass1), nGenomePass2(s.nGenomePass2),
+      nSAinsert(s.nSAinsert), nSApass1(s.nSApass1), nSApass2(s.nSApass2),
+      chrStart(s.chrStart), chrLength(s.chrLength), chrLengthAll(s.chrLengthAll),
+      genomeChrBinNbases(s.genomeChrBinNbases), chrBinN(s.chrBinN), chrBin(s.chrBin),
+      chrName(s.chrName), chrNameAll(s.chrNameAll), chrNameIndex(s.chrNameIndex),
+      genomeSAindexStart(s.genomeSAindexStart), nSA(s.nSA), nSAbyte(s.nSAbyte), nChrReal(s.nChrReal),
+      nGenome2(s.nGenome2), nSA2(s.nSA2), nSAbyte2(s.nSAbyte2), nChrReal2(s.nChrReal2), nSAi(s.nSAi),
+      GstrandBit(s.GstrandBit), SAiMarkNbit(s.SAiMarkNbit), SAiMarkAbsentBit(s.SAiMarkAbsentBit),
+      GstrandMask(s.GstrandMask), SAiMarkAbsentMask(s.SAiMarkAbsentMask), SAiMarkAbsentMaskC(s.SAiMarkAbsentMaskC),
+      SAiMarkNmask(s.SAiMarkNmask), SAiMarkNmaskC(s.SAiMarkNmaskC), sjdbOverhang(s.sjdbOverhang), sjdbLength(s.sjdbLength),
+      sjChrStart(s.sjChrStart), sjdbN(s.sjdbN), sjGstart(s.sjGstart),
+      sjDstart(s.sjDstart), sjAstart(s.sjAstart), sjStr(s.sjStr), sjdbStart(s.sjdbStart), sjdbEnd(s.sjdbEnd),
+      sjdbMotif(s.sjdbMotif), sjdbShiftLeft(s.sjdbShiftLeft), sjdbShiftRight(s.sjdbShiftRight), sjdbStrand(s.sjdbStrand),
+      genomeInsertL(s.genomeInsertL), genomeInsertChrIndFirst(s.genomeInsertChrIndFirst),
+      superTr(s.superTr), genomeOut(s.genomeOut)
+{}
+
+void Genome::releaseSharedMemory() {
+    sharedMemoryStorage.reset();
+    sharedMemory=nullptr;
+    shmStart=nullptr;
+}
 
 void Genome::freeMemory(){//free big chunks of memory used by genome and suffix array
 
     if (pGe.gLoad=="NoSharedMemory") {//can deallocate only for non-shared memory
-        delete[] G1;
-        G1=NULL;
+        sequenceStorage.reset();
+        G=G1=nullptr;
         SA.deallocateArray();
+        SAinsert.deallocateArray();
+        SApass1.deallocateArray();
         SApass2.deallocateArray();
         SAi.deallocateArray();
 
@@ -137,8 +159,7 @@ void Genome::HandleSharedMemoryException(const SharedMemoryException & exc, uint
 
     try
     {
-        if (sharedMemory != NULL)
-            sharedMemory->Clean();
+        releaseSharedMemory(); // a failed attach is not authority to remove another job's data
     }
     catch(...)
     {}
@@ -219,7 +240,8 @@ void Genome::chrInfoLoad() {//find chrStart,Length,nChr from Genome G
 //////////////////////////////////////////////////////////
 void Genome::chrBinFill() {
     chrBinN = chrStart[nChrReal]/genomeChrBinNbases+1;
-    chrBin = new uint [chrBinN];
+    chromosomeBinStorage.emplace_back(new uint [chrBinN]);
+    chrBin = chromosomeBinStorage.back().get();
     for (uint ii=0, ichr=1; ii<chrBinN; ++ii) {
         if (ii*genomeChrBinNbases>=chrStart[ichr]) ichr++;
         chrBin[ii]=ichr-1;
@@ -227,6 +249,38 @@ void Genome::chrBinFill() {
 };
 
 //////////////////////////////////////////////////////////
+void Genome::initializeVariation(bool enabled) {
+    variationStorage.reset(new Variation(P, chrStart, chrNameIndex, enabled));
+    Var = variationStorage.get();
+}
+
+void Genome::allocateSAindexStarts(uint count) {
+    suffixIndexStartStorage.emplace_back(new uint[count]);
+    genomeSAindexStart = suffixIndexStartStorage.back().get();
+}
+
+void Genome::allocateJunctionAnnotations(uint count) {
+    // Retain prior tables while insertion-time snapshots still borrow them.
+    auto storage = std::make_unique<JunctionStorage>();
+    storage->start.reset(new uint[count]);
+    storage->end.reset(new uint[count]);
+    storage->motif.reset(new uint8[count]);
+    storage->shiftLeft.reset(new uint8[count]);
+    storage->shiftRight.reset(new uint8[count]);
+    storage->strand.reset(new uint8[count]);
+    junctionStorage.push_back(std::move(storage));
+    auto& current = *junctionStorage.back();
+    sjdbStart=current.start.get(); sjdbEnd=current.end.get();
+    sjdbMotif=current.motif.get(); sjdbShiftLeft=current.shiftLeft.get();
+    sjdbShiftRight=current.shiftRight.get(); sjdbStrand=current.strand.get();
+}
+
+void Genome::allocateJunctionCoordinates(uint count) {
+    auto& current = *junctionStorage.back();
+    current.donor.reset(new uint[count]); current.acceptor.reset(new uint[count]);
+    sjDstart=current.donor.get(); sjAstart=current.acceptor.get();
+}
+
 void Genome::genomeSequenceAllocate(uint64 nGenomeIn, uint64 &nG1allocOut, char*& Gout, char*& G1out)
 {
     nG1allocOut=(nGenomeIn + 100)*2; //extra 100 bytes at the beginning, just in case
@@ -239,6 +293,8 @@ void Genome::genomeSequenceAllocate(uint64 nGenomeIn, uint64 &nG1allocOut, char*
     };    
     
     G1out=new char[nG1allocOut];
+    if (&G1out == &G1)
+        sequenceStorage.reset(G1out);
     Gout=G1out+100;
 
     memset(G1out,GENOME_spacingChar,nG1allocOut);//initialize to K-1 all bytes

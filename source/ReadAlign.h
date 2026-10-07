@@ -25,6 +25,8 @@ class ReadAlign {
         ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, int iChunk);//allocate arrays
         ReadAlign(const ReadAlign&) = delete;
         ReadAlign& operator=(const ReadAlign&) = delete;
+        ~ReadAlign();
+        void borrowChimericJunctionStream(fstream* stream);
         int oneRead();
 
         Genome &mapGen, &genOut; //mapped-to-genome structure
@@ -76,10 +78,10 @@ class ReadAlign {
         
         Transcript *alignTrAll;//alignments to transcriptome        
 
-        ReadAlign *waspRA; //ReadAlign for alternative WASP alignment
+        ReadAlign *waspRA=nullptr; //borrowed from chunk's alternative WASP alignment
         int waspType, waspType1; //alignment ASE-WASP type and
 
-        ReadAlign *peMergeRA; //ReadAlign for merged PE mates
+        ReadAlign *peMergeRA=nullptr; //borrowed from chunk's merged PE alignment
 
         ChimericDetection *chimDet;
         void peOverlapChimericSEtoPE(const Transcript *seTrIn1, const Transcript *seTrIn2, Transcript *peTrOut1, Transcript *peTrOut2);
@@ -96,6 +98,8 @@ class ReadAlign {
         int alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint trChrStart, uint mateChr, uint mateStart, char mateStrand, int unmapType, bool *mateMap, vector<int> outSAMattrOrder, char** outBAMarray, uint* outBAMarrayN);
 
     private:
+        struct Storage;
+        std::unique_ptr<Storage> storage;
         Parameters& P; //pointer to the parameters, will be initialized on construction
 
         //quantification

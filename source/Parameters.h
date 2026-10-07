@@ -374,6 +374,7 @@ class Parameters {
     uint Lread;
 
     Parameters();
+    explicit Parameters(InOutStreams& borrowedStreams);
     int readParsFromFile(ifstream*, ofstream*, int); //read parameters from one file
     int readPars(); // read parameters from all files
     int scanOneLine (string &lineIn, int inputLevel, int inputLevelRequested);
@@ -387,6 +388,9 @@ class Parameters {
     void samAttrRequiresBAM(bool attrYes, string attrTag);
 
 private:
+    // Pass 1 copies still borrow registered value addresses. Share registration
+    // lifetime, not the values or CLI-managed streams.
+    std::shared_ptr<std::vector<std::unique_ptr<ParameterInfoBase>>> parameterStorage;
     // Private helpers called from the constructor and inputParameters()
     void registerParameters();                        // Parameters_register.cpp
     void inputParameters_parseSources(int argInN, char* argIn[]); // Parameters_inputSources.cpp

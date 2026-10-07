@@ -23,7 +23,7 @@ void ClipMate::initialize(uint32 Nin, const string &adSeqIn, uint32 NafterAdin, 
         type=-1;
     
     if (type==10)
-        cr4 = new ClipCR4;
+        cr4.reset(new ClipCR4);
 
     NafterAd=NafterAdin;
     adMMp=adMMpIn;

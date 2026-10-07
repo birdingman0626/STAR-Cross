@@ -825,7 +825,7 @@ void Genome::genomeGenerate() {
         P.sjdbInsert.outDir=pGe.gDir;
         P.twoPass.pass2=false;
 
-        Genome genome1(*this); //create copy here, *this will be changed by sjdbInsertJunctions
+        Genome genome1(*this, Genome::Snapshot::Borrowed); // insertion-time view; *this owns storage
         sjdbInsertJunctions(P, *this, genome1, sjdbLoci);
     };
 

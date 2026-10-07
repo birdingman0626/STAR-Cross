@@ -112,8 +112,10 @@ std::fstream &fstrOpen (std::string fileName, std::string errorID, Parameters &P
         fStreamP = new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc | std::fstream::binary);
     } else {//try to open exising file
         fStreamP=new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::binary );
-        if (fStreamP->fail()) //did not work <= file does not exist => open with trunc (the above command does not work on new file)
-            fStreamP = new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc | std::fstream::binary);
+        if (fStreamP->fail()) { //does not exist: retry using the same stream owner
+            fStreamP->clear();
+            fStreamP->open(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc | std::fstream::binary);
+        }
     };
     
     if (fStreamP->fail()) {//

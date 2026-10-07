@@ -44,13 +44,18 @@ public:
     
     
     SpliceGraph(SuperTranscriptome &superTrome, Parameters &P, ReadAlign *RA);
-    ~SpliceGraph();
+    ~SpliceGraph() = default;
 
     typeAlignScore swScoreSpliced(const char *readSeq, const uint32 readLen, const SuperTranscript &superTr, vector<array<uint32,2>> &cigar);
     //void swTraceBack(array<typeSeqLen, 2> &alignEnds, array<typeSeqLen, 2> &alignStarts);
     void findSuperTr(const char *readSeq, const char *readSeqRevCompl, const uint32 readLen, const string &readName, Genome &mapGen);
     
 private:
+    std::unique_ptr<typeSuperTrSeedCount[]> seedCountStorage;
+    std::unique_ptr<typeAlignScore*[]> scoringViews;
+    std::array<std::unique_ptr<typeAlignScore[]>,2> columnStorage;
+    std::vector<std::unique_ptr<typeAlignScore[]>> scoringStorage;
+    std::unique_ptr<uint32[]> junctionIndexStorage;
     Parameters &P;
     ReadAlign *RA;
 };

@@ -55,7 +55,7 @@ void Solo::processAndOutput()
             for (int ii=0; ii<P.runThreadN; ii++) {
                 readBarSum->addCounts(*RAchunk[ii]->RA->soloRead->readBar);
                 readBarSum->addStats(*RAchunk[ii]->RA->soloRead->readBar);
-                delete RAchunk[ii]->RA->soloRead->readBar; //not needed anymore
+                RAchunk[ii]->RA->soloRead->releaseBarcode(); //not needed anymore
             };
         };
 

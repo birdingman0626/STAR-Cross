@@ -19,6 +19,9 @@ set(STAR_TEST_SOURCES
     ${STAR_SOURCE_DIR}/PackedArray.cpp
     ${STAR_SOURCE_DIR}/binarySearch2.cpp
     ${STAR_SOURCE_DIR}/ClipCR4.cpp
+    ${STAR_SOURCE_DIR}/Quantifications.cpp
+    ${STAR_SOURCE_DIR}/Parameters_register.cpp
+    ${STAR_SOURCE_DIR}/InOutStreams.cpp
 )
 
 add_executable(star_tests
@@ -38,6 +41,7 @@ add_executable(star_tests
     unit/test_ClipCR4.cpp
     unit/test_gpuSjdbRemap.cpp
     unit/test_ParametersGenome.cpp
+    unit/test_ownership.cpp
     ${STAR_TEST_SOURCES}
 )
 star_target_build_options(star_tests)

@@ -3,6 +3,7 @@
 
 #include "IncludeDefine.h"
 #include "ClipCR4.h"
+#include <memory>
 
 class ClipMate
 {
@@ -23,7 +24,7 @@ public:
     uint32 clippedAdMM; //adapter mismatches
     uint32 clippedN; //total number of bases clipped
     
-    ClipCR4 *cr4; //CR4 clipping structure
+    std::unique_ptr<ClipCR4> cr4; //owned CR4 clipping structure
 
     void initialize(uint32 Nin, const string &adSeqIn, uint32 afterAdNin, double adMMpIn);
     uint32 clip(uint &Lread, char *SeqNum);

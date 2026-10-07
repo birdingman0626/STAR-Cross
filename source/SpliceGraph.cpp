@@ -8,26 +8,21 @@ using namespace std;
 SpliceGraph::SpliceGraph (SuperTranscriptome &superTrome, Parameters &P, ReadAlign *RA) : superTrome(superTrome), P(P), RA(RA)
 {
     //find candidate superTr
-    superTrSeedCount = new typeSuperTrSeedCount[2*superTrome.N];//TODO: for stranded data, do not need 2nd strand
+    seedCountStorage.reset(new typeSuperTrSeedCount[2*superTrome.N]); superTrSeedCount=seedCountStorage.get();
     
     //Smith-Waterman
-    scoringMatrix = new typeAlignScore*[superTrome.sjDonorNmax+2];
-    scoreTwoColumns[0] = new typeAlignScore[maxSeqLength];
-    scoreTwoColumns[1] = new typeAlignScore[maxSeqLength];
+    scoringViews.reset(new typeAlignScore*[superTrome.sjDonorNmax+2]); scoringMatrix=scoringViews.get();
+    for (size_t i=0; i<2; ++i) {
+        columnStorage[i].reset(new typeAlignScore[maxSeqLength]); scoreTwoColumns[i]=columnStorage[i].get();
+    }
+    scoringStorage.resize(superTrome.sjDonorNmax+2);
     for(uint32 ii = 0; ii < superTrome.sjDonorNmax+2; ii++) {
-        scoringMatrix[ii] = new typeAlignScore[maxSeqLength];//TODO make it a user parameter
+        scoringStorage[ii].reset(new typeAlignScore[maxSeqLength]); scoringMatrix[ii]=scoringStorage[ii].get();
     };
-    sjDindex = new uint32[superTrome.sjDonorNmax];
+    junctionIndexStorage.reset(new uint32[superTrome.sjDonorNmax]); sjDindex=junctionIndexStorage.get();
     
     //rowCol.reserve(100000);
     //rowSJ.reserve(100000);
     //blockCoord.reserve(100000);
     //blockSJ.reserve(10000);
-};
-
-SpliceGraph::~SpliceGraph() {
-    for(uint i = 0; i < maxSeqLength; i++) {
-        delete[] scoringMatrix[i];
-    };
-    delete[] scoringMatrix;
 };

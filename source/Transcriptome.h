@@ -17,31 +17,31 @@ public:
     vector <string> trID, geID, geName, geBiotype; //transcript/gene IDs
     uint32 nTr=0, nGe=0; //number of transcript/genes
 
-    uint *trS, *trE, *trEmax; //transcripts start,end,end-max
+    uint *trS=nullptr, *trE=nullptr, *trEmax=nullptr; //transcripts start,end,end-max
 
     uint32 nEx=0; //number of exons
-    uint16 *trExN; //number of exons per transcript
-    uint32 *trExI; //index of the first exon for each transcript in exSE
-    uint8 *trStr; //transcript strand
-    uint32 *exSE; //exons start/end
-    uint32 *exLenCum; //cumulative length of previous exons
-    uint32 *trGene; //transcript to gene correspondence
-    uint32 *trLen; //transcript lengths
+    uint16 *trExN=nullptr; //number of exons per transcript
+    uint32 *trExI=nullptr; //index of the first exon for each transcript in exSE
+    uint8 *trStr=nullptr; //transcript strand
+    uint32 *exSE=nullptr; //exons start/end
+    uint32 *exLenCum=nullptr; //cumulative length of previous exons
+    uint32 *trGene=nullptr; //transcript to gene correspondence
+    uint32 *trLen=nullptr; //transcript lengths
 
     struct {//exon-gene structure for GeneCounts
        uint64 nEx;//number of exons/genes
        uint64 *s,*e, *eMax;  //exon start/end
        uint8  *str;   //strand
        uint32 *g, *t; //gene/transcript IDs
-    } exG;
+    } exG{};
 
     struct {//geneFull structure
         uint64 *s, *e, *eMax;
         uint8 *str;
         uint32 *g;
-    } geneFull;
+    } geneFull{};
 
-    Quantifications *quants;
+    Quantifications *quants=nullptr; //metadata copies borrow; chunk owns its newly allocated counts
 
     //methods:
     Transcriptome (Parameters &Pin, bool load=true); //load=false creates a valid inactive placeholder

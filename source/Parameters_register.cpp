@@ -1,10 +1,12 @@
 #include "Parameters.h"
 
+Parameters::Parameters(InOutStreams& borrowedStreams) : inOut(&borrowedStreams) {
+    registerParameters();
+}
+
 // All parArray.push_back registrations extracted from Parameters::Parameters().
 // Call order matches the original constructor exactly to preserve registration order.
 void Parameters::registerParameters() {
-    inOut = new InOutStreams;
-
     //versions
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "versionGenome", &versionGenome));
 
@@ -295,4 +297,8 @@ void Parameters::registerParameters() {
     parameterInputName.push_back("Command-Line-Initial");
     parameterInputName.push_back("Command-Line");
     parameterInputName.push_back("genomeParameters.txt");
+    parameterStorage = std::make_shared<std::vector<std::unique_ptr<ParameterInfoBase>>>();
+    parameterStorage->reserve(parArray.size());
+    for (auto* parameter : parArray)
+        parameterStorage->emplace_back(parameter);
 }

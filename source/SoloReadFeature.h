@@ -9,6 +9,7 @@
 #include "SoloCommon.h"
 #include "SoloReadFeatureStats.h"
 #include "ReadAnnotations.h"
+#include <memory>
 
 class SoloFeature;
 
@@ -24,7 +25,7 @@ public:
     
     bool readInfoYes ,readIndexYes;
 
-    fstream *streamReads;
+    fstream *streamReads=nullptr; //borrowed by Solo until counting/sorting finish
 
     string cbSeq, umiSeq, cbQual, umiQual;
 
@@ -41,6 +42,7 @@ public:
                       vector<uint32> &nReadPerCBunique1, vector<uint32> &nReadPerCBmulti1);
 
 private:
+    std::unique_ptr<fstream> streamStorage;
     const int32 featureType;
 
     Parameters &P;

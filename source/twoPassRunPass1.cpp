@@ -12,7 +12,7 @@ void twoPassRunPass1(Parameters &P, Genome &genomeMain, Transcriptome *transcrip
         return;
 
     //re-define P and genomeMain for the pass1
-    Genome genomeMain1=genomeMain;
+    Genome genomeMain1(genomeMain, Genome::Snapshot::Borrowed);
 
     Parameters P1=P;
     //turn off unnecessary calculations
@@ -67,14 +67,14 @@ void twoPassRunPass1(Parameters &P, Genome &genomeMain, Transcriptome *transcrip
 
     //run mapping for Pass1
     vector<ReadAlignChunk*> RAchunk1(P.runThreadN);
+    vector<std::unique_ptr<ReadAlignChunk>> chunkOwners(P.runThreadN);
     for (int ii=0;ii<P1.runThreadN;ii++) {
-        RAchunk1[ii]=new ReadAlignChunk(P1, genomeMain, transcriptomeMain, ii);
+        chunkOwners[ii].reset(new ReadAlignChunk(P1, genomeMain, transcriptomeMain, ii));
+        RAchunk1[ii]=chunkOwners[ii].get();
     };
     mapThreadsSpawn(P1, RAchunk1.data());
     outputSJ(RAchunk1.data(),P1); //collapse and output junctions
-//         for (int ii=0;ii<P1.runThreadN;ii++) {
-//             delete [] RAchunk[ii];
-//         };
+    chunkOwners.clear(); // release pass1 arenas before pass2 index growth
 
     //back to requested genome conversions
     genomeMain.genomeOut.convYes = convYes;

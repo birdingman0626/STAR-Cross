@@ -149,16 +149,16 @@ int main(int argInN, char *argIn[])
     genomeMain.genomeLoad();
 
     if (P.pGe.transform.outYes) {
-        genomeMain.Var = new Variation(P, genomeMain.chrStart, genomeMain.chrNameIndex, false);//no variation for mapGen, only for genOut
-        genomeMain.genomeOut.g->Var = new Variation(P, genomeMain.genomeOut.g->chrStart, genomeMain.genomeOut.g->chrNameIndex, P.var.yes);
+        genomeMain.initializeVariation(false);//no variation for mapGen, only for genOut
+        genomeMain.genomeOut.g->initializeVariation(P.var.yes);
     } else {
-        genomeMain.Var = new Variation(P, genomeMain.chrStart, genomeMain.chrNameIndex, P.var.yes);
+        genomeMain.initializeVariation(P.var.yes);
     };
 
     SjdbClass sjdbLoci;
 
     if (P.sjdbInsert.pass1) {
-        Genome genomeMain1 = genomeMain; // not sure if I need to create the copy - genomeMain1 below should not be changed
+        Genome genomeMain1(genomeMain, Genome::Snapshot::Borrowed); // insertion-time view; source owns storage
         sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);
     };
 
@@ -208,9 +208,11 @@ int main(int argInN, char *argIn[])
 
     // prepare chunks and spawn mapping threads
     vector<ReadAlignChunk*> RAchunk(P.runThreadN);
+    vector<std::unique_ptr<ReadAlignChunk>> chunkOwners(P.runThreadN);
     for (int ii = 0; ii < P.runThreadN; ii++)
     {
-        RAchunk[ii] = new ReadAlignChunk(P, genomeMain, transcriptomeMain, ii);
+        chunkOwners[ii].reset(new ReadAlignChunk(P, genomeMain, transcriptomeMain, ii));
+        RAchunk[ii]=chunkOwners[ii].get();
     };
 
     if (P.runRestart.type != 1)
@@ -345,17 +347,14 @@ int main(int argInN, char *argIn[])
         chunk->chunkOutBAMunsorted.reset();
         chunk->chunkOutBAMquant.reset();
     }
+    chunkOwners.clear(); // workers joined; Solo/BAM consumers completed; streams still alive
+    std::fill(RAchunk.begin(), RAchunk.end(), nullptr);
 
     if (P.outTmpKeep == "None")
     {
         sysRemoveDir(P.outFileTmp);
     };
-    // genomeMain.~Genome(); //need explicit call because of the 'delete P.inOut' below, which will destroy P.inOut->logStdOut
-    if (genomeMain.sharedMemory != NULL)
-    { // need explicit call because this destructor will write to files which are deleted by 'delete P.inOut' below
-        delete genomeMain.sharedMemory;
-        genomeMain.sharedMemory = NULL;
-    };
+    genomeMain.releaseSharedMemory(); // release while the borrowed log stream is still alive
 
     delete P.inOut; // to close files
 

@@ -1,6 +1,8 @@
 #ifndef CODE_Quantifications
 #define CODE_Quantifications
 #include "IncludeDefine.h"
+#include <memory>
+#include <array>
 
 #define uintQ unsigned long
 
@@ -15,8 +17,14 @@ class Quantifications {
         } geneCounts;
 
     Quantifications (uint32 nGeIn);
+    Quantifications(const Quantifications&) = delete;
+    Quantifications& operator=(const Quantifications&) = delete;
 
     void addQuants(const Quantifications & quantsIn); //adds quantsIn to the quants
+    private:
+        std::array<uintQ,3> ambiguous{}, noFeature{};
+        std::array<uintQ*,3> countViews{};
+        std::array<std::unique_ptr<uintQ[]>,3> counts;
 };
 
 #endif

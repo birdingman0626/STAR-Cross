@@ -15,8 +15,8 @@
 class SNP
 {
 public:
-    uint32 N; //number of snps
-    uint* loci; //snp coordinates
+    uint32 N=0; //number of snps
+    uint* loci=nullptr; //snp coordinates (borrowed from Variation)
     vector<uint> lociV; //snp coordinates vector
 //     SNPnt* nt; //reference and alternative bases
 //     char **nt; //reference and alternative bases
@@ -42,6 +42,7 @@ public:
     Parameters &P; //TODO: make this private
 
 private:
+    std::unique_ptr<uint[]> snpLociStorage;
     string vcfFile;
     //string varOutFileName;
     //ofstream varOutStream;//output file for variations

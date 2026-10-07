@@ -88,6 +88,7 @@ void Genome::transformGenome(GTF *gtf)
     
     uint64 nGenome1=0, nG1allocNew=0;
     char *Gnew=NULL, *G1new=NULL;
+    std::unique_ptr<char[]> transformedStorage;
         
     if (pGe.transform.type==1) {//haploid: insert alternative alleles into genome sequence, create conversion-block file
         vector<uint64> chrStart1, chrLength1;
@@ -96,6 +97,7 @@ void Genome::transformGenome(GTF *gtf)
         nGenome1=chrStart1.back();
         P.inOut->logMain << "Old/new genome sizes: " << nGenome <<" "<< nGenome1 <<endl;        
         genomeSequenceAllocate(nGenome1, nG1allocNew, Gnew, G1new);
+        transformedStorage.reset(G1new);
 
         vector<array<uint64,3>> transformBlocks;
         transformGandBlocks(vcfVariants[0], chrStart1, chrLength1, transformBlocks, Gnew);
@@ -118,6 +120,7 @@ void Genome::transformGenome(GTF *gtf)
         nGenome1=chrStart1[1].back();
         P.inOut->logMain << "Old/new genome sizes: " << nGenome <<" "<< nGenome1 <<endl;        
         genomeSequenceAllocate(nGenome1, nG1allocNew, Gnew, G1new);
+        transformedStorage.reset(G1new);
 
         //genome sequence and transform blocks
         vector<array<uint64,3>> transformBlocks[2];
@@ -161,7 +164,7 @@ void Genome::transformGenome(GTF *gtf)
     };
 
     //assign transformed genome
-    delete[] G1;
+    sequenceStorage=std::move(transformedStorage);
     G1=G1new;
     G=Gnew;
     nG1alloc=nG1allocNew;

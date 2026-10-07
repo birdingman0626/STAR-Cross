@@ -6,12 +6,14 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
 
     char *G=mapGen.G;
 
-    uint *sjdbS=new uint [sjdbLoci.chr.size()];
-    uint *sjdbE=new uint [sjdbLoci.chr.size()];
+    std::unique_ptr<uint[]> startStorage(new uint[sjdbLoci.chr.size()]);
+    std::unique_ptr<uint[]> endStorage(new uint[sjdbLoci.chr.size()]);
+    uint *sjdbS=startStorage.get(), *sjdbE=endStorage.get();
 
-    uint8 *sjdbMotif=new uint8 [sjdbLoci.chr.size()];
-    uint8 *sjdbShiftLeft=new uint8 [sjdbLoci.chr.size()];
-    uint8 *sjdbShiftRight=new uint8 [sjdbLoci.chr.size()];
+    std::unique_ptr<uint8[]> motifStorage(new uint8[sjdbLoci.chr.size()]);
+    std::unique_ptr<uint8[]> leftStorage(new uint8[sjdbLoci.chr.size()]);
+    std::unique_ptr<uint8[]> rightStorage(new uint8[sjdbLoci.chr.size()]);
+    uint8 *sjdbMotif=motifStorage.get(), *sjdbShiftLeft=leftStorage.get(), *sjdbShiftRight=rightStorage.get();
 
 
     string chrOld="";
@@ -73,7 +75,8 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
     };
 
     //sort sjdb
-    uint *sjdbSort=new uint [sjdbLoci.chr.size()*3];
+    std::unique_ptr<uint[]> sortStorage(new uint[sjdbLoci.chr.size()*3]);
+    uint *sjdbSort=sortStorage.get();
     for (uint ii=0;ii<sjdbLoci.chr.size();ii++) {
         uint shift1=0;
         switch (sjdbLoci.str.at(ii)) {
@@ -93,7 +96,8 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
 
     qsort((void *) sjdbSort, sjdbLoci.chr.size(), sizeof(uint)*3, funCompareUint2);
 
-    uint *I=new uint [sjdbLoci.chr.size()];
+    std::unique_ptr<uint[]> indexStorage(new uint[sjdbLoci.chr.size()]);
+    uint *I=indexStorage.get();
     uint nsj=0;
     for (uint ii=0;ii<sjdbLoci.chr.size();ii++) {
         uint isj=sjdbSort[ii*3+2];//index of the next sorted junction
@@ -131,12 +135,7 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
 
     qsort((void *) sjdbSort, nsj, sizeof(uint)*3, funCompareUint2);
 
-    mapGen.sjdbStart=new uint [nsj];
-    mapGen.sjdbEnd=new uint [nsj];
-    mapGen.sjdbMotif=new uint8 [nsj];
-    mapGen.sjdbShiftLeft=new uint8 [nsj];
-    mapGen.sjdbShiftRight=new uint8 [nsj];
-    mapGen.sjdbStrand=new uint8 [nsj];
+    mapGen.allocateJunctionAnnotations(nsj);
 
     uint nsj1=0;
     for (uint ii=0;ii<nsj;ii++) {
@@ -190,8 +189,7 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
         nsj1++;
     };
     mapGen.sjdbN=nsj1;
-    mapGen.sjDstart = new uint [mapGen.sjdbN];
-    mapGen.sjAstart = new uint [mapGen.sjdbN];
+    mapGen.allocateJunctionCoordinates(mapGen.sjdbN);
 
     ofstream sjdbInfo((outDir+"/sjdbInfo.txt").c_str());
     ofstream sjdbList ((outDir+"/sjdbList.out.tab").c_str());

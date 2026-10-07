@@ -15,6 +15,7 @@ void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, Sjdb
     if (mapGen.sjdbN>0 && sjdbLoci.chr.size()==0) {
         //load from the saved genome, only if the loading did not happen already (if sjdb insertion happens at the 1st pass, sjdbLoci will be populated
         ifstream & sjdbStreamIn = ifstrOpen(P.pGe.gDir+"/sjdbList.out.tab", ERROR_OUT, "SOLUTION: re-generate the genome in pGe.gDir=" + P.pGe.gDir, P);
+        std::unique_ptr<ifstream> junctionStreamStorage(&sjdbStreamIn);
         sjdbLoadFromStream(sjdbStreamIn, sjdbLoci);
         sjdbLoci.priority.resize(sjdbLoci.chr.size(),30);
         time ( &rawtime );

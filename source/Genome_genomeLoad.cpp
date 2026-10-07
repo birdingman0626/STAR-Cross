@@ -26,7 +26,7 @@ void Genome::genomeLoad(){//allocate and load Genome
 
     uint L=200,K=6;
 
-    Parameters P1;
+    Parameters P1(*P.inOut);
 
     //some initializations before reading the parameters
     GstrandBit=0;
@@ -57,7 +57,6 @@ void Genome::genomeLoad(){//allocate and load Genome
         parFile.seekg(0,ios::beg);//rewind
 
 
-        P1.inOut = P.inOut;
         P1.scanAllLines(parFile,3,-1);
         parFile.close();
     } else {
@@ -128,6 +127,12 @@ void Genome::genomeLoad(){//allocate and load Genome
     if (P1.pGe.gTypeString=="SuperTranscriptome")
         pGe.gType=101;
 
+    if (pGe.gType==101 && (P.outBAMunsorted || P.outBAMcoord || P.outCRAMbool)) {
+        exitWithError("EXITING because SuperTranscriptome mapping does not implement BAM/CRAM output.\n"
+                      "SOLUTION: use --outSAMtype None for experimental graph diagnostics, or a Full genome for supported BAM/CRAM mapping.\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
+    }
+
     P.inOut->logMain << "Started loading the genome: " << timeMonthDayTime(rawtime) <<"\n"<<flush;
 
     ifstream GenomeIn, SAin, SAiIn;
@@ -142,7 +147,7 @@ void Genome::genomeLoad(){//allocate and load Genome
 
     uint SAiInBytes=0;
     SAiInBytes += fstreamReadBig(SAiIn,(char*) &pGe.gSAindexNbases, sizeof(pGe.gSAindexNbases));
-    genomeSAindexStart = new uint[pGe.gSAindexNbases+1];
+    allocateSAindexStarts(pGe.gSAindexNbases+1);
     SAiInBytes += fstreamReadBig(SAiIn,(char*) genomeSAindexStart, sizeof(genomeSAindexStart[0])*(pGe.gSAindexNbases+1));
     nSAi=genomeSAindexStart[pGe.gSAindexNbases];
     P.inOut->logMain << "Read from SAindex: pGe.gSAindexNbases=" << pGe.gSAindexNbases <<"  nSAi="<< nSAi <<endl;
@@ -181,7 +186,8 @@ void Genome::genomeLoad(){//allocate and load Genome
 
         bool unloadLast = pGe.gLoad=="LoadAndRemove";
         try {
-            sharedMemory = new SharedMemory(shmKey, unloadLast);
+            sharedMemoryStorage.reset(new SharedMemory(shmKey, unloadLast));
+            sharedMemory = sharedMemoryStorage.get();
             sharedMemory->SetErrorStream(P.inOut->logStdOut);
 
             if (!sharedMemory->NeedsAllocation())
@@ -270,6 +276,7 @@ void Genome::genomeLoad(){//allocate and load Genome
                 };
 
                 G1=new char[nGenomePass2+L+L];
+                sequenceStorage.reset(G1);
 
                 SApass2.defineBits(GstrandBit+1,nSApass2);
                 SApass2.allocateArray();
@@ -284,9 +291,11 @@ void Genome::genomeLoad(){//allocate and load Genome
             } else {//no sjdb insertions
                 if (genomeInsertL==0) {// no sequence insertion, simple allocation
                     G1=new char[nGenome+L+L];
+                    sequenceStorage.reset(G1);
                     SA.allocateArray();
                 } else {
                     G1=new char[nGenome+L+L+genomeInsertL];
+                    sequenceStorage.reset(G1);
                     SAinsert.defineBits(GstrandBit+1,nSA+2*genomeInsertL);//TODO: re-define GstrandBit if necessary
                     SAinsert.allocateArray();
                     SA.pointArray(SAinsert.charArray+SAinsert.lengthByte-SA.lengthByte);
@@ -409,7 +418,8 @@ void Genome::genomeLoad(){//allocate and load Genome
     P.winBinN = nGenome/(1LLU << P.winBinNbits)+1;//this may be changed later
     
     if (pGe.gType==101) {//SuperTranscriptome
-		superTr = new SuperTranscriptome (P);
+        superTranscriptomeStorage.reset(new SuperTranscriptome(P));
+        superTr = superTranscriptomeStorage.get();
         superTr->load(G, chrStart, chrLength);
         
         //genomeOut
@@ -418,7 +428,8 @@ void Genome::genomeLoad(){//allocate and load Genome
         genomeOut.gapsAreJunctions=true;
         genomeOut.convFile=pGe.gDir+"/fullGenome/conversionToFullGenome.tsv";
         
-        genomeOut.g = new Genome(P,P.pGeOut);
+        outputGenomeStorage.reset(new Genome(P,P.pGeOut));
+        genomeOut.g = outputGenomeStorage.get();
         genomeOut.g->genomeOut=genomeOut;
         genomeOut.g->genomeOutLoad();
         
@@ -454,7 +465,8 @@ void Genome::genomeLoad(){//allocate and load Genome
             genomeOut.convFile=pGe.gDir+"/transformGenomeBlocks.tsv";
 
             
-            genomeOut.g = new Genome(P,P.pGeOut);
+            outputGenomeStorage.reset(new Genome(P,P.pGeOut));
+            genomeOut.g = outputGenomeStorage.get();
             genomeOut.g->genomeOut=genomeOut;
             genomeOut.g->genomeOutLoad();
         };
@@ -490,15 +502,8 @@ void Genome::loadSJDB(string &genDir)
         sjGstart=chrStart[sjChrStart];
 
         //fill the sj-db to genome translation array
-        sjDstart=new uint [sjdbN];
-        sjAstart=new uint [sjdbN];
-        sjdbStart=new uint [sjdbN];
-        sjdbEnd=new uint [sjdbN];
-
-        sjdbMotif=new uint8 [sjdbN];
-        sjdbShiftLeft=new uint8 [sjdbN];
-        sjdbShiftRight=new uint8 [sjdbN];
-        sjdbStrand=new uint8 [sjdbN];
+        allocateJunctionAnnotations(sjdbN);
+        allocateJunctionCoordinates(sjdbN);
 
         for (uint ii=0;ii<sjdbN;ii++) {//get the info about junctions from sjdbInfo.txt
             {

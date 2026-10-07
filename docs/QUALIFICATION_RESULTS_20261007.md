@@ -99,6 +99,59 @@ qualified results; end-to-end acceleration is not.
 
 ## Remaining mandatory gates
 
+### C++17 ownership continuation (base commit `2e34721`)
+
+- Genome sequence allocations now have a unique allocation-base owner distinct
+  from G/G1 views. Heap generation/load/transformation/output paths adopt their
+  buffers; all suffix-array owners/views clear on explicit free. Shared mappings
+  have a separate owner, released before Parameters' log streams. Error handling
+  no longer unconditionally removes shared data after a failed attachment.
+- All three insertion-time Genome snapshots require `Snapshot::Borrowed`;
+  implicit copies and assignment are disabled. Snapshot pointers/scalars are
+  initialized, and snapshots do not duplicate heap or IPC release authority.
+- ReadAlign's large read/window/transcript/BAM arenas have named unique bases;
+  existing mutable algorithm views, sizes and initialization are preserved.
+  Chunks own primary/WASP/merged aligners, input/output streams, junction outputs
+  and local quantifications. Worker resources release after join and all Solo/BAM
+  consumers; pass1 resources release before pass2 index insertion.
+- Per-read Solo data/streams and CR4 scorers have owners; early barcode release
+  clears its view. SpliceGraph owns its actual allocated rows/columns/seeds,
+  replacing a destructor that iterated to 100000 rather than the row count.
+  The stream-open retry reuses its stream instead of leaking the failed attempt.
+- **C++17 only in this continuation:** GCC Release and GCC ASan/UBSan root CTest
+  **99/99**, native MSVC Release **97/97**. Unit leak detection remains on.
+  Miniature normal/two-pass/WASP/merged-PE/chimeric, sorted/transcriptome, count,
+  Velocity and rejection fixtures pass; scientific outputs match references.
+  Full-CLI sanitizer integration retains its declared leak-detection exception.
+- Windows was verified from a fresh UTF-8-console build; Ninja records the
+  actual Genome/ReadAlign/SpliceGraph/SoloReadFeature header dependencies. An old
+  localized cache missed header changes and was not used for final qualification.
+  WSL build/log directories are persistent rather than `/tmp`.
+- Real **100000-pair** Windows screening: exact full scientific contract passes
+  against the preserved candidate (BAM records/header, SJ, scientific log fields,
+  all Solo matrices/axes including filtered/EM). Single runs took 47.39s vs 41.83s;
+  cache/order and reference C++20 versus candidate C++17 confound performance.
+  This is correctness/capacity screening, not speedup or time/RAM acceptance.
+- A separate full-CLI LeakSanitizer diagnostic (same persistent miniature index,
+  two threads, no SAM output) reports **208438266 bytes / 20772 allocations**
+  for the preserved pre-migration sanitizer binary versus **48086 bytes / 660
+  allocations** for the candidate. Both diagnostic processes exit nonzero for
+  remaining leaks; this is not a leak-gate pass. No ReadAlign/ReadAlignChunk
+  constructor frame remains in the candidate leak report. Remaining reports
+  include Genome metadata and parameter/helper allocations. This observation is
+  specific to the stated fixture and is not a general peak-RAM reduction claim.
+  The real-prefix peak RSS changed from 31480541184 to 31480922112 bytes (+380928);
+  only replicated calibrated measurements can establish the time/RAM budget.
+
+### Remaining ownership boundaries
+
+Genome metadata arrays, optional output-genome/variation/super-transcriptome
+aggregate owners and process-global/Solo aggregates are not fully migrated.
+Borrowed snapshots do not extend source lifetime. Full CLI leak freedom,
+allocator-failure injection for every arena, long-read and super-transcriptome
+execution, concurrent shared-memory admissions and fatal-exit unwinding are
+not certified. New unit ownership tests do not replace those remaining gates.
+
 - Execute hosted GCC/Clang, Windows, both macOS architectures and s390x on a
   committed/pushed immutable SHA; the workflow has not been dispatched here.
 - Establish fully pinned toolchain/container lanes, non-AVX2 execution and
@@ -106,8 +159,86 @@ qualified results; end-to-end acceleration is not.
 - Finish noise calibration before ten-pair A/B performance acceptance; use an
   uncontended machine. Whole-library random sampling, 1M/5M/full-library scaling
   and resident-GPU break-even measurements remain unqualified.
-- Complete the remaining O3/O4/O5 scope with pass2 growth, per-thread arena,
-  long-read/chimeric/cancellation/fatal-exit and checked GPU finalization fixtures.
+- Complete the remaining O3/O4/O5 scope with metadata/aggregate ownership,
+  long-read/super-transcriptome/cancellation/fatal-exit, allocation-failure and
+  checked GPU finalization fixtures; pass2 and standard per-thread teardown now
+  have miniature integration coverage.
   Scoped buffer ownership is not complete CLI leak freedom.
 
-No commit, push, C++20-default promotion or release publication was performed.
+This ownership continuation is uncommitted. No C++20-default promotion or release
+publication was performed.
+
+## Metadata and experimental-path continuation (C++17)
+
+This continuation supersedes the earlier *remaining Genome metadata* entry, not
+the remaining whole-process, fatal-exit or scientific-qualification boundaries.
+The parameter registry now shares registration lifetime across the existing
+pass1 copies; registered field addresses still borrow the original Parameters.
+The genome-parameter reader borrows existing streams instead of discarding a
+fresh stream allocation. Chromosome bins, SA start tables and junction tables
+have explicit owners; older tables stay alive until the source Genome is
+destroyed because insertion snapshots can still borrow them. Array capacities
+and uninitialized allocation semantics are unchanged. Variation/SNP/VCF/sort
+scratch, optional output Genome and SuperTranscriptome owners are scoped.
+The insertion reader and seven SJ preparation scratch arrays are also scoped.
+
+### Verified evidence
+
+- Final frozen-source Windows C++17 Release: **98/98 CTest PASS**; Linux C++17
+  Release and Linux ASan/UBSan Debug: **100/100 PASS**. Sanitized unit tests keep
+  leak detection enabled. Python harnesses: 17 total, 13 executed/4 skipped on
+  Windows, 16 executed/1 skipped on Linux; all executed tests pass.
+- Final miniature before/after regressions pass on Windows, Linux Release and
+  Linux ASan/UBSan: two-pass, merged/chimeric, WASP, ordinary/sorted/transcriptome
+  BAM, scientific logs, junctions, Gene/GeneFull and all three Velocity layers.
+  Full CLI integration still disables leak detection for unconverted aggregate
+  and fatal-exit paths; this is distinct from the dedicated leak checks below.
+- Identical two-thread ordinary CLI leak fixture: 48086 bytes/660 allocations
+  before this continuation, then 76 bytes/9 allocations, then **exit 0 with leak
+  detection enabled and no leak report** after table ownership. WASP likewise
+  passes the dedicated leak check. An additional two-pass check exposed 8814
+  bytes/9 allocations in an input stream and SJ scratch; after their scoped
+  cleanup it too exits 0 with leak detection enabled. This is not universal CLI
+  leak freedom, peak-RAM reduction, or fatal-exit cleanup certification.
+- `test_experimental_genomes.py` builds Full and SuperTranscriptome indices and
+  executes real exonic/spliced graph diagnostics. Index bytes and graph scores
+  match the reference on Windows and Linux. Final STARlong C++17 executes actual
+  1200/1600-base reads, both uniquely mapped, including a splice. This checks
+  execution and teardown; no independent previous STARlong oracle was supplied,
+  so it does not certify general long-read accuracy/equality or performance.
+- **Experimental-output limitation discovered:** upstream SpliceGraph executes
+  DP but its alignment-output conversion/statistics are unfinished. A successful
+  request produced an empty BAM; SAM conversion also has an empty-iteration
+  path. We did not invent mapping results or certify that output. Loaded
+  SuperTranscriptome BAM/CRAM requests now fail with an actionable explanation;
+  `--outSAMtype None` remains diagnostic-only. Full genome output is unchanged.
+- Final native C++17 binary `431c13e7d52ccfa9a187feecc60be464dc6e909312c2d064c6b75e3aa5da050e`
+  passes the **100000 synchronized-pair full scientific contract** against the
+  preserved pre-ownership native binary: exact BAM multiset/scientific header,
+  SJ, declared raw/filtered/EM Solo matrices/axes (including Velocity) and
+  scientific final fields. Receipt:
+  `data/validation/metadata-final-100k-20261007/result.json`.
+  Before: 45.7741 s / 31481479168 peak RSS bytes; after: 47.0758 s /
+  31460265984 bytes. One run each, prefix sampling, cache/order contention and
+  C++20-reference/C++17-candidate differences prevent time/RAM acceptance.
+  The earlier noise calibration remains INCONCLUSIVE; no speedup is claimed.
+
+All local continuation receipts use the `metadata-` prefix under
+`data/validation/qualification-20261007/`. Final small-regression logs use
+`metadata-final-frozen-*`; final long-read executable/configuration/commands
+use `metadata-final-long-*` and `STARlong-metadata-final-cpu17`. These ignored
+artifacts are local audit evidence, not release assets. Failed exploratory
+attempts are retained: the first graph test correctly rejected the empty BAM;
+an incremental Release build overlapping a header-layout edit produced mixed
+objects. A frozen-source header-forced rebuild and full miniature regression
+passed. Never build/test changing ownership layouts concurrently with edits.
+
+### Still unverified
+
+Complete Transcriptome/Solo aggregate ownership, all genome-generation helper
+streams, allocation-failure injection, cancellation/fatal-exit unwinding,
+concurrent shared-memory admission, hosted cross-platform qualification and
+noise-calibrated performance/scaling remain separate work. Experimental graph
+alignment output requires an explicit algorithm/output-contract repair and
+independent oracle, not a memory-cleanup patch. No C++20 promotion, commit,
+push or release publication was performed in this continuation.

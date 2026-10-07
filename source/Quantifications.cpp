@@ -3,18 +3,19 @@
 Quantifications::Quantifications (uint32 nGeIn) {
 
     geneCounts.nType=3;
-    geneCounts.cAmbig = new uintQ[geneCounts.nType];
-    geneCounts.cNone = new uintQ[geneCounts.nType];
+    geneCounts.cAmbig = ambiguous.data();
+    geneCounts.cNone = noFeature.data();
 
     geneCounts.nGe=nGeIn;
-    geneCounts.gCount = new uintQ* [geneCounts.nType];
+    geneCounts.gCount = countViews.data();
 
     geneCounts.cMulti=0;
     for (int itype=0; itype<geneCounts.nType; itype++)
     {
         geneCounts.cAmbig[itype]=0;
         geneCounts.cNone[itype]=0;
-        geneCounts.gCount[itype] = new uintQ [geneCounts.nGe];
+        counts[itype].reset(new uintQ [geneCounts.nGe]);
+        geneCounts.gCount[itype] = counts[itype].get();
         for (uint32 ii=0; ii<geneCounts.nGe; ii++)
         {
             geneCounts.gCount[itype][ii]=0;

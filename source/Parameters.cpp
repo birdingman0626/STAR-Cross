@@ -16,7 +16,7 @@
 
 #define PAR_NAME_PRINT_WIDTH 30
 
-Parameters::Parameters() {//initialize parameters info
+Parameters::Parameters() : inOut(new InOutStreams) {//initialize parameters info
     registerParameters(); // defined in Parameters_register.cpp
 };
 
