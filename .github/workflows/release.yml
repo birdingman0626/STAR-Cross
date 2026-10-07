@@ -50,7 +50,7 @@ jobs:
         run: cp source/build/STAR "${{ matrix.asset }}" && chmod +x "${{ matrix.asset }}"
       - name: Smoke test (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: ./${{ matrix.asset }} --version
+        run: test "$(./${{ matrix.asset }} --version)" = "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)"
 
       # macOS (arm64)
       - name: Install dependencies (macOS)
@@ -77,7 +77,7 @@ jobs:
         run: cp source/build/STAR "${{ matrix.asset }}" && chmod +x "${{ matrix.asset }}"
       - name: Smoke test (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: ./${{ matrix.asset }} --version
+        run: test "$(./${{ matrix.asset }} --version)" = "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)"
 
       # Windows
       - name: Setup MSVC
@@ -119,7 +119,12 @@ jobs:
           Compress-Archive -Path staging\* -DestinationPath "${{ matrix.asset }}.zip"
       - name: Smoke test (Windows)
         if: matrix.os == 'windows-latest'
-        run: staging\STAR.exe --version
+        shell: pwsh
+        run: |
+          $version = & staging\STAR.exe --version
+          if ($LASTEXITCODE -ne 0 -or $version -ne "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)") {
+            throw "Binary version does not match the workflow commit"
+          }
 
       - name: Upload artifact (unix)
         if: matrix.os != 'windows-latest'
@@ -188,9 +193,11 @@ jobs:
       - name: Build + validate STAR on s390x (big-endian)
         run: |
           docker run --rm --platform linux/s390x -v "$PWD":/src -w /src \
-            debian:bookworm bash extras/tests/scripts/build_validate_s390x.sh
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+            debian:bookworm bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt'
           cp source/build/STAR STAR-linux-s390x
           chmod +x STAR-linux-s390x
+          test "$(cat s390x-version.txt)" = "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)"
       - name: Upload s390x artifact
         uses: actions/upload-artifact@v7
         with:
