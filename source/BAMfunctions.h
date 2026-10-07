@@ -5,6 +5,7 @@
 #include SAMTOOLS_BGZF_H
 #include SAMTOOLS_SAM_H
 #include "ErrorWarning.h"
+#include "htslib/htslib/hts_endian.h"
 
 
 void outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint> &chrl);
@@ -43,7 +44,12 @@ TintType bamAttributeInt(const char *bamAux, const char *attrName) {//not tested
 template <typename intType>
 int bamAttrArrayWriteInt(intType xIn, const char* tagName, char* attrArray, Parameters &P) {//adapted from samtools
     attrArray[0]=tagName[0];attrArray[1]=tagName[1];
-    #define ATTR_RECORD_INT(_intChar,_intType,_intValue) attrArray[2] = _intChar; *(_intType*)(attrArray+3) = (_intType) _intValue; return 3+sizeof(_intType)
+    #define ATTR_RECORD_INT(_intChar,_intType,_intValue) \
+        attrArray[2] = _intChar; \
+        if (sizeof(_intType)==1) attrArray[3]=static_cast<char>(_intValue); \
+        else if (sizeof(_intType)==2) u16_to_le(static_cast<uint16_t>(_intValue), reinterpret_cast<uint8_t*>(attrArray+3)); \
+        else u32_to_le(static_cast<uint32_t>(_intValue), reinterpret_cast<uint8_t*>(attrArray+3)); \
+        return 3+sizeof(_intType)
     int64 x = (int64) xIn;
     if (x < 0) {
         if (x >= -127) {

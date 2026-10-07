@@ -83,7 +83,7 @@ class Parameters {
                
         string readFilesCommandString; //actual command string
         int readFilesIndex;
-        pid_t readFilesCommandPID[MAX_N_MATES];
+        pid_t readFilesCommandPID[MAX_N_MATES]{};
 
         uint readMapNumber;
         uint iReadAll;

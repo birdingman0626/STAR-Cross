@@ -30,6 +30,7 @@ add_executable(star_tests
     unit/test_binarySearch2.cpp
     unit/test_PackedArray.cpp
     unit/test_byteOrder.cpp
+    unit/test_bamEndian.cpp
     unit/test_unaligned.cpp
     unit/test_UMIgraph.cpp
     unit/test_blocksOverlap.cpp

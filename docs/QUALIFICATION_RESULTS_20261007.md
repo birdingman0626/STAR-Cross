@@ -416,3 +416,26 @@ These close the named bounded checks, not every non-language-upgrade acceptance
 gate in the continuation table. In particular, no full-library/representative
 truth, hosted-platform, cancellation/fatal cleanup or calibrated performance
 acceptance is substituted by this triplet.
+
+### macOS manifest cleanup and s390x BAM repair
+
+Run `37676474041` exposed two production defects after the earlier local checks:
+
+- A single-end SmartSeq manifest leaves the default two `readFilesIn`
+  placeholders intact. Cleanup used that placeholder count instead of the actual
+  `readFilesNames` count and could wait on an uninitialized second PID. Initialize
+  every producer PID and close only the input streams actually opened. Preserve
+  failed-producer rejection and report its exit code, signal or wait error.
+- STAR's private BAM buffers use native core/CIGAR words. Direct BGZF writes
+  therefore produced big-endian BAM on s390x, starting with an invalid header
+  length. Encode header words and numeric auxiliary fields with HTSlib's
+  little-endian helpers; convert native core/CIGAR words at the final output
+  boundary for unsorted, transcriptome and both coordinate-sort paths. Private
+  sorting layout stays native. Little-endian hosts retain direct buffer writes.
+
+New tests check literal BAM bytes, truncated records, two concatenated native
+records read back by HTSlib, and initialized producer ownership. The s390x
+harness runs these BAM tests for both language configurations. Local Windows
+C++17 passes 101 tests and frozen-baseline miniature comparisons; Linux Release
+passes 103 tests. Hosted macOS/s390x acceptance must be tied to the new commit's
+workflow result; the preceding failed run is retained as the reproduction.

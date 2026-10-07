@@ -2,6 +2,7 @@
 #include "ErrorWarning.h"
 #include "BAMfunctions.h"
 #include "unaligned.h"
+#include "bamEndian.h"
 
 void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
 
@@ -60,7 +61,8 @@ void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameter
             if (solo.pSolo.samAttrYes)
 	        solo.soloFeat[solo.pSolo.featureInd[solo.pSolo.samAttrFeature]]->addBAMtags(bam0,size0,bam1);
 
-            bgzf_write(bgzfBin, bam0, size0);
+            if (bamWriteNativeRecords(bgzfBin, bam0, size0) != size0)
+                exitWithError("EXITING: unmapped BAM output write error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
             bamInStream[it].read(bamIn[it],sizeof(int32));//read record size
             if (bamInStream[it].good()) {
                  bamSize[it]=loadUnaligned<uint32>(bamIn[it])+sizeof(int32);

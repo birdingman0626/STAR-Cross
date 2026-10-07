@@ -20,6 +20,7 @@ TEST_CASE("Genome parameter readers release registrations without closing borrow
     InOutStreams streams;
     for (int iteration=0; iteration<32; ++iteration) {
         Parameters parameters(streams);
+        for (const auto pid : parameters.readFilesCommandPID) CHECK(pid == 0);
         REQUIRE(parameters.inOut == &streams);
         REQUIRE(!parameters.parArray.empty());
         auto registration = std::find_if(parameters.parArray.begin(), parameters.parArray.end(),

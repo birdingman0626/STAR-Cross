@@ -3,6 +3,7 @@
 #include "serviceFuns.cpp"
 #include "BAMfunctions.h"
 #include "unaligned.h"
+#include "bamEndian.h"
 #include "SequenceFuns.h"
 
 void BAMbinSortByCoordinate(uint32 iBin, uint binN, uint binS, uint nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
@@ -72,7 +73,8 @@ void BAMbinSortByCoordinate(uint32 iBin, uint binN, uint binS, uint nThreads, st
         if (solo.pSolo.samAttrYes)
             solo.soloFeat[solo.pSolo.featureInd[solo.pSolo.samAttrFeature]]->addBAMtags(bam0,size0,bam1);
         
-        bgzf_write(bgzfBin, bam0, size0);
+        if (bamWriteNativeRecords(bgzfBin, bam0, size0) != size0)
+            exitWithError("EXITING: sorted BAM output write error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
 
     bgzf_flush(bgzfBin);

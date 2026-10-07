@@ -1,5 +1,6 @@
 #include "BAMoutput.h"
 #include "unaligned.h"
+#include "bamEndian.h"
 #include <sys/stat.h>
 #include "GlobalVariables.h"
 #ifdef _WIN32
@@ -72,7 +73,7 @@ void BAMoutput::unsortedOneAlign (char *bamIn, uint bamSize, uint bamSize2) {//r
     if (binBytes1+bamSize2 > bamArraySize) {//write out this buffer
 
         if (g_threadChunks.threadBool) pthread_mutex_lock(&g_threadChunks.mutexOutSAM);
-        const auto written=bgzf_write(bgzfBAM,bamArray.get(),binBytes1);
+        const auto written=bamWriteNativeRecords(bgzfBAM,bamArray.get(),binBytes1);
         if (g_threadChunks.threadBool) pthread_mutex_unlock(&g_threadChunks.mutexOutSAM);
         if (written < 0 || static_cast<uint64>(written) != binBytes1)
             exitWithError("EXITING because of fatal BAM output write error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
@@ -87,7 +88,7 @@ void BAMoutput::unsortedOneAlign (char *bamIn, uint bamSize, uint bamSize2) {//r
 
 void BAMoutput::unsortedFlush () {//flush all alignments
     if (g_threadChunks.threadBool) pthread_mutex_lock(&g_threadChunks.mutexOutSAM);
-    const auto written=bgzf_write(bgzfBAM,bamArray.get(),binBytes1);
+    const auto written=bamWriteNativeRecords(bgzfBAM,bamArray.get(),binBytes1);
     if (g_threadChunks.threadBool) pthread_mutex_unlock(&g_threadChunks.mutexOutSAM);
     if (written < 0 || static_cast<uint64>(written) != binBytes1)
         exitWithError("EXITING because of fatal BAM output flush error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);

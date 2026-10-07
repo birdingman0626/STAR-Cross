@@ -1,6 +1,7 @@
 #include "BAMfunctions.h"
 #include "htslib/htslib/kstring.h"
 #include "samAux.h"
+#include "bamEndian.h"
 #include "ErrorWarning.h"
 
 
@@ -79,16 +80,16 @@ int bam_read1_fromArray(char *bamChar, bam1_t *b) //modified from samtools bam_r
 void outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint> &chrl) {
     bgzf_write(fp,"BAM\001",4);
     int32 hlen=samh.size();
-    bgzf_write(fp,(char*) &hlen,sizeof(hlen));
+    bamWriteInt32LE(fp,hlen);
     bgzf_write(fp,samh.c_str(),hlen);
     int32 nchr=(int32) chrn.size();
-    bgzf_write(fp,(char*) &nchr,sizeof(nchr));
+    bamWriteInt32LE(fp,nchr);
     for (int32 ii=0;ii<nchr;ii++) {
         int32 rlen = (int32) (chrn.at(ii).size()+1);
         int32 slen = (int32) chrl[ii];
-        bgzf_write(fp,(char*) &rlen,sizeof(rlen));
+        bamWriteInt32LE(fp,rlen);
         bgzf_write(fp,chrn.at(ii).data(),rlen); //this includes \0 at the end of the string
-        bgzf_write(fp,(char*) &slen,sizeof(slen));
+        bamWriteInt32LE(fp,slen);
     };
     bgzf_flush(fp);
 };
@@ -108,13 +109,13 @@ int reg2bin(int beg, int end)
 int bamAttrArrayWrite(int32 attr, const char* tagName, char* attrArray ) {
     attrArray[0]=tagName[0];attrArray[1]=tagName[1];
     attrArray[2]='i';
-    std::memcpy(attrArray+3, &attr, sizeof(attr));
+    i32_to_le(attr, reinterpret_cast<uint8_t*>(attrArray+3));
     return 3+sizeof(int32);
 };
 int bamAttrArrayWrite(float attr, const char* tagName, char* attrArray ) {
     attrArray[0]=tagName[0];attrArray[1]=tagName[1];
     attrArray[2]='f';
-    std::memcpy(attrArray+3, &attr, sizeof(attr));
+    float_to_le(attr, reinterpret_cast<uint8_t*>(attrArray+3));
     return 3+sizeof(int32);
 };
 int bamAttrArrayWrite(char attr, const char* tagName, char* attrArray ) {
@@ -134,7 +135,7 @@ int bamAttrArrayWrite(const vector<char> &attr, const char* tagName, char* attrA
     attrArray[2]='B';
     attrArray[3]='c';
     const int32 size = static_cast<int32>(attr.size());
-    std::memcpy(attrArray+4, &size, sizeof(size));
+    i32_to_le(size, reinterpret_cast<uint8_t*>(attrArray+4));
     memcpy(attrArray+4+sizeof(int32),attr.data(),attr.size());//copy array data
     return 4+sizeof(int32)+attr.size();
 };
@@ -143,8 +144,9 @@ int bamAttrArrayWrite(const vector<int32> &attr, const char* tagName, char* attr
     attrArray[2]='B';
     attrArray[3]='i';
     const int32 size = static_cast<int32>(attr.size());
-    std::memcpy(attrArray+4, &size, sizeof(size));
-    memcpy(attrArray+4+sizeof(int32),attr.data(),sizeof(int32)*attr.size());//copy array data
+    i32_to_le(size, reinterpret_cast<uint8_t*>(attrArray+4));
+    for (size_t i=0; i<attr.size(); ++i)
+        i32_to_le(attr[i], reinterpret_cast<uint8_t*>(attrArray+8+4*i));
     return 4+sizeof(int32)+sizeof(int32)*attr.size();
 };
 

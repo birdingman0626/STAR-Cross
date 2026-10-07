@@ -11,7 +11,8 @@
 #endif
 
 void Parameters::closeReadsFiles() {
-    for (uint imate=0; imate<readFilesIn.size(); imate++) {
+    // A manifest can specify fewer ends than the default readFilesIn placeholders.
+    for (uint imate=0; imate<readFilesNames.size(); imate++) {
         const bool reachedEof = inOut->readIn[imate].eof();
         if ( inOut->readIn[imate].is_open() )
             inOut->readIn[imate].close();
@@ -25,9 +26,15 @@ void Parameters::closeReadsFiles() {
             do { waited = waitpid(readFilesCommandPID[imate], &status, 0); }
             while (waited < 0 && errno == EINTR);
             readFilesCommandPID[imate] = 0;
-            if (waited < 0 || (reachedEof && (!WIFEXITED(status) || WEXITSTATUS(status) != 0)))
-                exitWithError("EXITING because of fatal INPUT FILE error: readFilesCommand did not complete successfully.\n",
-                              std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+            if (waited < 0 || (reachedEof && (!WIFEXITED(status) || WEXITSTATUS(status) != 0))) {
+                ostringstream error;
+                error << "EXITING because of fatal INPUT FILE error: readFilesCommand did not complete successfully for mate " << imate+1;
+                if (waited < 0) error << ": waitpid: " << strerror(errno);
+                else if (WIFEXITED(status)) error << ": exit code " << WEXITSTATUS(status);
+                else if (WIFSIGNALED(status)) error << ": signal " << WTERMSIG(status);
+                error << '\n';
+                exitWithError(error.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+            }
 #else
             kill(readFilesCommandPID[imate], SIGKILL);
 #endif
