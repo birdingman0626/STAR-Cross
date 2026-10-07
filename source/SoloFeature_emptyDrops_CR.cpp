@@ -1,6 +1,7 @@
 #include "SoloFeature.h"
 #include "serviceFuns.cpp"
 #include "SimpleGoodTuring/sgt.h"
+#include "ErrorWarning.h"
 #include <cmath>
 #include <numeric>
 #include <unordered_set>
@@ -53,7 +54,12 @@ void SoloFeature::emptyDrops_CR()
         auto icb1 = indCount[icb].index;
         for (uint32 ig=0; ig<nGenePerCB[icb1]; ig++) {
             auto irec = countCellGeneUMIindex[icb1]+ig*countMatStride;
-            ambCount[countCellGeneUMI[irec+0]] += countCellGeneUMI[irec + pSolo.umiDedup.countInd.main];
+            auto &ambient=ambCount[countCellGeneUMI[irec+0]];
+            const auto count=countCellGeneUMI[irec + pSolo.umiDedup.countInd.main];
+            if (count>numeric_limits<uint32>::max()-ambient)
+                exitWithError("EXITING because of fatal INPUT FILE error: EmptyDrops ambient count exceeds supported range.\n",
+                              std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
+            ambient += count;
         };
     };    
     time(&rawTime);
@@ -65,28 +71,31 @@ void SoloFeature::emptyDrops_CR()
     for (auto &ac: ambCount) {
         ambCountFreq[ac]++;
     };
-    if (ambCountFreq.size()<=1) {//only 0-frequency genes are in the empty cells. This is possible because nCB can contain ome cells with no genes - because of multigene
-        P.inOut->logMain << "emptyDrops_CR filtering: empty cells contain no genes\n";
+    if (ambCountFreq.size()<=1) {
+        P.inOut->logMain << "emptyDrops_CR: insufficient ambient frequency diversity; retaining knee-filtered cells only\n";
         return;
     };
     ambCountFreq[0] -= (featuresNumber-featDetN); //subtract genes that were not detected in *any* cells
-    uint32 maxFreq = ambCountFreq.rbegin()->first;
     
     ///////////////////////////////////////////////////////////////////////
     //SGT
-    vector<double> ambCountFreqSGT(maxFreq+1);//up to max frequency
+    map<uint32,double> ambCountFreqSGT; // only frequencies actually used by the profile
     {//SGT estimate of ambient profile
         SGT<uint32> sgt;
         for (auto &cf: ambCountFreq) {
             if (cf.first != 0)
                 sgt.add(cf.first, cf.second);
         };
-        sgt.analyse();
+        if (!sgt.analyse()) {
+            P.inOut->logMain << "emptyDrops_CR: insufficient ambient frequency categories for SGT; retaining knee-filtered cells only\n";
+            return;
+        }
         
-        for (uint32 freq=0; freq<=maxFreq; freq++) {
-            sgt.estimate(freq, ambCountFreqSGT[freq]);
+        for (const auto &frequency: ambCountFreq) {
+            sgt.estimate(frequency.first, ambCountFreqSGT[frequency.first]);
         };
-        ambCountFreqSGT[0] /= ambCountFreq[0]; //divide freq=0 probability equally among all undetected genes in ambient profile
+        if (ambCountFreq[0]>0) ambCountFreqSGT[0] /= ambCountFreq[0];
+        else ambCountFreqSGT[0]=0; // no unseen genes to receive probability
     };
     time(&rawTime);
     P.inOut->logMain << timeMonthDayTime(rawTime) <<" ... finished SGT"<<endl;
@@ -102,6 +111,10 @@ void SoloFeature::emptyDrops_CR()
         };
         
         double norm1 = accumulate(ambProfileLogP.begin(), ambProfileLogP.end(), 0.0);
+        if (!std::isfinite(norm1) || norm1<=0) {
+            P.inOut->logMain << "emptyDrops_CR: unusable ambient probability profile; retaining knee-filtered cells only\n";
+            return;
+        }
         ambProfileLogPnon0.reserve(ambProfileLogP.size());
         ambProfilePnon0.reserve(ambProfileLogP.size());
         for (auto &cf: ambProfileLogP) {
@@ -121,27 +134,35 @@ void SoloFeature::emptyDrops_CR()
     uint32 iCandFirst, iCandLast; //first/last candidate cell in the descending sorted indCount
     {
         iCandFirst=filteredCells.nCellsSimple;//candidates start right after the cutoff for the simple filtering
-        uint32 minUMI = int(pSolo.cellFilter.eDcr.umiMinFracMedian * nUMIperCBsorted[filteredCells.nCellsSimple/2]);//this is not exactly median
+        const double fractionMinimum=pSolo.cellFilter.eDcr.umiMinFracMedian * nUMIperCBsorted[filteredCells.nCellsSimple/2];
+        if (!std::isfinite(fractionMinimum) || fractionMinimum>numeric_limits<uint32>::max()) {
+            P.inOut->logMain << "emptyDrops_CR: fractional threshold exceeds all supported counts; no candidate cells\n";
+            return;
+        }
+        uint32 minUMI=static_cast<uint32>(fractionMinimum);//this is not exactly median
         minUMI = max(pSolo.cellFilter.eDcr.umiMin, minUMI);
-        for (iCandLast=iCandFirst; iCandLast<iCandFirst+pSolo.cellFilter.eDcr.candMaxN; iCandLast++) {
+        const uint64 candidateEnd=min<uint64>(nCB, uint64(iCandFirst)+pSolo.cellFilter.eDcr.candMaxN);
+        for (iCandLast=iCandFirst; iCandLast<candidateEnd; iCandLast++) {
             if (indCount[iCandLast].count<minUMI)
                 break;
         };
+        if (iCandLast==iCandFirst) {
+            P.inOut->logMain << "emptyDrops_CR: no candidate cells\n";
+            return;
+        }
         --iCandLast;
         
         time(&rawTime);
         P.inOut->logMain << timeMonthDayTime(rawTime) << " ... candidate cells: minUMI="<< minUMI << "; number of candidate cells=" << iCandLast-iCandFirst+1 <<endl;
-        if (iCandLast<iCandFirst)
-            return; //no candidate cells to consider
     };
     
     //calculate observed probability for each candidate
     vector<double> obsLogProb(iCandLast-iCandFirst+1);
     {
         vector<double> logFactorial; //tabulate log-factorial
-        logFactorial.resize(indCount[iCandFirst].count+1);
+        logFactorial.resize(uint64(indCount[iCandFirst].count)+1);
         logFactorial[1]=0;
-        for (uint32 cc=2; cc<logFactorial.size(); cc++)
+        for (uint64 cc=2; cc<logFactorial.size(); cc++)
             logFactorial[cc]=logFactorial[cc-1]+std::log(cc);
         
         for (uint32 icand=0; icand<obsLogProb.size(); icand++) {
@@ -180,7 +201,7 @@ void SoloFeature::emptyDrops_CR()
             double logProb = 0; // running accumulation, same as simLogProb[isim][ic-1] + ...
             uint32 nextIdx = 0; // index into neededCounts
 
-            for (uint32 ic=1; ic<=maxCount; ic++) {
+            for (uint64 ic=1; ic<=maxCount; ic++) {
                 uint32 ig1 = distrAmb(rngGen);
                 currCounts[ig1]++;
                 // Identical accumulation: logProb at ic == simLogProb[isim][ic] in the original

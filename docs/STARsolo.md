@@ -213,6 +213,24 @@ STAR --runMode soloCellFiltering  /path/to/count/dir/raw/   /path/to/output/pref
 The */path/to/count/dir/raw/* directory should contain the **"raw"** *barcodes.tsv*, *features.tsv*,  and *matrix.mtx* files generated in a previos STARsolo run.
 The output will contain the filtered files.
 
+STAR-Cross validates a non-empty MatrixMarket `coordinate integer general` or
+`coordinate real general` matrix, with matching feature/barcode row counts.
+Coordinates must be in range, values finite and non-negative, and rounded counts
+and per-cell totals must fit uint32. Existing rounding and filtering thresholds
+are unchanged. Repeated coordinates must be combined before filtering (they
+are legal MatrixMarket syntax but unsupported by this counting interface).
+Truncated input, inconsistent axes and unsupported index sizes fail explicitly.
+
+#### Experimental Transcript3p
+
+`--soloFeatures Transcript3p --soloClusterCBfile clusters.tsv` uses barcode-based
+input and two-column `barcode positive_cluster_index` assignments. It is not
+compatible with SmartSeq. Transcript matching is enabled even when Gene output
+is not requested. Unmatched barcodes are ignored, conflicting assignments fail,
+and at least one matched barcode and a usable uniquely mapped-read distance
+distribution are required. These checks prevent silent empty/non-finite output;
+they do not establish transcript-estimation accuracy for a particular dataset.
+
 --------------------------------------------------
 Quantification of different transcriptomic features
 ---------------------------------------------------
@@ -458,3 +476,17 @@ soloOutFormatFeaturesGeneField3	"Gene Expression"
 	                            If "+", output the GTF gene biotype (or MissingGeneType when absent).
 	                            Biotypes are not 10x modalities; keep the default for standard 10x readers.
 ```
+
+Cell-filter numeric arguments must be complete and within supported ranges:
+expected cells must be positive, finite and within the signed index range;
+percentile and FDR are in [0,1], max/min ratio is at least 1. EmptyDrops requires
+indMin < indMax, positive umiMin/candMaxN/simN and a finite non-negative median
+fraction. TopCells takes exactly one positive uint32 integer. Supplying only the
+filter name retains its defaults; malformed partial/extra arguments fail explicitly.
+
+EmptyDrops candidates never extend beyond available barcodes. When the ambient
+histogram cannot support SGT, Log.out explicitly reports that only knee-filtered
+cells are retained. This means additional cell detection was unavailable, not
+that the data were proven to contain no additional cells. Memory for SGT frequency
+estimates scales with observed frequency categories; very large genuine UMI
+counts still incur factorial-table and simulation costs.

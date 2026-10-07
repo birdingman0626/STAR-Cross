@@ -8,11 +8,14 @@ import argparse
 import gzip
 import hashlib
 import json
+import math
+import os
 from pathlib import Path
 import random
 import struct
 import subprocess
 import tempfile
+from test_solo_cell_filtering import check_cell_filtering, check_invalid_matrices, check_emptydrops
 
 
 def bam_scientific_header(path):
@@ -299,6 +302,81 @@ def main():
                 relative = path.relative_to(default)
                 assert path.read_bytes() == (solo_before / relative).read_bytes(), str(relative)
         checks.append("Gene/GeneFull/Velocity integer matrices and axes match reference on tiny fixture")
+    smartseq_reads = root / "smartseq-duplicates.fastq"
+    smartseq_reads.write_text(cdna.read_text() * 2)
+    manifest = root / "smartseq.tsv"
+    manifest.write_text(f"{cdna}\t-\tCELL1\n{smartseq_reads}\t-\tCELL2\n")
+    smartseq_mate = root / "smartseq-mate.fastq"
+    smartseq_mate.write_text("@cell\n" + sequence[220:270].translate(complement)[::-1] + "\n+\n" + "I"*50 + "\n")
+    smartseq_duplicate_mate = root / "smartseq-duplicate-mate.fastq"
+    smartseq_duplicate_mate.write_text(smartseq_mate.read_text() * 2)
+    paired_manifest = root / "smartseq-paired.tsv"
+    paired_manifest.write_text(f"{cdna}\t{smartseq_mate}\tCELL1\n{smartseq_reads}\t{smartseq_duplicate_mate}\tCELL2\n")
+    # WSL evidence may live on NTFS, which cannot host POSIX FIFOs.
+    smart_tmp = tempfile.TemporaryDirectory(prefix="star-smartseq-", dir="/tmp") if os.name != "nt" else None
+    for layout, dedup, counts in (("single", "Exact", (1, 1)), ("single", "NoDedup", (1, 2)),
+                                  ("paired", "Exact", (1, 1)), ("paired", "NoDedup", (1, 2))):
+        smart_options = common + ["--readFilesManifest", str(paired_manifest if layout=="paired" else manifest),
+                                  "--soloType", "SmartSeq", "--soloUMIdedup", dedup,
+                                  "--soloStrand", "Unstranded", "--soloCellFilter", "None",
+                                  "--soloFeatures", "Gene", "GeneFull", "--outSAMtype", "None"]
+        if smart_tmp:
+            smart_options += ["--outTmpDir", str(Path(smart_tmp.name) / (layout + dedup))]
+        smart = run("smartseq-" + layout + dedup, smart_options)
+        for feature in ("Gene", "GeneFull"):
+            raw = smart / "Solo.out" / feature / "raw"
+            assert (raw / "barcodes.tsv").read_text().splitlines() == ["CELL1", "CELL2"]
+            lines = [line for line in (raw / "matrix.mtx").read_text().splitlines()
+                     if line and not line.startswith("%")]
+            assert tuple(map(int, lines[0].split())) == (2, 2, 2)
+            assert sorted(tuple(map(int, line.split())) for line in lines[1:]) == [
+                (1, 1, counts[0]), (1, 2, counts[1])]
+        # Historical native Windows multi-file preprocessing drops input/files'
+        # cell markers. Use the hand-computed oracle there, not that broken path.
+        if args.ref_exe and os.name != "nt":
+            before_smart = run("smartseq-before-" + layout + dedup, smart_options, args.ref_exe)
+            for path in (smart / "Solo.out").rglob("*"):
+                if path.is_file() and path.suffix in (".mtx", ".tsv"):
+                    assert path.read_bytes() == (before_smart / path.relative_to(smart)).read_bytes()
+        checks.append(f"two-cell {layout} SmartSeq {dedup}: positive hand-computed Gene/GeneFull counts and axes")
+    if smart_tmp:
+        smart_tmp.cleanup()
+    checks.extend(check_cell_filtering(args.star_exe, root / "cell-filtering"))
+    checks.extend(check_invalid_matrices(args.star_exe, root / "invalid-matrices"))
+    checks.extend(check_emptydrops(args.star_exe, root / "emptydrops"))
+    cluster_file = root / "clusters.tsv"
+    cluster_file.write_text("ACGTACGT 1\n")
+    transcript_options = common + ["--readFilesIn", str(cdna), str(barcode), "--soloType", "CB_UMI_Simple",
+                                  "--soloCBwhitelist", str(whitelist), "--soloCBlen", "8", "--soloUMIstart", "9",
+                                  "--soloUMIlen", "4", "--soloCellFilter", "None", "--outSAMtype", "None",
+                                  "--soloFeatures", "Transcript3p"]
+    transcript = run("transcript3p-valid", transcript_options + ["--soloClusterCBfile", str(cluster_file)])
+    lines = [line for line in (transcript / "Solo.out/Transcript3p/matrix.mtx").read_text().splitlines()
+             if line and not line.startswith("%")]
+    assert tuple(map(int, lines[0].split())) == (2, 1, 1)
+    entries = [(int(g), int(c), float(n)) for g, c, n in (line.split() for line in lines[1:])]
+    assert entries == [(1, 1, 1.0)] and all(math.isfinite(n) for _, _, n in entries)
+    checks.append("Transcript3p alone: nonzero finite hand-computed transcript count without implicit Gene output")
+    for label, contents, diagnostic in (
+            ("absent", "AAAAAAAA 1\n", "no cluster barcode matches"),
+            ("empty", "", "no cluster barcode matches"),
+            ("zero", "ACGTACGT 0\n", "cluster indices must be positive"),
+            ("truncated", "ACGTACGT\n", "cluster indices must be positive"),
+            ("conflicting", "ACGTACGT 1\nACGTACGT 2\n", "conflicting clusters")):
+        cluster_file.write_text(contents)
+        failed = run("transcript3p-" + label, transcript_options + ["--soloClusterCBfile", str(cluster_file)], valid=False)
+        assert diagnostic in (failed / "console.log").read_text(), label
+    checks.append("Transcript3p cluster failures are explicit, not silent zero/invalid matrices")
+    missing_cluster = run("transcript3p-missing-cluster", transcript_options, valid=False)
+    assert "requires barcode-based input" in (missing_cluster / "console.log").read_text()
+    cluster_file.write_text("ACGTACGT 1\n")
+    no_signal = root / "transcript3p-unmapped.fastq"
+    no_signal.write_text("@cell\n" + "N"*50 + "\n+\n" + "I"*50 + "\n")
+    no_signal_options = transcript_options.copy()
+    no_signal_options[no_signal_options.index(str(cdna))] = str(no_signal)
+    failed = run("transcript3p-no-signal", no_signal_options + ["--soloClusterCBfile", str(cluster_file)], valid=False)
+    assert "no usable uniquely mapped reads" in (failed / "console.log").read_text()
+    checks.append("Transcript3p missing prerequisites / zero signal rejected without non-finite output")
     result = {"checks": checks, "binary_sha256": hashlib.sha256(Path(args.star_exe).read_bytes()).hexdigest(),
               "threads": args.threads,
               "reference_sha256": hashlib.sha256(Path(args.ref_exe).read_bytes()).hexdigest() if args.ref_exe else None}

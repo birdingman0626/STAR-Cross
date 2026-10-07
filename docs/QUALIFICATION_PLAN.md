@@ -236,13 +236,15 @@ CUDA storage. Do not add a generic resource framework or blanket `shared_ptr`.
 | O4 | ReadAlign / chunk resources | Classify per-thread arenas and borrowed Genome/Transcriptome/Parameters; preserve reuse/capacity; test multiple chunks, two-pass, canceled/failed input, chimeric/long-read modes and cleanup after workers join |
 | O5 | CUDA resources and globals | Scoped device buffers/streams/events with explicit synchronization and error reporting; reuse allocations; inventory process-global state and test sequential analyses in one process where that API exists |
 
-Concrete hazards to resolve: `PackedArray::pointArray()` currently only assigns
-the pointer and does not clear an earlier owning flag; `Genome::freeMemory()`
-already performs explicit conditional deletion; `BAMoutput` accepts a borrowed
-BGZF handle and uses interior bin pointers. Adding destructors without migrating
-these transitions can cause double frees, closing another owner's stream, or
-dangling views. Treat these as ownership audit targets, not proof that every
-existing call path currently triggers a defect.
+Initial audit hazards included `PackedArray::pointArray()` assigning the pointer
+without clearing an earlier owning flag, conditional cleanup in
+`Genome::freeMemory()`, and borrowed BGZF/interior bin pointers in `BAMoutput`.
+Implemented repairs and their bounded acceptance are tracked in
+[OWNERSHIP_AUDIT.md](OWNERSHIP_AUDIT.md) and the dated execution record; this
+historical inventory must not be read as a claim that each defect still exists.
+Adding destructors without migrating these transitions can cause double frees,
+closing another owner's stream, or dangling views. Unexercised call paths remain
+audit targets, not proof that every existing call path triggers a defect.
 
 For each stage, first add adversarial lifetime tests, then migrate one owner and
 all its borrowers together. C++17 pointer/length views are sufficient initially;
@@ -286,7 +288,27 @@ A commit label alone cannot identify the current uncommitted candidate.
 - [ ] CPU C++20 default decision states supported toolchains and remaining optional
   CUDA/legacy-mode scope; publication depends on the exact qualified snapshot.
 
-## Official references reviewed
+## Non-language-upgrade continuation status
+
+C++17 remains the CPU and optional CUDA default. Continue qualification without
+coupling it to a C++20 promotion or treating every checklist item as a release
+requirement for an unrelated mode. Exact receipts are in the dated execution
+record, not inferred from this plan.
+
+| Remaining surface | Required next evidence / disposition |
+| --- | --- |
+| Standalone filtering, SmartSeq SE/PE, Transcript3p, EmptyDrops | Bounded independent count oracles, malformed-input rejection and targeted normal-teardown leak checks implemented; real/ambiguous Transcript3p accuracy and positive EmptyDrops rescue sensitivity still need independent validation |
+| Optional CUDA | Refresh host17/device17 builds, actual remap/seed execution and device memcheck; seed remains an isolated experiment, not whole-mapper GPU acceleration |
+| Real data | Frozen-prefix full scientific contract first; full-library/cell-representative validation remains separate |
+| CPU time and memory | Prior A/A failed the 2% noise gate; no performance acceptance until independent calibration passes and paired A/B evidence is collected without concurrent builds |
+| macOS and s390x | Run existing qualification jobs for the exact final snapshot on appropriate runners; local Windows/Linux tests cannot substitute |
+| Ownership error/control paths | Cancellation, fatal-exit cleanup, concurrent IPC and allocation failures require bounded fixtures before migrating their lifetimes; avoid a blanket exception or shared_ptr conversion |
+| Long reads / estimator accuracy | Retain the existing smoke scope; add independent representative accuracy truth before broader claims |
+
+No release, hosted CI acceptance, performance acceptance or completion of all
+ownership stages follows solely from updating source or passing miniature tests.
+
+## Official references reviewed (version-specific)
 
 Use the version-specific CUDA support table for the tested toolkit. Live/latest
 documentation is discovery material and does not retroactively qualify an older

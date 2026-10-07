@@ -4,6 +4,7 @@
 #include "TimeFunctions.h"
 #include "SequenceFuns.h"
 #include "SoloCommon.h"
+#include "ErrorWarning.h"
 #include <cmath>
 #include <unordered_map>
 #include <bitset>
@@ -16,6 +17,10 @@ void SoloFeature::quantTranscript()
 
     if (pSolo.clusterCBfile=="-")
         return;//no transcript quantification w/o cluster file
+    const auto invalidInput = [&](const string &reason) {
+        exitWithError("EXITING because of fatal INPUT FILE error: invalid Transcript3p input: " + reason + "\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
+    };
     
     std::unordered_map<uint32,uint32> clusterCBind; //for each CB - cluster index of detected CB
     std::set<uint32> clusterInd; //cluster index for each cluster - the integer from clusterCBfile 
@@ -24,13 +29,17 @@ void SoloFeature::quantTranscript()
         std::unique_ptr<ifstream> clusterInputStorage(&clusterStream);
         string seq1;
         while (clusterStream >> seq1) {
-            uint32 icl1;
-            clusterStream >> icl1;
+            uint64 clusterIndex=0;
+            if (!(clusterStream >> clusterIndex) || clusterIndex==0 || clusterIndex>numeric_limits<uint32>::max())
+                invalidInput("cluster indices must be positive uint32 values");
+            const uint32 icl1=static_cast<uint32>(clusterIndex);
             uint64 cb1;
             if (convertNuclStrToInt64(seq1,cb1)) {//convert to 2-bit format
                 auto cb1it=std::equal_range(pSolo.cbWL.begin(), pSolo.cbWL.end(), cb1); //find iterator in WL matching cb1
                 uint32 cb1ind=(uint32) (cb1it.first-pSolo.cbWL.begin()); //substract WL.begin iterator to find index in WL
-                if (cb1ind < pSolo.cbWL.size()) {//otherwise cb1 is not in WL
+                if (cb1it.first!=cb1it.second) {//an insertion position is not proof of membership
+                    if (clusterCBind.count(cb1ind) && clusterCBind[cb1ind]!=icl1)
+                        invalidInput("one barcode is assigned to conflicting clusters");
                     clusterCBind[cb1ind]=icl1; //map: key=CB, value=cluster index
                     clusterInd.emplace(icl1);  //ordered set of cluster indexes
                 } else {
@@ -41,6 +50,7 @@ void SoloFeature::quantTranscript()
             };        
         };
     };
+    if (clusterInd.empty()) invalidInput("no cluster barcode matches the whitelist");
     
     auto &trDistCount=readFeatSum->transcriptDistCount; //transcriptDistCount is accumulated while mapping, from reads that map uniquely
     vector<double> trDistFun(trDistCount.size(),0.0);
@@ -58,12 +68,13 @@ void SoloFeature::quantTranscript()
         };
         
         //cut when becomes non-monotonic
+        if (trDistFun.size()<=1001) invalidInput("insufficient distance distribution range");
         uint32 imax=1000;
-        while (trDistFun[imax+1]>trDistFun[imax])
+        while (imax+1<trDistFun.size() && trDistFun[imax+1]>trDistFun[imax])
             imax++; //find maximum going forward from imax=1000
         P.inOut->logMain << "SoloQuant: distance distribution past maximum = " << imax <<endl;
         
-        while (trDistFun[imax+1]<trDistFun[imax])
+        while (imax+1<trDistFun.size() && trDistFun[imax+1]<trDistFun[imax])
             imax++; //find first minimum after the maximum found above
         P.inOut->logMain << "SoloQuant: distance distribution cutoff = " << imax <<endl;
         
@@ -71,6 +82,7 @@ void SoloFeature::quantTranscript()
         
         //normalize
         double norm1 = std::accumulate(trDistFun.begin(), trDistFun.end(), 0.0);
+        if (!std::isfinite(norm1) || norm1<=0) invalidInput("no usable uniquely mapped reads for the distance distribution");
         
         ofstream *streamTrDistFun = &ofstrOpen(outputPrefix+"transcriptEndDistanceDistribution.txt",ERROR_OUT, P);
         std::unique_ptr<ofstream> transcriptDistanceStorage(streamTrDistFun);
@@ -287,6 +299,7 @@ void SoloFeature::quantTranscript()
                  thOut[itr] *= std::exp(trDistFunTrFactor[itr]);
                  norm1 += thOut[itr];
             };
+            if (!std::isfinite(norm1) || norm1<=0) invalidInput("cluster expression cannot be normalized");
             norm1=nUMItot/norm1;
             for (uint32 itr=0; itr<thOut.size(); itr++) {
                  thOut[itr] *= norm1;

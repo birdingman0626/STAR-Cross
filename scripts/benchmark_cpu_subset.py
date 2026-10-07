@@ -93,7 +93,7 @@ def main():
     comparator = Path(__file__).with_name("compare_raw_counts.py").read_bytes()
     (output/"compare_raw_counts.py").write_bytes(comparator)
     helper_signatures = {}
-    for name in ("qualification.py", "test_cpu_upstream.py"):
+    for name in ("qualification.py", "test_cpu_upstream.py", "test_solo_cell_filtering.py"):
         payload = Path(__file__).with_name(name).read_bytes()
         (output/name).write_bytes(payload)
         helper_signatures[name] = hashlib.sha256(payload).hexdigest()

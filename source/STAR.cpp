@@ -140,8 +140,13 @@ int main(int argInN, char *argIn[])
     Transcriptome inactiveTranscriptome(P, false);
     Transcriptome *transcriptomeMain = &inactiveTranscriptome;
 
-    // This executes --runMode soloCellFiltering and exits.
+    // Successful standalone filtering returns normally and releases resources.
     Solo soloCellFilter(P, *transcriptomeMain);
+    if (P.runMode == "soloCellFiltering") {
+        soloCellFilter.releaseStorage();
+        delete P.inOut;
+        return 0;
+    }
     std::unique_ptr<Transcriptome> transcriptomeStorage;
 
     ////////////////////////////////////////////////////////////////////////

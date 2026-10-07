@@ -49,8 +49,7 @@ void Parameters::openReadsFiles()
 
             inOut->logMain << "\n   Input read files for mate "<< imate+1 <<" :\n";
 
-            // Build the command that concatenates all input files through readFilesCommand
-            string fullCommand;
+            // Match POSIX file-boundary markers and retain every file's output.
             for (uint32 ifile=0; ifile<readFilesN; ifile++) {
                 {//try to open the files - throw an error if a file cannot be opened
                     ifstream rftry(readFilesNames[imate][ifile].c_str());
@@ -63,21 +62,18 @@ void Parameters::openReadsFiles()
                     rftry.close();
                 };
 
-                if (ifile > 0) fullCommand += " & ";
-                fullCommand += readFilesCommandString + "   " + "\"" + readFilesNames[imate][ifile] + "\"";
+                string fullCommand = "(echo FILE " + std::to_string(ifile) + " & "
+                    + readFilesCommandString + "   \"" + readFilesNames[imate][ifile]
+                    + "\") " + (ifile == 0 ? ">" : ">>") + " \"" + readFilesInTmp.at(imate) + "\"";
+                inOut->logMain << "\n   readsCommand: " << fullCommand << endl;
+                int sysRet = system(fullCommand.c_str());
+                if (sysRet != 0) {
+                    ostringstream errOut;
+                    errOut << "EXITING: because of fatal EXECUTION error: readFilesCommand failed with exit code " << sysRet << "\n";
+                    exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+                };
             };
-
-            // Redirect output to temp file
-            fullCommand += " > \"" + readFilesInTmp.at(imate) + "\"";
-            inOut->logMain << "\n   readsCommand: " << fullCommand << endl;
-
             readFilesCommandPID[imate]=0;
-            int sysRet = system(fullCommand.c_str());
-            if (sysRet != 0) {
-                ostringstream errOut;
-                errOut << "EXITING: because of fatal EXECUTION error: readFilesCommand failed with exit code " << sysRet << "\n";
-                exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
-            };
 
             inOut->readIn[imate].open(readFilesInTmp.at(imate).c_str());
 #else

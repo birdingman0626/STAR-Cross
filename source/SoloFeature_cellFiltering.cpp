@@ -49,7 +49,7 @@ void SoloFeature::cellFiltering()
                 //find robust max
                 uint32 maxind=int(round(pSolo.cellFilter.knee.nExpectedCells*(1.0-pSolo.cellFilter.knee.maxPercentile)));//cell number for robust max
                 nUMImax = nUMIperCBsorted[min(nCB-1,maxind)];//robust estimate of the max UMI
-                nUMImin = int(round(nUMImax/pSolo.cellFilter.knee.maxMinRatio));
+                nUMImin = static_cast<uint32>(round(nUMImax/pSolo.cellFilter.knee.maxMinRatio));
             };
             nUMImin=max(nUMImin,(uint32) 1);//cannot be zero
                 
@@ -122,7 +122,9 @@ void SoloFeature::cellFiltering()
 
     filteredCells.medianUMIperCell = nUMIperCBsorted[filteredCells.nCells/2];
     filteredCells.medianGenePerCell = filteredCells.nGenePerCell[filteredCells.nCells/2];
-    filteredCells.medianReadPerCellUnique = filteredCells.nReadPerCellUnique[filteredCells.nCells/2];
+    // Standalone matrix filtering has no read-level observations.
+    if (!filteredCells.nReadPerCellUnique.empty())
+        filteredCells.medianReadPerCellUnique = filteredCells.nReadPerCellUnique[filteredCells.nCells/2];
     
     //////////////////////////////////////////////////////////////////output filtered matrix
     outputResults(true, outputPrefixFiltered);

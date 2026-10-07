@@ -47,7 +47,7 @@ Solo::Solo(Parameters &Pin, Transcriptome &inTrans)
     time( &timeCurrent);
     *P.inOut->logStdOut << timeMonthDayTime(timeCurrent) << " ..... finished successfully\n" <<flush;
     P.inOut->logMain  << "ALL DONE!\n" << flush;
-    exit(0); // Standalone filtering retains its existing process-exit contract.
+    // main returns normally, releasing scoped resources on this success path.
 };
 
 void Solo::releaseStorage() {

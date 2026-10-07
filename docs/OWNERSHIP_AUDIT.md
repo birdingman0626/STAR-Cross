@@ -77,3 +77,74 @@ still require independent fixtures. Standalone soloCellFiltering retains its
 process-exit contract: an attempted test exposed a pre-existing single-barcode
 boundary (loadRawMatrix leaves nCB as the final zero-based index). It is not
 silently repaired in an ownership-only change or claimed as leak-qualified.
+
+## Standalone filtering and SmartSeq follow-up
+
+The previously deferred standalone filtering defect is now repaired separately:
+loadRawMatrix preserves the detected-cell count while filling arrays with a
+local index. Read medians are only computed when read observations exist.
+Successful standalone filtering returns through main and releases aggregate
+storage and CLI streams; fatal/error paths still call exit.
+
+Four hand-computed fixtures cover one cell, sparse/shuffled columns including
+the last cell, the existing TopCells threshold policy, and fractional rounding.
+No threshold, tie or rounding policy was changed. ASan/UBSan and LeakSanitizer
+pass on these valid inputs. General malformed/duplicate MatrixMarket input
+validation and EmptyDrops boundary qualification are not implied.
+
+Two-cell single-end SmartSeq fixtures exercise redistribution with Exact and
+NoDedup, Gene/GeneFull, two threads and nonzero independently predicted counts.
+They revealed a separate native Windows bug: only the final preprocessing
+command's output was redirected, and FILE markers were absent. Each file now
+has checked, redirected output and a POSIX-compatible boundary marker; no reads
+are silently dropped or assigned to the wrong cell. The manifest stream is
+also scoped. Linux matches the preserved reference; the defective Windows
+reference is not the correctness oracle for this path. Its documented failure
+is retained rather than suppressed. These fixtures do not qualify every paired
+SmartSeq case, Transcript3p, arbitrary preprocessing commands or fatal exits.
+
+## Paired SmartSeq, matrix input and Transcript3p boundaries
+
+Two-cell paired-end SmartSeq Exact/NoDedup now pass independent Gene/GeneFull
+count oracles and targeted leak checks. This is bounded PE coverage, not every
+preprocessing command or chemistry.
+
+Standalone matrix loading now validates header, dimensions, entry completeness,
+coordinates, finite non-negative values, uint32 count/offset capacity, per-cell
+totals and axis lengths. Input file size is checked before allocating a claimed
+large entry array; barcode storage grows with observed rows rather than an
+untrusted column claim. Unsupported duplicate coordinates are rejected with a
+canonicalization diagnostic, not silently interpreted as independent genes.
+Old commented-out alternate loaders were removed instead of adding another
+parser abstraction. Fatal input exits remain outside automatic cleanup claims.
+
+Transcript3p now enables its existing classifyAlign dependency independently of
+Gene output. Exact whitelist membership replaces insertion-position membership;
+empty/unmatched clusters, zero/conflicting indices and unusable normalization
+fail explicitly. Distribution searches are bounds-checked. The estimator and
+cutoff rule are otherwise unchanged. A single uniquely matched transcript with
+one UMI produces one finite count; its normal teardown passes LeakSanitizer.
+This does not qualify ambiguous-transcript EM accuracy on real tissue data.
+
+## EmptyDrops and optional CUDA continuation
+
+An ASan fixture reproduced an out-of-bounds read when the requested candidate
+count exceeded the barcode array. Candidate selection now uses a widened,
+barcode-bounded end and explicitly handles an empty candidate interval. Ambient
+count accumulation rejects overflow; factorial sizes and simulation iteration
+use widened arithmetic. Insufficient SGT frequencies or an unusable ambient
+profile explicitly retain knee-filtered cells only, rather than use an
+uninitialized estimate. This fallback is not successful extra-cell detection.
+
+The SGT cache now stores only observed frequencies instead of allocating through
+the maximum ambient count. Existing estimates, normalization, candidate rules
+and random seeds remain unchanged on supported inputs. This removes a dense
+allocation, not a measured end-to-end performance claim. Truly huge candidate
+counts can still require large factorial tables and long simulations.
+
+The isolated CUDA seed executable must link SharedMemory.cpp after Genome's
+shared-memory holder became uniquely owned. It now links the production
+implementation rather than adding a dummy destructor or weakening ownership.
+Host/device C++17 remap and seed correctness tests and targeted device memcheck
+pass locally. This does not establish whole-application race freedom, global
+cleanup, all IPC modes or fatal-error unwinding.

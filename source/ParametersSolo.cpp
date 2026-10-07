@@ -6,6 +6,7 @@
 #include "serviceFuns.cpp"
 
 #include <stdlib.h>
+#include <cmath>
 
 void ParametersSolo::initialize(Parameters *pPin)
 {
@@ -270,6 +271,14 @@ void ParametersSolo::initialize(Parameters *pPin)
         pP->quant.yes = true;
     };          
     
+    if (featureYes[SoloFeatureTypes::Transcript3p]) {
+        if (type==SoloTypes::SmartSeq || clusterCBfile=="-")
+            exitWithError("EXITING because of fatal PARAMETERS error: Transcript3p requires barcode-based input and --soloClusterCBfile.\n",
+                          std::cerr, pP->inOut->logMain, EXIT_CODE_PARAMETER, *pP);
+        // Transcript3p records are produced by classifyAlign, even without Gene output.
+        pP->quant.gene.yes=true;
+        pP->quant.yes=true;
+    }
     //initialize CB match to WL types
     init_CBmatchWL();
 
@@ -540,6 +549,12 @@ void ParametersSolo::complexWLstrings() {
 
 void ParametersSolo::cellFiltering()
 {//cell filtering
+    const auto invalidFilter = [&]() {
+        exitWithError("EXITING because of fatal PARAMETERS error: invalid --soloCellFilter parameters.\n",
+                      std::cerr, pP->inOut->logMain, EXIT_CODE_PARAMETER, *pP);
+    };
+    for (auto it=cellFilter.type.begin()+1; it!=cellFilter.type.end(); ++it)
+        if (!it->empty() && (*it)[0]=='-') invalidFilter();
     string pars1;
     for (auto s=cellFilter.type.begin()+1; s!=cellFilter.type.end(); s++)
         pars1 += ' ' + *s; //concatenate parameters into one string - easier to process that way
@@ -548,7 +563,7 @@ void ParametersSolo::cellFiltering()
         if (cellFilter.type.size()==1) {
             pP->inOut->logMain << "ParametersSolo: using hardcoded filtering parameters for --soloCellFilterType CellRanger2.2" <<endl;
             pars1="3000 0.99 10";
-        } else if (cellFilter.type.size()<4) {            
+        } else if (cellFilter.type.size()!=4) {
             string errOut="EXITING because of fatal PARAMETERS error: --soloCellFilterType CellRanger2.2 requires exactly 3 numerical parameters";
             errOut +=     "\nSOLUTION: re-run with --soloCellFilterType CellRanger2.2 <nExpectedCells> <maxPercentile> <maxMinRatio>\n";
             exitWithError(errOut, std::cerr, pP->inOut->logMain, EXIT_CODE_PARAMETER, *pP);
@@ -557,12 +572,17 @@ void ParametersSolo::cellFiltering()
         pP->inOut->logMain << "ParametersSolo: --soloCellFilterType CellRanger2.2 filtering parameters: " << pars1 <<endl;
         istringstream parsStream(pars1);
         parsStream >> cellFilter.knee.nExpectedCells >> cellFilter.knee.maxPercentile >> cellFilter.knee.maxMinRatio;
+        string extra;
+        if (!parsStream || (parsStream >> extra) || !std::isfinite(cellFilter.knee.nExpectedCells) ||
+            cellFilter.knee.nExpectedCells<=0 || cellFilter.knee.nExpectedCells>numeric_limits<int>::max() || !std::isfinite(cellFilter.knee.maxPercentile) ||
+            cellFilter.knee.maxPercentile<0 || cellFilter.knee.maxPercentile>1 ||
+            !std::isfinite(cellFilter.knee.maxMinRatio) || cellFilter.knee.maxMinRatio<1) invalidFilter();
 
     } else if (cellFilter.type[0]=="EmptyDrops_CR") {
         if (cellFilter.type.size()==1) {
             pP->inOut->logMain << "ParametersSolo: using hardcoded filtering parameters for --soloCellFilterType EmptyDrops_CR\n";
             pars1="3000 0.99 10 45000 90000 500 0.01 20000 0.01 10000";
-        } else if (cellFilter.type.size()<11) {            
+        } else if (cellFilter.type.size()!=11) {
             string errOut="EXITING because of fatal PARAMETERS error: --soloCellFilterType EmptyDrops_CR requires exactly 10 numerical parameters";
             errOut +=     "\nSOLUTION: re-run with --soloCellFilterType EmptyDrops_CR ";
             errOut +=     "<nExpectedCells> <maxPercentile> <maxMinRatio> <indMin> <indMax> <umiMin> <umiMinFracMedian> <candMaxN> <FDR> <simN>\n";
@@ -574,14 +594,27 @@ void ParametersSolo::cellFiltering()
         parsStream >> cellFilter.knee.nExpectedCells >> cellFilter.knee.maxPercentile >> cellFilter.knee.maxMinRatio;
         parsStream >> cellFilter.eDcr.indMin >> cellFilter.eDcr.indMax >> cellFilter.eDcr.umiMin >> cellFilter.eDcr.umiMinFracMedian;
         parsStream >> cellFilter.eDcr.candMaxN >> cellFilter.eDcr.FDR >> cellFilter.eDcr.simN;
+        string extra;
+        if (!parsStream || (parsStream >> extra) || !std::isfinite(cellFilter.knee.nExpectedCells) ||
+            cellFilter.knee.nExpectedCells<=0 || cellFilter.knee.nExpectedCells>numeric_limits<int>::max() || !std::isfinite(cellFilter.knee.maxPercentile) ||
+            cellFilter.knee.maxPercentile<0 || cellFilter.knee.maxPercentile>1 ||
+            !std::isfinite(cellFilter.knee.maxMinRatio) || cellFilter.knee.maxMinRatio<1 ||
+            cellFilter.eDcr.indMin>=cellFilter.eDcr.indMax || cellFilter.eDcr.umiMin==0 ||
+            !std::isfinite(cellFilter.eDcr.umiMinFracMedian) || cellFilter.eDcr.umiMinFracMedian<0 ||
+            cellFilter.eDcr.candMaxN==0 || cellFilter.eDcr.simN==0 || !std::isfinite(cellFilter.eDcr.FDR) ||
+            cellFilter.eDcr.FDR<0 || cellFilter.eDcr.FDR>1) invalidFilter();
         
     } else if (cellFilter.type[0]=="TopCells") {
-        if (cellFilter.type.size()<2) {
+        if (cellFilter.type.size()!=2) {
             string errOut="EXITING because of fatal PARAMETERS error: number of cells not specified for --soloCellFilterType TopCells";
             errOut +=     "\nSOLUTION: --soloCellFilterType TopCells <NumberOfCells>\n";
             exitWithError(errOut, std::cerr, pP->inOut->logMain, EXIT_CODE_PARAMETER, *pP);
         };
-        cellFilter.topCells=stoi(cellFilter.type[1]);
+        istringstream value(cellFilter.type[1]);
+        uint64 count=0;
+        string extra;
+        if (!(value >> count) || count==0 || count>numeric_limits<uint32>::max() || (value >> extra)) invalidFilter();
+        cellFilter.topCells=static_cast<uint32>(count);
     } else if (cellFilter.type[0]=="None") {
         //nothing to do
     } else {

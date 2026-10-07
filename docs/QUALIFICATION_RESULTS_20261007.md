@@ -277,3 +277,142 @@ boundary; the attempted normal-return change was withdrawn. That mode is not
 qualified by this batch. Rare SmartSeq/Transcript3p paths, fatal-exit unwinding,
 hosted platform/CUDA checks and noise-calibrated scaling remain unverified.
 No C++20 default promotion or binary release is part of this continuation.
+
+## Standalone filtering / SmartSeq follow-up
+
+The single-cell failure was reproduced before changing production code: the
+program exited successfully but did not write matrix/barcode outputs. The
+underlying final-index/cell-count confusion is corrected, and the absent-read
+median access is guarded. Successful filtering now unwinds scoped resources.
+
+- Four independently calculated standalone matrices pass: single cell,
+  sparse/shuffled columns including the last cell, TopCells cutoff and rounding.
+  All four also pass under ASan/UBSan with leak detection enabled.
+- Two-cell single-end SmartSeq Exact and NoDedup fixtures require positive,
+  hand-computed Gene/GeneFull counts and barcode axes. Linux also compares all
+  emitted matrices/axes with the preserved reference. Windows intentionally
+  uses the independent oracle: both the old reference and the pre-fix candidate
+  dropped input and lost file markers in the multi-file preprocessing path.
+  The corrected path passes; comparing two broken versions was not acceptance.
+- Targeted two-thread SmartSeq Exact and NoDedup runs also pass LeakSanitizer
+  with detect_leaks=1, exit 0, including owned redistribution/manifest streams.
+- Windows CTest **98/98**, Linux Release and ASan/UBSan **100/100** each.
+  Extended tiny mapping/quantification regression passes on all three builds,
+  preserving ordinary Gene/GeneFull/Velocity reference counts/axes and existing
+  lifecycle fixtures. Scientific comparator and CI-contract unit checks pass.
+
+Local receipts use `filtering-*` and `smartseq-lsan-*` under the qualification
+directory. WSL FIFO temporary paths use its Linux filesystem, while evidence
+remains on the persistent workspace volume. Exploratory failures remain local.
+This follow-up does not claim a new 100k/full-library performance qualification,
+paired SmartSeq coverage, Transcript3p, EmptyDrops or malformed matrix coverage,
+hosted CI success, C++20 promotion, commit/push or release publication.
+
+## Paired SmartSeq / malformed matrix / Transcript3p continuation
+
+Before repair, a truncated matrix entry still exited successfully, and standalone
+Transcript3p emitted a zero-transcript/zero-entry matrix because its matching
+dependency was not enabled. These were independent correctness failures, not
+ownership/performance gains. Both were repaired and checked with independent
+oracles instead of adopting the defective old outputs.
+
+- Native Windows CTest **98/98**; Linux Release and ASan/UBSan **100/100** each.
+- Expanded tiny regressions cover two-cell SE and PE SmartSeq, Exact/NoDedup,
+  nonzero hand-calculated Gene/GeneFull counts and axes. Linux also matches the
+  preserved reference. Ordinary mapping/Gene/Velocity reference checks remain.
+- **19** matrix rejection fixtures cover incomplete/header/dimension errors,
+  invalid coordinates, negative/non-finite/overflow counts, duplicate/extra
+  entries, short/long axes and inflated size claims. They require exit **102**,
+  an explicit input diagnostic and no filtered count matrix. Duplicate syntax
+  is classified as unsupported input, not an invalid MatrixMarket specification.
+- Valid integer/real matrices preserve the previous four hand-computed oracles.
+  Their ASan/UBSan runs use detect_leaks=1. Fatal-input fixtures use leak detection
+  disabled because exit does not unwind all CLI storage; their success is
+  rejection safety, not leak-clean error recovery.
+- Transcript3p alone produces exactly one finite count for a unique transcript/
+  one-UMI fixture, with a two-transcript row axis. Missing prerequisites,
+  empty/unmatched/zero/truncated/conflicting clusters and no calibration signal
+  fail explicitly. This is not empirical estimator/ambiguous-transcript validation.
+- Targeted PE SmartSeq Exact/NoDedup and valid Transcript3p, two threads, pass
+  ASan/UBSan + LeakSanitizer detect_leaks=1, exit 0 with no reported leaks.
+
+Local receipts: `edge-*-ctest.log`, `edge-*-mini.log`, `edge-*-standalone.log`,
+`paired-smartseq-lsan-*.log` and `transcript3p-lsan.log`, under the qualification
+directory. No new full-library, GPU, hosted-platform, performance or release
+acceptance is claimed. C++17 remains the default; fatal cleanup, EmptyDrops
+boundary cases and real/ambiguous-transcript estimator qualification remain open.
+
+## Non-C++-upgrade continuation: EmptyDrops and CUDA17
+
+EmptyDrops had a reproduced heap-buffer-overflow on a ten-barcode fixture when
+the candidate cap exceeded available barcodes. The pre-repair ASan diagnostic
+is preserved as `remaining-before-emptydrops.log`. Selection now bounds the
+candidate interval by nCB, widens addition, and checks the empty interval before
+decrementing. Ambient accumulation rejects overflow, and factorial size and
+simulation iteration no longer wrap at uint32 limits. Knee count thresholds use
+uint32 directly instead of an out-of-range signed conversion; a maximum-count
+fixture independently checks the selected cell and its count.
+
+SGT failure now logs an explicit knee-only fallback. Frequency estimates are
+cached only for observed categories, removing the maximum-count-sized cache.
+This does not change estimates or RNG seeds on supported inputs. Tests require
+the actual simulations to finish (not just a successful early return), cover
+the no-candidate and maximum-cap intervals, compare repeated output counts and
+axes, and verify insufficient-SGT fallback. Nine malformed filter parameter
+sets require explicit rejection. Positive extra-cell detection sensitivity is
+not qualified by these tests: their FDR/simulation settings do not test rescue.
+
+The optional seed benchmark initially failed to link after the Genome owner
+change; its target now includes the real SharedMemory implementation. A fresh
+Windows CUDA13.3/MSVC19.44 build uses **host17/device17**, sm_120, without an
+unsupported-compiler override. Its **98/98 CTest** cases pass, actual remap matches
+CPU BAM/SJ, required-without-device rejects, and auto fallback preserves outputs.
+Seed batches 1/7/256/65536 and malformed-capture/no-device controls pass. Targeted
+remap and 200-query seed Compute Sanitizer runs report **zero memory errors**.
+No whole-mapper GPU acceleration, speed gain or race/leak proof is inferred.
+
+CPU before/after 100K-prefix checks and a separate CPU/CUDA17-required check pass
+the full scientific contract, including exact BAM/header, scientific statistics,
+raw/filtered/EM/Velocity matrices and axes/SJ. Their immutable receipts are
+`remaining-final-100k-20261007/result.json` and
+`remaining-cuda17-100k-20261007/result.json` under data/validation. They identify
+the binaries executed before the final unsigned-knee correction; they are not
+retroactively attributed to the final candidate. A fresh final-candidate triplet
+is recorded separately. Timing overlaps builds and remains unqualified.
+
+Receipts beginning `remaining-cuda17-*`, `remaining-emptydrops-lsan.log` and the
+updated `edge-*` logs are local evidence, not release files. Windows CPU, Linux
+Release and ASan/UBSan miniature regressions preserve the ordinary reference
+counts/axes and include independent repaired-path oracles. Targeted normal-path
+leak checks pass; intentional fatal exits remain outside leak-cleanup claims.
+
+C++17 defaults, release naming and supported languages are unchanged. Required
+hosted macOS/s390x jobs for this exact snapshot, full-library accuracy/capacity,
+noise-qualified repeated performance, fatal/cancellation cleanup and wider IPC/
+allocator-failure cases remain separate acceptance gates. No commit/push or
+release is performed by this continuation.
+
+### Frozen final candidate verification
+
+- Windows CPU **98/98**, Linux Release **100/100**, ASan/UBSan **100/100** root
+  CTest cases pass. All three extended miniature regressions pass, including the
+  new uint32 knee oracle, EmptyDrops simulation/no-candidate/SGT checks and prior
+  SmartSeq/Transcript3p/input-validation cases. Valid standalone filtering and
+  EmptyDrops targeted detect_leaks=1 checks pass with no reported leaks.
+- Final Windows CUDA **host17/device17** root CTest **98/98**, actual remap/seed
+  integration and targeted device memcheck pass. Six qualification/comparator/
+  CI-contract Python tests and changed-script compilation checks pass locally.
+- `data/validation/remaining-frozen-final-100k-20261007/result.json` records three
+  fresh runs: frozen baseline, final CPU and final CUDA required. All **100,000
+  paired prefix reads** pass the full scientific contract exactly. CUDA records
+  `GPU_SJDB_REMAP status=0`, **24,172,833,228** device bytes and **180** chunks.
+  Peak working sets are recorded per run; one run per binary cannot establish a
+  repeatable speed or memory gain. Prior failed A/A calibration remains binding.
+- `source-runtime-remaining-final.json` and its archived source/configuration
+  companions under the qualification directory bind final source and executable
+  hashes. Earlier candidate receipts remain separate and were not overwritten.
+
+These close the named bounded checks, not every non-language-upgrade acceptance
+gate in the continuation table. In particular, no full-library/representative
+truth, hosted-platform, cancellation/fatal cleanup or calibrated performance
+acceptance is substituted by this triplet.

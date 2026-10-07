@@ -64,7 +64,8 @@ if(STAR_ENABLE_CUDA)
     target_include_directories(star_seed_search PUBLIC ${STAR_SOURCE_DIR})
     target_link_libraries(star_seed_search PUBLIC CUDA::cudart)
     add_executable(star_seed_benchmark benchmark_seed_search.cpp
-        ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp)
+        ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp
+        ${STAR_SOURCE_DIR}/SharedMemory.cpp)
     star_target_build_options(star_seed_benchmark)
     target_include_directories(star_seed_benchmark PRIVATE ${STAR_SOURCE_DIR})
     target_link_libraries(star_seed_benchmark PRIVATE star_seed_search OpenMP::OpenMP_CXX parasail)
