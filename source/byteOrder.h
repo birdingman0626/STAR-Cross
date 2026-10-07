@@ -43,7 +43,11 @@ inline uint loadUintLE(const char *p) {
 #if STAR_BIG_ENDIAN
     return loadUintLE_bytewise(p);
 #else
-    return *((const uint*)p);
+    uint value;
+    // memcpy permits unaligned byte storage and avoids strict-aliasing UB.
+    // Optimizing compilers lower this fixed-size copy to a native load.
+    std::memcpy(&value, p, sizeof(value));
+    return value;
 #endif
 }
 
@@ -52,7 +56,7 @@ inline void storeUintLE(char *p, uint v) {
 #if STAR_BIG_ENDIAN
     storeUintLE_bytewise(p, v);
 #else
-    *((uint*)p) = v;
+    std::memcpy(p, &v, sizeof(v));
 #endif
 }
 

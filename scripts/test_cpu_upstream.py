@@ -78,6 +78,8 @@ def main():
     parser.add_argument("--star-exe", required=True)
     parser.add_argument("--ref-exe")
     parser.add_argument("--threads", type=int, default=2)
+    parser.add_argument("--shared-memory", action="store_true",
+                        help="Unix-only: compare real STAR keep/remove/load modes with ordinary loading")
     parser.add_argument("--sa-sparse", type=int, default=1,
                         help="Miniature index suffix-array sparsity (exercise sparse seed competition)")
     args = parser.parse_args()
@@ -123,6 +125,26 @@ def main():
                                       "--outSAMunmapped", "Within"])
     assert len(bam_records(mapped / "Aligned.out.bam")) == len(fragments)
     checks.append("real miniature genome and mapped/spliced/unmapped BAM")
+    if args.shared_memory:
+        # The unique fixture index determines its IPC key. Removal is confined to
+        # this index, and finally cleans a failed fixture without touching others.
+        try:
+            run("shared-load-exit", common + ["--genomeLoad", "LoadAndExit"])
+            for mode in ("LoadAndKeep", "LoadAndRemove"):
+                shared = run("shared-" + mode, common + ["--genomeLoad", mode,
+                             "--readFilesIn", str(reads), "--outSAMtype", "BAM", "Unsorted",
+                             "--outSAMunmapped", "Within"])
+                assert bam_records(shared / "Aligned.out.bam") == bam_records(mapped / "Aligned.out.bam")
+                assert scientific_final_fields(shared / "Log.final.out") == scientific_final_fields(mapped / "Log.final.out")
+                assert (shared / "SJ.out.tab").read_bytes() == (mapped / "SJ.out.tab").read_bytes()
+            run("shared-reload-exit", common + ["--genomeLoad", "LoadAndExit"])
+            run("shared-remove", common + ["--genomeLoad", "Remove"])
+            checks.append("shared-memory LoadAndExit/Keep/Remove and explicit Remove: exact BAM, junction and scientific log equivalence")
+        finally:
+            cleanup = subprocess.run([args.star_exe, *common, "--genomeLoad", "Remove",
+                                      "--outFileNamePrefix", str(root / "shared-cleanup")],
+                                     capture_output=True, text=True, timeout=30)
+            (root / "shared-cleanup.log").write_text(cleanup.stdout + cleanup.stderr)
     if args.ref_exe:
         before = run("before", common + ["--readFilesIn", str(reads), "--outSAMtype", "BAM", "Unsorted",
                                           "--outSAMunmapped", "Within"], args.ref_exe)
@@ -140,6 +162,39 @@ def main():
                 sorted_before = run("sorted-before", sorted_options, args.ref_exe)
             assert bam_records(sorted_output / artifact) == bam_records(sorted_before / artifact)
     checks.append("coordinate-sorted and transcriptome BAM writers")
+
+    # Force a deferred compressed write failure; opening a file is not proof
+    # that BAM flushing/closing succeeded. Never touch a user's output file.
+    if Path("/dev/full").exists():
+        failed = root/"disk-full"
+        failed.mkdir()
+        (failed/"Aligned.out.bam").symlink_to("/dev/full")
+        command = [args.star_exe, "--runThreadN", str(args.threads), *common,
+                   "--readFilesIn", str(reads), "--outSAMtype", "BAM", "Unsorted",
+                   "--outFileNamePrefix", str(failed)+"/"]
+        process = subprocess.run(command, capture_output=True, text=True)
+        (failed/"command.json").write_text(json.dumps(command))
+        (failed/"console.log").write_text(process.stdout+process.stderr)
+        assert process.returncode != 0, "Deferred BAM write failure was accepted"
+        assert not (failed/"Log.final.out").exists()
+        assert "ALL DONE!" not in (failed/"Log.out").read_text()
+        checks.append("deferred BAM disk-full error blocks scientific completion")
+
+    # FASTA uses a distinct input branch; C++20 removed unsafe char* extraction.
+    fasta_reads = root / "reads.fasta"
+    fasta_reads.write_text("".join(f">r{i} comment\n{s[:50]}\n{s[50:]}\n"
+                                 for i, s in enumerate(fragments)))
+    fasta_options = common + ["--readFilesIn", str(fasta_reads), "--outSAMtype", "BAM", "Unsorted",
+                              "--outSAMunmapped", "Within"]
+    fasta_output = run("fasta", fasta_options)
+    assert len(bam_records(fasta_output / "Aligned.out.bam")) == len(fragments)
+    if args.ref_exe:
+        fasta_before = run("fasta-before", fasta_options, args.ref_exe)
+        assert bam_records(fasta_output / "Aligned.out.bam") == bam_records(fasta_before / "Aligned.out.bam")
+    oversized_fasta = root / "oversized.fasta"
+    oversized_fasta.write_text(">" + "A" * 50000 + "\n" + sequence[100:200] + "\n")
+    run("oversized-fasta", common + ["--readFilesIn", str(oversized_fasta), "--outSAMtype", "None"], valid=False)
+    checks.append("multiline FASTA identity and oversized FASTA header rejection")
 
     # Distinct indexes on the two mates, CRLF, no comment and short comments.
     mates = [root / "mate1.fastq", root / "mate2.fastq"]

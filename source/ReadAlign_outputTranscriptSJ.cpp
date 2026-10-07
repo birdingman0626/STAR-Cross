@@ -26,13 +26,13 @@ void ReadAlign::outputTranscriptSJ(Transcript const &trOut, uint nTrOut, OutSJ *
             //check if this junction has been recorded from this read - this happens when the mates overlap and cross the same junctions
             bool duplicateSJ(false);
             for (uint ii=sjReadStartN; ii<chunkOutSJ->N; ii++) {//TODO if there are many junctions, need to make more efficient
-                if ( *chunkOutSJ->oneSJ.start == *((uint*) (chunkOutSJ->data+ii*Junction::dataSize+Junction::startP)) \
-                  && *chunkOutSJ->oneSJ.gap   == *((uint32*) (chunkOutSJ->data+ii*Junction::dataSize+Junction::gapP)) ) {
+                if ( *chunkOutSJ->oneSJ.start == loadUnaligned<uint>(chunkOutSJ->data+ii*Junction::dataSize+Junction::startP) \
+                  && *chunkOutSJ->oneSJ.gap   == loadUnaligned<uint32>(chunkOutSJ->data+ii*Junction::dataSize+Junction::gapP) ) {
                     duplicateSJ=true;
-                    uint16* overhang1=(uint16*) (chunkOutSJ->data+ii*Junction::dataSize+Junction::overhangLeftP);
+                    UnalignedPointer<uint16> overhang1=(uint16*) (chunkOutSJ->data+ii*Junction::dataSize+Junction::overhangLeftP);
                     if (*overhang1<*chunkOutSJ->oneSJ.overhangLeft) {
                         *overhang1=*chunkOutSJ->oneSJ.overhangLeft;
-                        * ((uint16*) (chunkOutSJ->data+ii*Junction::dataSize+Junction::overhangRightP))=*overhang1;
+                        storeUnaligned(chunkOutSJ->data+ii*Junction::dataSize+Junction::overhangRightP, static_cast<uint16>(*overhang1));
                     };
                     break;
                 };

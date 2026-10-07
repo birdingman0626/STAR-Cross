@@ -1,6 +1,6 @@
 /*  hfile.c -- buffered low-level input/output streams.
 
-    Copyright (C) 2013-2021, 2023-2024 Genome Research Ltd.
+    Copyright (C) 2013-2021, 2023-2025 Genome Research Ltd.
 
     Author: John Marshall <jm18@sanger.ac.uk>
 
@@ -107,12 +107,20 @@ hFILE *hfile_init(size_t struct_size, const char *mode, size_t capacity)
     hFILE *fp = (hFILE *) malloc(struct_size);
     if (fp == NULL) goto error;
 
-    if (capacity == 0) capacity = 32768;
-    // FIXME For now, clamp input buffer sizes so mpileup doesn't eat memory
-    if (strchr(mode, 'r') && capacity > 32768) capacity = 32768;
+    const int maxcap = 128*1024;
 
+    if (capacity == 0) capacity = maxcap;
+    // FIXME For now, clamp input buffer sizes so mpileup doesn't eat memory
+    if (strchr(mode, 'r') && capacity > maxcap) capacity = maxcap;
+
+#ifdef HAVE_POSIX_MEMALIGN
+    fp->buffer = NULL;
+    if (posix_memalign((void **)&fp->buffer, 256, capacity) < 0)
+        goto error;
+#else
     fp->buffer = (char *) malloc(capacity);
     if (fp->buffer == NULL) goto error;
+#endif
 
     fp->begin = fp->end = fp->buffer;
     fp->limit = &fp->buffer[capacity];
@@ -287,6 +295,19 @@ char *hgets(char *buffer, int size, hFILE *fp)
         return NULL;
     }
     return hgetln(buffer, size, fp) > 0 ? buffer : NULL;
+}
+
+// Wrap around hgets() to get the right signature for kgets_func
+static char *hgets_wrapper(char *buffer, int size, void *fp)
+{
+    return hgets(buffer, size, (hFILE *) fp);
+}
+
+int khgetline(struct kstring_t *kstr, hFILE *fp)
+{
+    if (!kstr || !fp)
+        return EOF;
+    return kgetline(kstr, hgets_wrapper, fp);
 }
 
 ssize_t hpeek(hFILE *fp, void *buffer, size_t nbytes)
@@ -629,7 +650,12 @@ static size_t blksize(int fd)
 #ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
     struct stat sbuf;
     if (fstat(fd, &sbuf) != 0) return 0;
-    return sbuf.st_blksize;
+
+    // Pipes/FIFOs on linux return 4Kb here often, but it's much too small
+    // for performant I/O.
+    return S_ISFIFO(sbuf.st_mode)
+        ? 128*1024
+        : sbuf.st_blksize;
 #else
     return 0;
 #endif
@@ -1123,7 +1149,6 @@ static int load_hfile_plugins(void)
 #endif
 #ifdef ENABLE_S3
     init_add_plugin(NULL, hfile_plugin_init_s3, "s3");
-    init_add_plugin(NULL, hfile_plugin_init_s3_write, "s3w");
 #endif
 
 #endif

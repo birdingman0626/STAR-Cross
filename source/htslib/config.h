@@ -1,4 +1,4 @@
-/* config.h for bundled htslib 1.21 in STAR */
+/* config.h for bundled htslib 1.24 in STAR */
 /* Minimal configuration - only zlib required */
 
 /* #undef HAVE_LIBBZ2 */

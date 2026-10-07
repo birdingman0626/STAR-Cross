@@ -1,8 +1,17 @@
 cmake_minimum_required(VERSION 3.15)
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
 project(STAR VERSION 0.0.1 LANGUAGES CXX C)
 
-set(CMAKE_CXX_STANDARD 17)
+set(STAR_CXX_STANDARD "17" CACHE STRING "C++ language level for STAR targets (17 or 20)")
+set_property(CACHE STAR_CXX_STANDARD PROPERTY STRINGS 17 20)
+if(NOT STAR_CXX_STANDARD MATCHES "^(17|20)$")
+    message(FATAL_ERROR "STAR_CXX_STANDARD must be 17 or 20")
+endif()
+set(CMAKE_CXX_STANDARD ${STAR_CXX_STANDARD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Export compile_commands.json for LSP/IDE support (clangd, ccls)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -22,22 +31,35 @@ if(NOT GIT_COMMIT_HASH)
     set(GIT_COMMIT_HASH "unknown")
 endif()
 # Override STAR_VERSION at compile time: "STAR-Cross 0.0.1_<hash>"
-# (STAR-Cross fork versioning; derived from upstream STAR 2.7.11c)
-add_compile_definitions(STAR_VERSION="STAR-Cross 0.0.1_${GIT_COMMIT_HASH}")
+# STAR-Cross is derived from the preserved upstream boundary b1edc12.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/StarBuildOptions.cmake)
 
 # ---------- Options ----------
 option(STAR_LONG_READS "Build STARlong variant for long reads" OFF)
+option(STAR_POSIX_SHARED_MEM "Use POSIX rather than SysV shared memory (Unix only)" OFF)
+if(STAR_POSIX_SHARED_MEM AND WIN32)
+    message(FATAL_ERROR "STAR_POSIX_SHARED_MEM requires a Unix platform")
+endif()
 # AVX2 is x86-only; enable it only on x86_64/AMD64 and auto-disable on every
 # other architecture (ARM64/Apple Silicon, s390x, ppc64, ...) so -mavx2 is never
 # passed to a non-x86 compiler.
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64|x64")
-    option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" ON)
+    option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions (requires AVX2 CPU)" OFF)
 else()
     option(STAR_USE_AVX2 "Enable AVX2 SIMD instructions" OFF)
 endif()
 option(STAR_ASAN "Enable AddressSanitizer" OFF)
+option(STAR_UBSAN "Enable UndefinedBehaviorSanitizer (GCC/Clang)" OFF)
+if(STAR_UBSAN AND MSVC)
+    message(FATAL_ERROR "STAR_UBSAN requires GCC or Unix Clang")
+endif()
 
 option(STAR_ENABLE_CUDA "Build experimental CUDA junction SA remap" OFF)
+set(STAR_CUDA_STANDARD "17" CACHE STRING "CUDA device language level (17 or 20), independent of host C++")
+set_property(CACHE STAR_CUDA_STANDARD PROPERTY STRINGS 17 20)
+if(NOT STAR_CUDA_STANDARD MATCHES "^(17|20)$")
+    message(FATAL_ERROR "STAR_CUDA_STANDARD must be 17 or 20")
+endif()
 option(STAR_CAPTURE_SEEDS "Diagnostic bounded post-clipping seed capture (not for benchmarks)" OFF)
 if(STAR_CAPTURE_SEEDS)
     set_property(SOURCE ReadAlign_maxMappableLength2strands.cpp APPEND PROPERTY
@@ -51,7 +73,7 @@ if(STAR_ENABLE_CUDA)
     find_package(CUDAToolkit REQUIRED)
     set(STAR_CUDA_ARCHITECTURES "native" CACHE STRING "CUDA architectures for the experimental adapter")
     add_library(star_sjdb_remap STATIC gpuSjdbRemap.cu)
-    set_target_properties(star_sjdb_remap PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON
+    set_target_properties(star_sjdb_remap PROPERTIES CUDA_STANDARD ${STAR_CUDA_STANDARD} CUDA_STANDARD_REQUIRED ON
                           CUDA_ARCHITECTURES "${STAR_CUDA_ARCHITECTURES}")
     target_link_libraries(star_sjdb_remap PUBLIC CUDA::cudart)
 else()
@@ -70,9 +92,8 @@ if(NOT ZLIB_FOUND)
     set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
     FetchContent_Declare(
         zlib
-        GIT_REPOSITORY https://github.com/madler/zlib.git
-        GIT_TAG v1.3.2
-        GIT_SHALLOW TRUE
+        URL https://codeload.github.com/madler/zlib/tar.gz/refs/tags/v1.3.2
+        URL_HASH SHA256=b99a0b86c0ba9360ec7e78c4f1e43b1cbdf1e6936c8fa0f6835c0cd694a495a1
     )
     FetchContent_MakeAvailable(zlib)
 
@@ -97,9 +118,10 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
     set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
 endif()
 FetchContent_Declare(parasail
-    GIT_REPOSITORY https://github.com/jeffdaily/parasail.git
-    GIT_TAG v2.6.2
-    GIT_SHALLOW TRUE
+    URL https://codeload.github.com/jeffdaily/parasail/tar.gz/refs/tags/v2.6.2
+    URL_HASH SHA256=9057041db8e1cde76678f649420b85054650414e5de9ea84ee268756c7ea4b4b
+    PATCH_COMMAND ${CMAKE_COMMAND} -DPARASAIL_SOURCE=<SOURCE_DIR>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchParasail.cmake
 )
 FetchContent_MakeAvailable(parasail)
 set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_SAVED} CACHE BOOL "" FORCE)
@@ -116,20 +138,12 @@ foreach(_pt IN ITEMS
     endif()
 endforeach()
 
-# Parasail's test_verify registers a CTest entry using ${CMAKE_SOURCE_DIR}/data/... which,
-# under FetchContent, resolves to the STAR source dir rather than the parasail source dir.
-# Copy the required test fixture to the location the test expects.
-if(EXISTS "${parasail_SOURCE_DIR}/data/test_small_2.fasta")
-    file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/data")
-    file(COPY "${parasail_SOURCE_DIR}/data/test_small_2.fasta"
-         DESTINATION "${CMAKE_SOURCE_DIR}/data")
-endif()
+# The patch step fixes the upstream fixture path without writing source files.
 
 # ---------- cpp-httplib (header-only HTTP server) ----------
 FetchContent_Declare(httplib
-    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-    GIT_TAG        v0.20.0
-    GIT_SHALLOW    TRUE
+    URL https://codeload.github.com/yhirose/cpp-httplib/tar.gz/refs/tags/v0.60.0
+    URL_HASH SHA256=f8d6bc6e2a958f9f21bde11ca408bd987cdf91b99ed9fc63c3e4ea3439376e71
 )
 set(HTTPLIB_COMPILE OFF CACHE BOOL "" FORCE)   # keep header-only, no separate lib
 set(HTTPLIB_REQUIRE_OPENSSL OFF CACHE BOOL "" FORCE)
@@ -137,9 +151,8 @@ FetchContent_MakeAvailable(httplib)
 
 # ---------- nlohmann/json (header-only JSON) ----------
 FetchContent_Declare(nlohmann_json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG        v3.11.3
-    GIT_SHALLOW    TRUE
+    URL https://codeload.github.com/nlohmann/json/tar.gz/refs/tags/v3.12.0
+    URL_HASH SHA256=4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187
 )
 set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 set(JSON_Install    OFF CACHE BOOL "" FORCE)
@@ -180,7 +193,7 @@ else()
 
 set(HTSLIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/htslib")
 set(HTSLIB_SOURCES
-    # Core htslib 1.21
+    # Core htslib 1.24
     ${HTSLIB_DIR}/kfunc.c
     ${HTSLIB_DIR}/kstring.c
     ${HTSLIB_DIR}/bcf_sr_sort.c
@@ -200,6 +213,7 @@ set(HTSLIB_SOURCES
     ${HTSLIB_DIR}/region.c
     ${HTSLIB_DIR}/sam.c
     ${HTSLIB_DIR}/sam_mods.c
+    ${HTSLIB_DIR}/simd.c
     ${HTSLIB_DIR}/synced_bcf_reader.c
     ${HTSLIB_DIR}/vcf_sweep.c
     ${HTSLIB_DIR}/tbx.c
@@ -450,10 +464,8 @@ target_include_directories(STAR PRIVATE
     ${HTSLIB_DIR}
 )
 
-# Third-party header-only deps as SYSTEM includes: suppresses their compiler
-# warnings and excludes them from CodeQL analysis (CodeQL skips system headers),
-# which is the reliable way to drop alerts in #include'd third-party headers such
-# as httplib.h (paths-ignore does not filter headers pulled into compiled TUs).
+# SYSTEM suppresses third-party compiler warnings. It is not a substitute for
+# auditing dependency vulnerabilities or documenting individual CodeQL alerts.
 target_include_directories(STAR SYSTEM PRIVATE
     ${httplib_SOURCE_DIR}                # httplib.h (cpp-httplib)
     ${nlohmann_json_SOURCE_DIR}/include  # nlohmann/json.hpp
@@ -463,20 +475,28 @@ target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB parasail star_sjdb_remap)
 
 # ---------- Compile-time defines ----------
 # Build date/place
-string(TIMESTAMP BUILD_DATE "%Y-%m-%dT%H:%M:%S" UTC)
-if(DEFINED ENV{HOSTNAME})
-    set(BUILD_PLACE "$ENV{HOSTNAME}")
+if(DEFINED ENV{SOURCE_DATE_EPOCH})
+    string(TIMESTAMP BUILD_DATE "%Y-%m-%dT%H:%M:%S" UTC)
 else()
-    cmake_host_system_information(RESULT BUILD_PLACE QUERY HOSTNAME)
+    set(BUILD_DATE "unspecified")
 endif()
 
 target_compile_definitions(STAR PRIVATE
-    "COMPILATION_TIME_PLACE=\"${BUILD_DATE} ${BUILD_PLACE}\""
-    "GIT_BRANCH_COMMIT_DIFF=\"Windows build\""
+    "COMPILATION_TIME_PLACE=\"${BUILD_DATE}\""
+    "GIT_BRANCH_COMMIT_DIFF=\"${GIT_COMMIT_HASH}\""
 )
+star_target_build_options(STAR)
+star_target_sanitizers(STAR)
+if(NOT USE_SYSTEM_HTSLIB)
+    star_target_sanitizers(hts)
+endif()
+star_target_sanitizers(star_sjdb_remap)
 
 if(STAR_LONG_READS)
     target_compile_definitions(STAR PRIVATE COMPILE_FOR_LONG_READS)
+endif()
+if(STAR_POSIX_SHARED_MEM)
+    target_compile_definitions(STAR PRIVATE POSIX_SHARED_MEM)
 endif()
 
 # ---------- Platform-specific settings ----------
@@ -506,42 +526,32 @@ if(MSVC)
         /W4 /EHsc /bigobj
         /wd4244 /wd4267 /wd4100 /wd4389 /wd4018 /wd4456 /wd4457  # suppress noisy warnings in upstream code
     )
-    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(STAR PRIVATE /O2 /Ob2 /Oi)
-    endif()
 
     # Flags specific to cl.exe (not supported by clang-cl)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         target_compile_options(STAR PRIVATE /MP)      # Parallel compilation (Ninja already parallelizes)
-        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-            target_compile_options(STAR PRIVATE /GL)   # Whole-program optimization
-            target_link_options(STAR PRIVATE /LTCG)    # Link-time code generation
-        endif()
+        target_compile_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:/GL>)
+        target_link_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:/LTCG>)
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-            target_compile_options(STAR PRIVATE -flto=thin)  # Clang LTO equivalent
-        endif()
+        target_compile_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=thin>)
+        target_link_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=thin>)
     endif()
 
     # Always generate PDB for debugging crash dumps
     target_compile_options(STAR PRIVATE /Zi)
     target_link_options(STAR PRIVATE /DEBUG)
 
-    if(STAR_ASAN)
-        target_compile_options(STAR PRIVATE /fsanitize=address)
-        target_compile_options(hts PRIVATE /fsanitize=address)
-    endif()
 
     # Link Windows libraries needed by wincompat.h
     target_link_libraries(STAR PRIVATE psapi ws2_32)
 
-    # Increase stack size to 64MB (STAR uses large stack arrays for read processing)
+    # Increase stack size to 16MB (STAR uses large stack arrays for read processing)
     # Linux default is 8MB; STAR with STARsolo needs more
     target_link_options(STAR PRIVATE /STACK:16777216)
 
 else()
     # GCC / Clang
-    target_compile_options(STAR PRIVATE -pipe -Wall -Wextra -O3 -Wno-register)
+    target_compile_options(STAR PRIVATE -pipe -Wall -Wextra -Wno-register)
 
     find_package(OpenMP REQUIRED)
     target_link_libraries(STAR PRIVATE OpenMP::OpenMP_CXX)
@@ -552,11 +562,6 @@ else()
 
     target_link_libraries(STAR PRIVATE pthread)
 
-    # Sanitizer support (GCC/Clang)
-    if(STAR_ASAN)
-        target_compile_options(STAR PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-        target_link_options(STAR PRIVATE -fsanitize=address)
-    endif()
 endif()
 
 # ---------- Testing ----------
@@ -571,7 +576,49 @@ if(STAR_BUILD_TESTS)
 endif()
 
 # ---------- Install & Packaging ----------
-install(TARGETS STAR RUNTIME DESTINATION bin)
+install(TARGETS STAR RUNTIME DESTINATION bin COMPONENT STAR)
+if(USE_SYSTEM_HTSLIB)
+    set(STAR_HTSLIB_VERSION "${HTS_VERSION}")
+else()
+    set(STAR_HTSLIB_VERSION "1.24")
+endif()
+if(NOT ZLIB_VERSION_STRING)
+    set(ZLIB_VERSION_STRING "1.3.2")
+endif()
+set(STAR_SOURCE_TREE_CLEAN "null")
+if(GIT_FOUND)
+    execute_process(COMMAND ${GIT_EXECUTABLE} status --porcelain --untracked-files=normal
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE STAR_TREE_STATUS
+        RESULT_VARIABLE STAR_TREE_STATUS_RESULT ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(STAR_TREE_STATUS_RESULT EQUAL 0)
+        if(STAR_TREE_STATUS STREQUAL "")
+            set(STAR_SOURCE_TREE_CLEAN "true")
+        else()
+            set(STAR_SOURCE_TREE_CLEAN "false")
+        endif()
+    endif()
+endif()
+file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies.lock.json" STAR_DEPENDENCY_LOCK_SHA256)
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json"
+    CONTENT "{\n  \"commit\": \"${GIT_COMMIT_HASH}\",\n  \"source_tree_clean\": ${STAR_SOURCE_TREE_CLEAN},\n  \"dependency_lock_sha256\": \"${STAR_DEPENDENCY_LOCK_SHA256}\",\n  \"configuration\": \"$<CONFIG>\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\n  \"cxx_standard\": ${STAR_CXX_STANDARD},\n  \"avx2\": \"${STAR_USE_AVX2}\",\n  \"asan\": \"${STAR_ASAN}\",\n  \"ubsan\": \"${STAR_UBSAN}\",\n  \"htslib\": \"${STAR_HTSLIB_VERSION}\",\n  \"zlib\": \"${ZLIB_VERSION_STRING}\",\n  \"parasail\": \"2.6.2\",\n  \"httplib\": \"0.60.0\",\n  \"json\": \"3.12.0\"\n}\n")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json" DESTINATION share/STAR-Cross COMPONENT STAR)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE" DESTINATION share/STAR-Cross/licenses RENAME STAR.txt COMPONENT STAR)
+if(NOT USE_SYSTEM_HTSLIB)
+    install(FILES "${HTSLIB_DIR}/LICENSE" DESTINATION share/STAR-Cross/licenses RENAME HTSlib.txt COMPONENT STAR)
+    install(FILES "${HTSLIB_DIR}/htscodecs/LICENSE.md" DESTINATION share/STAR-Cross/licenses RENAME htscodecs.txt COMPONENT STAR)
+    install(FILES "${HTSLIB_DIR}/os/rand.c" DESTINATION share/STAR-Cross/licenses RENAME HTSlib-rand-notice.c COMPONENT STAR)
+endif()
+install(FILES "${parasail_SOURCE_DIR}/LICENSE.md" DESTINATION share/STAR-Cross/licenses RENAME Parasail.txt COMPONENT STAR)
+install(FILES "${parasail_SOURCE_DIR}/contrib/simde/COPYING" DESTINATION share/STAR-Cross/licenses RENAME SIMDe.txt COMPONENT STAR)
+install(FILES "${parasail_SOURCE_DIR}/contrib/sais-lite-lcp/COPYING" DESTINATION share/STAR-Cross/licenses RENAME sais.txt COMPONENT STAR)
+install(FILES "${httplib_SOURCE_DIR}/LICENSE" DESTINATION share/STAR-Cross/licenses RENAME cpp-httplib.txt COMPONENT STAR)
+install(FILES "${nlohmann_json_SOURCE_DIR}/LICENSE.MIT" DESTINATION share/STAR-Cross/licenses RENAME nlohmann-json.txt COMPONENT STAR)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies.lock.json" DESTINATION share/STAR-Cross COMPONENT STAR)
+find_file(STAR_ZLIB_NOTICE zlib.h HINTS ${ZLIB_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIR})
+if(STAR_ZLIB_NOTICE)
+    # zlib.h contains the actual selected distribution's complete license notice.
+    install(FILES "${STAR_ZLIB_NOTICE}" DESTINATION share/STAR-Cross/licenses RENAME zlib-notice.h COMPONENT STAR)
+endif()
 
 # Bundle runtime DLLs alongside the binary for Windows release packaging
 if(WIN32)
@@ -588,12 +635,13 @@ if(WIN32)
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "$<TARGET_FILE_DIR:STAR>"
                     COMMENT "Copying ${_dll}"
                 )
-                install(FILES "${_dll}" DESTINATION bin)
+                install(FILES "${_dll}" DESTINATION bin COMPONENT STAR)
             endif()
         endforeach()
     endif()
 
     # MSVC runtime — use CMake's built-in InstallRequiredSystemLibraries
+    set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT STAR)
     include(InstallRequiredSystemLibraries)
 endif()
 

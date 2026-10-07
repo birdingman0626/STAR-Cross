@@ -14,6 +14,8 @@ permissions:
   contents: read
 
 jobs:
+  qualification:
+    uses: ./.github/workflows/build.yml
   # Core platforms with reliable hosted runners. These gate the release.
   build:
     strategy:
@@ -44,7 +46,7 @@ jobs:
           cmake --build build --parallel 4
       - name: Unit tests (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
+        run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
       - name: Package (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: cp source/build/STAR "${{ matrix.asset }}" && chmod +x "${{ matrix.asset }}"
@@ -71,7 +73,7 @@ jobs:
           cmake --build build --parallel 4
       - name: Unit tests (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
+        run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
       - name: Package (macOS)
         if: startsWith(matrix.os, 'macos')
         run: cp source/build/STAR "${{ matrix.asset }}" && chmod +x "${{ matrix.asset }}"
@@ -93,7 +95,7 @@ jobs:
           cmake --build build --parallel 4
       - name: Unit tests (Windows)
         if: matrix.os == 'windows-latest'
-        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
+        run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
@@ -126,22 +128,43 @@ jobs:
             throw "Binary version does not match the workflow commit"
           }
 
+      - name: Package dependency notices and build record
+        shell: bash
+        run: |
+          cmake --install source/build --config Release --component STAR --prefix release-metadata
+          cp source/build/STAR-build-info-Release.json "${{ matrix.asset }}-build-info.json"
+          tar -czf "${{ matrix.asset }}-notices.tar.gz" -C release-metadata/share STAR-Cross
+
+      - name: Native alignment and embedded-server integration
+        shell: bash
+        run: |
+          star=source/build/STAR
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then star=source/build/STAR.exe; fi
+          python scripts/test_cpu_upstream.py --star-exe "$star" --sa-sparse 3
+          python scripts/test_webui.py --star-exe "$star"
+
       - name: Upload artifact (unix)
         if: matrix.os != 'windows-latest'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
+          path: |
+            ${{ matrix.asset }}
+            ${{ matrix.asset }}-build-info.json
+            ${{ matrix.asset }}-notices.tar.gz
       - name: Upload artifact (windows)
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}.zip
+          path: |
+            ${{ matrix.asset }}.zip
+            ${{ matrix.asset }}-build-info.json
+            ${{ matrix.asset }}-notices.tar.gz
 
   # Publish only after every supported release target passes.
   release:
-    needs: [build, bigendian]
+    needs: [build, bigendian, qualification]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -152,6 +175,7 @@ jobs:
       - name: Download all platform artifacts
         uses: actions/download-artifact@v8
         with:
+          pattern: STAR-*
           merge-multiple: true
       - name: Determine release tag
         id: tag
@@ -163,6 +187,8 @@ jobs:
           else
             echo "tag=0.0.1_$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
+      - name: Hash all release assets
+        run: sha256sum STAR-linux-x86_64 STAR-linux-s390x STAR-macos-aarch64 STAR-macos-x86_64 STAR-windows-x86_64.zip STAR-*-build-info.json STAR-*-notices.tar.gz LICENSE > SHA256SUMS.txt
       - name: Create / update GitHub Release (all platforms)
         uses: softprops/action-gh-release@v3
         with:
@@ -177,6 +203,9 @@ jobs:
             STAR-macos-x86_64
             STAR-linux-s390x
             STAR-windows-x86_64.zip
+            STAR-*-build-info.json
+            STAR-*-notices.tar.gz
+            SHA256SUMS.txt
             LICENSE
 
   # Big-endian (s390x) via QEMU emulation. Also runs the big-endian code path
@@ -187,20 +216,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU (s390x)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: s390x
       - name: Build + validate STAR on s390x (big-endian)
         run: |
           docker run --rm --platform linux/s390x -v "$PWD":/src -w /src \
             -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
-            debian:trixie bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt'
+            debian:trixie bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt && cmake --install source/build --config Release --component STAR --prefix /src/release-metadata'
           cp source/build/STAR STAR-linux-s390x
+          cp source/build/STAR-build-info-Release.json STAR-linux-s390x-build-info.json
+          tar -czf STAR-linux-s390x-notices.tar.gz -C release-metadata/share STAR-Cross
           chmod +x STAR-linux-s390x
           test "$(cat s390x-version.txt)" = "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)"
       - name: Upload s390x artifact
         uses: actions/upload-artifact@v7
         with:
           name: STAR-linux-s390x
-          path: STAR-linux-s390x
+          path: |
+            STAR-linux-s390x
+            STAR-linux-s390x-build-info.json
+            STAR-linux-s390x-notices.tar.gz
           if-no-files-found: error

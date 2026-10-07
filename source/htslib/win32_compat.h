@@ -238,6 +238,13 @@ static __inline int pthread_detach(pthread_t thread) {
     return 0;
 }
 
+// HTSlib 1.24 identifies workers by thread identity. The current-thread pseudo
+// handle must never be joined/closed, and equality compares IDs, not handles.
+static __inline pthread_t pthread_self(void) { return GetCurrentThread(); }
+static __inline int pthread_equal(pthread_t first, pthread_t second) {
+    return GetThreadId(first) == GetThreadId(second);
+}
+
 // Networking stubs - STAR doesn't use remote file access from htslib
 // but the code references socket headers. Stub them out.
 #ifndef _SYS_SOCKET_H

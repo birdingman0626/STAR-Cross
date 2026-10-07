@@ -366,6 +366,16 @@ enum hts_fmt_option {
     // name to the second field and insert a constructed <run>.<number>
     // name in its place.
     FASTQ_OPT_NAME2,
+
+    // Process the UMI tag.  Tag or Tag,tag,tag...
+    // On read, this converts the last read-name element (Illumina) to the tag.
+    // On write, it queries the tags in turn and copies the first found
+    // to the read name suffix, converting any non-alpha to "+".
+    FASTQ_OPT_UMI,
+
+    // Regex to use for matching read name.
+    // Def: "^[^:]+:[^:]+:[^:]+:[^:]+:[^:]+:[^:]+:[^:]+:([^:#/]+)"
+    FASTQ_OPT_UMI_REGEX,
 };
 
 // Profile options for encoding; primarily used at present in CRAM
@@ -455,6 +465,7 @@ int hts_parse_opt_list(htsFormat *opt, const char *str);
 The input character may be either an IUPAC ambiguity code, '=' for 0, or
 '0'/'1'/'2'/'3' for a result of 1/2/4/8.  The result is encoded as 1/2/4/8
 for A/C/G/T or combinations of these bits for ambiguous bases.
+Additionally RNA U is treated as a T (8).
 */
 HTSLIB_EXPORT
 extern const unsigned char seq_nt16_table[256];
@@ -489,7 +500,7 @@ const char *hts_version(void);
 // Immediately after release, bump ZZ to 90 to distinguish in-development
 // Git repository builds from the release; you may wish to increment this
 // further when significant features are merged.
-#define HTS_VERSION 102100
+#define HTS_VERSION 102400
 
 /*! @abstract Introspection on the features enabled in htslib
  *
@@ -1516,6 +1527,14 @@ static inline int hts_bin_level(int bin) {
     for (l = 0, b = bin; b; ++l, b = hts_bin_parent(b));
     return l;
 }
+
+/**************************************
+ * Exposing the CRC32 implementation  *
+ * Either from zlib or libdeflate.    *
+ *************************************/
+HTSLIB_EXPORT
+uint32_t hts_crc32(uint32_t crc, const void *buf, size_t len);
+
 
 //! Compute the corresponding entry into the linear index of a given bin from
 //! a binning index

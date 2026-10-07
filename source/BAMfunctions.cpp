@@ -108,13 +108,13 @@ int reg2bin(int beg, int end)
 int bamAttrArrayWrite(int32 attr, const char* tagName, char* attrArray ) {
     attrArray[0]=tagName[0];attrArray[1]=tagName[1];
     attrArray[2]='i';
-    *( (int32*) (attrArray+3))=attr;
+    std::memcpy(attrArray+3, &attr, sizeof(attr));
     return 3+sizeof(int32);
 };
 int bamAttrArrayWrite(float attr, const char* tagName, char* attrArray ) {
     attrArray[0]=tagName[0];attrArray[1]=tagName[1];
     attrArray[2]='f';
-    *( (float*) (attrArray+3))=attr;
+    std::memcpy(attrArray+3, &attr, sizeof(attr));
     return 3+sizeof(int32);
 };
 int bamAttrArrayWrite(char attr, const char* tagName, char* attrArray ) {
@@ -133,7 +133,8 @@ int bamAttrArrayWrite(const vector<char> &attr, const char* tagName, char* attrA
     attrArray[0]=tagName[0];attrArray[1]=tagName[1];
     attrArray[2]='B';
     attrArray[3]='c';
-    *( (int32*) (attrArray+4))=attr.size();
+    const int32 size = static_cast<int32>(attr.size());
+    std::memcpy(attrArray+4, &size, sizeof(size));
     memcpy(attrArray+4+sizeof(int32),attr.data(),attr.size());//copy array data
     return 4+sizeof(int32)+attr.size();
 };
@@ -141,7 +142,8 @@ int bamAttrArrayWrite(const vector<int32> &attr, const char* tagName, char* attr
     attrArray[0]=tagName[0];attrArray[1]=tagName[1];
     attrArray[2]='B';
     attrArray[3]='i';
-    *( (int32*) (attrArray+4))=attr.size();
+    const int32 size = static_cast<int32>(attr.size());
+    std::memcpy(attrArray+4, &size, sizeof(size));
     memcpy(attrArray+4+sizeof(int32),attr.data(),sizeof(int32)*attr.size());//copy array data
     return 4+sizeof(int32)+sizeof(int32)*attr.size();
 };

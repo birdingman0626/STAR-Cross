@@ -5,8 +5,10 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import sys
 
 
+@unittest.skipIf(sys.platform == "win32", "Fixture executable uses a POSIX shebang; exercised in Linux CI/WSL")
 class BenchmarkGates(unittest.TestCase):
     def test_comparison_and_negative_gates(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -29,8 +31,10 @@ class BenchmarkGates(unittest.TestCase):
                 "sampling": "first_N_synchronized_pairs", "outputs": outputs}))
             binary = root/"STAR"
             binary.write_text('''#!/usr/bin/env python3
-import pathlib, sys
+import pathlib, sys, gzip, struct
 out = pathlib.Path(sys.argv[sys.argv.index("--outFileNamePrefix")+1])
+with gzip.open(out/"Aligned.out.bam", "wb") as bam:
+    bam.write(b"BAM\\1"+struct.pack("<ii",0,0))
 (out/"Log.final.out").write_text("Number of input reads | 1\\n")
 (out/"SJ.out.tab").write_text("fixture\\n")
 for feature in ("Gene", "GeneFull_Ex50pAS", "Velocyto"):
@@ -50,9 +54,39 @@ for feature in ("Gene", "GeneFull_Ex50pAS", "Velocyto"):
         else:
             (raw/name).write_text("axis1\\naxis2\\n")
             if out.name == "wrong-axis": (raw/name).write_text("axis1\\n")
+    if feature != "Velocyto":
+        filtered=raw.parent/"filtered"
+        filtered.mkdir()
+        for name in ("matrix.mtx", "features.tsv", "barcodes.tsv"):
+            (filtered/name).write_bytes((raw/name).read_bytes())
+        if out.name != "missing-em":
+            (raw/"UniqueAndMult-EM.mtx").write_bytes((raw/"matrix.mtx").read_bytes())
 ''')
             binary.chmod(0o755)
             script = Path(__file__).with_name("benchmark_cpu_subset.py")
+            for name, code in (("full", 0), ("missing-em", 1)):
+                output=root/name
+                checked=subprocess.run(["python3", str(script), "--fixture", str(fixture), "--data-dir", str(root),
+                                        "--output-dir", str(output), "--binary", f"baseline={binary}",
+                                        "--binary", f"{name}={binary}", "--full-contract"], capture_output=True, text=True)
+                self.assertEqual(checked.returncode, code, checked.stderr)
+            repeated=root/"paired"
+            checked=subprocess.run(["python3", str(script), "--fixture", str(fixture), "--data-dir", str(root),
+                                    "--output-dir", str(repeated), "--binary", f"a={binary}", "--binary", f"b={binary}",
+                                    "--full-contract", "--rounds", "2", "--warmups", "1"], capture_output=True, text=True)
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+            runs=json.loads((repeated/"result.json").read_text())["runs"]
+            self.assertEqual(len(runs), 6)
+            self.assertEqual(sum(run["warmup"] for run in runs), 2)
+            self.assertNotEqual([run["label"] for run in runs if run["round"] == 0],
+                                [run["label"] for run in runs if run["round"] == 1])
+            blocked=root/"blocked-calibration"
+            checked=subprocess.run(["python3", str(script), "--fixture", str(fixture), "--data-dir", str(root),
+                                    "--output-dir", str(blocked), "--binary", f"a={binary}", "--binary", f"b={binary}",
+                                    "--full-contract", "--rounds", "2", "--calibration-receipt", str(repeated/"result.json")],
+                                   capture_output=True, text=True)
+            self.assertNotEqual(checked.returncode, 0)
+            self.assertEqual(json.loads((blocked/"result.json").read_text())["runs"], [])
             for label, status, code in [("same", "PASSED_DECLARED_RAW_ARTIFACTS", 0),
                                          ("reordered", "PASSED_DECLARED_RAW_ARTIFACTS", 0),
                                          ("different", "DIFFERENCES_REQUIRE_REVIEW", 2),

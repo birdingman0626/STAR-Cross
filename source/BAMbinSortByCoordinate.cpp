@@ -2,6 +2,7 @@
 #include "ErrorWarning.h"
 #include "serviceFuns.cpp"
 #include "BAMfunctions.h"
+#include "unaligned.h"
 #include "SequenceFuns.h"
 
 void BAMbinSortByCoordinate(uint32 iBin, uint binN, uint binS, uint nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
@@ -40,11 +41,12 @@ void BAMbinSortByCoordinate(uint32 iBin, uint binN, uint binS, uint nThreads, st
     //extract coordinates
 
     for (uint ib=0,ia=0;ia<binN;ia++) {
-        uint32 *bamIn32=(uint32*) (bamIn+ib);
+        uint32 bamIn32[3];
+        std::memcpy(bamIn32, bamIn+ib, sizeof(bamIn32));
         startPos[ia*3]  =( ((uint) bamIn32[1]) << 32) | ( (uint)bamIn32[2] );
         startPos[ia*3+2]=ib;
         ib+=bamIn32[0]+sizeof(uint32);//note that size of the BAM record does not include the size record itself
-        startPos[ia*3+1]=*( (uint*) (bamIn+ib) ); //read order
+        startPos[ia*3+1]=loadUnaligned<uint>(bamIn+ib); //read order
         ib+=sizeof(uint);
     };
 
@@ -65,7 +67,7 @@ void BAMbinSortByCoordinate(uint32 iBin, uint binN, uint binS, uint nThreads, st
     char bam1[BAM_ATTR_MaxSize];//temp array
     for (uint ia=0;ia<binN;ia++) {
         char* bam0=bamIn+startPos[ia*3+2];
-        uint32 size0=*((uint32*) bam0)+sizeof(uint32);
+        uint32 size0=loadUnaligned<uint32>(bam0)+sizeof(uint32);
         
         if (solo.pSolo.samAttrYes)
             solo.soloFeat[solo.pSolo.featureInd[solo.pSolo.samAttrFeature]]->addBAMtags(bam0,size0,bam1);

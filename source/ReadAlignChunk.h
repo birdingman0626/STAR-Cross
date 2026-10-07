@@ -23,7 +23,7 @@ public:
     char *chunkOutBAM, *chunkOutBAM1;//space for the chunk of output SAM
     OutSJ *chunkOutSJ, *chunkOutSJ1;
 
-    BAMoutput *chunkOutBAMcoord, *chunkOutBAMunsorted, *chunkOutBAMquant;
+    std::unique_ptr<BAMoutput> chunkOutBAMcoord, chunkOutBAMunsorted, chunkOutBAMquant;
     Quantifications *chunkQuants;
     
     FixedIStream** readInStream;

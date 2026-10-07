@@ -1,7 +1,7 @@
 /* The MIT License
 
    Copyright (C) 2011 by Attractive Chaos <attractor@live.co.uk>
-   Copyright (C) 2013-2014, 2016, 2018-2020, 2022, 2024 Genome Research Ltd.
+   Copyright (C) 2013-2014, 2016, 2018-2020, 2022, 2024-2025 Genome Research Ltd.
 
    Permission is hereby granted, free of charge, to any person obtaining
    a copy of this software and associated documentation files (the
@@ -62,6 +62,11 @@
 #define ssize_t intptr_t
 #endif
 
+#ifndef EOVERFLOW
+#define HTSLIB_EOVERFLOW
+#define EOVERFLOW ERANGE
+#endif
+
 /* kstring_t is a simple non-opaque type whose fields are likely to be
  * used directly by user code (but see also ks_str() and ks_len() below).
  * A kstring_t object is initialised by either of
@@ -101,13 +106,13 @@ extern "C" {
 	int ksplit_core(char *s, int delimiter, int *_max, int **_offsets);
 
     HTSLIB_EXPORT
-	char *kstrstr(const char *str, const char *pat, int **_prep);
+	char *kstrstr(const char *str, const char *pat, int **prep);
 
     HTSLIB_EXPORT
-	char *kstrnstr(const char *str, const char *pat, int n, int **_prep);
+	char *kstrnstr(const char *str, const char *pat, int n, int **prep);
 
     HTSLIB_EXPORT
-	void *kmemmem(const void *_str, int n, const void *_pat, int m, int **_prep);
+	void *kmemmem(const void *str, int n, const void *pat, int m, int **prep);
 
 	/* kstrtok() is similar to strtok_r() except that str is not
 	 * modified and both str and sep can be NULL. For efficiency, it is
@@ -123,6 +128,10 @@ extern "C" {
     typedef char *kgets_func(char *, int, void *);
     HTSLIB_EXPORT
     int kgetline(kstring_t *s, kgets_func *fgets_fn, void *fp);
+
+    /* Convenience function to call kgetline with a FILE * */
+    HTSLIB_EXPORT
+    int kfgetline(kstring_t *s, FILE *fp);
 
     /* kgetline2() uses the supplied hgetln()-like function to read a "\n"-
      * or "\r\n"-terminated line from fp.  The line read is appended to the
@@ -171,8 +180,7 @@ static inline int ks_expand(kstring_t *s, size_t expansion)
 {
     size_t new_size = s->l + expansion;
 
-    if (new_size < s->l) // Overflow check
-        return -1;
+    if (new_size < s->l) { errno = EOVERFLOW; return -1; }
     return ks_resize(s, new_size);
 }
 
@@ -234,8 +242,8 @@ static inline void ks_free(kstring_t *s)
 static inline int kputsn(const char *p, size_t l, kstring_t *s)
 {
 	size_t new_sz = s->l + l + 2;
-	if (new_sz <= s->l || ks_resize(s, new_sz) < 0)
-		return EOF;
+	if (new_sz <= s->l) { errno = EOVERFLOW; return EOF; }
+	if (ks_resize(s, new_sz) < 0) return EOF;
 	memcpy(s->s + s->l, p, l);
 	s->l += l;
 	s->s[s->l] = 0;
@@ -268,8 +276,8 @@ static inline int kputc_(int c, kstring_t *s)
 static inline int kputsn_(const void *p, size_t l, kstring_t *s)
 {
 	size_t new_sz = s->l + l;
-	if (new_sz < s->l || ks_resize(s, new_sz ? new_sz : 1) < 0)
-		return EOF;
+	if (new_sz < s->l) { errno = EOVERFLOW; return EOF; }
+	if (ks_resize(s, new_sz ? new_sz : 1) < 0) return EOF;
 	memcpy(s->s + s->l, p, l);
 	s->l += l;
 	return l;
@@ -449,9 +457,65 @@ static inline int *ksplit(kstring_t *s, int delimiter, int *n)
 	return offsets;
 }
 
+/**
+ *  kinsert_char - inserts a char to kstring
+ *  @param c   - char to insert
+ *  @param pos - position at which to insert, starting from 0
+ *  @param s   - pointer to output string
+ *  Returns 0 on success and -1 on failure
+ *  0 for pos inserts at start and length of current string as pos appends at
+ *  the end.
+ */
+static inline int kinsert_char(char c, size_t pos, kstring_t *s)
+{
+    if (!s || pos > s->l)  {
+        return EOF;
+    }
+    if (ks_resize(s, s->l + 2) < 0) {
+        return EOF;
+    }
+    memmove(s->s + pos + 1, s->s + pos, s->l - pos);
+    s->s[pos] = c;
+    s->s[++s->l] = 0;
+    return 0;
+}
+
+/**
+ *  kinsert_str - inserts a null terminated string to kstring
+ *  @param str - string to insert
+ *  @param pos - position at which to insert, starting from 0
+ *  @param s   - pointer to output string
+ *  Returns 0 on success and -1 on failure
+ *  0 for pos inserts at start and length of current string as pos appends at
+ *  the end. empty string makes no update.
+ */
+static inline int kinsert_str(const char *str, size_t pos, kstring_t *s)
+{
+    size_t len = 0;
+    if (!s || pos > s->l || !str)  {
+        return EOF;
+    }
+    if (!(len = strlen(str))) {
+        return 0;
+    }
+    if (ks_resize(s, s->l + len + 1) < 0) {
+        return EOF;
+    }
+    memmove(s->s + pos + len, s->s + pos, s->l - pos);
+    memcpy(s->s + pos, str, len);
+    s->l += len;
+    s->s[s->l] = '\0';
+    return 0;
+}
+
 #ifdef HTSLIB_SSIZE_T
 #undef HTSLIB_SSIZE_T
 #undef ssize_t
+#endif
+
+#ifdef HTSLIB_EOVERFLOW
+#undef HTSLIB_EOVERFLOW
+#undef EOVERFLOW
 #endif
 
 #endif

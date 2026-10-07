@@ -1,6 +1,6 @@
 /*  test_kstring.c -- kstring unit tests
 
-    Copyright (C) 2018, 2020, 2024 Genome Research Ltd.
+    Copyright (C) 2018, 2020, 2024-2026 Genome Research Ltd.
 
     Author: Rob Davies <rmd@sanger.ac.uk>
 
@@ -24,6 +24,7 @@ DEALINGS IN THE SOFTWARE.  */
 
 #include <config.h>
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
@@ -32,6 +33,9 @@ DEALINGS IN THE SOFTWARE.  */
 #include <unistd.h>
 
 #include "../htslib/kstring.h"
+
+// Include kstring.c here so we can unit test internal functions.
+#include "../kstring.c"
 
 static inline void clamp(int64_t *val, int64_t min, int64_t max) {
     if (*val < min) *val = min;
@@ -451,6 +455,257 @@ static int test_kgetline2(void) {
     return EXIT_SUCCESS;
 }
 
+static int test_kinsertchar(void) {
+    kstring_t t = KS_INITIALIZE, res = KS_INITIALIZE;
+    int i = 0;
+    struct data {
+        int pos;
+        const char *val;
+    };
+
+    struct data tdata[] = { { -1, ""}, {0, "X0123"}, {1, "0X123"}, {2, "01X23"},
+     {3, "012X3"}, {4, "0123X"}, {5, ""} };
+
+    for (i = -1; i < 6; ++i) {
+        kstring_t s = KS_INITIALIZE;
+        kputs("0123", &s);
+        if (kinsert_char('X', i, &s) < 0) {
+            if ( i < 0 || i > 4) { ks_free(&s); continue; }  //expected failures
+            fprintf(stderr, "kinsert_char failed\n");
+            ks_free(&s);
+            return -1;
+        }
+        if (s.s[s.l] != '\0') {
+            fprintf(stderr, "No NUL termination on string from kinsert_char\n");
+            ks_free(&s);
+            return -1;
+        }
+        if (memcmp(s.s, tdata[i + 1].val, s.l + 1)) {
+            fprintf(stderr, "kinsert_char comparison failed\n");
+            ks_free(&s);
+            return -1;
+        }
+        ks_free(&s);
+    }
+    //realloc checks
+    for (i = 0; i < 7; ++i) {
+        kputc('A' + i, &res);
+        if (kinsert_char('A' + i, t.l, &t) < 0) {
+            fprintf(stderr, "kinsert_char failed in realloc\n");
+            ks_free(&res); ks_free(&t);
+            return -1;
+        }
+        if (t.s[t.l] != '\0') {
+            fprintf(stderr, "No NUL termination on string from kinsert_char in realloc\n");
+            ks_free(&res); ks_free(&t);
+            return -1;
+        }
+        if (memcmp(t.s, res.s, res.l+1)) {
+            fprintf(stderr, "kinsert_char realloc comparison failed in realloc\n");
+            ks_free(&res); ks_free(&t);
+            return -1;
+        }
+    }
+    ks_free(&t);
+    ks_free(&res);
+    return 0;
+}
+
+static int test_kinsertstr(void) {
+    kstring_t t = KS_INITIALIZE, res = KS_INITIALIZE;
+    int i = 0;
+    struct data {
+        int pos;
+        const char *val;
+    };
+
+    struct data tdata[] = { { -1, ""}, {0, "XYZ0123"}, {1, "0XYZ123"},
+     {2, "01XYZ23"}, {3, "012XYZ3"}, {4, "0123XYZ"}, {5, ""} };
+
+    for (i = -1; i < 6; ++i) {
+        kstring_t s = KS_INITIALIZE;
+        kputs("0123", &s);
+        if (kinsert_str("XYZ", i, &s) < 0) {
+            if ( i < 0 || i > 4) { ks_free(&s); continue; }  //expected failures
+            fprintf(stderr, "kinsert_str failed\n");
+            return -1;
+        }
+        if (s.s[s.l] != '\0') {
+            fprintf(stderr, "No NUL termination on string from kinsert_str\n");
+            return -1;
+        }
+        if (memcmp(s.s, tdata[i + 1].val, s.l + 1)) {
+            fprintf(stderr, "kinsert_str comparison failed\n");
+            return -1;
+        }
+        ks_free(&s);
+    }
+    //realloc checks
+    for (i = 0; i < 15; ++i) {
+        kstring_t val = KS_INITIALIZE;
+        ksprintf(&val, "%c", 'A' + i);
+        kputs(val.s, &res);
+        if (kinsert_str(val.s, t.l, &t) < 0) {
+            ks_free(&val);
+            fprintf(stderr, "kinsert_str failed in realloc\n");
+            return -1;
+        }
+        if (t.s[t.l] != '\0') {
+            ks_free(&val); ks_free(&res);
+            fprintf(stderr, "No NUL termination on string from kinsert_str in realloc\n");
+            return -1;
+        }
+        if (memcmp(t.s, res.s, res.l+1)) {
+            ks_free(&val); ks_free(&res);
+            fprintf(stderr, "kinsert_str realloc comparison failed in realloc\n");
+            return -1;
+        }
+        ks_free(&val);
+    }
+    //empty strings
+    ks_free(&t);
+    if (kinsert_str("", 1, &t)) { //expected
+        if (kinsert_str("", 0, &t) || t.l != 0) {
+            fprintf(stderr, "kinsert_str empty insertion failed\n");
+            return -1;
+        }
+    } else {
+        fprintf(stderr, "kinsert_str empty ins to invalid pos succeeded\n");
+        return -1;
+    }
+    i = res.l;
+    if (kinsert_str("", 1, &res) || i != res.l) {
+        fprintf(stderr, "kinsert_str empty ins to valid pos failed\n");
+        ks_free(&res);
+        return -1;
+    }
+    ks_free(&res);
+    return 0;
+}
+
+static int test_kmemmem(void) {
+    typedef struct {
+        const char *str;
+        int slen;
+        const char *pat;
+        int plen;
+        ptrdiff_t location;  // location of pat in str, or -1 if not present
+    } kmemmem_dat;
+
+    kmemmem_dat tests[] = {
+        { "f\0\0f\0\0f\0\0bar\0\0f\0\0f", 18, "f\0\0", 3, 0 },
+        { "f\0\0f\0\0f\0\0bar\0\0f\0\0f", 18, "\0\0f", 3, 1 },
+        { "\0\0f\0\0f\0\0fbar\0\0f\0\0f", 18, "\0\0f", 3, 0 },
+        { "\0\0f\0\0f\0\0fbar\0\0f\0\0f", 18, "f\0\0", 3, 2 },
+        { "f\0\0f\0\0f\0\0bar\0\0f\0\0f", 18, "bar", 3, 9 },
+        { "f\0\0f\0\0f\0\0baz\0\0f\0\0f", 18, "bar", 3, -1 },
+        { "f\0\0f\0\0f\0\0bar\0\0f\0\0f", 18, "", 0, 0 },
+        { "f\0\0f\0\0f\0\0bar\0\0f\0\0f", 18, "\0\0b", 3, 7 },
+        { "f\0\0f\0\0f\0\0bar\0\0f\0\0f", 18, "r\0\0", 3, 11 },
+        { "bar", 3, "f\0\0f\0\0f\0\0bar\0\0f\0\0f", 18, -1 },
+        { "", 0, "bar", 3, -1 },
+        { "", 0, "", 0, 0 },
+    };
+
+    size_t i;
+    int pass = 1;
+
+    for (i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
+        char *found = kmemmem(tests[i].str, tests[i].slen,
+                              tests[i].pat, tests[i].plen, NULL);
+        ptrdiff_t loc = found ? found - tests[i].str : -1;
+        if (loc != tests[i].location) {
+            pass = 0;
+            fprintf(stderr,
+                    "kmemmem() test %zd failed - got %lld expected %lld\n",
+                    i, (long long) loc, (long long) tests[i].location);
+        }
+
+        found = karp_rabin(tests[i].str, tests[i].slen,
+                           tests[i].pat, tests[i].plen);
+        loc = found ? found - tests[i].str : -1;
+        if (loc != tests[i].location) {
+            pass = 0;
+            fprintf(stderr,
+                    "karp_rabin() test %zd failed - got %lld expected %lld\n",
+                    i, (long long) loc, (long long) tests[i].location);
+        }
+    }
+
+    return pass ? 0 : -1;
+}
+
+static int test_kstrstr(void) {
+    typedef struct {
+        const char *str;
+        const char *pat;
+        ptrdiff_t location;  // location of pat in str, or -1 if not present
+    } kstrstr_dat;
+
+    kstrstr_dat tests[] = {
+        { "foofoofoobaroofoof", "bar", 9 },
+        { "foofoofoobazoofoof", "bar", -1 },
+        { "foofoofoobaroofoof", "", 0 },
+        { "foofoofoobaroofoof", "oob", 7 },
+        { "foofoofoobaroofoof", "roo", 11 },
+        { "bar", "foofoofoobaroofoof", -1 },
+        { "", "bar", -1 },
+        { "", "", 0 },
+    };
+
+    size_t i;
+    int pass = 1;
+
+    for (i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
+        char *found = kstrstr(tests[i].str, tests[i].pat, NULL);
+        ptrdiff_t loc = found ? found - tests[i].str : -1;
+        if (loc != tests[i].location) {
+            pass = 0;
+            fprintf(stderr,
+                    "kstrstr() test %zd failed - got %lld expected %lld\n",
+                    i, (long long) loc, (long long) tests[i].location);
+        }
+    }
+
+    return pass ? 0 : -1;
+}
+
+static int test_kstrnstr(void) {
+    typedef struct {
+        const char *str;
+        const char *pat;
+        int n;
+        ptrdiff_t location;  // location of pat in str, or -1 if not present
+    } kstrnstr_dat;
+
+    kstrnstr_dat tests[] = {
+        { "foofoofoobaroofoof", "bar", 18, 9 },
+        { "foofoofoobazoofoof", "bar", 18, -1 },
+        { "foofoofoobaroofoof", "bar", 9, -1 },
+        { "foofoofoobaroofoof", "", 18, 0 },
+        { "bar", "foofoofoobaroofoof", 18, -1 },
+        { "foofoof\0obaroofoof", "bar", 18, -1 },
+        { "", "bar", 3, -1 },
+        { "", "", 0, 0 },
+    };
+
+    size_t i;
+    int pass = 1;
+
+    for (i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
+        char *found = kstrnstr(tests[i].str, tests[i].pat, tests[i].n, NULL);
+        ptrdiff_t loc = found ? found - tests[i].str : -1;
+        if (loc != tests[i].location) {
+            pass = 0;
+            fprintf(stderr,
+                    "kstrnstr() test %zd failed - got %lld expected %lld\n",
+                    i, (long long) loc, (long long) tests[i].location);
+        }
+    }
+
+    return pass ? 0 : -1;
+}
+
 int main(int argc, char **argv) {
     int opt, res = EXIT_SUCCESS;
     int64_t start = 0;
@@ -499,6 +754,21 @@ int main(int argc, char **argv) {
 
     if (!test || strcmp(test, "kgetline2") == 0)
         if (test_kgetline2() != 0) res = EXIT_FAILURE;
+
+    if (!test || strcmp(test, "kinsertchar") == 0)
+        if (test_kinsertchar() != 0) res = EXIT_FAILURE;
+
+    if (!test || strcmp(test, "kinsertstr") == 0)
+        if (test_kinsertstr() != 0) res = EXIT_FAILURE;
+
+    if (!test || strcmp(test, "kmemmem") == 0)
+        if (test_kmemmem() != 0) res = EXIT_FAILURE;
+
+    if (!test || strcmp(test, "kstrstr") == 0)
+        if (test_kstrstr() != 0) res = EXIT_FAILURE;
+
+    if (!test || strcmp(test, "kstrnstr") == 0)
+        if (test_kstrnstr() != 0) res = EXIT_FAILURE;
 
     return res;
 }

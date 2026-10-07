@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2018-2024 Genome Research Ltd.
+    Copyright (C) 2018-2025 Genome Research Ltd.
 
     Author: Petr Danecek <pd3@sanger.ac.uk>
 
@@ -38,6 +38,7 @@
 #include <string.h>
 #include <strings.h>
 #include "htslib/hts.h"
+#include "htslib/hts_alloc.h"
 #include "htslib/hts_defs.h"
 #include "htslib/khash_str2int.h"
 #include "htslib/kstring.h"
@@ -72,6 +73,7 @@ typedef struct
     cols_t *core, *match, *transfer, *annots;
     int *core_idx, *match_idx, *transfer_idx, *annots_idx;
     int *nannots_added; // for --max-annots: the number of annotations added
+    int coor_base[2];   // 0 or 1-indexed beg,end?
     char delim;
     int grow_n;
     kstring_t line;     // one buffered line, a byproduct of reading the header
@@ -102,7 +104,7 @@ typedef struct
 {
     nbp_t *nbp;
     dat_t dst, src;
-    char *core_str, *match_str, *transfer_str, *annots_str, *headers_str, *delim_str;
+    char *core_str, *coords_str, *match_str, *transfer_str, *annots_str, *headers_str, *delim_str;
     char *temp_dir, *out_fname;
     BGZF *out_fp;
     int allow_dups, max_annots, mode, no_write_hdr, overlap_either;
@@ -150,7 +152,7 @@ static inline void nbp_add(nbp_t *nbp, hts_pos_t beg, hts_pos_t end)
     if ( nbp->n >= nbp->m )
     {
         nbp->m += 2;
-        nbp->regs = realloc(nbp->regs, nbp->m*sizeof(*nbp->regs));
+        nbp->regs = hts_realloc_p(nbp->regs, sizeof(*nbp->regs), nbp->m);
         if ( !nbp->regs ) error("Out of memory, failed to allocate %zu bytes\n",nbp->m*sizeof(*nbp->regs));
     }
     nbp->regs[nbp->n - 2] = NBP_SET_BEG(beg);
@@ -202,7 +204,7 @@ cols_t *cols_split(const char *line, cols_t *cols, char delim)
         if ( cols->n > cols->m )
         {
             cols->m += 10;
-            cols->off = realloc(cols->off, sizeof(*cols->off)*cols->m);
+            cols->off = hts_realloc_p(cols->off, sizeof(*cols->off), cols->m);
             if ( !cols->off ) error("Out of memory, failed to allocate %zu bytes\n",sizeof(*cols->off)*cols->m);
         }
         cols->off[ cols->n - 1 ] = ss;
@@ -252,7 +254,7 @@ void cols_append(cols_t *cols, char *str)
     if ( cols->n > cols->m )
     {
         cols->m++;
-        cols->off = realloc(cols->off,sizeof(*cols->off)*cols->m);
+        cols->off = hts_realloc_p(cols->off, sizeof(*cols->off), cols->m);
         if ( !cols->off ) error("Out of memory, failed to allocate %zu bytes\n",sizeof(*cols->off)*cols->m);
     }
     cols->off[cols->n-1] = str;
@@ -300,6 +302,13 @@ int parse_tab_with_payload(const char *line, char **chr_beg, char **chr_end, hts
     ptr = cols->off[ dat->core_idx[2] ];
     *end = strtod(ptr, &tmp);
     if ( tmp==ptr ) error("Expected numeric value, found \"%s\": %s\n",ptr,line);
+
+    // NB: for indexing we leave the coordinates 1-based when 1-based, otherwise 0-coordinate would underflow. This
+    // means the biggest hts coordinate will overflow, which is less common than the 0 underflow. This does not affect the output,
+    // only indexing.
+    // The following code will make beg+=1 for BED file (-C 01)
+    (*beg) -= dat->coor_base[0] - 1;
+    (*end) -= dat->coor_base[1] - 1;
 
     if ( *end < *beg )
     {
@@ -471,7 +480,7 @@ static int read_next_line(dat_t *dat)
 
 void sanity_check_columns(char *fname, hdr_t *hdr, cols_t *cols, int **col2idx, int force)
 {
-    *col2idx = (int*)malloc(sizeof(int)*cols->n);
+    *col2idx = hts_malloc_p(sizeof(int), cols->n);
     if ( !*col2idx ) error("Out of memory, failed to allocate %zu bytes\n",sizeof(int)*cols->n);
     int i, idx;
     for (i=0; i<cols->n; i++)
@@ -484,6 +493,26 @@ void sanity_check_columns(char *fname, hdr_t *hdr, cols_t *cols, int **col2idx, 
         (*col2idx)[i] = idx;
     }
 }
+void parse_coor_base(args_t *args, char *str, dat_t *dat)
+{
+    int len = strlen(dat->fname);
+    int beg = 1, end = 1;
+    if ( *str )
+    {
+        if ( str[0]=='0' ) beg = 0;
+        else if ( str[0]=='1' ) beg = 1;
+        else error("Could not parse: --coords %s\n",args->coords_str);
+
+        if ( str[1]=='0' ) end = 0;
+        else if ( str[1]=='1' ) end = 1;
+        else error("Could not parse: --coords %s\n",args->coords_str);
+    }
+    else if ( len>=4 && !strcasecmp(".bed",dat->fname+len-4) ) beg = 0;
+    else if ( len>=7 && !strcasecmp(".bed.gz",dat->fname+len-7) ) beg = 0;
+    dat->coor_base[0] = beg;
+    dat->coor_base[1] = end;
+}
+
 void init_data(args_t *args)
 {
     if ( !args->delim_str )
@@ -519,6 +548,13 @@ void init_data(args_t *args)
     sanity_check_columns(args->src.fname, &args->src.hdr, args->src.core, &args->src.core_idx, 0);
     sanity_check_columns(args->dst.fname, &args->dst.hdr, args->dst.core, &args->dst.core_idx, 0);
     if ( args->src.core->n!=3 || args->dst.core->n!=3 ) error("Expected three columns: %s\n", args->core_str);
+    cols_destroy(tmp);
+
+    // -C, --coordinates, 0 or 1-based
+    if ( !args->coords_str ) args->coords_str = ":";
+    tmp = cols_split(args->coords_str, NULL, ':');
+    parse_coor_base(args, tmp->off[0], &args->src);
+    parse_coor_base(args, tmp->n==2 ? tmp->off[1] : tmp->off[0], &args->dst);
     cols_destroy(tmp);
 
     // -m, match columns
@@ -881,6 +917,7 @@ static const char *usage_text(void)
         "                             frac .. fraction of the target region with an\n"
         "                                       overlap\n"
         "                             nbp  .. number of source base pairs in the overlap\n"
+        "   -C, --coords SRC:TGT    Are coordinates 0 or 1-based, BED=01, TSV=11 [11]\n"
         "   -d, --delim SRC:TGT     Column delimiter in SRC and TGT file\n"
         "   -h, --headers SRC:TGT   Header row line number, 0:0 is equivalent to -H, negative\n"
         "                             value counts from the end of comment line block [1:1]\n"
@@ -923,6 +960,7 @@ int main(int argc, char **argv)
     static struct option loptions[] =
     {
         {"core",required_argument,NULL,'c'},
+        {"coords",required_argument,NULL,'C'},
         {"transfer",required_argument,NULL,'f'},
         {"match",required_argument,NULL,'m'},
         {"output",required_argument,NULL,'o'},
@@ -945,7 +983,7 @@ int main(int argc, char **argv)
     char *tmp = NULL;
     int c;
     int reciprocal = 0;
-    while ((c = getopt_long(argc, argv, "c:f:m:o:s:t:a:HO:rxh:Id:",loptions,NULL)) >= 0)
+    while ((c = getopt_long(argc, argv, "c:C:f:m:o:s:t:a:HO:rxh:Id:",loptions,NULL)) >= 0)
     {
         switch (c)
         {
@@ -953,7 +991,7 @@ int main(int argc, char **argv)
             case  1 :
                 printf(
 "annot-tsv (htslib) %s\n"
-"Copyright (C) 2024 Genome Research Ltd.\n", hts_version());
+"Copyright (C) 2026 Genome Research Ltd.\n", hts_version());
                 return EXIT_SUCCESS;
                 break;
             case  2 :
@@ -966,6 +1004,7 @@ int main(int argc, char **argv)
             case 'H': args->headers_str = "0:0"; break;
             case 'r': reciprocal = 1; break;
             case 'c': args->core_str  = optarg; break;
+            case 'C': args->coords_str  = optarg; break;
             case 't': args->dst.fname = optarg; break;
             case 'm': args->match_str = optarg; break;
             case 'a': args->annots_str = optarg; break;

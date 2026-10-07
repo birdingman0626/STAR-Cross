@@ -137,7 +137,8 @@ int main(int argInN, char *argIn[])
     };
 
     // transcripome placeholder
-    Transcriptome *transcriptomeMain = NULL;
+    Transcriptome inactiveTranscriptome(P, false);
+    Transcriptome *transcriptomeMain = &inactiveTranscriptome;
 
     // this will execute --runMode soloCellFiltering and exit
     Solo soloCellFilter(P, *transcriptomeMain);
@@ -237,13 +238,19 @@ int main(int argInN, char *argIn[])
     // close some BAM files
     if (P.inOut->outBAMfileUnsorted != NULL)
     {
-        bgzf_flush(P.inOut->outBAMfileUnsorted);
-        bgzf_close(P.inOut->outBAMfileUnsorted);
+        const int flushStatus=bgzf_flush(P.inOut->outBAMfileUnsorted);
+        const int closeStatus=bgzf_close(P.inOut->outBAMfileUnsorted);
+        P.inOut->outBAMfileUnsorted=nullptr;
+        if (flushStatus != 0 || closeStatus != 0)
+            exitWithError("EXITING because of fatal BAM output close error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
     if (P.inOut->outQuantBAMfile != NULL)
     {
-        bgzf_flush(P.inOut->outQuantBAMfile);
-        bgzf_close(P.inOut->outQuantBAMfile);
+        const int flushStatus=bgzf_flush(P.inOut->outQuantBAMfile);
+        const int closeStatus=bgzf_close(P.inOut->outQuantBAMfile);
+        P.inOut->outQuantBAMfile=nullptr;
+        if (flushStatus != 0 || closeStatus != 0)
+            exitWithError("EXITING because of fatal transcriptome BAM close error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
 
     if (P.outBAMcoord && P.limitBAMsortRAM == 0)
@@ -267,7 +274,7 @@ int main(int argInN, char *argIn[])
         outputSJ(RAchunk.data(), P);
 
     // solo counts
-    Solo soloMain(RAchunk.data(), P, *RAchunk[0]->chunkTr);
+    Solo soloMain(RAchunk.data(), P, RAchunk[0]->chunkTr ? *RAchunk[0]->chunkTr : inactiveTranscriptome);
     soloMain.processAndOutput();
 
     if (P.quant.geCount.yes)
@@ -328,6 +335,16 @@ int main(int argInN, char *argIn[])
                      << flush;
 
     P.closeReadsFiles(); // kill readFilesCommand child processes before removing temp files
+
+    // All mapping, Solo and sorting consumers have finished. Release writers
+    // before deleting their temporary files (especially important on Windows).
+    for (auto* chunk : RAchunk) {
+        if (chunk->chunkOutBAMcoord) chunk->chunkOutBAMcoord->finalize();
+        chunk->RA->outBAMcoord=chunk->RA->outBAMunsorted=chunk->RA->outBAMquant=nullptr;
+        chunk->chunkOutBAMcoord.reset();
+        chunk->chunkOutBAMunsorted.reset();
+        chunk->chunkOutBAMquant.reset();
+    }
 
     if (P.outTmpKeep == "None")
     {

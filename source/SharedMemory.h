@@ -12,6 +12,7 @@
 #else
     #include <semaphore.h>
     #include <unistd.h>
+    #include <sys/ipc.h>
 #endif
 #include <exception>
 #include <iostream>
@@ -50,7 +51,7 @@ public:
         _errorDetail = 0;
     };
 
-    SharedMemoryException(ErrorState error): _error(error)
+    SharedMemoryException(ErrorState error): _hasError(error != ENONE), _error(error), _errorDetail(0)
     {};
 
     ErrorState GetErrorCode() const
@@ -91,13 +92,13 @@ class SharedMemory
 public:
         void * GetMapped()
         {
-            return (void *) ((char*) _mapped + sizeof(size_t));
+            return _mapped ? (void *) ((char*) _mapped + sizeof(size_t)) : nullptr;
         };
 
         size_t GetSize()
         {
             if (!_needsAllocation)
-                return *_length - sizeof(size_t);
+                return _mappedSize - sizeof(size_t);
 
             _exception.SetError(ENOTALLOCATED, 0);
             return -1;
@@ -144,6 +145,10 @@ public:
         };
 
         SharedMemory(key_t key, bool unloadLast);
+        SharedMemory(const SharedMemory&) = delete;
+        SharedMemory& operator=(const SharedMemory&) = delete;
+        SharedMemory(SharedMemory&&) = delete;
+        SharedMemory& operator=(SharedMemory&&) = delete;
         ~SharedMemory();
         void Allocate(size_t shmSize);
         void Clean();
@@ -156,7 +161,7 @@ private:
         void * _counterMem;
 
         void * _mapped;
-        size_t * _length;
+        size_t _mappedSize = 0;
         sem_t * _sem;
         bool _isAllocator;
         bool _needsAllocation;

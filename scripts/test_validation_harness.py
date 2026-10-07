@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fail-closed regression tests for the historical Bash validation profiles (Linux/WSL)."""
 from pathlib import Path
+import os
 import re
 import shutil
 import subprocess
@@ -10,6 +11,7 @@ import unittest
 SCRIPTS = Path(__file__).resolve().parent
 
 
+@unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "Bash profiles require Linux/WSL paths")
 class ValidationHarness(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="star-harness-tests-"))
@@ -19,6 +21,15 @@ class ValidationHarness(unittest.TestCase):
         result = subprocess.run(["bash", str(SCRIPTS / script), *map(str, args)],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         return result.returncode, result.stdout
+
+    def test_genome_equivalence_rejects_self_comparison(self):
+        binary = self.root / "STAR"
+        binary.write_bytes(b"same binary")
+        script = SCRIPTS.parent / "extras/tests/scripts/validate_genome_equivalence.sh"
+        result = subprocess.run(["bash", str(script), str(binary), str(binary), str(self.root / "work")],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("identical", result.stderr)
 
     def test_release_requires_all_reference_and_candidate_files(self):
         original, candidate = self.root / "reference", self.root / "candidate"

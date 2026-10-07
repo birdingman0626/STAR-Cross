@@ -4,6 +4,21 @@ The CPU remains the scientific oracle. A successful unit suite or visually simil
 matrix is not full-library, cross-platform or GPU qualification. Keep each run in a
 new directory; do not replace old results to conceal disagreement.
 
+The implemented paired runner accepts `--full-contract --warmups 1 --rounds 5`
+with two labels pointing to the same frozen binary for A/A calibration. After a
+passing calibration on an uncontended machine, use `--rounds 10` with reference
+and candidate binaries. `--calibration-receipt` records the prior result; it does
+not by itself certify environment isolation. Default single runs remain only
+screening. Full-contract reused runs are deliberately rejected.
+
+Windows peak working set/commit is measured using the retained process handle;
+GNU time provides Linux peak RSS. These are process peaks, not sums of samples
+or complete descendant/shared-memory accounting. BAM comparison uses disk-backed
+exact record ordering; comparison time is outside the measured STAR process.
+Floats default to exact equality, and integer counts never receive a tolerance.
+See [the execution record](QUALIFICATION_RESULTS_20261007.md) and
+[ownership inventory](OWNERSHIP_AUDIT.md) for remaining gates.
+
 ## Repeatable checks (Linux / WSL)
 
 ```sh

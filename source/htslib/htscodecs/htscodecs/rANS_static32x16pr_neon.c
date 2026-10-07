@@ -665,7 +665,7 @@ unsigned char *rans_uncompress_O0_32x16_neon(unsigned char *in,
     // 500MB/s.  Clang does a lot of reordering of this code, removing some
     // of the manual tuning benefits.  Short of dropping to assembly, for now
     // I would recommend using gcc to compile this file.
-    uint16_t *sp = (uint16_t *)cp;
+    uint8_t *sp = cp;
     uint8_t overflow[64+64] = {0};
     for (i=0; i < out_end; i+=NX) {
         // Decode freq, bias and symbol from s3 lookups
@@ -770,16 +770,20 @@ unsigned char *rans_uncompress_O0_32x16_neon(unsigned char *in,
 
         // Protect against running off the end of in buffer.
         // We copy it to a worst-case local buffer when near the end.
-        if ((uint8_t *)sp+64 > cp_end) {
-            memmove(overflow, sp, cp_end - (uint8_t *)sp);
-            sp = (uint16_t *)overflow;
+        if (cp_end - sp < 64) {
+            memmove(overflow, sp, cp_end - sp);
+            sp = overflow;
             cp_end = overflow + sizeof(overflow);
         }
 
-        uint16x8_t norm12 =  vld1q_u16(sp);
-        sp += nbits[imask1] + nbits[imask2];
-        uint16x8_t norm34 =  vld1q_u16(sp);
-        sp += nbits[imask3] + nbits[imask4];
+        // load 8 16-bit lanes of renorm data (loaded as 8-bit for
+        // alignment purposes, but will be shuffled and cast to
+        // 16 bit below).
+
+        uint8x16_t norm12 =  vld1q_u8(sp);
+        sp += (nbits[imask1] + nbits[imask2]) * 2;
+        uint8x16_t norm34 =  vld1q_u8(sp);
+        sp += (nbits[imask3] + nbits[imask4]) * 2;
 
         Bv5 = vandq_u32(Bv5, maskv);
         Bv6 = vandq_u32(Bv6, maskv);
@@ -799,14 +803,14 @@ unsigned char *rans_uncompress_O0_32x16_neon(unsigned char *in,
         uint32_t imask12 = (imask1<<4)|imask2;
         uint32_t imask34 = (imask3<<4)|imask4;
 
+        // Shuffle norm to the corresponding R lanes, via imask
         // #define for brevity and formatting
 #define cast_u16_u8 vreinterpret_u16_u8
-#define cast_u8_u16 vreinterpretq_u8_u16
         uint16x4_t norm1, norm2, norm3, norm4, norm5, norm6, norm7, norm8;
-        norm1 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm12),idx [imask1]));
-        norm2 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm12),idx2[imask12]));
-        norm3 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm34),idx [imask3]));
-        norm4 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm34),idx2[imask34]));
+        norm1 = cast_u16_u8(vqtbl1_u8(norm12,idx [imask1]));
+        norm2 = cast_u16_u8(vqtbl1_u8(norm12,idx2[imask12]));
+        norm3 = cast_u16_u8(vqtbl1_u8(norm34,idx [imask3]));
+        norm4 = cast_u16_u8(vqtbl1_u8(norm34,idx2[imask34]));
 
         uint32x4_t Rlt5 = vcltq_u32(Rv5, vdupq_n_u32(RANS_BYTE_L));
         uint32x4_t Rlt6 = vcltq_u32(Rv6, vdupq_n_u32(RANS_BYTE_L));
@@ -819,15 +823,15 @@ unsigned char *rans_uncompress_O0_32x16_neon(unsigned char *in,
         uint32x4_t Rsl3 = vshlq_n_u32(Rv3, 16);
         uint32x4_t Rsl4 = vshlq_n_u32(Rv4, 16);
 
-        uint16x8_t norm56 =  vld1q_u16(sp);
+        uint8x16_t norm56 =  vld1q_u8(sp);
         uint32_t imask5 = vaddvq_u32(vandq_u32(Rlt5, bit));
         uint32_t imask6 = vaddvq_u32(vandq_u32(Rlt6, bit));
         uint32_t imask7 = vaddvq_u32(vandq_u32(Rlt7, bit));
         uint32_t imask8 = vaddvq_u32(vandq_u32(Rlt8, bit));
 
-        sp += nbits[imask5] + nbits[imask6];
-        uint16x8_t norm78 =  vld1q_u16(sp);
-        sp += nbits[imask7] + nbits[imask8];
+        sp += (nbits[imask5] + nbits[imask6]) * 2;
+        uint8x16_t norm78 =  vld1q_u8(sp);
+        sp += (nbits[imask7] + nbits[imask8]) * 2;
 
         Rsl1 = vaddw_u16(Rsl1, norm1);          // Rsl += norm
         Rsl2 = vaddw_u16(Rsl2, norm2);
@@ -842,10 +846,10 @@ unsigned char *rans_uncompress_O0_32x16_neon(unsigned char *in,
         Rv3 = vbslq_u32(Rlt3, Rsl3, Rv3);
         Rv4 = vbslq_u32(Rlt4, Rsl4, Rv4);
 
-        norm5 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm56),idx [imask5]));
-        norm6 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm56),idx2[imask56]));
-        norm7 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm78),idx [imask7]));
-        norm8 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm78),idx2[imask78]));
+        norm5 = cast_u16_u8(vqtbl1_u8(norm56,idx [imask5]));
+        norm6 = cast_u16_u8(vqtbl1_u8(norm56,idx2[imask56]));
+        norm7 = cast_u16_u8(vqtbl1_u8(norm78,idx [imask7]));
+        norm8 = cast_u16_u8(vqtbl1_u8(norm78,idx2[imask78]));
 
         uint32x4_t Rsl5 = vshlq_n_u32(Rv5, 16);
         uint32x4_t Rsl6 = vshlq_n_u32(Rv6, 16);
@@ -1238,7 +1242,7 @@ static inline void transpose_and_copy(uint8_t *out, int iN[32],
 //  }
 
     for (z = 0; z < NX; z+=4) {
-        *(uint64_t *)&out[iN[z]] =
+        uint64_t t0[4] = {
             ((uint64_t)(t[0][z])<< 0) +
             ((uint64_t)(t[1][z])<< 8) +
             ((uint64_t)(t[2][z])<<16) +
@@ -1246,36 +1250,8 @@ static inline void transpose_and_copy(uint8_t *out, int iN[32],
             ((uint64_t)(t[4][z])<<32) +
             ((uint64_t)(t[5][z])<<40) +
             ((uint64_t)(t[6][z])<<48) +
-            ((uint64_t)(t[7][z])<<56);
-        *(uint64_t *)&out[iN[z+1]] =
-            ((uint64_t)(t[0][z+1])<< 0) +
-            ((uint64_t)(t[1][z+1])<< 8) +
-            ((uint64_t)(t[2][z+1])<<16) +
-            ((uint64_t)(t[3][z+1])<<24) +
-            ((uint64_t)(t[4][z+1])<<32) +
-            ((uint64_t)(t[5][z+1])<<40) +
-            ((uint64_t)(t[6][z+1])<<48) +
-            ((uint64_t)(t[7][z+1])<<56);
-        *(uint64_t *)&out[iN[z+2]] =
-            ((uint64_t)(t[0][z+2])<< 0) +
-            ((uint64_t)(t[1][z+2])<< 8) +
-            ((uint64_t)(t[2][z+2])<<16) +
-            ((uint64_t)(t[3][z+2])<<24) +
-            ((uint64_t)(t[4][z+2])<<32) +
-            ((uint64_t)(t[5][z+2])<<40) +
-            ((uint64_t)(t[6][z+2])<<48) +
-            ((uint64_t)(t[7][z+2])<<56);
-        *(uint64_t *)&out[iN[z+3]] =
-            ((uint64_t)(t[0][z+3])<< 0) +
-            ((uint64_t)(t[1][z+3])<< 8) +
-            ((uint64_t)(t[2][z+3])<<16) +
-            ((uint64_t)(t[3][z+3])<<24) +
-            ((uint64_t)(t[4][z+3])<<32) +
-            ((uint64_t)(t[5][z+3])<<40) +
-            ((uint64_t)(t[6][z+3])<<48) +
-            ((uint64_t)(t[7][z+3])<<56);
+            ((uint64_t)(t[7][z])<<56),
 
-        *(uint64_t *)&out[iN[z]+8] =
             ((uint64_t)(t[8+0][z])<< 0) +
             ((uint64_t)(t[8+1][z])<< 8) +
             ((uint64_t)(t[8+2][z])<<16) +
@@ -1283,36 +1259,8 @@ static inline void transpose_and_copy(uint8_t *out, int iN[32],
             ((uint64_t)(t[8+4][z])<<32) +
             ((uint64_t)(t[8+5][z])<<40) +
             ((uint64_t)(t[8+6][z])<<48) +
-            ((uint64_t)(t[8+7][z])<<56);
-        *(uint64_t *)&out[iN[z+1]+8] =
-            ((uint64_t)(t[8+0][z+1])<< 0) +
-            ((uint64_t)(t[8+1][z+1])<< 8) +
-            ((uint64_t)(t[8+2][z+1])<<16) +
-            ((uint64_t)(t[8+3][z+1])<<24) +
-            ((uint64_t)(t[8+4][z+1])<<32) +
-            ((uint64_t)(t[8+5][z+1])<<40) +
-            ((uint64_t)(t[8+6][z+1])<<48) +
-            ((uint64_t)(t[8+7][z+1])<<56);
-        *(uint64_t *)&out[iN[z+2]+8] =
-            ((uint64_t)(t[8+0][z+2])<< 0) +
-            ((uint64_t)(t[8+1][z+2])<< 8) +
-            ((uint64_t)(t[8+2][z+2])<<16) +
-            ((uint64_t)(t[8+3][z+2])<<24) +
-            ((uint64_t)(t[8+4][z+2])<<32) +
-            ((uint64_t)(t[8+5][z+2])<<40) +
-            ((uint64_t)(t[8+6][z+2])<<48) +
-            ((uint64_t)(t[8+7][z+2])<<56);
-        *(uint64_t *)&out[iN[z+3]+8] =
-            ((uint64_t)(t[8+0][z+3])<< 0) +
-            ((uint64_t)(t[8+1][z+3])<< 8) +
-            ((uint64_t)(t[8+2][z+3])<<16) +
-            ((uint64_t)(t[8+3][z+3])<<24) +
-            ((uint64_t)(t[8+4][z+3])<<32) +
-            ((uint64_t)(t[8+5][z+3])<<40) +
-            ((uint64_t)(t[8+6][z+3])<<48) +
-            ((uint64_t)(t[8+7][z+3])<<56);
+            ((uint64_t)(t[8+7][z])<<56),
 
-        *(uint64_t *)&out[iN[z]+16] =
             ((uint64_t)(t[16+0][z])<< 0) +
             ((uint64_t)(t[16+1][z])<< 8) +
             ((uint64_t)(t[16+2][z])<<16) +
@@ -1320,36 +1268,8 @@ static inline void transpose_and_copy(uint8_t *out, int iN[32],
             ((uint64_t)(t[16+4][z])<<32) +
             ((uint64_t)(t[16+5][z])<<40) +
             ((uint64_t)(t[16+6][z])<<48) +
-            ((uint64_t)(t[16+7][z])<<56);
-        *(uint64_t *)&out[iN[z+1]+16] =
-            ((uint64_t)(t[16+0][z+1])<< 0) +
-            ((uint64_t)(t[16+1][z+1])<< 8) +
-            ((uint64_t)(t[16+2][z+1])<<16) +
-            ((uint64_t)(t[16+3][z+1])<<24) +
-            ((uint64_t)(t[16+4][z+1])<<32) +
-            ((uint64_t)(t[16+5][z+1])<<40) +
-            ((uint64_t)(t[16+6][z+1])<<48) +
-            ((uint64_t)(t[16+7][z+1])<<56);
-        *(uint64_t *)&out[iN[z+2]+16] =
-            ((uint64_t)(t[16+0][z+2])<< 0) +
-            ((uint64_t)(t[16+1][z+2])<< 8) +
-            ((uint64_t)(t[16+2][z+2])<<16) +
-            ((uint64_t)(t[16+3][z+2])<<24) +
-            ((uint64_t)(t[16+4][z+2])<<32) +
-            ((uint64_t)(t[16+5][z+2])<<40) +
-            ((uint64_t)(t[16+6][z+2])<<48) +
-            ((uint64_t)(t[16+7][z+2])<<56);
-        *(uint64_t *)&out[iN[z+3]+16] =
-            ((uint64_t)(t[16+0][z+3])<< 0) +
-            ((uint64_t)(t[16+1][z+3])<< 8) +
-            ((uint64_t)(t[16+2][z+3])<<16) +
-            ((uint64_t)(t[16+3][z+3])<<24) +
-            ((uint64_t)(t[16+4][z+3])<<32) +
-            ((uint64_t)(t[16+5][z+3])<<40) +
-            ((uint64_t)(t[16+6][z+3])<<48) +
-            ((uint64_t)(t[16+7][z+3])<<56);
+            ((uint64_t)(t[16+7][z])<<56),
 
-        *(uint64_t *)&out[iN[z]+24] =
             ((uint64_t)(t[24+0][z])<< 0) +
             ((uint64_t)(t[24+1][z])<< 8) +
             ((uint64_t)(t[24+2][z])<<16) +
@@ -1357,8 +1277,38 @@ static inline void transpose_and_copy(uint8_t *out, int iN[32],
             ((uint64_t)(t[24+4][z])<<32) +
             ((uint64_t)(t[24+5][z])<<40) +
             ((uint64_t)(t[24+6][z])<<48) +
-            ((uint64_t)(t[24+7][z])<<56);
-        *(uint64_t *)&out[iN[z+1]+24] =
+            ((uint64_t)(t[24+7][z])<<56)
+        };
+        memcpy(&out[iN[z]], &t0, 32);
+
+        uint64_t t1[4] = {
+            ((uint64_t)(t[0][z+1])<< 0) +
+            ((uint64_t)(t[1][z+1])<< 8) +
+            ((uint64_t)(t[2][z+1])<<16) +
+            ((uint64_t)(t[3][z+1])<<24) +
+            ((uint64_t)(t[4][z+1])<<32) +
+            ((uint64_t)(t[5][z+1])<<40) +
+            ((uint64_t)(t[6][z+1])<<48) +
+            ((uint64_t)(t[7][z+1])<<56),
+
+            ((uint64_t)(t[8+0][z+1])<< 0) +
+            ((uint64_t)(t[8+1][z+1])<< 8) +
+            ((uint64_t)(t[8+2][z+1])<<16) +
+            ((uint64_t)(t[8+3][z+1])<<24) +
+            ((uint64_t)(t[8+4][z+1])<<32) +
+            ((uint64_t)(t[8+5][z+1])<<40) +
+            ((uint64_t)(t[8+6][z+1])<<48) +
+            ((uint64_t)(t[8+7][z+1])<<56),
+
+            ((uint64_t)(t[16+0][z+1])<< 0) +
+            ((uint64_t)(t[16+1][z+1])<< 8) +
+            ((uint64_t)(t[16+2][z+1])<<16) +
+            ((uint64_t)(t[16+3][z+1])<<24) +
+            ((uint64_t)(t[16+4][z+1])<<32) +
+            ((uint64_t)(t[16+5][z+1])<<40) +
+            ((uint64_t)(t[16+6][z+1])<<48) +
+            ((uint64_t)(t[16+7][z+1])<<56),
+
             ((uint64_t)(t[24+0][z+1])<< 0) +
             ((uint64_t)(t[24+1][z+1])<< 8) +
             ((uint64_t)(t[24+2][z+1])<<16) +
@@ -1366,8 +1316,38 @@ static inline void transpose_and_copy(uint8_t *out, int iN[32],
             ((uint64_t)(t[24+4][z+1])<<32) +
             ((uint64_t)(t[24+5][z+1])<<40) +
             ((uint64_t)(t[24+6][z+1])<<48) +
-            ((uint64_t)(t[24+7][z+1])<<56);
-        *(uint64_t *)&out[iN[z+2]+24] =
+            ((uint64_t)(t[24+7][z+1])<<56)
+        };
+        memcpy(&out[iN[z+1]], &t1, 32);
+
+        uint64_t t2[4] = {
+            ((uint64_t)(t[0][z+2])<< 0) +
+            ((uint64_t)(t[1][z+2])<< 8) +
+            ((uint64_t)(t[2][z+2])<<16) +
+            ((uint64_t)(t[3][z+2])<<24) +
+            ((uint64_t)(t[4][z+2])<<32) +
+            ((uint64_t)(t[5][z+2])<<40) +
+            ((uint64_t)(t[6][z+2])<<48) +
+            ((uint64_t)(t[7][z+2])<<56),
+
+            ((uint64_t)(t[8+0][z+2])<< 0) +
+            ((uint64_t)(t[8+1][z+2])<< 8) +
+            ((uint64_t)(t[8+2][z+2])<<16) +
+            ((uint64_t)(t[8+3][z+2])<<24) +
+            ((uint64_t)(t[8+4][z+2])<<32) +
+            ((uint64_t)(t[8+5][z+2])<<40) +
+            ((uint64_t)(t[8+6][z+2])<<48) +
+            ((uint64_t)(t[8+7][z+2])<<56),
+
+            ((uint64_t)(t[16+0][z+2])<< 0) +
+            ((uint64_t)(t[16+1][z+2])<< 8) +
+            ((uint64_t)(t[16+2][z+2])<<16) +
+            ((uint64_t)(t[16+3][z+2])<<24) +
+            ((uint64_t)(t[16+4][z+2])<<32) +
+            ((uint64_t)(t[16+5][z+2])<<40) +
+            ((uint64_t)(t[16+6][z+2])<<48) +
+            ((uint64_t)(t[16+7][z+2])<<56),
+
             ((uint64_t)(t[24+0][z+2])<< 0) +
             ((uint64_t)(t[24+1][z+2])<< 8) +
             ((uint64_t)(t[24+2][z+2])<<16) +
@@ -1375,8 +1355,39 @@ static inline void transpose_and_copy(uint8_t *out, int iN[32],
             ((uint64_t)(t[24+4][z+2])<<32) +
             ((uint64_t)(t[24+5][z+2])<<40) +
             ((uint64_t)(t[24+6][z+2])<<48) +
-            ((uint64_t)(t[24+7][z+2])<<56);
-        *(uint64_t *)&out[iN[z+3]+24] =
+            ((uint64_t)(t[24+7][z+2])<<56),
+
+        };
+        memcpy(&out[iN[z+2]], &t2, 32);
+
+        uint64_t t3[4] =  {
+            ((uint64_t)(t[0][z+3])<< 0) +
+            ((uint64_t)(t[1][z+3])<< 8) +
+            ((uint64_t)(t[2][z+3])<<16) +
+            ((uint64_t)(t[3][z+3])<<24) +
+            ((uint64_t)(t[4][z+3])<<32) +
+            ((uint64_t)(t[5][z+3])<<40) +
+            ((uint64_t)(t[6][z+3])<<48) +
+            ((uint64_t)(t[7][z+3])<<56),
+
+            ((uint64_t)(t[8+0][z+3])<< 0) +
+            ((uint64_t)(t[8+1][z+3])<< 8) +
+            ((uint64_t)(t[8+2][z+3])<<16) +
+            ((uint64_t)(t[8+3][z+3])<<24) +
+            ((uint64_t)(t[8+4][z+3])<<32) +
+            ((uint64_t)(t[8+5][z+3])<<40) +
+            ((uint64_t)(t[8+6][z+3])<<48) +
+            ((uint64_t)(t[8+7][z+3])<<56),
+
+            ((uint64_t)(t[16+0][z+3])<< 0) +
+            ((uint64_t)(t[16+1][z+3])<< 8) +
+            ((uint64_t)(t[16+2][z+3])<<16) +
+            ((uint64_t)(t[16+3][z+3])<<24) +
+            ((uint64_t)(t[16+4][z+3])<<32) +
+            ((uint64_t)(t[16+5][z+3])<<40) +
+            ((uint64_t)(t[16+6][z+3])<<48) +
+            ((uint64_t)(t[16+7][z+3])<<56),
+
             ((uint64_t)(t[24+0][z+3])<< 0) +
             ((uint64_t)(t[24+1][z+3])<< 8) +
             ((uint64_t)(t[24+2][z+3])<<16) +
@@ -1384,7 +1395,9 @@ static inline void transpose_and_copy(uint8_t *out, int iN[32],
             ((uint64_t)(t[24+4][z+3])<<32) +
             ((uint64_t)(t[24+5][z+3])<<40) +
             ((uint64_t)(t[24+6][z+3])<<48) +
-            ((uint64_t)(t[24+7][z+3])<<56);
+            ((uint64_t)(t[24+7][z+3])<<56)
+        };
+        memcpy(&out[iN[z+3]], &t3, 32);
 
         iN[z+0] += 32;
         iN[z+1] += 32;
@@ -1542,7 +1555,7 @@ unsigned char *rans_uncompress_O1_32x16_neon(unsigned char *in,
         // Follow with 2nd copy doing scalar code instead?
         unsigned char tbuf[32][32] = {0};
         int tidx = 0;
-        for (; i4[0] < isz4 && ptr+64 < ptr_end;) {
+        for (; i4[0] < isz4 && ptr_end - ptr > 64;) {
             for (z = 0; z < NX; z+=16) {
                 uint32x4_t Rv1 = vld1q_u32(&R[z+0]);
                 uint32x4_t Rv2 = vld1q_u32(&R[z+4]);
@@ -1634,12 +1647,14 @@ unsigned char *rans_uncompress_O1_32x16_neon(unsigned char *in,
                 uint32x4_t Rlt3 = vcltq_u32(Rv3, vdupq_n_u32(RANS_BYTE_L));
                 uint32x4_t Rlt4 = vcltq_u32(Rv4, vdupq_n_u32(RANS_BYTE_L));
                 uint32x4_t all2 = {2,2,2,2};
-                // load 8 lanes of renorm data
-                uint16x8_t norm12 =  vld1q_u16((uint16_t *)ptr);
+                // load 8 16-bit lanes of renorm data (loaded as 8-bit for
+                // alignment purposes, but will be shuffled and cast to
+                // 16 bit below).
+                uint8x16_t norm12 =  vld1q_u8(ptr);
                 // move ptr by no. renorm lanes used
                 ptr += vaddvq_u32(vandq_u32(Rlt1, all2))
                     +  vaddvq_u32(vandq_u32(Rlt2, all2));
-                uint16x8_t norm34 =  vld1q_u16((uint16_t *)ptr);
+                uint8x16_t norm34 =  vld1q_u8(ptr);
                 ptr += vaddvq_u32(vandq_u32(Rlt3, all2))
                     +  vaddvq_u32(vandq_u32(Rlt4, all2));
 
@@ -1654,16 +1669,12 @@ unsigned char *rans_uncompress_O1_32x16_neon(unsigned char *in,
                 uint32_t imask34 = (imask3<<4)|imask4;
 
                 // Shuffle norm to the corresponding R lanes, via imask
-                // #define for brevity and formatting
+                // cast_u16_u8 #define for brevity and formatting
                 uint16x4_t norm1, norm2, norm3, norm4;
-                norm1 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm12),
-                                              idx [imask1]));
-                norm2 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm12),
-                                              idx2[imask12]));
-                norm3 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm34),
-                                              idx [imask3]));
-                norm4 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm34),
-                                              idx2[imask34]));
+                norm1 = cast_u16_u8(vqtbl1_u8(norm12, idx [imask1]));
+                norm2 = cast_u16_u8(vqtbl1_u8(norm12, idx2[imask12]));
+                norm3 = cast_u16_u8(vqtbl1_u8(norm34, idx [imask3]));
+                norm4 = cast_u16_u8(vqtbl1_u8(norm34, idx2[imask34]));
 
                 // Add norm to R<<16 and blend back in with R
                 uint32x4_t Rsl1 = vshlq_n_u32(Rv1, 16); // Rsl = R << 16
@@ -1767,7 +1778,7 @@ unsigned char *rans_uncompress_O1_32x16_neon(unsigned char *in,
 
         uint32_t *S3 = (uint32_t *)s3;
         
-        for (; i4[0] < isz4 && ptr+64 < ptr_end;) {
+        for (; i4[0] < isz4 && ptr_end - ptr > 64;) {
             int Z = 0;
             for (z = 0; z < NX; z+=16, Z+=4) {
                 // streamline these.  Could swap between two banks and pre-load
@@ -1843,23 +1854,25 @@ unsigned char *rans_uncompress_O1_32x16_neon(unsigned char *in,
                 uint32_t imask3 = vaddvq_u32(vandq_u32(Rlt3, bit));
                 uint32_t imask4 = vaddvq_u32(vandq_u32(Rlt4, bit));
 
-                // load 8 lanes of renorm data
-                uint16x8_t norm12 =  vld1q_u16((uint16_t *)ptr);
+                // load 8 16-bit lanes of renorm data (loaded as 8-bit for
+                // alignment purposes, but will be shuffled and cast to
+                // 16 bit below).
+                uint8x16_t norm12 =  vld1q_u8(ptr);
                 // move ptr by no. renorm lanes used
                 ptr += nbits[imask1] + nbits[imask2];
-                uint16x8_t norm34 =  vld1q_u16((uint16_t *)ptr);
+                uint8x16_t norm34 =  vld1q_u8(ptr);
                 ptr += nbits[imask3] + nbits[imask4];
 
                 uint32_t imask12 = (imask1<<4)|imask2;
                 uint32_t imask34 = (imask3<<4)|imask4;
 
                 // Shuffle norm to the corresponding R lanes, via imask
-                // #define for brevity and formatting
+                // cast_u16_u8 #define for brevity and formatting
                 uint16x4_t norm1, norm2, norm3, norm4;
-                norm1 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm12),idx [imask1]));
-                norm2 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm12),idx2[imask12]));
-                norm3 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm34),idx [imask3]));
-                norm4 = cast_u16_u8(vqtbl1_u8(cast_u8_u16(norm34),idx2[imask34]));
+                norm1 = cast_u16_u8(vqtbl1_u8(norm12,idx [imask1]));
+                norm2 = cast_u16_u8(vqtbl1_u8(norm12,idx2[imask12]));
+                norm3 = cast_u16_u8(vqtbl1_u8(norm34,idx [imask3]));
+                norm4 = cast_u16_u8(vqtbl1_u8(norm34,idx2[imask34]));
 
                 // Add norm to R<<16 and blend back in with R
                 uint32x4_t Rsl1 = vshlq_n_u32(RV[Z+0], 16); // Rsl = R << 16

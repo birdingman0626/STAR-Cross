@@ -19,11 +19,13 @@ uint ReadAlign::quantTranscriptome (Transcriptome *Tr, uint nAlignG, Transcript 
             continue;
         };
 
+        // Keep the optional copy alive until quantAlign consumes align1 below.
+        Transcript align2;
         if (!P.quant.trSAM.softClip) {
             //soft clipping not allowed, extend them if possible
             uint nMM1=0;
             char* R=Read1[align1->roStr==0 ? 0:2];
-            Transcript align2=*align1; //copy this transcript to avoid changing the original one
+            align2=*align1; //copy this transcript to avoid changing the original one
             
             for (uint32 iab=0; iab<align2.nExons; iab++) {
                 uint left1=0,right1=0;//how many bases to move left or right

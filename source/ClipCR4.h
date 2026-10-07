@@ -3,6 +3,7 @@
 
 #include "IncludeDefine.h"
 #include <parasail.h>
+#include <memory>
 
 // Alignment result for one database sequence (score + end position)
 struct ClipAlignResult
@@ -22,7 +23,7 @@ public:
     vector<ClipAlignResult> alignRes;
 
     ClipCR4();
-    ~ClipCR4();
+    ~ClipCR4() = default;
 
     // Non-copyable: owns raw heap allocations and C resources
     ClipCR4(const ClipCR4&) = delete;
@@ -35,13 +36,13 @@ public:
 private:
     uint32 readLen; // sequence length to align against
 
-    parasail_matrix_t *scoreMatrix;
+    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> scoreMatrix;
     int gapOpen;
     int gapExt;
 
     // Database sequences stored as ASCII characters (A/C/G/T/N)
-    char* dbSeqArr;
-    char** dbSeqs;
+    vector<char> dbSeqArr;
+    vector<char*> dbSeqs;
 
     // Reused buffer; do not silently truncate user-supplied adapters.
     vector<char> queryCharsBuf;

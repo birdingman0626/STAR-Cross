@@ -18,7 +18,7 @@ public:
     uint8 sjStr[MAX_N_EXONS]; //strand of the junction
     uint intronMotifs[3];
     uint8 sjMotifStrand;
-    bool sjYes;
+    bool sjYes=false;
 
     uint nExons; //number of exons in the read transcript
 

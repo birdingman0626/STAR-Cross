@@ -367,7 +367,8 @@ uint funCalcSAiFromSA(char* gSeq, PackedArray& gSA, Genome &mapGen, uint iSA, in
         {
             char g2 = gPtr[ii];
 #else
-        register uint128 g1=*( (uint128*) (gSeq+SAstr) );
+        uint128 g1;
+        std::memcpy(&g1, gSeq+SAstr, sizeof(g1));
         for (int ii=0; ii<L; ii++)
         {
             char g2=(char) g1;
@@ -393,7 +394,8 @@ uint funCalcSAiFromSA(char* gSeq, PackedArray& gSA, Genome &mapGen, uint iSA, in
         {
             char g2 = gPtr[15-ii];
 #else
-        register uint128 g1=*( (uint128*) (gSeq+mapGen.nGenome-SAstr-16) );
+        uint128 g1;
+        std::memcpy(&g1, gSeq+mapGen.nGenome-SAstr-16, sizeof(g1));
         for (int ii=0; ii<L; ii++)
         {
             char g2=(char) (g1>>(8*(15-ii)));

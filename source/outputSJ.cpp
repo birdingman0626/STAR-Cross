@@ -5,8 +5,8 @@
 #include "ErrorWarning.h"
 
 int compareUint(const void* i1, const void* i2) {//compare uint arrays
-    uint s1=*( (uint*)i1 );
-    uint s2=*( (uint*)i2 );
+    uint s1=loadUnaligned<uint>(i1);
+    uint s2=loadUnaligned<uint>(i2);
 
     if (s1>s2) {
         return 1;
@@ -39,7 +39,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
     while (true) {
         int icOut=-1;//chunk from which the junction is output
         for (int ic=0;ic<P.runThreadN;ic++) {//scan through all chunks, find the "smallest" junction
-            if ( *(uint*)(sjChunks[ic])<ULONG_MAX && (icOut==-1 ||compareSJ((void*) sjChunks[ic], (void*) sjChunks[icOut])<0 ) ) {
+            if ( loadUnaligned<uint>(sjChunks[ic])<ULONG_MAX && (icOut==-1 ||compareSJ((void*) sjChunks[ic], (void*) sjChunks[icOut])<0 ) ) {
                     icOut=ic;
                 };
         };
@@ -91,8 +91,8 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
 
             sjFilter[ii]=false;
             uint x1=0, x2=-1;
-            if (ii>0)         x1=*( (uint*)(allSJ.data+(ii-1)*oneSJ.dataSize) ); //previous junction donor
-            if (ii+1<allSJ.N) x2=*( (uint*)(allSJ.data+(ii+1)*oneSJ.dataSize) ); //next junction donor
+            if (ii>0)         x1=loadUnaligned<uint>(allSJ.data+(ii-1)*oneSJ.dataSize); //previous junction donor
+            if (ii+1<allSJ.N) x2=loadUnaligned<uint>(allSJ.data+(ii+1)*oneSJ.dataSize); //next junction donor
             uint minDist=min(*oneSJ.start-x1, x2-*oneSJ.start);
             sjFilter[ii]= minDist >= (uint) P.outSJfilterDistToOtherSJmin[(*oneSJ.motif+1)/2];
             sjA[ii*3]=*oneSJ.start+(uint)*oneSJ.gap;//acceptor

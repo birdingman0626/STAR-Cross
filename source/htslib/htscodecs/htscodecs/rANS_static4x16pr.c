@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2023 Genome Research Ltd.
+ * Copyright (c) 2017-2023, 2025 Genome Research Ltd.
  * Author(s): James Bonfield
  *
  * Redistribution and use in source and binary forms, with or without
@@ -190,31 +190,10 @@ unsigned char *rans_compress_O0_4x16(unsigned char *in, unsigned int in_size,
         RansEncSymbol *s1 = &syms[in[i-3]];
         RansEncSymbol *s0 = &syms[in[i-4]];
 
-#if 1
         RansEncPutSymbol(&rans3, &ptr, s3);
         RansEncPutSymbol(&rans2, &ptr, s2);
         RansEncPutSymbol(&rans1, &ptr, s1);
         RansEncPutSymbol(&rans0, &ptr, s0);
-#else
-        // Slightly beter on gcc, much better on clang
-        uint16_t *ptr16 = (uint16_t *)ptr;
-
-        if (rans3 >= s3->x_max) *--ptr16 = (uint16_t)rans3, rans3 >>= 16;
-        if (rans2 >= s2->x_max) *--ptr16 = (uint16_t)rans2, rans2 >>= 16;
-        uint32_t q3 = (uint32_t) (((uint64_t)rans3 * s3->rcp_freq) >> s3->rcp_shift);
-        uint32_t q2 = (uint32_t) (((uint64_t)rans2 * s2->rcp_freq) >> s2->rcp_shift);
-        rans3 += s3->bias + q3 * s3->cmpl_freq;
-        rans2 += s2->bias + q2 * s2->cmpl_freq;
-
-        if (rans1 >= s1->x_max) *--ptr16 = (uint16_t)rans1, rans1 >>= 16;
-        if (rans0 >= s0->x_max) *--ptr16 = (uint16_t)rans0, rans0 >>= 16;
-        uint32_t q1 = (uint32_t) (((uint64_t)rans1 * s1->rcp_freq) >> s1->rcp_shift);
-        uint32_t q0 = (uint32_t) (((uint64_t)rans0 * s0->rcp_freq) >> s0->rcp_shift);
-        rans1 += s1->bias + q1 * s1->cmpl_freq;
-        rans0 += s0->bias + q0 * s0->cmpl_freq;
-
-        ptr = (uint8_t *)ptr16;
-#endif
     }
 
     RansEncFlush(&rans3, &ptr);
@@ -844,6 +823,33 @@ static int rans_cpu = 0xFFFF; // all
 #  define UNUSED
 #endif
 
+#if defined(__APPLE__)
+/*
+   MacOS before 12.2 (a.k.a. Darwin 21.3) had a bug that could cause random
+   failures on some AVX512 operations due to opmask registers not being restored
+   correctly following interrupts.  For simplicity, check that the major version
+   is 22 or higher before using AVX512.
+   See https://community.intel.com/t5/Software-Tuning-Performance/MacOS-Darwin-kernel-bug-clobbers-AVX-512-opmask-register-state/m-p/1327259
+*/
+
+#include <sys/utsname.h>
+static inline int not_ancient_darwin(void) {
+    static long version = 0;
+    if (!version) {
+        struct utsname uname_info;
+        if (uname(&uname_info) == 0) {
+            version = strtol(uname_info.release, NULL, 10);
+        }
+    }
+    return version >= 22;
+}
+#else
+static inline int not_ancient_darwin(void) {
+    return 1;
+}
+#endif
+
+
 // CPU detection is performed once.  NB this has an assumption that we're
 // not migrating between processes with different instruction stes, but
 // to date the only systems I know of that support this don't have different
@@ -862,6 +868,11 @@ static int is_amd       UNUSED = 0;
 #define HAVE_HTSCODECS_TLS_CPU_INIT
 static void htscodecs_tls_cpu_init(void) {
     unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
+    unsigned int have_xsave UNUSED = 0;
+    unsigned int have_avx   UNUSED = 0;
+    uint64_t xcr0 UNUSED = 0ULL;
+    const uint64_t xcr0_can_use_avx UNUSED = (1ULL << 2);
+    const uint64_t xcr0_can_use_avx512 UNUSED = (7ULL << 5);
     // These may be unused, depending on HAVE_* config.h macros
 
     int level = __get_cpuid_max(0, NULL);
@@ -878,14 +889,42 @@ static void htscodecs_tls_cpu_init(void) {
 #if defined(bit_SSE4_1)
         have_sse4_1 = ecx & bit_SSE4_1;
 #endif
+#if defined(bit_AVX)
+        have_avx = ecx & bit_AVX;
+#endif
+#if defined(bit_XSAVE) && defined(bit_OSXSAVE)
+        have_xsave = (ecx & bit_XSAVE) && (ecx & bit_OSXSAVE);
+        if (have_xsave) {
+            /* OSXSAVE tells us it's safe to use XGETBV to read XCR0
+               which then describes if AVX / AVX512 instructions can be
+               executed.  See Intel 64 and IA-32 Architectures Software
+               Developer’s Manual Vol. 1 sections 13.2 and 13.3.
+
+               Use inline assembly for XGETBV here to avoid problems
+               with builtins either not working correctly, or requiring
+               specific compiler options to be in use.  Also emit raw
+               bytes here as older toolchains may not have the XGETBV
+               instruction.
+            */
+            __asm__ volatile (".byte 0x0f, 0x01, 0xd0" :
+                              "=d" (edx), "=a" (eax) :
+                              "c" (0));
+            xcr0 = ((uint64_t) edx << 32) | eax;
+        }
+#endif
     }
-    if (level >= 7) {
+    // AVX2 and AVX512F depend on XSAVE, AVX and bit 2 of XCR0.
+    if (level >= 7 && have_xsave && have_avx
+        && (xcr0 & xcr0_can_use_avx) == xcr0_can_use_avx) {
         __cpuid_count(7, 0, eax, ebx, ecx, edx);
 #if defined(bit_AVX2)
         have_avx2 = ebx & bit_AVX2;
 #endif
 #if defined(bit_AVX512F)
-        have_avx512f = ebx & bit_AVX512F;
+        // AVX512 depends on bits 5:7 of XCR0
+        if ((xcr0 & xcr0_can_use_avx512) == xcr0_can_use_avx512
+            && not_ancient_darwin())
+            have_avx512f = ebx & bit_AVX512F;
 #endif
     }
 
@@ -899,14 +938,6 @@ unsigned char *(*rans_enc_func(int do_simd, int order))
      unsigned int in_size,
      unsigned char *out,
      unsigned int *out_size) {
-
-    int have_e_sse4_1  = have_sse4_1;
-    int have_e_avx2    = have_avx2;
-    int have_e_avx512f = have_avx512f;
-
-    if (!(rans_cpu & RANS_CPU_ENC_AVX512)) have_e_avx512f = 0;
-    if (!(rans_cpu & RANS_CPU_ENC_AVX2))   have_e_avx2    = 0;
-    if (!(rans_cpu & RANS_CPU_ENC_SSE4))   have_e_sse4_1  = 0;
 
     if (!do_simd) { // SIMD disabled
         return order & 1
@@ -924,6 +955,14 @@ unsigned char *(*rans_enc_func(int do_simd, int order))
         fprintf(stderr, "Using scalar code only\n");
     }
 #endif
+
+    int have_e_sse4_1  = have_sse4_1;
+    int have_e_avx2    = have_avx2;
+    int have_e_avx512f = have_avx512f;
+
+    if (!(rans_cpu & RANS_CPU_ENC_AVX512)) have_e_avx512f = 0;
+    if (!(rans_cpu & RANS_CPU_ENC_AVX2))   have_e_avx2    = 0;
+    if (!(rans_cpu & RANS_CPU_ENC_SSE4))   have_e_sse4_1  = 0;
 
     if (order & 1) {
         // With simulated gathers, the AVX512 is now slower than AVX2, so
@@ -974,14 +1013,6 @@ unsigned char *(*rans_dec_func(int do_simd, int order))
      unsigned char *out,
      unsigned int out_size) {
 
-    int have_d_sse4_1  = have_sse4_1;
-    int have_d_avx2    = have_avx2;
-    int have_d_avx512f = have_avx512f;
-
-    if (!(rans_cpu & RANS_CPU_DEC_AVX512)) have_d_avx512f = 0;
-    if (!(rans_cpu & RANS_CPU_DEC_AVX2))   have_d_avx2    = 0;
-    if (!(rans_cpu & RANS_CPU_DEC_SSE4))   have_d_sse4_1  = 0;
-
     if (!do_simd) { // SIMD disabled
         return order & 1
             ? rans_uncompress_O1_4x16
@@ -998,6 +1029,14 @@ unsigned char *(*rans_dec_func(int do_simd, int order))
         fprintf(stderr, "Using scalar code only\n");
     }
 #endif
+
+    int have_d_sse4_1  = have_sse4_1;
+    int have_d_avx2    = have_avx2;
+    int have_d_avx512f = have_avx512f;
+
+    if (!(rans_cpu & RANS_CPU_DEC_AVX512)) have_d_avx512f = 0;
+    if (!(rans_cpu & RANS_CPU_DEC_AVX2))   have_d_avx2    = 0;
+    if (!(rans_cpu & RANS_CPU_DEC_SSE4))   have_d_sse4_1  = 0;
 
     if (order & 1) {
 #if defined(HAVE_AVX512)
@@ -1164,10 +1203,16 @@ void rans_set_cpu(int opts) {
 unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
                                      unsigned char *out,unsigned int *out_size,
                                      int order) {
-    if (in_size > INT_MAX) {
+    if (in_size > INT_MAX || (out && *out_size == 0)) {
         *out_size = 0;
         return NULL;
     }
+
+#ifdef VALIDATE_RANS
+    int orig_order = order;
+    int orig_in_size = in_size;
+    unsigned char *orig_in = in;
+#endif
 
     unsigned int c_meta_len;
     uint8_t *meta = NULL, *rle = NULL, *packed = NULL;
@@ -1177,8 +1222,10 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
         *out_size = rans_compress_bound_4x16(in_size, order);
         if (*out_size == 0)
             return NULL;
-        if (!(out_free = out = malloc(*out_size)))
+        if (!(out_free = out = malloc(*out_size))) {
+            *out_size = 0;
             return NULL;
+        }
     }
 
     unsigned char *out_end = out + *out_size;
@@ -1199,11 +1246,15 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
         int N = (order>>8) & 0xff;
         if (N == 0) N = 4; // default for compatibility with old tests
 
+        if (N > in_size)
+            N = in_size;
+
         unsigned char *transposed = malloc(in_size);
         unsigned int part_len[256];
         unsigned int idx[256];
         if (!transposed) {
             free(out_free);
+            *out_size = 0;
             return NULL;
         }
         int i, j, x;
@@ -1241,6 +1292,13 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
         c_meta_len = 1;
         *out = order & ~RANS_ORDER_NOSZ;
         c_meta_len += var_put_u32(out+c_meta_len, out_end, in_size);
+        if (c_meta_len >= *out_size) {
+            free(out_free);
+            free(transposed);
+            *out_size = 0;
+            return NULL;
+        }
+
         out[c_meta_len++] = N;
         
         unsigned char *out_best = NULL;
@@ -1249,7 +1307,8 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
         out2_start = out2 = out+7+5*N; // shares a buffer with c_meta
         for (i = 0; i < N; i++) {
             // Brute force try all methods.
-            int j, m[] = {1,64,128,0}, best_j = 0, best_sz = in_size+10;
+            uint8_t *r;
+            int j, m[] = {1,64,128,0}, best_j = 0, best_sz = INT_MAX;
             for (j = 0; j < sizeof(m)/sizeof(*m); j++) {
                 if ((order & m[j]) != m[j])
                     continue;
@@ -1257,18 +1316,24 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
                 // order-1 *only*; bit check above cannot elide order-0
                 if ((order & RANS_ORDER_STRIPE_NO0) && (m[j]&1) == 0)
                     continue;
+
+                if (out2 - out > *out_size)
+                    continue; // an error, but caught in best_sz check later
+
                 olen2 = *out_size - (out2 - out);
-                rans_compress_to_4x16(transposed+idx[i], part_len[i],
-                                      out2, &olen2,
-                                      m[j] | RANS_ORDER_NOSZ
-                                      | (order&RANS_ORDER_X32));
-                if (best_sz > olen2) {
+                r = rans_compress_to_4x16(transposed+idx[i], part_len[i],
+                                          out2, &olen2,
+                                          m[j] | RANS_ORDER_NOSZ
+                                          | (order&RANS_ORDER_X32));
+                if (r && olen2 && best_sz > olen2) {
                     best_sz = olen2;
                     best_j = j;
                     if (j < sizeof(m)/sizeof(*m) && olen2 > out_best_len) {
                         unsigned char *tmp = realloc(out_best, olen2);
                         if (!tmp) {
                             free(out_free);
+                            free(transposed);
+                            *out_size = 0;
                             return NULL;
                         }
                         out_best = tmp;
@@ -1279,6 +1344,15 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
                     memcpy(out_best, out2, olen2);
                 }
             }
+
+            if (best_sz == INT_MAX) {
+                free(out_best);
+                free(out_free);
+                free(transposed);
+                *out_size = 0;
+                return NULL;
+            }
+
             if (best_j < sizeof(m)/sizeof(*m)) {
                 // Copy the best compression to output buffer if not current
                 memcpy(out2, out_best, best_sz);
@@ -1301,6 +1375,12 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
         out[0] = RANS_ORDER_CAT;
         c_meta_len = 1;
         c_meta_len += var_put_u32(&out[1], out_end, in_size);
+
+        if (c_meta_len + in_size > *out_size) {
+            free(out_free);
+            *out_size = 0;
+            return NULL;
+        }
         if (in_size)
             memcpy(out+c_meta_len, in, in_size);
         *out_size = c_meta_len + in_size;
@@ -1329,6 +1409,11 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
         // PACK 2, 4 or 8 symbols into one byte.
         int pmeta_len;
         uint64_t packed_len;
+        if (c_meta_len + 256 > *out_size) {
+            free(out_free);
+            *out_size = 0;
+            return NULL;
+        }
         packed = hts_pack(in, in_size, out+c_meta_len, &pmeta_len, &packed_len);
         if (!packed) {
             out[0] &= ~RANS_ORDER_PACK;
@@ -1345,6 +1430,11 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
             int sz = var_put_u32(out+c_meta_len, out_end, in_size);
             c_meta_len += sz;
             *out_size -= sz;
+
+            if (do_simd && in_size < 32) {
+                do_simd = 0;
+                out[0] &= ~RANS_ORDER_X32;
+            }
         }
     } else if (do_pack) {
         out[0] &= ~RANS_ORDER_PACK;
@@ -1357,6 +1447,7 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
         c_rmeta_len = in_size+257;
         if (!(meta = malloc(c_rmeta_len))) {
             free(out_free);
+            *out_size = 0;
             return NULL;
         }
 
@@ -1380,8 +1471,27 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
             // Compress lengths with O0 and literals with O0/O1 ("order" param)
             int sz = var_put_u32(out+c_meta_len, out_end, rmeta_len*2), sz2;
             sz += var_put_u32(out+c_meta_len+sz, out_end, rle_len);
+            if ((c_meta_len+sz+5) > *out_size) {
+                free(out_free);
+                free(rle);
+                free(meta);
+                free(packed);
+                *out_size = 0;
+                return NULL;
+            }
             c_rmeta_len = *out_size - (c_meta_len+sz+5);
-            rans_enc_func(do_simd, 0)(meta, rmeta_len, out+c_meta_len+sz+5, &c_rmeta_len);
+            if (do_simd && (rmeta_len < 32 || rle_len < 32)) {
+                do_simd = 0;
+                out[0] &= ~RANS_ORDER_X32;
+            }
+            if (!rans_enc_func(do_simd, 0)(meta, rmeta_len, out+c_meta_len+sz+5, &c_rmeta_len)) {
+                free(out_free);
+                free(rle);
+                free(meta);
+                free(packed);
+                *out_size = 0;
+                return NULL;
+            }
             if (c_rmeta_len < rmeta_len) {
                 sz2 = var_put_u32(out+c_meta_len+sz, out_end, c_rmeta_len);
                 memmove(out+c_meta_len+sz+sz2, out+c_meta_len+sz+5, c_rmeta_len);
@@ -1404,17 +1514,39 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
         out[0] &= ~RANS_ORDER_RLE;
     }
 
+    if (c_meta_len > *out_size) {
+        free(out_free);
+        free(rle);
+        free(packed);
+        *out_size = 0;
+        return NULL;
+    }
+
     *out_size -= c_meta_len;
     if (order && in_size < 8) {
         out[0] &= ~1;
         order  &= ~1;
     }
 
-    rans_enc_func(do_simd, order)(in, in_size, out+c_meta_len, out_size);
+    if (!rans_enc_func(do_simd, order)(in, in_size, out+c_meta_len, out_size)) {
+        free(out_free);
+        free(rle);
+        free(packed);
+        *out_size = 0;
+        return NULL;
+    }
 
     if (*out_size >= in_size) {
         out[0] &= ~3;
         out[0] |= RANS_ORDER_CAT | no_size;
+
+        if (out + c_meta_len + in_size > out_end) {
+            free(out_free);
+            free(rle);
+            free(packed);
+            *out_size = 0;
+            return NULL;
+        }
         if (in_size)
             memcpy(out+c_meta_len, in, in_size);
         *out_size = in_size;
@@ -1424,6 +1556,24 @@ unsigned char *rans_compress_to_4x16(unsigned char *in, unsigned int in_size,
     free(packed);
 
     *out_size += c_meta_len;
+
+// Validation mode
+#ifdef VALIDATE_RANS
+    unsigned int decoded_size = orig_in_size;
+    unsigned char *decoded = malloc(decoded_size);
+    decoded = rans_uncompress_to_4x16(out, *out_size,
+                                      decoded, &decoded_size);
+    if (!decoded ||
+        decoded_size != orig_in_size ||
+        memcmp(orig_in, decoded, orig_in_size) != 0) {
+        fprintf(stderr, "rans round trip failed for order %d. Written to fd 5\n", orig_order);
+        if (write(5, orig_in, orig_in_size) < 0)
+            abort();
+        abort();
+    }
+    free(decoded);
+#endif
+
 
     return out;
 }

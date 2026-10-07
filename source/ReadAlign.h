@@ -23,6 +23,8 @@
 class ReadAlign {
     public:
         ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, int iChunk);//allocate arrays
+        ReadAlign(const ReadAlign&) = delete;
+        ReadAlign& operator=(const ReadAlign&) = delete;
         int oneRead();
 
         Genome &mapGen, &genOut; //mapped-to-genome structure

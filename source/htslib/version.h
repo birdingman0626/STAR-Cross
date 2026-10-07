@@ -1,2 +1,2 @@
-#define HTS_VERSION_TEXT "1.21"
-#define HTS_VERSION "1.21"
+#define HTS_VERSION_TEXT "1.24"
+#define HTS_VERSION "1.24"

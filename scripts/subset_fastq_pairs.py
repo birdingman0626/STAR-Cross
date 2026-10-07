@@ -25,6 +25,12 @@ def read_id(header):
     return name[:-2] if name.endswith((b"/1", b"/2")) else name
 
 
+def open_fastq(path):
+    with Path(path).open("rb") as stream:
+        compressed = stream.read(2) == b"\x1f\x8b"
+    return gzip.open(path, "rb") if compressed else Path(path).open("rb")
+
+
 def subset(r1, r2, output, pairs):
     if pairs <= 0:
         raise ValueError("pairs must be positive")
@@ -36,7 +42,7 @@ def subset(r1, r2, output, pairs):
     hashes = [hashlib.sha256(), hashlib.sha256()]
     lengths = [set(), set()]
     start = time.monotonic()
-    with gzip.open(sources[0], "rb") as input1, gzip.open(sources[1], "rb") as input2, \
+    with open_fastq(sources[0]) as input1, open_fastq(sources[1]) as input2, \
             paths[0].open("xb") as out1, paths[1].open("xb") as out2:
         for index in range(pairs):
             records = [read_record(input1), read_record(input2)]

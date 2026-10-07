@@ -1,3 +1,91 @@
+Release 1.6.7: 24th June 2026
+-----------------------------
+
+This is a trivial release containing a single new commit removing a
+harmless compiler warning.  (The primary purpose of a release is to
+ensure htslib is using a released and tagged htscodecs submodule.)
+
+Bug fixes
+
+- Remove an unused variable detected by gcc 16.
+  (PR #148: James Bonfield)
+
+
+Release 1.6.6: 11th January 2026
+--------------------------------
+
+This is a bug fix release.
+
+Bug fixes
+
+- Prevent use of unaligned 16-bit integers from memmove.
+  (PR #145 Robert Davies)
+
+- Add missing support for X_CAT in arithmetic codec.
+  (PR #146; Issue #144 Michael Macias)
+
+
+Release 1.6.5: 9th December 2025
+--------------------------------
+
+This is a bug fix release.
+
+Bug fixes
+
+- Add cpuid checks for XSAVE, OSXSAVE and AVX.  Corrects auto-detection of
+  SIMD version on machines that have but disable specific CPU features.
+  (PR #140 Robert Davies, fixes samtools/samtools#2256 Ran Fan).
+
+- Avoid undefined behaviour by replacing literal copies with memcpy
+  (PR #142 James Bonfield, fixes Issue #141 Vasudeva Easwara Sarma)
+
+
+Release 1.6.4: 9th July 2025
+----------------------------
+
+This is primarily a bug fix release.
+
+Fixes
+
+- Fixed a minor thread data race in first call of the rans4x16 codec.
+
+- Protect against SIMD rANS encoding on small or highly compressible data
+  sets.  This could fail when combined with the RLE method where one
+  sub-component was very small (<32 bytes) and the other was large.
+
+Changes
+
+- UUID4 based read names are now compressed better with the name tokeniser.
+  This also slightly improves name compression of mixed data sets.
+
+
+Release 1.6.3: 22nd May 2025
+----------------------------
+
+A tiny bug fix to 1.6.2 to fix a memory leak in rans_compress_to_4x16,
+detected by htslib's CI system. (#136)
+
+
+Release 1.6.2: 22nd May 2025
+----------------------------
+
+This release has minor bug fixes and some continuous integration test
+improvements.
+
+Bug fixes
+
+- Improved check of out_size in rans4x16 and arithmetic coder, plus
+  better memory freeing on error. (#127]
+
+- [CI] Bump FreeBSD release used to 14.2 and Ubuntu to 24.04 (#129 jkb,
+  #133 from John Marshall).
+
+- [CI] Remove GitHub workflow shell override. (#133, John Marshall)
+
+- [JavaScript] Correct arithmetic coder, (Commit 9d3127d, with thanks to
+  Colin Diesh)
+
+
 Release 1.6.1: 22nd August 2024
 -------------------------------
 

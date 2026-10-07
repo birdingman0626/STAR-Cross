@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include "ClipCR4.h"
+#include <stdexcept>
 #include <random>
 
 // Independent scalar affine overlap recurrence. Free leading ends; choose the
@@ -57,4 +58,22 @@ TEST_CASE("CellRanger4 custom adapter longer than 128 bases is not truncated") {
     auto expected=overlap(query,sequence);
     CHECK(clip.alignRes[0].score==expected.score);
     CHECK(clip.alignRes[0].endLocationTarget==expected.endLocationTarget);
+}
+
+TEST_CASE("CellRanger4 invalid inputs are rejected and unknown query bases normalize") {
+    ClipCR4 clip;
+    char sequence[] = "ACGT";
+    uint8 query[] = {0, 1, 2, 3, 255};
+    CHECK_THROWS_AS(clip.fillOneSeq(64, sequence, 4), std::invalid_argument);
+    CHECK_THROWS_AS(clip.fillOneSeq(0, nullptr, 4), std::invalid_argument);
+    CHECK_THROWS_AS(clip.align(query, 0, 1), std::invalid_argument);
+    CHECK_THROWS_AS(clip.align(query, 5, 65), std::invalid_argument);
+    CHECK_THROWS_AS(clip.align(nullptr, 5, 1), std::invalid_argument);
+    clip.fillOneSeq(0, sequence, 4);
+    clip.align(query, 5, 1);
+    const auto unknown = clip.alignRes[0];
+    query[4] = 4;
+    clip.align(query, 5, 1);
+    CHECK(clip.alignRes[0].score == unknown.score);
+    CHECK(clip.alignRes[0].endLocationTarget == unknown.endLocationTarget);
 }

@@ -4,9 +4,9 @@
 #include "ErrorWarning.h"
 #include "serviceFuns.cpp"
 
-Transcriptome::Transcriptome (Parameters &Pin) : P(Pin){
+Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
 
-    if (!P.quant.yes)
+    if (!load || !P.quant.yes)
         return;
 
     if (!P.pGe.transform.outQuant) {//standard

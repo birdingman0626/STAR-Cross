@@ -1,6 +1,7 @@
 #include "BAMbinSortUnmapped.h"
 #include "ErrorWarning.h"
 #include "BAMfunctions.h"
+#include "unaligned.h"
 
 void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
 
@@ -36,9 +37,9 @@ void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameter
 
         bamInStream[it].read(bamIn[it],sizeof(int32));//read BAM record size
         if (bamInStream[it].good()) {
-            bamSize[it]=((*(uint32*)bamIn[it])+sizeof(int32));//true record size +=4 (4 bytes for uint-iRead)
+            bamSize[it]=loadUnaligned<uint32>(bamIn[it])+sizeof(int32);//true record size +=4 (4 bytes for uint-iRead)
             bamInStream[it].read(bamIn[it]+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint64));//read the rest of the record, including last uint = iRead
-            uint64 iRead=*(uint*)(bamIn[it]+bamSize.at(it));
+            uint64 iRead=loadUnaligned<uint>(bamIn[it]+bamSize.at(it));
             iRead = iRead >> 32; //iRead is recorded in top 32bits
             startPos[iRead]=it;//startPos[iRead]=it : record the order of the files to output
         } else {//nothing to do here, file is empty, do not record it
@@ -62,9 +63,9 @@ void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameter
             bgzf_write(bgzfBin, bam0, size0);
             bamInStream[it].read(bamIn[it],sizeof(int32));//read record size
             if (bamInStream[it].good()) {
-                 bamSize[it]=((*(uint32*)bamIn[it])+sizeof(int32));
+                 bamSize[it]=loadUnaligned<uint32>(bamIn[it])+sizeof(int32);
                  bamInStream[it].read(bamIn[it]+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint));//read the rest of the record, including 
-                 uint64 iRead=*(uint*)(bamIn[it]+bamSize.at(it));
+                 uint64 iRead=loadUnaligned<uint>(bamIn[it]+bamSize.at(it));
                  iRead = iRead >> 32; //iRead is recorded in top 32bits
                  if (iRead>startNext) {//this read from this chunk is > than a read from another chunk
                      startPos[iRead]=it;

@@ -14,6 +14,13 @@ for this unchanged-index case; the next candidate is resident-index seed search.
 
 ## Build and select the backend
 
+The host and device language levels are independent:
+`-DSTAR_CXX_STANDARD=20 -DSTAR_CUDA_STANDARD=17` and
+`-DSTAR_CXX_STANDARD=20 -DSTAR_CUDA_STANDARD=20` are distinct qualified profiles,
+not interchangeable compiler flags. Defaults remain host17/device17. Current
+dependency/toolchain execution is tracked in
+[QUALIFICATION_RESULTS_20261007.md](QUALIFICATION_RESULTS_20261007.md).
+
 CUDA builds require CMake >=3.24 and a compatible toolkit/device. CPU builds do
 not discover or link CUDA. Linux/WSL example:
 
@@ -28,8 +35,10 @@ select your supported architecture explicitly. The default is `native`. CUDA 13.
 and GCC 13.3 were tested on WSL Ubuntu. Native Windows MSVC 19.51 + CUDA 13.3 also
 builds and passes 82 CPU / 82 CUDA cases and the scoped 1M-pair CPU/CUDA comparison.
 Use a Visual Studio Developer shell for native CMake/Ninja, not WSL; select the
-Windows nvcc compiler. Other combinations remain unverified. The traditional
-Makefile uses only the CPU stub.
+Windows nvcc compiler. Other combinations remain unverified. The Make frontend
+now delegates to CMake; CUDA is off by default and can be selected through
+`CMAKE_ARGS`. These earlier GPU passes do not qualify the current dependency and
+shared-header updates; follow [Q2 in the qualification plan](QUALIFICATION_PLAN.md).
 
 Add `--gpuSjdbRemap required` to a STAR alignment command that triggers junction
 preparation with the same GTF/index geometry. Modes:

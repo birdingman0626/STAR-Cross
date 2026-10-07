@@ -3,6 +3,7 @@
 
 #include "Parameters.h"
 #include "Genome.h"
+#include "unaligned.h"
 
 class Junction {//one junction
 public:
@@ -16,11 +17,11 @@ public:
     const static uint overhangLeftP=countMultipleP+sizeof(uint32);
     const static uint overhangRightP=overhangLeftP+sizeof(uint16);
 
-    uint *start;
-    uint32 *gap;
+    UnalignedPointer<uint> start;
+    UnalignedPointer<uint32> gap;
     char *strand, *motif, *annot;
-    uint32 *countUnique, *countMultiple;
-    uint16 *overhangLeft, *overhangRight;
+    UnalignedPointer<uint32> countUnique, countMultiple;
+    UnalignedPointer<uint16> overhangLeft, overhangRight;
 
     const static uint dataSize=overhangRightP+sizeof(uint16);
 

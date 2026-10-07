@@ -115,7 +115,7 @@ int main(int argc,char** argv) try {
            || (q.forward ? q.length>q.readBytes-q.start : q.length>q.start+1))
             throw std::runtime_error("invalid replay query");
     std::vector<GpuSeedMatch> expected(queries.size()),cpu(queries.size());
-    auto cpuRun=[&](std::vector<GpuSeedMatch>& out) {
+    auto cpuRun=[&, threads](std::vector<GpuSeedMatch>& out) {
         auto start=Clock::now();
         #pragma omp parallel for num_threads(threads)
         for(long long i=0;i<static_cast<long long>(queries.size());++i) {

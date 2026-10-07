@@ -4,7 +4,7 @@
 # and that the result is deterministic across thread counts and chunk layouts.
 #
 # Usage: validate_genome_equivalence.sh <OLD_STAR> <NEW_STAR> [WORKDIR]
-#   OLD_STAR  path to the baseline STAR binary (pre-#2687, e.g. built from main)
+#   OLD_STAR  path to an independently validated, pinned baseline STAR binary
 #   NEW_STAR  path to the candidate STAR binary (this branch)
 #
 # Exits non-zero if any generated index file differs.
@@ -14,6 +14,11 @@ OLD_STAR="${1:?need OLD_STAR}"
 NEW_STAR="${2:?need NEW_STAR}"
 WORK="${3:-$(mktemp -d)}"
 mkdir -p "$WORK"
+if cmp -s "$OLD_STAR" "$NEW_STAR"; then
+    echo "ERROR: baseline and candidate binaries are identical" >&2
+    exit 2
+fi
+sha256sum "$OLD_STAR" "$NEW_STAR" > "$WORK/binary-sha256.txt"
 
 echo "OLD_STAR=$OLD_STAR"
 echo "NEW_STAR=$NEW_STAR"
@@ -31,6 +36,7 @@ awk 'BEGIN{
     }
     if(length(line)>0) print line;
 }' > "$GENOME"
+sha256sum "$GENOME" > "$WORK/genome-sha256.txt"
 echo "genome size: $(wc -c < "$GENOME") bytes"
 
 # index files that must be reproducible byte-for-byte

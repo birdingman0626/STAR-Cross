@@ -1,0 +1,2 @@
+# Executable Unix scripts must survive Windows checkouts without CRLF.
+*.sh text eol=lf

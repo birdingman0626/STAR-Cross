@@ -1,5 +1,37 @@
 #include "doctest/doctest.h"
 #include "PackedArray.h"
+#include <stdexcept>
+
+TEST_CASE("PackedArray ownership survives borrowed snapshots and moves") {
+    PackedArray owner;
+    owner.defineBits(8, 4);
+    owner.allocateArray();
+    owner.writePacked(0, 42);
+    {
+        PackedArray view=owner;
+        CHECK(view[0] == 42);
+        view.deallocateArray();
+    }
+    CHECK(owner[0] == 42);
+    PackedArray borrowed=owner;
+    CHECK_THROWS_AS(owner=borrowed, std::logic_error);
+    PackedArray moved=std::move(owner);
+    CHECK(owner.charArray == nullptr);
+    CHECK(moved[0] == 42);
+    moved=std::move(moved);
+    CHECK(moved[0] == 42);
+}
+
+TEST_CASE("PackedArray frees allocation base rather than a rebound view") {
+    PackedArray owner;
+    owner.defineBits(8, 4);
+    owner.allocateArray();
+    char external[32]={};
+    owner.pointArray(external);
+    owner.writePacked(0, 7);
+    owner.deallocateArray();
+    CHECK(external[0] == 7);
+}
 
 // Compute the value mask for a given bit-width (bitRecMask is private in PackedArray).
 static uint makeMask(uint wordLen) {
@@ -114,4 +146,24 @@ TEST_CASE("PackedArray - deallocateArray is idempotent") {
     pa.allocateArray();
     pa.deallocateArray();
     pa.deallocateArray(); // second call must not crash or double-free
+}
+
+TEST_CASE("PackedArray rejects invalid dimensions before allocating") {
+    PackedArray pa;
+    CHECK_THROWS_AS(pa.allocateArray(), std::logic_error);
+    CHECK_THROWS_AS(pa.defineBits(0, 10), std::invalid_argument);
+    CHECK_THROWS_AS(pa.defineBits(65, 10), std::invalid_argument);
+    CHECK_THROWS_AS(pa.defineBits(63, 10), std::invalid_argument);
+    CHECK_THROWS_AS(pa.defineBits(32, std::numeric_limits<uint>::max()), std::length_error);
+}
+
+TEST_CASE("PackedArray empty storage and 64-bit aligned words are defined") {
+    PackedArray empty;
+    empty.defineBits(8, 0);
+    CHECK(empty.lengthByte == sizeof(uint));
+    empty.allocateArray();
+    empty.deallocateArray();
+    roundtrip(64, 3, std::numeric_limits<uint>::max());
+    roundtrip(58, 12, (static_cast<uint>(1) << 58)-1);
+    roundtrip(60, 12, (static_cast<uint>(1) << 60)-1);
 }

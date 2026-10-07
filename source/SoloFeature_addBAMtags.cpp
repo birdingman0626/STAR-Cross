@@ -1,11 +1,12 @@
 #include "SoloFeature.h"
 #include "BAMfunctions.h"
 #include "SequenceFuns.h"
+#include "unaligned.h"
 
 void SoloFeature::addBAMtags(char *&bam0, uint32 &size0, char *bam1)
 {//add extra tags to the BAM record
     
-    uint64 iread = * ((uint64*) (bam0+size0));
+    uint64 iread = loadUnaligned<uint64>(bam0+size0);
     iread = iread >> 32; //iRead was encoded in the upper 32 bitsls
 
     string cb="-";

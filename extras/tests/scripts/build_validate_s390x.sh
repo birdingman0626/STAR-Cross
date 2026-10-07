@@ -8,34 +8,37 @@ set -euxo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
-    g++ cmake ninja-build zlib1g-dev git ca-certificates make gawk
+    g++ cmake ninja-build zlib1g-dev git ca-certificates make gawk python3
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC_DIR="$(cd "$SCRIPT_DIR/../../../source" && pwd)"
 cd "$SRC_DIR"
 
 # Sanity: confirm we are actually building for a big-endian target.
-python3 - <<'PY' 2>/dev/null || true
-import sys
-print("byteorder:", sys.byteorder)
+python3 - <<'PY'
+import sys, platform
+assert sys.byteorder == 'big' and platform.machine() == 's390x'
 PY
 
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=OFF
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
 
-# parasail's cpuid.c stubs out the x86 CPUID inline-asm for arm/powerpc but omits
-# s390x, so on s390x it tries to compile the x86 asm and fails ("inconsistent
-# operand constraints"). s390x is non-x86 and belongs in the same stub group;
-# patch the FetchContent'd copy (post-configure, pre-build). Upstream parasail
-# omission — worth reporting to jeffdaily/parasail.
-CPUID="build/_deps/parasail-src/src/cpuid.c"
-if [ -f "$CPUID" ]; then
-    sed -i '/__arm__.*__PPC64__/ s/defined(__PPC64__)/defined(__PPC64__) || defined(__s390__) || defined(__s390x__)/' "$CPUID"
-    grep -q "__s390x__" "$CPUID" && echo "patched parasail cpuid.c for s390x" || echo "WARNING: parasail cpuid.c patch did not apply"
-fi
+# CMake's hash-verified Parasail patch step also handles s390x CPUID.
 
 cmake --build build -j2
 
 ./build/STAR --version
+ctest --test-dir build/test --no-tests=error --output-on-failure -R 'PackedArray|byteOrder|unaligned'
+python3 "$SCRIPT_DIR/../../../scripts/test_cpu_upstream.py" --star-exe "$SRC_DIR/build/STAR" --sa-sparse 3
+
+# Reuse C dependencies, but recompile all affected C++ nodes for C++20.
+cp build/STAR build/STAR-cxx17-reference
+cmake -B build -DSTAR_CXX_STANDARD=20
+cmake --build build -j2
+ctest --test-dir build/test --no-tests=error --output-on-failure -R 'PackedArray|byteOrder|unaligned'
+python3 "$SCRIPT_DIR/../../../scripts/test_cpu_upstream.py" --star-exe "$SRC_DIR/build/STAR" --ref-exe "$SRC_DIR/build/STAR-cxx17-reference" --sa-sparse 3
+# Published s390x binary remains C++17 until promotion is independently approved.
+cmake -B build -DSTAR_CXX_STANDARD=17
+cmake --build build -j2
 
 # End-to-end big-endian validation: building a genome index exercises the
 # PackedArray / SuffixArrayFuns / Genome_genomeGenerate byte-order paths. On an

@@ -1,6 +1,6 @@
 /*  tbx.c -- tabix API functions.
 
-    Copyright (C) 2009, 2010, 2012-2015, 2017-2020, 2022-2023 Genome Research Ltd.
+    Copyright (C) 2009, 2010, 2012-2015, 2017-2020, 2022-2023, 2025-2026 Genome Research Ltd.
     Copyright (C) 2010-2012 Broad Institute.
 
     Author: Heng Li <lh3@sanger.ac.uk>
@@ -33,8 +33,10 @@ DEALINGS IN THE SOFTWARE.  */
 #include <errno.h>
 #include "htslib/tbx.h"
 #include "htslib/bgzf.h"
+#include "htslib/hts_alloc.h"
 #include "htslib/hts_endian.h"
 #include "hts_internal.h"
+#include "bgzf_internal.h"
 
 #include "htslib/khash.h"
 KHASH_DECLARE(s2i, kh_cstr_t, int64_t)
@@ -96,8 +98,11 @@ int tbx_name2id(tbx_t *tbx, const char *ss)
 int tbx_parse1(const tbx_conf_t *conf, size_t len, char *line, tbx_intv_t *intv)
 {
     size_t i, b = 0;
-    int id = 1;
-    char *s;
+    int id = 1, getlen = 0, alcnt = 0, use_svlen = 0, lenpos = -1;
+    char *s, *t;
+    uint8_t svlenals[8192];
+    int64_t reflen = 0, svlen = 0, fmtlen = 0, tmp = 0;
+
     intv->ss = intv->se = 0; intv->beg = intv->end = -1;
     for (i = 0; i <= len; ++i) {
         if (line[i] == '\t' || line[i] == 0) {
@@ -165,10 +170,41 @@ int tbx_parse1(const tbx_conf_t *conf, size_t len, char *line, tbx_intv_t *intv)
                         intv->end = intv->beg + l;
                     }
                 } else if ((conf->preset&0xffff) == TBX_VCF) {
-                    if (id == 4) {
+                    if (id == 4) { //ref allele
                         if (b < i) intv->end = intv->beg + (i - b);
-                    } else if (id == 8) { // look for "END="
-                        int c = line[i];
+                        ++alcnt;
+                        reflen = i - b;
+                    } if (id == 5) {    //alt allele
+                        int lastbyte = 0, c = line[i];
+                        svlenals[lastbyte] = 0;
+                        line[i] = 0;
+                        s = line + b;
+                        do {
+                            t = strchr(s, ',');
+                            if (alcnt >> 3 != lastbyte) {   //initialize insals
+                                lastbyte = alcnt >> 3;
+                                svlenals[lastbyte] = 0;
+                            }
+                            ++alcnt;
+                            if (t) {
+                                *t = 0;
+                            }
+                            if (svlen_on_ref_for_vcf_alt(s, -1)) {
+                                // Need to check SVLEN for this ALT
+                                svlenals[lastbyte] |= 1 << ((alcnt - 1) & 7);
+                                use_svlen = 1;
+                            } else if (!strcmp("<*>", s) ||
+                                       !strcmp("<NON_REF>", s)) {  //note gvcf
+                                getlen = 1;
+                            }
+                            if (t) {
+                                *t = ',';
+                                s = t + 1;
+                            }
+                        } while (t && alcnt < 65536);   //max allcnt is 65535
+                        line[i] = c;
+                    } else if (id == 8) { //INFO, look for "END=" / "SVLEN"
+                        int c = line[i], d = 1;
                         line[i] = 0;
                         s = strstr(line + b, "END=");
                         if (s == line + b) s += 4;
@@ -194,13 +230,85 @@ int tbx_parse1(const tbx_conf_t *conf, size_t len, char *line, tbx_intv_t *intv)
                                 intv->end = end;
                             }
                         }
+                        s = strstr(line + b, "SVLEN=");
+                        if (s == line + b) s += 6;  //at start of info
+                        else if (s) {               //not at the start
+                            s = strstr(line + b, ";SVLEN=");
+                            if (s) s += 7;
+                        }
+                        while (s && d < alcnt) {
+                            t = strchr(s, ',');
+                            if ((use_svlen) && (svlenals[d >> 3] & (1 << (d & 7)))) {
+                                // <DEL> symbolic allele
+                                tmp = atoll(s);
+                                tmp = tmp < 0 ? llabs(tmp) : tmp;
+                            } else {
+                                tmp = 1;
+                            }
+                            svlen = svlen < tmp ? tmp : svlen;
+                            s = t ? t + 1 : NULL;
+                            ++d;
+                        }
+                        line[i] = c;
+                    } else if (getlen && id == 9 ) {    //FORMAT
+                        int c = line[i], pos = -1;
+                        line[i] = 0;
+                        s = line + b;
+                        while (s) {
+                            ++pos;
+                            if (!(t = strchr(s, ':'))) {    //no further fields
+                                if (!strcmp(s, "LEN")) {
+                                    lenpos = pos;
+                                }
+                                break;  //not present at all!
+                            } else {
+                                *t = '\0';
+                                if (!strcmp(s, "LEN")) {
+                                    lenpos = pos;
+                                    *t = ':';
+                                    break;
+                                }
+                                *t = ':';
+                                s = t + 1;  //check next one
+                            }
+                        }
+                        line[i] = c;
+                        if (lenpos == -1) { //not present
+                            break;
+                        }
+                    } else if (id > 9 && getlen && lenpos != -1) {
+                        //get LEN from sample
+                        int c = line[i], d = 0;
+                        line[i] = 0; tmp = 0;
+                        s = line + b;
+                        for (d = 0; d <= lenpos; ++d) {
+                            if (d == lenpos) {
+                                tmp = atoll(s);
+                                break;
+                            }
+                            if ((t = strchr(s, ':'))) {
+                                s = t + 1;
+                            } else {
+                                break;    //not in sycn with fmt def!
+                            }
+                        }
+                        fmtlen = fmtlen < tmp ? tmp : fmtlen;
                         line[i] = c;
                     }
                 }
             }
-            b = i + 1;
+            b = i + 1;  //beginning if current field
             ++id;
         }
+    }
+    if ((conf->preset&0xffff) == TBX_VCF) {
+        tmp = reflen < svlen ?
+                svlen < fmtlen ? fmtlen : svlen :
+                reflen < fmtlen ? fmtlen : reflen ;
+        tmp += intv->beg;
+        intv->end = intv->end < tmp ? tmp : intv->end;
+
+        //NOTE: 'end' calculation be in sync with end/rlen in vcf.c:get_rlen
     }
     if (intv->ss == 0 || intv->se == 0 || intv->beg < 0 || intv->end < 0) return -1;
     return 0;
@@ -249,13 +357,60 @@ int tbx_readrec(BGZF *fp, void *tbxv, void *sv, int *tid, hts_pos_t *beg, hts_po
     tbx_t *tbx = (tbx_t *) tbxv;
     kstring_t *s = (kstring_t *) sv;
     int ret;
-    if ((ret = bgzf_getline(fp, '\n', s)) >= 0) {
+
+    // Get a line until either EOF or a non-meta character
+    do {
+        ret = bgzf_getline(fp, '\n', s);
+    } while (ret >= 0 && s->l && *s->s == tbx->conf.meta_char);
+
+    // Parse line
+    if (ret >= 0)  {
         tbx_intv_t intv;
         if (get_intv(tbx, s, &intv, 0) < 0)
             return -2;
         *tid = intv.tid; *beg = intv.beg; *end = intv.end;
     }
+
     return ret;
+}
+
+/*
+  Wrapper to get the tbx_t struct to tbx_readrec() when using the
+  multi-region iterator interface.  This is required to deal with
+  differences between the single- and multi-region iterator interfaces.
+
+  In particular, the multi-region one lacks a way to directly pass the tbx_t
+  structure to the tbx_readrec() function.  By using the structure below,
+  tbx_itr_next1() can parcel a tbx_t pointer up along with one to the output
+  buffer, then tbx_multi_readrec() can unwrap them to pass on to tbx_readrec().
+*/
+
+typedef struct tbx_wrapper {
+    void *result_ptr;
+    tbx_t *tbx;
+} tbx_wrapper;
+
+int tbx_itr_next1(htsFile *htsfp, tbx_t *tbx, hts_itr_t *iter, void *r)
+{
+    if (!htsfp->is_bgzf) {
+        hts_log_error("Only bgzf compressed files can be used with iterators");
+        errno = EINVAL;
+        return -2;
+    }
+
+    if (iter->multi) {
+        tbx_wrapper tmp = { r, tbx };
+        return hts_itr_multi_next(htsfp, iter, &tmp);
+    } else {
+        return hts_itr_next(htsfp->fp.bgzf, iter, r, tbx);
+    }
+}
+
+static int tbx_multi_readrec(BGZF *fp, void *fpv, void *r,
+                             int *tid, hts_pos_t *beg, hts_pos_t *end)
+{
+    tbx_wrapper *tmp = (tbx_wrapper *) r;
+    return tbx_readrec(fp, tmp->tbx, tmp->result_ptr, tid, beg, end);
 }
 
 static int tbx_set_meta(tbx_t *tbx)
@@ -268,7 +423,7 @@ static int tbx_set_meta(tbx_t *tbx)
     khash_t(s2i) *d = (khash_t(s2i)*)tbx->dict;
 
     memcpy(x, &tbx->conf, 24);
-    name = (char**)malloc(sizeof(char*) * kh_size(d));
+    name = hts_malloc_p(sizeof(char*), kh_size(d));
     if (!name) return -1;
     for (k = kh_begin(d), l = 0; k != kh_end(d); ++k) {
         if (!kh_exist(d, k)) continue;
@@ -276,7 +431,7 @@ static int tbx_set_meta(tbx_t *tbx)
         l += strlen(kh_key(d, k)) + 1; // +1 to include '\0'
     }
     l_nm = x[6] = l;
-    meta = (uint8_t*)malloc(l_nm + 28);
+    meta = hts_malloc_ps(sizeof(*meta), l_nm, 28);
     if (!meta) { free(name); return -1; }
     if (ed_is_big())
         for (i = 0; i < 7; ++i)
@@ -320,16 +475,6 @@ static void adjust_max_ref_len_sam(const char *str, int64_t *max_ref_len)
     if (*max_ref_len < len) *max_ref_len = len;
 }
 
-// Adjusts number of levels if not big enough.  This can happen for
-// files with very large contigs.
-static int adjust_n_lvls(int min_shift, int n_lvls, int64_t max_len)
-{
-    int64_t s = hts_bin_maxpos(min_shift, n_lvls);
-    max_len += 256;
-    for (; max_len > s; ++n_lvls, s <<= 3) {}
-    return n_lvls;
-}
-
 tbx_t *tbx_index(BGZF *fp, int min_shift, const tbx_conf_t *conf)
 {
     tbx_t *tbx;
@@ -364,17 +509,26 @@ tbx_t *tbx_index(BGZF *fp, int min_shift, const tbx_conf_t *conf)
         }
         if (first == 0) {
             if (fmt == HTS_FMT_CSI) {
-                if (!max_ref_len)
-                    max_ref_len = (int64_t)100*1024*1024*1024; // 100G default
-                n_lvls = adjust_n_lvls(min_shift, n_lvls, max_ref_len);
+                if (max_ref_len) {
+                    hts_adjust_csi_settings(max_ref_len, &min_shift, &n_lvls);
+                } else {
+                    // This will give a maximum reference length of at
+                    // least 100Gbases for min_shift >= 10, and the
+                    // maximum possible for min_shift < 10.
+                    const int max_n_lvls = 9; // To prevent bin number overflow
+                    n_lvls = (min_shift < 10
+                              ? max_n_lvls
+                              : (min_shift < 25
+                                 ? max_n_lvls - (min_shift - 10) / 3
+                                 : 4));
+                }
             }
             tbx->idx = hts_idx_init(0, fmt, last_off, min_shift, n_lvls);
             if (!tbx->idx) goto fail;
             first = 1;
         }
         ret = get_intv(tbx, &str, &intv, 1);
-        if (ret < -1) goto fail;  // Out of memory
-        if (ret < 0) continue; // Skip unparsable lines
+        if (ret < 0) goto fail;  // Out of memory or unparsable lines
         if (hts_idx_push(tbx->idx, intv.tid, intv.beg, intv.end,
                          bgzf_tell(fp), 1) < 0) {
             goto fail;
@@ -527,3 +681,35 @@ const char **tbx_seqnames(tbx_t *tbx, int *n)
     return names;
 }
 
+// Wrap around tbx_name2id() to get the right signature for hts_name2id_f
+static int tbx_name2id_wrapper(void *vhdr, const char *ref)
+{
+    return tbx_name2id((tbx_t *) vhdr, ref);
+}
+
+hts_itr_t *tbx_itr_querys1(tbx_t *tbx, const char *region)
+{
+    return hts_itr_querys(tbx->idx, region, tbx_name2id_wrapper, tbx,
+                          hts_itr_query, tbx_readrec);
+}
+
+hts_itr_t *tbx_itr_regarray(tbx_t *tbx, char **regarray, unsigned int regcount)
+{
+    hts_itr_t *itr = NULL;
+    hts_reglist_t *r_list = NULL;
+    int r_count = 0;
+
+    r_list = hts_reglist_create(regarray, regcount, &r_count, tbx,
+                                tbx_name2id_wrapper);
+    if (!r_list)
+        return NULL;
+
+    itr = hts_itr_regions(tbx->idx, r_list, r_count, tbx_name2id_wrapper, tbx,
+                          hts_itr_multi_bam, tbx_multi_readrec,
+                          bgzf_pseek, bgzf_ptell);
+    if (!itr)
+        hts_reglist_free(r_list, r_count);
+
+    return itr;
+
+}

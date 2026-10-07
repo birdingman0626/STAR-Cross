@@ -1,0 +1,21 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {"major": 3, "minor": 21, "patch": 0},
+  "configurePresets": [
+    {"name": "release", "generator": "Ninja", "binaryDir": "${sourceDir}/../build/release", "cacheVariables": {"CMAKE_BUILD_TYPE": "Release", "STAR_BUILD_TESTS": "ON", "STAR_USE_AVX2": "OFF"}},
+    {"name": "debug", "inherits": "release", "binaryDir": "${sourceDir}/../build/debug", "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug"}},
+    {"name": "sanitized", "inherits": "debug", "binaryDir": "${sourceDir}/../build/sanitized", "cacheVariables": {"STAR_ASAN": "ON", "STAR_UBSAN": "ON"}},
+    {"name": "cxx20", "inherits": "release", "binaryDir": "${sourceDir}/../build/cxx20", "cacheVariables": {"STAR_CXX_STANDARD": "20"}}
+  ],
+  "buildPresets": [
+    {"name": "release", "configurePreset": "release"},
+    {"name": "debug", "configurePreset": "debug"},
+    {"name": "sanitized", "configurePreset": "sanitized"},
+    {"name": "cxx20", "configurePreset": "cxx20"}
+  ],
+  "testPresets": [
+    {"name": "release", "configurePreset": "release", "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
+    {"name": "sanitized", "configurePreset": "sanitized", "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}},
+    {"name": "cxx20", "configurePreset": "cxx20", "output": {"outputOnFailure": true}, "execution": {"noTestsAction": "error"}}
+  ]
+}

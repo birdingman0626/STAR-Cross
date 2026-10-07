@@ -1,6 +1,7 @@
 name: Build and Test
 
 on:
+  workflow_call:
   push:
     branches: [main]
   pull_request:
@@ -8,11 +9,12 @@ on:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         compiler: [gcc, clang]
+        standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
 
@@ -31,30 +33,42 @@ jobs:
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             export CC=clang CXX=clang++
           fi
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=${{ matrix.standard }}
           cmake --build build
 
       - name: Smoke test
         run: ./source/build/STAR --version
 
       - name: Unit tests
-        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
+        run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
 
       - name: Validation harness failure gates
         run: python3 -m unittest discover -s scripts -p 'test_*py'
 
       - name: Miniature STAR integration
-        run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build/STAR"
+        run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build/STAR" --shared-memory
+
+      - name: Embedded HTTP and JSON integration
+        run: python3 scripts/test_webui.py --star-exe source/build/STAR
+
+      - name: Same-source C++17 vs C++20 qualification
+        if: matrix.standard == 20
+        run: python3 scripts/qualify_language_pair.py --build-dir source/build
 
       - name: Upload binary
-        if: matrix.compiler == 'gcc'
+        if: matrix.compiler == 'gcc' && matrix.standard == 17
         uses: actions/upload-artifact@v7
         with:
-          name: STAR-linux-x86_64
+          name: qualification-STAR-linux-x86_64
           path: source/build/STAR
 
   build-macos:
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+        standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
 
@@ -73,23 +87,36 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER="${GCC_C_BIN}" \
             -DCMAKE_CXX_COMPILER="${GCC_BIN}" \
-            -DSTAR_BUILD_TESTS=ON
+            -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=${{ matrix.standard }}
           cmake --build build
 
       - name: Smoke test
         run: ./source/build/STAR --version
 
       - name: Unit tests
-        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
+        run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
-          name: STAR-macos-aarch64
+          name: qualification-STAR-${{ matrix.os }}-cxx${{ matrix.standard }}
           path: source/build/STAR
+
+      - name: Native analysis and embedded-server integration
+        run: |
+          python3 scripts/test_cpu_upstream.py --star-exe source/build/STAR --sa-sparse 3
+          python3 scripts/test_webui.py --star-exe source/build/STAR
+
+      - name: Same-source C++17 vs C++20 qualification
+        if: matrix.standard == 20
+        run: python3 scripts/qualify_language_pair.py --build-dir source/build
 
   build-windows:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
 
@@ -101,30 +128,43 @@ jobs:
       - name: Build
         run: |
           cd source
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=${{ matrix.standard }}
           cmake --build build
 
       - name: Smoke test
         run: source\build\STAR.exe --version
 
+      - name: Embedded HTTP and JSON integration
+        run: python scripts/test_webui.py --star-exe source/build/STAR.exe
+
+      - name: Miniature STAR integration
+        run: python scripts/test_cpu_upstream.py --star-exe source/build/STAR.exe --sa-sparse 3
+
+      - name: Same-source C++17 vs C++20 qualification
+        if: matrix.standard == 20
+        run: python scripts/qualify_language_pair.py --build-dir source/build
+
       - name: Unit tests
-        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
+        run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
 
       - name: Upload binary
+        if: matrix.standard == 17
         uses: actions/upload-artifact@v7
         with:
-          name: STAR-windows-x86_64
+          name: qualification-STAR-windows-x86_64
           path: source\build\STAR.exe
 
-  # Verify the genomeGenerate suffix-array rewrite (PR #2687) produces a
-  # byte-identical index vs the baseline on main, and is deterministic across
+  # Compare against the independently validated five-platform release, and
+  # verify index determinism across
   # thread counts and chunk layouts.
   validate-genome-index:
     runs-on: ubuntu-latest
+    env:
+      STAR_BASELINE_SHA: 9a6d932657fae942bec7e8d4936ce513d66abb5d
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0   # need main history to build the baseline
+          fetch-depth: 1
 
       - name: Install dependencies
         run: |
@@ -138,18 +178,19 @@ jobs:
           cmake --build build
           cp build/STAR "$GITHUB_WORKSPACE/STAR_new"
 
-      - name: Build baseline (main, pre-#2687)
+      - name: Download hash-pinned released baseline
         run: |
-          git worktree add /tmp/star-main origin/main
-          cd /tmp/star-main/source
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=OFF
-          cmake --build build
-          cp build/STAR "$GITHUB_WORKSPACE/STAR_old"
+          curl --fail --location --retry 3 -o STAR_old https://github.com/birdingman0626/STAR-Cross/releases/download/0.0.1_9a6d932/STAR-linux-x86_64
+          echo 'dbd2cfbd295a187491a077f61d99f7fb462c06e32d85dc1c4f849c0c5a547528  STAR_old' | sha256sum --check
+          chmod +x STAR_old
 
       - name: Genome-index equivalence (old vs new, 1 vs 16 threads, multi-chunk)
         run: |
           chmod +x extras/tests/scripts/validate_genome_equivalence.sh
           extras/tests/scripts/validate_genome_equivalence.sh "$GITHUB_WORKSPACE/STAR_old" "$GITHUB_WORKSPACE/STAR_new"
+
+      - name: Frozen-baseline alignment and integer-matrix equivalence
+        run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/STAR_new" --ref-exe "$GITHUB_WORKSPACE/STAR_old" --sa-sparse 3
 
   # Memory-safety of the splice-junction insertion path (sjdbBuildIndex) under
   # AddressSanitizer. Regression coverage for the funCalcSAi out-of-bounds read
@@ -167,8 +208,18 @@ jobs:
       - name: Build with AddressSanitizer
         run: |
           cd source
-          cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_BUILD_TESTS=OFF -DSTAR_ASAN=ON
+          cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_BUILD_TESTS=ON -DSTAR_ASAN=ON -DSTAR_UBSAN=ON
           cmake --build build-asan
+
+      - name: Sanitized unit tests
+        run: ctest --test-dir source/build-asan --no-tests=error --output-on-failure
+
+      - name: Sanitized alignment and count integration
+        env:
+          # The CLI retains process-lifetime allocations; unit tests check leaks.
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build-asan/STAR"
 
       - name: sjdb insertion memory-safety (issue #2657)
         run: |

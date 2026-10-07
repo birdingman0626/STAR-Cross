@@ -1,6 +1,6 @@
 /*  sam.c -- SAM and BAM file I/O and manipulation.
 
-    Copyright (C) 2008-2010, 2012-2024 Genome Research Ltd.
+    Copyright (C) 2008-2010, 2012-2026 Genome Research Ltd.
     Copyright (C) 2010, 2012, 2013 Broad Institute.
 
     Author: Heng Li <lh3@sanger.ac.uk>
@@ -36,6 +36,7 @@ DEALINGS IN THE SOFTWARE.  */
 #include <signal.h>
 #include <inttypes.h>
 #include <unistd.h>
+#include <regex.h>
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 #include "fuzz_settings.h"
@@ -52,9 +53,11 @@ DEALINGS IN THE SOFTWARE.  */
 #include "hts_internal.h"
 #include "sam_internal.h"
 #include "htslib/hfile.h"
+#include "htslib/hts_alloc.h"
 #include "htslib/hts_endian.h"
 #include "htslib/hts_expr.h"
 #include "header.h"
+#include "bgzf_internal.h"
 
 #include "htslib/khash.h"
 KHASH_DECLARE(s2i, kh_cstr_t, int64_t)
@@ -210,10 +213,11 @@ sam_hdr_t *sam_hdr_dup(const sam_hdr_t *h0)
         if (sam_hdr_update_target_arrays(h, h0->hrecs, 0) != 0)
             goto fail;
     } else {
-        h->l_text = h0->l_text;
-        h->text = malloc(h->l_text + 1);
+        h->l_text = h0->text ? h0->l_text : 0;
+        h->text = hts_malloc_ps(sizeof(*h->text), h->l_text, 1);
         if (!h->text) goto fail;
-        memcpy(h->text, h0->text, h->l_text);
+        if (h0->text)
+            memcpy(h->text, h0->text, h->l_text);
         h->text[h->l_text] = '\0';
     }
 
@@ -412,9 +416,14 @@ int bam_hdr_write(BGZF *fp, const sam_hdr_t *h)
     return 0;
 }
 
+// Wrap around bam_name2id() to get the right signature for hts_name2id_f
+static int bam_name2id_wrapper(void *vhdr, const char *ref) {
+    return bam_name2id((sam_hdr_t *) vhdr, ref);
+}
+
 const char *sam_parse_region(sam_hdr_t *h, const char *s, int *tid,
                              hts_pos_t *beg, hts_pos_t *end, int flags) {
-    return hts_parse_region(s, tid, beg, end, (hts_name2id_f)bam_name2id, h, flags);
+    return hts_parse_region(s, tid, beg, end, bam_name2id_wrapper, h, flags);
 }
 
 /*************************
@@ -550,7 +559,7 @@ int bam_set1(bam1_t *bam,
     }
 
     // validate parameters
-    if (l_qname > 254) {
+    if (l_qname > BAM_MAX_QNAME_LEN) {
         hts_log_error("Query name too long");
         errno = EINVAL;
         return -1;
@@ -585,7 +594,7 @@ int bam_set1(bam1_t *bam,
 
     // re-allocate the data buffer as needed.
     size_t data_len = l_qname + qname_nuls + n_cigar * 4 + (l_seq + 1) / 2 + l_seq;
-    if (realloc_bam_data(bam, data_len + l_aux) < 0) {
+    if (realloc_bam_data(bam, hts_add_sat2(data_len, l_aux)) < 0) {
         return -1;
     }
 
@@ -670,7 +679,8 @@ hts_pos_t bam_endpos(const bam1_t *b)
     return b->core.pos + rlen;
 }
 
-static int bam_tag2cigar(bam1_t *b, int recal_bin, int give_warning) // return 0 if CIGAR is untouched; 1 if CIGAR is updated with CG
+// return 0 if CIGAR is untouched; 1 if CIGAR is updated with CG
+int bam_tag2cigar(bam1_t *b, int recal_bin, int give_warning)
 {
     bam1_core_t *c = &b->core;
 
@@ -857,7 +867,7 @@ int bam_write1(BGZF *fp, const bam1_t *b)
     const bam1_core_t *c = &b->core;
     uint32_t x[8], block_len = b->l_data - c->l_extranul + 32, y;
     int i, ok;
-    if (c->l_qname - c->l_extranul > 255) {
+    if (c->l_qname - c->l_extranul > BAM_MAX_QNAME_LEN + 1) { // +1 for NUL
         hts_log_error("QNAME \"%s\" is longer than 254 characters", bam_get_qname(b));
         errno = EOVERFLOW;
         return -1;
@@ -993,13 +1003,13 @@ static hts_idx_t *sam_index(htsFile *fp, int min_shift)
     h = sam_hdr_read(fp);
     if (h == NULL) return NULL;
     if (min_shift > 0) {
-        hts_pos_t max_len = 0, s;
+        hts_pos_t max_len = 0;
         for (i = 0; i < h->n_targets; ++i) {
             hts_pos_t len = sam_hdr_tid2len(h, i);
             if (max_len < len) max_len = len;
         }
-        max_len += 256;
-        for (n_lvls = 0, s = 1<<min_shift; max_len > s; ++n_lvls, s <<= 3);
+        n_lvls = 0;
+        hts_adjust_csi_settings(max_len, &min_shift, &n_lvls);
         fmt = HTS_FMT_CSI;
     } else min_shift = 14, n_lvls = 5, fmt = HTS_FMT_BAI;
     idx = hts_idx_init(h->n_targets, fmt, bgzf_tell(fp->fp.bgzf), min_shift, n_lvls);
@@ -1021,6 +1031,7 @@ static hts_idx_t *sam_index(htsFile *fp, int min_shift)
 err:
     bam_destroy1(b);
     hts_idx_destroy(idx);
+    sam_hdr_destroy(h);
     return NULL;
 }
 
@@ -1091,13 +1102,12 @@ int sam_idx_init(htsFile *fp, sam_hdr_t *h, int min_shift, const char *fnidx) {
         (fp->format.format == sam && fp->format.compression == bgzf)) {
         int n_lvls, fmt = HTS_FMT_CSI;
         if (min_shift > 0) {
-            int64_t max_len = 0, s;
+            int64_t max_len = 0;
             int i;
             for (i = 0; i < h->n_targets; ++i)
                 if (max_len < h->target_len[i]) max_len = h->target_len[i];
-            max_len += 256;
-            for (n_lvls = 0, s = 1<<min_shift; max_len > s; ++n_lvls, s <<= 3);
-
+            n_lvls = 0;
+            hts_adjust_csi_settings(max_len, &min_shift, &n_lvls);
         } else min_shift = 14, n_lvls = 5, fmt = HTS_FMT_BAI;
 
         fp->idx = hts_idx_init(h->n_targets, fmt, bgzf_tell(fp->fp.bgzf), min_shift, n_lvls);
@@ -1553,9 +1563,6 @@ static int cram_readrec(BGZF *ignored, void *fpv, void *bv, int *tid, hts_pos_t 
         if (ret < 0)
             return cram_eof(fp->fp.cram) ? -1 : -2;
 
-        if (bam_tag2cigar(b, 1, 1) < 0)
-            return -2;
-
         *tid = b->core.tid;
         *beg = b->core.pos;
         *end = bam_endpos(b);
@@ -1621,23 +1628,6 @@ static int64_t cram_ptell(void *fp)
 
     return ret;
 }
-
-static int bam_pseek(void *fp, int64_t offset, int whence)
-{
-    BGZF *fd = (BGZF *)fp;
-
-    return bgzf_seek(fd, offset, whence);
-}
-
-static int64_t bam_ptell(void *fp)
-{
-    BGZF *fd = (BGZF *)fp;
-    if (!fd)
-        return -1L;
-
-    return bgzf_tell(fd);
-}
-
 
 
 static hts_idx_t *index_load(htsFile *fp, const char *fn, const char *fnidx, int flags)
@@ -1754,7 +1744,7 @@ static int cram_name2id(void *fdv, const char *ref)
 hts_itr_t *sam_itr_querys(const hts_idx_t *idx, sam_hdr_t *hdr, const char *region)
 {
     const hts_cram_idx_t *cidx = (const hts_cram_idx_t *) idx;
-    return hts_itr_querys(idx, region, (hts_name2id_f)(bam_name2id), hdr,
+    return hts_itr_querys(idx, region, bam_name2id_wrapper, hdr,
                           cidx->fmt == HTS_FMT_CRAI ? cram_itr_query : hts_itr_query,
                           sam_readrec);
 }
@@ -1776,11 +1766,11 @@ hts_itr_t *sam_itr_regarray(const hts_idx_t *idx, sam_hdr_t *hdr, char **regarra
         itr = hts_itr_regions(idx, r_list, r_count, cram_name2id, cidx->cram,
                    hts_itr_multi_cram, cram_readrec, cram_pseek, cram_ptell);
     } else {
-        r_list = hts_reglist_create(regarray, regcount, &r_count, hdr, (hts_name2id_f)(bam_name2id));
+        r_list = hts_reglist_create(regarray, regcount, &r_count, hdr, bam_name2id_wrapper);
         if (!r_list)
             return NULL;
-        itr = hts_itr_regions(idx, r_list, r_count, (hts_name2id_f)(bam_name2id), hdr,
-                   hts_itr_multi_bam, sam_readrec, bam_pseek, bam_ptell);
+        itr = hts_itr_regions(idx, r_list, r_count, bam_name2id_wrapper, hdr,
+                   hts_itr_multi_bam, sam_readrec, bgzf_pseek, bgzf_ptell);
     }
 
     if (!itr)
@@ -1800,8 +1790,8 @@ hts_itr_t *sam_itr_regions(const hts_idx_t *idx, sam_hdr_t *hdr, hts_reglist_t *
         return hts_itr_regions(idx, reglist, regcount, cram_name2id, cidx->cram,
                    hts_itr_multi_cram, cram_readrec, cram_pseek, cram_ptell);
     else
-        return hts_itr_regions(idx, reglist, regcount, (hts_name2id_f)(bam_name2id), hdr,
-                   hts_itr_multi_bam, sam_readrec, bam_pseek, bam_ptell);
+        return hts_itr_regions(idx, reglist, regcount, bam_name2id_wrapper, hdr,
+                   hts_itr_multi_bam, sam_readrec, bgzf_pseek, bgzf_ptell);
 }
 
 /**********************
@@ -1822,22 +1812,6 @@ sam_hdr_t *sam_hdr_parse(size_t l_text, const char *text)
     }
 
     return bh;
-}
-
-static int valid_sam_header_type(const char *s) {
-    if (s[0] != '@') return 0;
-    switch (s[1]) {
-    case 'H':
-        return s[2] == 'D' && s[3] == '\t';
-    case 'S':
-        return s[2] == 'Q' && s[3] == '\t';
-    case 'R':
-    case 'P':
-        return s[2] == 'G' && s[3] == '\t';
-    case 'C':
-        return s[2] == 'O';
-    }
-    return 0;
 }
 
 // Minimal sanitisation of a header to ensure.
@@ -1914,275 +1888,27 @@ static sam_hdr_t *sam_hdr_sanitise(sam_hdr_t *h) {
     return h;
 }
 
-static void known_stderr(const char *tool, const char *advice) {
-    hts_log_warning("SAM file corrupted by embedded %s error/log message", tool);
-    hts_log_warning("%s", advice);
-}
-
-static void warn_if_known_stderr(const char *line) {
-    if (strstr(line, "M::bwa_idx_load_from_disk") != NULL)
-        known_stderr("bwa", "Use `bwa mem -o file.sam ...` or `bwa sampe -f file.sam ...` instead of `bwa ... > file.sam`");
-    else if (strstr(line, "M::mem_pestat") != NULL)
-        known_stderr("bwa", "Use `bwa mem -o file.sam ...` instead of `bwa mem ... > file.sam`");
-    else if (strstr(line, "loaded/built the index") != NULL)
-        known_stderr("minimap2", "Use `minimap2 -o file.sam ...` instead of `minimap2 ... > file.sam`");
-}
-
 static sam_hdr_t *sam_hdr_create(htsFile* fp) {
-    kstring_t str = { 0, 0, NULL };
-    khint_t k;
     sam_hdr_t* h = sam_hdr_init();
-    const char *q, *r;
-    char* sn = NULL;
-    khash_t(s2i) *d = kh_init(s2i);
-    khash_t(s2i) *long_refs = NULL;
-    if (!h || !d)
-        goto error;
+    if (!h)
+        return NULL;
 
-    int ret, has_SQ = 0;
-    int next_c = '@';
-    while (next_c == '@' && (ret = hts_getline(fp, KS_SEP_LINE, &fp->line)) >= 0) {
-        if (fp->line.s[0] != '@')
-            break;
-
-        if (fp->line.l > 3 && strncmp(fp->line.s, "@SQ", 3) == 0) {
-            has_SQ = 1;
-            hts_pos_t ln = -1;
-            for (q = fp->line.s + 4;; ++q) {
-                if (strncmp(q, "SN:", 3) == 0) {
-                    q += 3;
-                    for (r = q;*r != '\t' && *r != '\n' && *r != '\0';++r);
-
-                    if (sn) {
-                        hts_log_warning("SQ header line has more than one SN: tag");
-                        free(sn);
-                    }
-                    sn = (char*)calloc(r - q + 1, 1);
-                    if (!sn)
-                        goto error;
-
-                    strncpy(sn, q, r - q);
-                    q = r;
-                } else {
-                    if (strncmp(q, "LN:", 3) == 0)
-                        ln = strtoll(q + 3, (char**)&q, 10);
-                }
-
-                while (*q != '\t' && *q != '\n' && *q != '\0')
-                    ++q;
-                if (*q == '\0' || *q == '\n')
-                    break;
-            }
-            if (sn) {
-                if (ln >= 0) {
-                    int absent;
-                    k = kh_put(s2i, d, sn, &absent);
-                    if (absent < 0)
-                        goto error;
-
-                    if (!absent) {
-                        hts_log_warning("Duplicated sequence \"%s\" in file \"%s\"", sn, fp->fn);
-                        free(sn);
-                    } else {
-                        sn = NULL;
-                        if (ln >= UINT32_MAX) {
-                            // Stash away ref length that
-                            // doesn't fit in target_len array
-                            int k2;
-                            if (!long_refs) {
-                                long_refs = kh_init(s2i);
-                                if (!long_refs)
-                                    goto error;
-                            }
-                            k2 = kh_put(s2i, long_refs, kh_key(d, k), &absent);
-                            if (absent < 0)
-                                goto error;
-                            kh_val(long_refs, k2) = ln;
-                            kh_val(d, k) = ((int64_t) (kh_size(d) - 1) << 32
-                                            | UINT32_MAX);
-                        } else {
-                            kh_val(d, k) = (int64_t) (kh_size(d) - 1) << 32 | ln;
-                        }
-                    }
-                } else {
-                    hts_log_warning("Ignored @SQ SN:%s : bad or missing LN tag", sn);
-                    warn_if_known_stderr(fp->line.s);
-                    free(sn);
-                }
-            } else {
-                hts_log_warning("Ignored @SQ line with missing SN: tag");
-                warn_if_known_stderr(fp->line.s);
-            }
-            sn = NULL;
-        }
-        else if (!valid_sam_header_type(fp->line.s)) {
-            hts_log_error("Invalid header line: must start with @HD/@SQ/@RG/@PG/@CO");
-            warn_if_known_stderr(fp->line.s);
-            goto error;
-        }
-
-        if (kputsn(fp->line.s, fp->line.l, &str) < 0)
-            goto error;
-
-        if (kputc('\n', &str) < 0)
-            goto error;
-
-        if (fp->is_bgzf) {
-            next_c = bgzf_peek(fp->fp.bgzf);
-        } else {
-            unsigned char nc;
-            ssize_t pret = hpeek(fp->fp.hfile, &nc, 1);
-            next_c = pret > 0 ? nc : pret - 1;
-        }
-        if (next_c < -1)
-            goto error;
-    }
-    if (next_c != '@')
-        fp->line.l = 0;
-
-    if (ret < -1)
-        goto error;
-
-    if (!has_SQ && fp->fn_aux) {
-        kstring_t line = { 0, 0, NULL };
-
-        /* The reference index (.fai) is actually needed here */
-        char *fai_fn = fp->fn_aux;
-        char *fn_delim = strstr(fp->fn_aux, HTS_IDX_DELIM);
-        if (fn_delim)
-            fai_fn = fn_delim + strlen(HTS_IDX_DELIM);
-
-        hFILE* f = hopen(fai_fn, "r");
-        int e = 0, absent;
-        if (f == NULL)
-            goto error;
-
-        while (line.l = 0, kgetline(&line, (kgets_func*) hgets, f) >= 0) {
-            char* tab = strchr(line.s, '\t');
-            hts_pos_t ln;
-
-            if (tab == NULL)
-                continue;
-
-            sn = (char*)calloc(tab-line.s+1, 1);
-            if (!sn) {
-                e = 1;
-                break;
-            }
-            memcpy(sn, line.s, tab-line.s);
-            k = kh_put(s2i, d, sn, &absent);
-            if (absent < 0) {
-                e = 1;
-                break;
-            }
-
-            ln = strtoll(tab, NULL, 10);
-
-            if (!absent) {
-                hts_log_warning("Duplicated sequence \"%s\" in the file \"%s\"", sn, fai_fn);
-                free(sn);
-                sn = NULL;
-            } else {
-                sn = NULL;
-                if (ln >= UINT32_MAX) {
-                    // Stash away ref length that
-                    // doesn't fit in target_len array
-                    khint_t k2;
-                    int absent = -1;
-                    if (!long_refs) {
-                        long_refs = kh_init(s2i);
-                        if (!long_refs) {
-                            e = 1;
-                            break;
-                        }
-                    }
-                    k2 = kh_put(s2i, long_refs, kh_key(d, k), &absent);
-                    if (absent < 0) {
-                         e = 1;
-                         break;
-                    }
-                    kh_val(long_refs, k2) = ln;
-                    kh_val(d, k) = ((int64_t) (kh_size(d) - 1) << 32
-                                    | UINT32_MAX);
-                } else {
-                    kh_val(d, k) = (int64_t) (kh_size(d) - 1) << 32 | ln;
-                }
-                has_SQ = 1;
-            }
-
-            e |= kputs("@SQ\tSN:", &str) < 0;
-            e |= kputsn(line.s, tab - line.s, &str) < 0;
-            e |= kputs("\tLN:", &str) < 0;
-            e |= kputll(ln, &str) < 0;
-            e |= kputc('\n', &str) < 0;
-            if (e)
-                break;
-        }
-
-        ks_free(&line);
-        if (hclose(f) != 0) {
-            hts_log_error("Error on closing %s", fai_fn);
-            e = 1;
-        }
-        if (e)
-            goto error;
+    if (sam_hdr_build_from_sam_file(h, fp) != 0) {
+        sam_hdr_destroy(h);
+        return NULL;
     }
 
-    if (has_SQ) {
-        // Populate the targets array
-        h->n_targets = kh_size(d);
-
-        h->target_name = (char**) malloc(sizeof(char*) * h->n_targets);
-        if (!h->target_name) {
-            h->n_targets = 0;
-            goto error;
-        }
-
-        h->target_len = (uint32_t*) malloc(sizeof(uint32_t) * h->n_targets);
-        if (!h->target_len) {
-            h->n_targets = 0;
-            goto error;
-        }
-
-        for (k = kh_begin(d); k != kh_end(d); ++k) {
-            if (!kh_exist(d, k))
-                continue;
-
-            h->target_name[kh_val(d, k) >> 32] = (char*) kh_key(d, k);
-            h->target_len[kh_val(d, k) >> 32] = kh_val(d, k) & 0xffffffffUL;
-            kh_val(d, k) >>= 32;
-        }
-    }
-
-    // Repurpose sdict to hold any references longer than UINT32_MAX
-    h->sdict = long_refs;
-
-    kh_destroy(s2i, d);
-
-    if (str.l == 0)
-        kputsn("", 0, &str);
-    h->l_text = str.l;
-    h->text = ks_release(&str);
+    if (fp->bam_header)
+        sam_hdr_destroy(fp->bam_header);
     fp->bam_header = sam_hdr_sanitise(h);
     fp->bam_header->ref_count = 1;
 
     return fp->bam_header;
-
- error:
-    if (h && d && (!h->target_name || !h->target_len)) {
-        for (k = kh_begin(d); k != kh_end(d); ++k)
-            if (kh_exist(d, k)) free((void *)kh_key(d, k));
-    }
-    sam_hdr_destroy(h);
-    ks_free(&str);
-    kh_destroy(s2i, d);
-    kh_destroy(s2i, long_refs);
-    if (sn) free(sn);
-    return NULL;
 }
 
 sam_hdr_t *sam_hdr_read(htsFile *fp)
 {
+    sam_hdr_t *h = NULL;
     if (!fp) {
         errno = EINVAL;
         return NULL;
@@ -2190,13 +1916,16 @@ sam_hdr_t *sam_hdr_read(htsFile *fp)
 
     switch (fp->format.format) {
     case bam:
-        return sam_hdr_sanitise(bam_hdr_read(fp->fp.bgzf));
+        h = sam_hdr_sanitise(bam_hdr_read(fp->fp.bgzf));
+        break;
 
     case cram:
-        return sam_hdr_sanitise(sam_hdr_dup(fp->fp.cram->header));
+        h = sam_hdr_sanitise(sam_hdr_dup(fp->fp.cram->header));
+        break;
 
     case sam:
-        return sam_hdr_create(fp);
+        h = sam_hdr_create(fp);
+        break;
 
     case fastq_format:
     case fasta_format:
@@ -2210,6 +1939,13 @@ sam_hdr_t *sam_hdr_read(htsFile *fp)
         errno = EFTYPE;
         return NULL;
     }
+    //only sam,bam and cram reaches here
+    if (h && !fp->bam_header) { //set except for sam which already has it
+        //for cram, it is the o/p header as for rest and not the internal header
+        fp->bam_header = h;
+        sam_hdr_incr_ref(fp->bam_header);
+    }
+    return h;
 }
 
 int sam_hdr_write(htsFile *fp, const sam_hdr_t *h)
@@ -2307,11 +2043,20 @@ int sam_hdr_write(htsFile *fp, const sam_hdr_t *h)
     case fastq_format:
     case fasta_format:
         // Nothing to output; FASTQ has no file headers.
+        return 0;
         break;
 
     default:
         errno = EBADF;
         return -1;
+    }
+    //only sam,bam and cram reaches here
+    if (h) {    //the new header
+        sam_hdr_t *tmp = fp->bam_header;
+        fp->bam_header = sam_hdr_dup(h);
+        sam_hdr_destroy(tmp);
+        if (!fp->bam_header && h)
+            return -1;  //failed to duplicate
     }
     return 0;
 }
@@ -2409,6 +2154,39 @@ int sam_hdr_change_HD(sam_hdr_t *h, const char *key, const char *val)
     }
     return sam_hdr_rebuild(h);
 }
+
+/* releases existing header and sets new one; increments ref count if not
+duplicating */
+int sam_hdr_set(samFile *fp, sam_hdr_t *h, int duplicate)
+{
+    if (!fp)
+        return -1;
+
+    if (duplicate) {
+        sam_hdr_t *tmp = fp->bam_header;
+        fp->bam_header = sam_hdr_dup(h);
+        sam_hdr_destroy(tmp);
+        if (!fp->bam_header && h)
+            return -1;  //duplicate failed
+    } else {
+        if (fp->bam_header != h) {  //if not the same
+            sam_hdr_destroy(fp->bam_header);
+            fp->bam_header = h;
+            sam_hdr_incr_ref(fp->bam_header);
+        }
+    }
+
+    return 0;
+}
+
+//return the bam_header, user has to use sam_hdr_incr_ref where ever required
+sam_hdr_t* sam_hdr_get(samFile* fp)
+{
+    if (!fp)
+        return NULL;
+    return fp->bam_header;
+}
+
 /**********************
  *** SAM record I/O ***
  **********************/
@@ -3115,7 +2893,7 @@ ssize_t sam_parse_cigar(const char *in, char **end, uint32_t **a_cigar, size_t *
     n_cigar = read_ncigar(in);
     if (!n_cigar) return 0;
     if (n_cigar > *a_mem) {
-        uint32_t *a_tmp = realloc(*a_cigar, n_cigar*sizeof(**a_cigar));
+        uint32_t *a_tmp = hts_realloc_p(*a_cigar, sizeof(**a_cigar), n_cigar);
         if (a_tmp) {
             *a_cigar = a_tmp;
             *a_mem = n_cigar;
@@ -3216,6 +2994,7 @@ enum sam_cmd {
     SAM_NONE = 0,
     SAM_CLOSE,
     SAM_CLOSE_DONE,
+    SAM_AT_EOF,
 };
 
 typedef struct SAM_state {
@@ -3319,7 +3098,7 @@ int sam_state_destroy(htsFile *fp) {
                         break;
                     hts_tpool_wake_dispatch(fd->q);
                     pthread_mutex_unlock(&fd->command_m);
-                    usleep(10000);
+                    hts_usleep(10000);
                     pthread_mutex_lock(&fd->command_m);
                 }
             }
@@ -3339,7 +3118,7 @@ int sam_state_destroy(htsFile *fp) {
                 pthread_mutex_unlock(&fd->command_m);
 
                 while (!ret && fd->q && !hts_tpool_process_empty(fd->q)) {
-                    usleep(10000);
+                    hts_usleep(10000);
                     pthread_mutex_lock(&fd->command_m);
                     ret = -fd->errcode;
                     // not empty but shutdown implies error
@@ -3462,7 +3241,7 @@ static void *sam_parse_worker(void *arg) {
         if (i >= gb->abams) {
             int old_abams = gb->abams;
             gb->abams *= 2;
-            b = (bam1_t *)realloc(gb->bams, gb->abams*sizeof(bam1_t));
+            b = hts_realloc_p(gb->bams, sizeof(bam1_t), gb->abams);
             if (!b) {
                 gb->abams /= 2;
                 sam_state_err(fd, ENOMEM);
@@ -3569,7 +3348,7 @@ static void *sam_dispatcher_read(void *vp) {
             if (!l)
                 goto err;
             l->alloc = SAM_NBYTES;
-            l->data = malloc(l->alloc+8); // +8 for optimisation in sam_parse1
+            l->data = hts_malloc_ps(sizeof(*l->data), l->alloc, 8); // +8 for optimisation in sam_parse1
             if (!l->data) {
                 free(l);
                 l = NULL;
@@ -3580,7 +3359,8 @@ static void *sam_dispatcher_read(void *vp) {
         l->next = NULL;
 
         if (l->alloc < line_frag+SAM_NBYTES/2) {
-            char *rp = realloc(l->data, line_frag+SAM_NBYTES/2 +8);
+            char *rp = hts_realloc_ps(l->data, sizeof(*rp),
+                                      line_frag, SAM_NBYTES/2 + 8);
             if (!rp)
                 goto err;
             l->alloc = line_frag+SAM_NBYTES/2;
@@ -3613,7 +3393,7 @@ static void *sam_dispatcher_read(void *vp) {
             // entire buffer is part of a single line
             if (cp == l->data) {
                 line_frag = l->data_size;
-                char *rp = realloc(l->data, l->alloc * 2 + 8);
+                char *rp = hts_realloc_pse(l->data, 2, l->alloc, 0, 8);
                 if (!rp)
                     goto err;
                 l->alloc *= 2;
@@ -3651,6 +3431,7 @@ static void *sam_dispatcher_read(void *vp) {
         pthread_mutex_unlock(&fd->command_m);
     }
 
+    // Submit a NULL sp_bams entry to act as an EOF marker
     if (hts_tpool_dispatch(fd->p, fd->q, sam_parse_eof, NULL) < 0)
         goto err;
 
@@ -3922,7 +3703,7 @@ static void *sam_format_worker(void *arg) {
 
 int sam_set_thread_pool(htsFile *fp, htsThreadPool *p) {
     if (fp->state)
-        return 0;
+        return -2;   //already exists!
 
     if (!(fp->state = sam_state_create(fp)))
         return -1;
@@ -3956,8 +3737,11 @@ int sam_set_threads(htsFile *fp, int nthreads) {
     p.qsize = nthreads*2;
 
     int ret = sam_set_thread_pool(fp, &p);
-    if (ret < 0)
+    if (ret < 0) {
+        if (p.pool)
+            hts_tpool_destroy(p.pool);
         return ret;
+    }
 
     SAM_state *fd = (SAM_state *)fp->state;
     fd->own_pool = 1;
@@ -3965,6 +3749,7 @@ int sam_set_threads(htsFile *fp, int nthreads) {
     return 0;
 }
 
+#define UMI_TAGS 5
 typedef struct {
     kstring_t name;
     kstring_t comment; // NB: pointer into name, do not free
@@ -3974,9 +3759,11 @@ typedef struct {
     int aux;
     int rnum;
     char BC[3];         // aux tag ID for barcode
+    char UMI[UMI_TAGS][3]; // aux tag list for UMIs.
     khash_t(tag) *tags; // which aux tags to use (if empty, use all).
     char nprefix;
     int sra_names;
+    regex_t regex;
 } fastq_state;
 
 // Initialise fastq state.
@@ -3987,6 +3774,12 @@ static fastq_state *fastq_state_init(int name_char) {
         return NULL;
     strcpy(x->BC, "BC");
     x->nprefix = name_char;
+    // Default Illumina naming convention
+    char *re = "^[^:]+:[^:]+:[^:]+:[^:]+:[^:]+:[^:]+:[^:]+:([^:#/]+)";
+    if (regcomp(&x->regex, re, REG_EXTENDED) != 0) {
+        free(x);
+        return NULL;
+    }
 
     return x;
 }
@@ -3999,6 +3792,7 @@ void fastq_state_destroy(htsFile *fp) {
         ks_free(&x->name);
         ks_free(&x->seq);
         ks_free(&x->qual);
+        regfree(&x->regex);
         free(fp->state);
     }
 }
@@ -4056,6 +3850,52 @@ int fastq_state_set(samFile *fp, enum hts_fmt_option opt, ...) {
         va_end(args);
         strncpy(x->BC, bc, 2);
         x->BC[2] = 0;
+        break;
+    }
+
+    case FASTQ_OPT_UMI: {
+        // UMI tag: an empty string disables UMI by setting x->UMI[0] to \0\0\0
+        va_start(args, opt);
+        char *bc = va_arg(args, char *), *bc_orig = bc;
+        va_end(args);
+        if (!bc || strcmp(bc, "1") == 0)
+            bc = "RX";
+        int ntags = 0, err = 0;
+        for (ntags = 0; *bc && ntags < UMI_TAGS; ntags++) {
+            if (!isalpha_c(bc[0]) || !isalnum_c(bc[1])) {
+                err = 1;
+                break;
+            }
+
+            strncpy(x->UMI[ntags], bc, 3);
+            bc += 2;
+            if (*bc && *bc != ',') {
+                err = 1;
+                break;
+            }
+            bc+=(*bc==',');
+            x->UMI[ntags][2] = 0;
+        }
+        for (; ntags < UMI_TAGS; ntags++)
+            x->UMI[ntags][0] = x->UMI[ntags][1] = x->UMI[ntags][2] = 0;
+
+
+        if (err)
+            hts_log_warning("Bad UMI tag list '%s'", bc_orig);
+
+        break;
+    }
+
+    case FASTQ_OPT_UMI_REGEX: {
+        va_start(args, opt);
+        char *re = va_arg(args, char *);
+        va_end(args);
+
+        regfree(&x->regex);
+        if (regcomp(&x->regex, re, REG_EXTENDED) != 0) {
+            hts_log_error("Regular expression '%s' is not supported", re);
+            return -1;
+        }
         break;
     }
 
@@ -4171,6 +4011,43 @@ static int fastq_parse1(htsFile *fp, bam1_t *b) {
         x->name.s[x->name.l-=2] = 0;
     }
 
+    // Strip Illumina formatted UMI off read-name
+    char UMI_seq[256]; // maximum length in spec
+    size_t UMI_len = 0;
+    if (x->UMI[0][0]) {
+        regmatch_t match[3];
+        if (regexec(&x->regex, x->name.s, 2, match, 0) == 0
+            && match[0].rm_so >= 0     // whole regex
+            && match[1].rm_so >= 0) {  // bracketted UMI component
+            UMI_len = match[1].rm_eo - match[1].rm_so;
+            if (UMI_len > 255) {
+                hts_log_error("SAM read name is too long");
+                return -2;
+            }
+
+            // The SAMTags spec recommends (but not requires) separating
+            // barcodes with hyphen ('-').
+            size_t i;
+            for (i = 0; i < UMI_len; i++)
+                UMI_seq[i] = isalpha_c(x->name.s[i+match[1].rm_so])
+                    ? x->name.s[i+match[1].rm_so]
+                    : '-';
+
+            // Move any trailing #num earlier in the name
+            if (UMI_len) {
+                UMI_seq[UMI_len++] = 0;
+
+                x->name.l = match[1].rm_so;
+                if (x->name.l > 0 && x->name.s[x->name.l-1] == ':')
+                    x->name.l--; // remove colon too
+                char *cp = x->name.s + match[1].rm_eo;
+                while (*cp)
+                    x->name.s[x->name.l++] = *cp++;
+                x->name.s[x->name.l] = 0;
+            }
+        }
+    }
+
     // Convert to BAM
     ret = bam_set1(b,
                    x->name.s + x->name.l - name, name,
@@ -4180,6 +4057,13 @@ static int fastq_parse1(htsFile *fp, bam1_t *b) {
                    -1, -1, 0,    // mate
                    x->seq.l, x->seq.s, x->qual.s,
                    0);
+    if (ret < 0) return -2;
+
+    // Add UMI tag if removed from read-name above
+    if (UMI_len) {
+        if (bam_aux_append(b, x->UMI[0], 'Z', UMI_len, (uint8_t *)UMI_seq) < 0)
+            ret = -2;
+    }
 
     // Identify Illumina CASAVA strings.
     // <read>:<is_filtered>:<control_bits>:<barcode_sequence>
@@ -4248,9 +4132,6 @@ static inline int sam_read1_cram(htsFile *fp, sam_hdr_t *h, bam1_t **b) {
     if (ret < 0)
         return cram_eof(fp->fp.cram) ? -1 : -2;
 
-    if (bam_tag2cigar(*b, 1, 1) < 0)
-        return -2;
-
     return ret;
 }
 
@@ -4276,7 +4157,7 @@ static inline int sam_read1_sam(htsFile *fp, sam_hdr_t *h, bam1_t *b) {
                 return -2;
             }
             if (bgzf_seek(fp->fp.bgzf, fp->fp.bgzf->seeked, SEEK_SET) < 0)
-                return -1;
+                return -2;
             fp->fp.bgzf->seeked = 0;
             goto err_recover;
         }
@@ -4298,7 +4179,7 @@ static inline int sam_read1_sam(htsFile *fp, sam_hdr_t *h, bam1_t *b) {
 
         if (fd->h != h) {
             hts_log_error("SAM multi-threaded decoding does not support changing header");
-            return -1;
+            return -2;
         }
 
         sp_bams *gb = fd->curr_bam;
@@ -4308,14 +4189,25 @@ static inline int sam_read1_sam(htsFile *fp, sam_hdr_t *h, bam1_t *b) {
                 errno = fd->errcode;
                 return -2;
             }
+
+            pthread_mutex_lock(&fd->command_m);
+            int cmd = fd->command;
+            pthread_mutex_unlock(&fd->command_m);
+            if (cmd == SAM_AT_EOF)
+                return -1;
+
             hts_tpool_result *r = hts_tpool_next_result_wait(fd->q);
             if (!r)
                 return -2;
             fd->curr_bam = gb = (sp_bams *)hts_tpool_result_data(r);
             hts_tpool_delete_result(r, 0);
         }
-        if (!gb)
+        if (!gb) {
+            pthread_mutex_lock(&fd->command_m);
+            fd->command = SAM_AT_EOF;
+            pthread_mutex_unlock(&fd->command_m);
             return fd->errcode ? -2 : -1;
+        }
         bam1_t *b_array = (bam1_t *)gb->bams;
         if (fd->curr_idx < gb->nbams)
             if (!bam_copy1(b, &b_array[fd->curr_idx++]))
@@ -4511,6 +4403,39 @@ int fastq_format1(fastq_state *x, const bam1_t *b, kstring_t *str)
     // Name
     if (kputc(x->nprefix, str) == EOF || kputs(bam_get_qname(b), str) == EOF)
         return -1;
+
+    // UMI tag
+    if (x && *x->UMI[0]) {
+        // Temporary copy of '#num' if present
+        char plex[256];
+        size_t len = str->l;
+        while (len && str->s[len] != ':' && str->s[len] != '#')
+            len--;
+
+        if (str->s[len] == '#' && str->l - len < 255) {
+            memcpy(plex, &str->s[len], str->l - len);
+            plex[str->l - len] = 0;
+            str->l = len;
+        } else {
+            *plex = 0;
+        }
+
+        uint8_t *bc = NULL;
+        int n;
+        for (n = 0; !bc && n < UMI_TAGS; n++)
+            bc = bam_aux_get(b, x->UMI[n]);
+        if (bc && *bc == 'Z') {
+            int err = kputc(':', str) < 0;
+            // Replace any non-alpha with '+'
+            while (*++bc)
+                err |= kputc(isalpha_c(*bc) ? toupper_c(*bc) : '+', str) < 0;
+            if (err)
+                return -1;
+        }
+
+        if (*plex && kputs(plex, str) < 0)
+            return -1;
+    }
 
     // /1 or /2 suffix
     if (x && x->rnum && (flag & BAM_FPAIRED)) {
@@ -4856,8 +4781,8 @@ static inline uint8_t *skip_aux(uint8_t *s, uint8_t *end)
     switch (size) {
     case 'Z':
     case 'H':
-        while (s < end && *s) ++s;
-        return s < end ? s + 1 : end;
+        s = memchr(s, 0, end-s);
+        return s ? s+1 : end;
     case 'B':
         if (end - s < 5) return NULL;
         size = aux_type2size(*s); ++s;
@@ -5145,12 +5070,14 @@ int bam_aux_update_array(bam1_t *b, const char tag[2],
 
     s[1] = type;
     u32_to_le(items, s + 2);
+    if (new_sz > 0) {
 #ifdef HTS_LITTLE_ENDIAN
-    memcpy(s + 6, data, new_sz);
-    return 0;
+        memcpy(s + 6, data, new_sz);
 #else
-    return aux_to_le(type, s + 6, data, new_sz);
+        return aux_to_le(type, s + 6, data, new_sz);
 #endif
+    }
+    return 0;
 }
 
 static inline int64_t get_int_aux_val(uint8_t type, const uint8_t *s,
@@ -5448,7 +5375,7 @@ static inline void mp_free(mempool_t *mp, lbnode_t *p)
     --mp->cnt; p->next = 0; // clear lbnode_t::next here
     if (mp->n == mp->max) {
         mp->max = mp->max? mp->max<<1 : 256;
-        mp->buf = (lbnode_t**)realloc(mp->buf, sizeof(lbnode_t*) * mp->max);
+        mp->buf = hts_realloc_p(mp->buf, sizeof(lbnode_t*), mp->max);
     }
     mp->buf[mp->n++] = p;
 }
@@ -6043,6 +5970,9 @@ static void overlap_remove(bam_plp_t iter, const bam1_t *b)
     khiter_t kitr;
     if ( b )
     {
+        if ( b->core.flag&BAM_FUNMAP || !(b->core.flag&BAM_FPROPER_PAIR) ) //no need
+            return;
+
         kitr = kh_get(olap_hash, iter->overlaps, bam_get_qname(b));
         if ( kitr!=kh_end(iter->overlaps) )
             kh_del(olap_hash, iter->overlaps, kitr);
@@ -6070,6 +6000,8 @@ const bam_pileup1_t *bam_plp64_next(bam_plp_t iter, int *_tid, hts_pos_t *_pos, 
         // write iter->plp at iter->pos
         lbnode_t **pptr = &iter->head;
         while (*pptr != iter->tail) {
+            if ((*pptr)->next)
+                hts_prefetch((*pptr)->next);
             lbnode_t *p = *pptr;
             if (p->b.core.tid < iter->tid || (p->b.core.tid == iter->tid && p->end <= iter->pos)) { // then remove
                 overlap_remove(iter, &p->b);
@@ -6081,7 +6013,7 @@ const bam_pileup1_t *bam_plp64_next(bam_plp_t iter, int *_tid, hts_pos_t *_pos, 
                 if (p->b.core.tid == iter->tid && p->beg <= iter->pos) { // here: p->end > pos; then add to pileup
                     if (n_plp == iter->max_plp) { // then double the capacity
                         iter->max_plp = iter->max_plp? iter->max_plp<<1 : 256;
-                        iter->plp = (bam_pileup1_t*)realloc(iter->plp, sizeof(bam_pileup1_t) * iter->max_plp);
+                        iter->plp = hts_realloc_p(iter->plp, sizeof(bam_pileup1_t), iter->max_plp);
                     }
                     iter->plp[n_plp].b = &p->b;
                     iter->plp[n_plp].cd = p->cd;

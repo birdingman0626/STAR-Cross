@@ -174,8 +174,14 @@ void ReadAlignChunk::processChunks() {//read-map-write chunks
                             if (P.outSAMreadID=="Number") {
                                 chunkInSizeBytesTotal[imate] += sprintf(chunkIn[imate] + chunkInSizeBytesTotal[imate], ">%llu", P.iReadAll);
                             } else {
-                                P.inOut->readIn[imate] >> (chunkIn[imate] + chunkInSizeBytesTotal[imate]);
-                                chunkInSizeBytesTotal[imate] += strlen(chunkIn[imate] + chunkInSizeBytesTotal[imate]);
+                                string fastaReadID;
+                                P.inOut->readIn[imate] >> fastaReadID;
+                                // C++20 removes unbounded char* extraction. Reserve room
+                                // for the internal numeric/filter/file suffix as well.
+                                if (fastaReadID.size() + 64 >= DEF_readNameLengthMax)
+                                    exitWithError("EXITING: FASTA header is too long\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+                                chunkInSizeBytesTotal[imate] += fastaReadID.copy(
+                                    chunkIn[imate] + chunkInSizeBytesTotal[imate], fastaReadID.size());
                             };
 
                             P.inOut->readIn[imate].ignore(DEF_readNameSeqLengthMax,'\n');

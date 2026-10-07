@@ -52,3 +52,12 @@ TEST_CASE("byteOrder - store/load round-trip (both paths)") {
         CHECK(std::memcmp(nbuf, bbuf, 8) == 0);
     }
 }
+
+TEST_CASE("byteOrder permits every unaligned byte offset") {
+    alignas(8) char bytes[16] = {};
+    for (size_t offset = 0; offset < 8; ++offset) {
+        storeUintLE(bytes+offset, 0xDEADBEEFCAFEBABEULL);
+        CHECK(loadUintLE(bytes+offset) == 0xDEADBEEFCAFEBABEULL);
+        CHECK(loadUintLE_bytewise(bytes+offset) == 0xDEADBEEFCAFEBABEULL);
+    }
+}

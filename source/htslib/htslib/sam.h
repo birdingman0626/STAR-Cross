@@ -1,7 +1,7 @@
 /// @file htslib/sam.h
 /// High-level SAM/BAM/CRAM sequence file operations.
 /*
-    Copyright (C) 2008, 2009, 2013-2023 Genome Research Ltd.
+    Copyright (C) 2008, 2009, 2013-2023, 2025 Genome Research Ltd.
     Copyright (C) 2010, 2012, 2013 Broad Institute.
 
     Author: Heng Li <lh3@sanger.ac.uk>
@@ -245,7 +245,7 @@ typedef struct bam1_core_t {
     while core.l_extranul counts the excess NULs (so 0 <= l_extranul <= 3).
  3. Cigar data is encoded 4 bytes per CIGAR operation.
     See the bam_cigar_* macros for manipulation.
- 4. seq is nibble-encoded according to bam_nt16_table.
+ 4. seq is nibble-encoded according to seq_nt16_table.
     See the bam_seqi macro for retrieving individual bases.
  5. Per base qualities are stored in the Phred scale with no +33 offset.
     Ie as per the BAM specification and not the SAM ASCII printable method.
@@ -258,6 +258,9 @@ typedef struct bam1_t {
     uint32_t m_data;
     uint32_t mempolicy:2, :30 /* Reserved */;
 } bam1_t;
+
+//! @abstract Longest QNAME permitted by BAM
+#define BAM_MAX_QNAME_LEN 254
 
 /*! @function
  @abstract  Get whether the query is on the reverse strand
@@ -1031,7 +1034,7 @@ bam1_t *bam_dup1(const bam1_t *bsrc);
    @param isize    Observed template length ("insert size") (a.k.a. TLEN).
    @param l_seq    Length of the query sequence (read) and sequence quality string.
    @param seq      Sequence, may be NULL if l_seq = 0.
-   @param qual     Sequence quality, may be NULL.
+   @param qual     Sequence quality, may be NULL. Should be provided without ASCII 33 offset.
    @param l_aux    Length to be reserved for auxiliary field data, may be 0.
 
    @return >= 0 on success (number of bytes written to bam->data), negative (with errno set) on failure.
@@ -2236,25 +2239,25 @@ typedef struct hts_base_mod {
 // Flags for bam_parse_basemod2
 #define HTS_MOD_REPORT_UNCHECKED 1
 
-/// Allocates an hts_base_mode_state.
+/// Allocates an hts_base_mod_state.
 /**
- * @return An hts_base_mode_state pointer on success,
+ * @return An hts_base_mod_state pointer on success,
  *         NULL on failure.
  *
  * This just allocates the memory.  The initialisation of the contents is
  * done using bam_parse_basemod.  Successive calls may be made to that
  * without the need to free and allocate a new state.
  *
- * The state be destroyed using the hts_base_mode_state_free function.
+ * The state be destroyed using the hts_base_mod_state_free function.
  */
 HTSLIB_EXPORT
 hts_base_mod_state *hts_base_mod_state_alloc(void);
 
-/// Destroys an  hts_base_mode_state.
+/// Destroys an  hts_base_mod_state.
 /**
  * @param state    The base modification state pointer.
  *
- * The should have previously been created by hts_base_mode_state_alloc.
+ * The should have previously been created by hts_base_mod_state_alloc.
  */
 HTSLIB_EXPORT
 void hts_base_mod_state_free(hts_base_mod_state *state);
@@ -2414,6 +2417,29 @@ int bam_mods_queryi(hts_base_mod_state *state, int i,
  */
 HTSLIB_EXPORT
 int *bam_mods_recorded(hts_base_mod_state *state, int *ntype);
+
+// Sets the header to the file
+/**
+ * @param fp         File to which header to be set
+ * @param h          Header to be set
+ * @param dup        Whether to use duplicated header (1) or not (0)
+ *
+ * @return -1 on error and 0 on success
+ * Existing header will be destroyed, thr' sam_hdr_destroy, and new one is set.
+ * When header is set directly (dup=0), the reference count is incremented.
+ */
+HTSLIB_EXPORT
+int sam_hdr_set(samFile *fp, sam_hdr_t *h, int dup);
+
+// Get the header from the file pointer
+/**
+ * @param fp         File pointer from which header to be retrieved
+ * @return pointer to header or NULL
+ * For a valid file pointer, the returned header could be NULL when the header
+ * is not read yet. sam_hdr_incr_ref has to be invoked where ever apropriate.
+ */
+HTSLIB_EXPORT
+sam_hdr_t* sam_hdr_get(samFile* fp);
 
 #ifdef __cplusplus
 }

@@ -4,6 +4,7 @@
 
 #include "SharedMemory.h"
 #include <sstream>
+#include <limits>
 #ifdef _WIN32
     #include "wincompat.h"
 #else
@@ -21,6 +22,9 @@
   #ifndef SHM_NORESERVE
     #define SHM_NORESERVE 0
   #endif
+  #ifndef MAP_NORESERVE
+    #define MAP_NORESERVE 0
+  #endif
 #endif
 
 using namespace std;
@@ -31,17 +35,28 @@ SharedMemory::SharedMemory(key_t key, bool unloadLast): _key(key), _counterKey(k
     _sharedCounterID = -1;
     _counterMem = 0;
     _mapped=NULL;
-    _length = NULL;
     _sem=NULL;
     _isAllocator = false;
     _needsAllocation = true;
 
-    EnsureCounter();
-    OpenIfExists();
+    try
+    {
+        EnsureCounter();
+        OpenIfExists();
+    }
+    catch (...)
+    {
+        try { Close(); } catch (...) {}
+        throw;
+    }
 }
 
 SharedMemory::~SharedMemory()
 {
+    // Explicit Clean() already detached this instance. Do not reattach a counter
+    // that was removed, or recreate it while destroying a finished owner.
+    if (_counterMem == NULL)
+        return;
     try
     {
         int inUse = SharedObjectsUseCount()-1;
@@ -60,11 +75,13 @@ SharedMemory::~SharedMemory()
             }
         }
     }
-    catch (const SharedMemoryException & exc)
+    catch (...)
     {
+        // A failed usage-count query is not permission to remove another job's
+        // mapping. Detach only; explicit Remove remains the removal authority.
         try
         {
-           Clean();
+           Close();
         }
         catch (...)
         {}
@@ -78,16 +95,19 @@ void SharedMemory::Allocate(size_t shmSize)
     if (!_needsAllocation)
         ThrowError(EALREADYALLOCATED);
 
+    if (shmSize > std::numeric_limits<size_t>::max() - sizeof(size_t))
+        ThrowError(EOPENFAILED, EOVERFLOW);
     CreateAndInitSharedObject(shmSize);
 
     if (_exception.HasError() && _exception.GetErrorCode() != EEXISTS)
         throw _exception;
 
+    const bool created = !_exception.HasError();
     _exception.ClearError(); // someone else came in first so retry open
 
     OpenIfExists();
 
-    _isAllocator = true;
+    _isAllocator = created;
 }
 
 string SharedMemory::GetPosixObjectKey()
@@ -107,7 +127,7 @@ string SharedMemory::CounterName()
 
 void SharedMemory::CreateAndInitSharedObject(size_t shmSize)
 {
-    unsigned long long toReserve = (unsigned long long) shmSize + sizeof(unsigned long long);
+    size_t toReserve = shmSize + sizeof(size_t);
 
 #ifdef POSIX_SHARED_MEM
     _shmID=shm_open(GetPosixObjectKey().c_str(), O_CREAT | O_RDWR | O_EXCL, 0666);
@@ -177,20 +197,32 @@ void SharedMemory::MapSharedObjectToMemory()
     size_t size=0;
     struct stat buf = SharedMemory::GetSharedObjectInfo();
     size = (size_t) buf.st_size;
-    _mapped = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_NORESERVE, _shmID, (off_t) 0);
+    if (size < sizeof(size_t))
+        ThrowError(EMAPFAILED, EINVAL);
+    void * mapped = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_NORESERVE, _shmID, (off_t) 0);
 
-    if (_mapped==((void *) -1))
+    if (mapped==((void *) -1))
         ThrowError(EMAPFAILED, errno);
 
-    _length = (size_t *) _mapped;
-    *_length = size;
+    _mapped = mapped;
+    _mappedSize = size;
 #else
-    _mapped= shmat(_shmID, NULL, 0);
+#ifdef _WIN32
+    ThrowError(EMAPFAILED, ENOSYS); // Windows shim deliberately does not implement IPC.
+#else
+    struct shmid_ds info;
+    if (shmctl(_shmID, IPC_STAT, &info) == -1)
+        ThrowError(EMAPFAILED, errno);
+    if (info.shm_segsz < sizeof(size_t))
+        ThrowError(EMAPFAILED, EINVAL);
+    void * mapped = shmat(_shmID, NULL, 0);
 
-    if (_mapped==((void *) -1))
+    if (mapped==((void *) -1))
         ThrowError(EMAPFAILED, errno);
 
-    _length = (size_t *) _mapped;
+    _mapped = mapped;
+    _mappedSize = info.shm_segsz;
+#endif
 #endif
 }
 
@@ -199,7 +231,7 @@ void SharedMemory::Close()
     #ifdef POSIX_SHARED_MEM
     if (_mapped != NULL)
     {
-        int ret = munmap(_mapped, (size_t) *_length);
+        int ret = munmap(_mapped, _mappedSize);
         if (ret == -1)
             ThrowError(EMAPFAILED, errno);
         _mapped = NULL;
@@ -216,10 +248,18 @@ void SharedMemory::Close()
     #else
     if (_mapped != NULL)
     {
-        shmdt(_mapped);
+        if (shmdt(_mapped) == -1)
+            ThrowError(ECLOSE, errno);
         _mapped = NULL;
     }
     #endif
+    _mappedSize = 0;
+    if (_counterMem != NULL)
+    {
+        if (shmdt(_counterMem) == -1)
+            ThrowError(ECLOSE, errno);
+        _counterMem = NULL;
+    }
 }
 
 void SharedMemory::Unlink()
@@ -259,25 +299,31 @@ void SharedMemory::EnsureCounter()
         errno=0;
         _sharedCounterID=shmget(_counterKey, 1, IPC_CREAT | IPC_EXCL | SHM_NORESERVE | 0666);
 
+        if (_sharedCounterID < 0 && errno == EEXIST)
+            _sharedCounterID=shmget(_counterKey,0,0);
         if (_sharedCounterID < 0)
             ThrowError(ECOUNTERCREATE, errno);
     }
 
     if (_counterMem == 0)
     {
-        _counterMem = shmat(_sharedCounterID, NULL, 0);
+        void * counterMem = shmat(_sharedCounterID, NULL, 0);
 
-        if (_counterMem==((void *) -1))
+        if (counterMem==((void *) -1))
             ThrowError(EMAPFAILED, errno);
+        _counterMem = counterMem;
     }
 }
 
 void SharedMemory::RemoveSharedCounter()
 {
+    if (_sharedCounterID == -1)
+        return;
     struct shmid_ds buf;
     int shmStatus=shmctl(_sharedCounterID,IPC_RMID,&buf);
     if (shmStatus == -1)
         ThrowError(ECOUNTERREMOVE, errno);
+    _sharedCounterID = -1;
 }
 
 int SharedMemory::SharedObjectsUseCount()
@@ -289,6 +335,12 @@ int SharedMemory::SharedObjectsUseCount()
         int shmStatus=shmctl(_sharedCounterID,IPC_STAT,&shmStat);
         if (shmStatus == -1)
             ThrowError(ECOUNTERUSE, errno);
+#ifdef SHM_DEST
+        // IPC_STAT can still succeed after IPC_RMID while we remain attached.
+        // Such a counter no longer tracks newly arriving users by this key.
+        if ((shmStat.shm_perm.mode & SHM_DEST) != 0)
+            ThrowError(ECOUNTERUSE, EIDRM);
+#endif
 
         return shmStat.shm_nattch;
     }

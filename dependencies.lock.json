@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "dependencies": [
+    {"name":"HTSlib", "version":"1.24", "source":"https://github.com/samtools/htslib/releases/download/1.24/htslib-1.24.tar.bz2", "sha256":"28a8de191381c7a97a35675ceac76fa1ea95e7b678d6a2e9d600a7874e4077de", "mode":"vendored", "license":"MIT plus per-file licenses", "patches":"docs/DEPENDENCIES.md"},
+    {"name":"htscodecs", "version":"1.6.7", "mode":"official HTSlib 1.24 bundled source", "license":"BSD-3-Clause plus per-file licenses"},
+    {"name":"cpp-httplib", "version":"0.60.0", "source":"https://codeload.github.com/yhirose/cpp-httplib/tar.gz/refs/tags/v0.60.0", "sha256":"f8d6bc6e2a958f9f21bde11ca408bd987cdf91b99ed9fc63c3e4ea3439376e71", "license":"MIT"},
+    {"name":"nlohmann/json", "version":"3.12.0", "source":"https://codeload.github.com/nlohmann/json/tar.gz/refs/tags/v3.12.0", "sha256":"4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187", "license":"MIT"},
+    {"name":"doctest", "version":"2.5.3", "source":"https://codeload.github.com/doctest/doctest/tar.gz/refs/tags/v2.5.3", "sha256":"174ebc4e769928959614789c5b4e9c3d0a0f81a62bb608756b127bfebfb21331", "license":"MIT", "mode":"test only"},
+    {"name":"Parasail", "version":"2.6.2", "source":"https://codeload.github.com/jeffdaily/parasail/tar.gz/refs/tags/v2.6.2", "sha256":"9057041db8e1cde76678f649420b85054650414e5de9ea84ee268756c7ea4b4b", "license":"BSD-3-Clause plus per-file licenses", "patches":"source/cmake/PatchParasail.cmake"},
+    {"name":"zlib", "version":"1.3.2", "source":"https://codeload.github.com/madler/zlib/tar.gz/refs/tags/v1.3.2", "sha256":"b99a0b86c0ba9360ec7e78c4f1e43b1cbdf1e6936c8fa0f6835c0cd694a495a1", "license":"Zlib", "mode":"fallback; system version recorded at configure time"},
+    {"name":"docker/setup-qemu-action", "version":"4.4.0", "commit":"99012661954931238ded8c8b007157a8430204e1", "mode":"CI only"}
+  ]
+}

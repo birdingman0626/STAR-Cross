@@ -13,16 +13,16 @@ OutSJ::OutSJ (uint nSJmax, Parameters &Pin, Genome &genomeIn) : oneSJ(genomeIn),
 
 
 int compareSJ(const void* i1, const void* i2) {//compare SJs from the data structure
-    uint s1=*( (uint*)i1 );
-    uint s2=*( (uint*)i2 );
+    uint s1=loadUnaligned<uint>(i1);
+    uint s2=loadUnaligned<uint>(i2);
 
     if (s1>s2) {
         return 1;
     } else if (s1<s2) {
         return -1;
     } else {
-        uint32 g1=*( (uint32*)( (char*)i1 + sizeof(uint)) );
-        uint32 g2=*( (uint32*)( (char*)i2 + sizeof(uint)) );
+        uint32 g1=loadUnaligned<uint32>((const char*)i1 + sizeof(uint));
+        uint32 g2=loadUnaligned<uint32>((const char*)i2 + sizeof(uint));
         if (g1>g2) {
             return 1;
         } else if (g1<g2) {
@@ -90,23 +90,23 @@ void Junction::outputStream(ostream &outStream) {
 };
 
 void Junction::collapseOneSJ(char* isj1P, char* isjP, Parameters& P) {//collapse isj junction into isj1: increase counts in isj1. choose max overhangs, motif, annot
-    *(uint32*)(isj1P+countUniqueP)   += *(uint32*)(isjP+countUniqueP);
-    *(uint32*)(isj1P+countMultipleP) += *(uint32*)(isjP+countMultipleP);
+    storeUnaligned(isj1P+countUniqueP, loadUnaligned<uint32>(isj1P+countUniqueP)+loadUnaligned<uint32>(isjP+countUniqueP));
+    storeUnaligned(isj1P+countMultipleP, loadUnaligned<uint32>(isj1P+countMultipleP)+loadUnaligned<uint32>(isjP+countMultipleP));
 
-    if (*(uint16*)(isj1P+overhangLeftP) < *(uint16*)(isjP+overhangLeftP) ) {
-        *(uint16*)(isj1P+overhangLeftP) = *(uint16*)(isjP+overhangLeftP);
+    if (loadUnaligned<uint16>(isj1P+overhangLeftP) < loadUnaligned<uint16>(isjP+overhangLeftP) ) {
+        storeUnaligned(isj1P+overhangLeftP, loadUnaligned<uint16>(isjP+overhangLeftP));
     };
-    if (*(uint16*)(isj1P+overhangRightP) < *(uint16*)(isjP+overhangRightP) ) {
-        *(uint16*)(isj1P+overhangRightP) = *(uint16*)(isjP+overhangRightP);
+    if (loadUnaligned<uint16>(isj1P+overhangRightP) < loadUnaligned<uint16>(isjP+overhangRightP) ) {
+        storeUnaligned(isj1P+overhangRightP, loadUnaligned<uint16>(isjP+overhangRightP));
     };
 
     if (*(isj1P+motifP) != *(isjP+motifP) ) {
-            uint s1=*(uint*)(isj1P+startP);
+            uint s1=loadUnaligned<uint>(isj1P+startP);
             uint c1=genOut.chrBin[ s1 >> genOut.pGe.gChrBinNbits];
 
             stringstream errOut;
             errOut <<"EXITING because of BUG: different motifs for the same junction while collapsing junctions\n" \
-                   << genOut.chrName[c1] <<" "<< s1-genOut.chrStart[c1]+1 <<" "<<s1-genOut.chrStart[c1]+1 + *(uint32*)(isj1P+gapP) <<" "<<int(*(char*)(isj1P+motifP)) <<" "<<int(*(char*)(isjP+motifP)) \
+                   << genOut.chrName[c1] <<" "<< s1-genOut.chrStart[c1]+1 <<" "<<s1-genOut.chrStart[c1]+1 + loadUnaligned<uint32>(isj1P+gapP) <<" "<<int(*(char*)(isj1P+motifP)) <<" "<<int(*(char*)(isjP+motifP)) \
                    <<" "<<int(*(char*)(isj1P+annotP)) <<" "<<int(*(char*)(isjP+annotP))<<"\n";
             exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
 

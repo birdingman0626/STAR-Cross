@@ -60,13 +60,17 @@ typedef int8_t int8;
 typedef uint8_t uint8;
 
 #define uint unsigned long long
-#define sint signed long long
-#define uint64 unsigned long long
-#define uint32 unsigned int
-#define uint16 unsigned short int
-#define uchar unsigned char
-#define int64 long long
-#define int32 int
+using sint = signed long long;
+using uint64 = unsigned long long;
+using uint32 = unsigned int;
+using uint16 = unsigned short int;
+using uchar = unsigned char;
+using int64 = long long;
+using int32 = int;
+static_assert(sizeof(uint64) == 8 && sizeof(uint32) == 4 && sizeof(uint16) == 2,
+              "STAR index and BAM formats require fixed-width integer types");
+static_assert(sizeof(int64) == 8 && sizeof(int32) == 4 && sizeof(uchar) == 1,
+              "STAR binary formats require fixed-width integer types");
 
 // 128-bit unsigned integer type
 #if defined(_MSC_VER)

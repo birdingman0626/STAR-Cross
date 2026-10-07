@@ -1,6 +1,6 @@
 /*  test/test-vcf-api.c -- VCF test harness.
 
-    Copyright (C) 2013, 2014, 2017-2021, 2023 Genome Research Ltd.
+    Copyright (C) 2013, 2014, 2017-2021, 2023, 2025 Genome Research Ltd.
 
     Author: Petr Danecek <pd3@sanger.ac.uk>
 
@@ -29,11 +29,14 @@ DEALINGS IN THE SOFTWARE.  */
 #include <string.h>
 
 #include "../htslib/hts.h"
+#include "../htslib/hts_alloc.h"
 #include "../htslib/vcf.h"
+#include "../htslib/vcfutils.h"
+#include "../htslib/kbitset.h"
 #include "../htslib/kstring.h"
 #include "../htslib/kseq.h"
 
-void HTS_FORMAT(HTS_PRINTF_FMT, 1, 2) error(const char *format, ...)
+static void HTS_FORMAT(HTS_PRINTF_FMT, 1, 2) error(const char *format, ...)
 {
     va_list ap;
     va_start(ap, format);
@@ -199,7 +202,7 @@ void write_bcf(char *fname)
     check0(bcf_update_info_flag(hdr, rec, "DB", NULL, 1));
     check0(bcf_update_info_flag(hdr, rec, "H2", NULL, 1));
     // .. FORMAT
-    int32_t *tmpia = (int*)malloc(bcf_hdr_nsamples(hdr)*2*sizeof(int));
+    int32_t *tmpia = (int*)hts_malloc_p(2 * sizeof(*tmpia), bcf_hdr_nsamples(hdr));
     tmpia[0] = bcf_gt_phased(0);
     tmpia[1] = bcf_gt_phased(0);
     tmpia[2] = bcf_gt_phased(1);
@@ -658,6 +661,390 @@ void test_open_format(void) {
         error("Expected failure for wrong extension 'vcf.bvcf.bgz'");
 }
 
+//tests on rlen calculation
+void test_rlen_values(void)
+{
+    bcf_hdr_t *hdr;
+    bcf1_t *rec, *rec2;
+    int i, j;
+    int32_t tmpi;
+    //data common for all versions, interpreted differently based on version
+#define data "##reference=file://tmp\n" \
+    "##FILTER=<ID=PASS,Description=\"All filters passed\">\n" \
+    "##INFO=<ID=END,Number=1,Type=Integer,Description=\"end\">\n" \
+    "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"gt\">\n" \
+    "##INFO=<ID=SVLEN,Number=A,Type=Integer,Description=\"svlen\">\n" \
+    "##INFO=<ID=CN,Number=A,Type=Float,Description=\"Copy number\">\n" \
+    "##INFO=<ID=SVCLAIM,Number=A,Type=String,Description=\"svclaim\">\n" \
+    "##FORMAT=<ID=LEN,Number=1,Type=Integer,Description=\"fmt len\">\n" \
+    "##contig=<ID=1,Length=40>\n" \
+    "##ALT=<ID=INS,Description=\"INS\">\n" \
+    "##ALT=<ID=DEL,Description=\"DEL\">\n" \
+    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSample1\tSample2\n" \
+    "1\t4310\t.\tG\tA\t.\t.\t.\tGT\t0/0\t0|1\n" \
+    "1\t4311\t.\tC\tCT\t.\t.\t.\tGT\t0/0\t1/0\n" \
+    "1\t4312\t.\tTC\tT\t213.73\t.\t.\tGT\t0/1\t0|0\n" \
+    "1\t4314\t.\tG\t<INS>\t213.73\t.\tSVLEN=10;SVCLAIM=J\tGT\t0/1\t0|0\n" \
+    "1\t4315\t.\tG\t<DEL>\t213.73\t.\tSVLEN=-10;SVCLAIM=D\tGT\t0/1\t0|0\n" \
+    "1\t4326\t.\tG\t<INS>\t213.73\t.\tEND=4326;SVLEN=10;SVCLAIM=J\tGT\t0/1\t0|0\n" \
+    "1\t4327\t.\tG\t<DEL>\t213.73\t.\tEND=4337;SVLEN=-10;SVCLAIM=J\tGT\t0/1\t0|0\n" \
+    "1\t4338\t.\tG\t<*>\t213.73\t.\tEND=4342;SVLEN=.;SVCLAIM=.\tGT:LEN\t0/1:7\t0|0:8\n" \
+    "1\t4353\t.\tG\t<*>\t213.73\t.\tEND=4357;SVLEN=.;SVCLAIM=.\tGT:LEN\t0/1:7\t0|0:.\n" \
+    "1\t4363\t.\tG\t<*>\t213.73\t.\tEND=4367;SVLEN=.;SVCLAIM=.\tGT:LEN\t0/1:7\t0|0:.\n" \
+    "1\t4370\t.\tG\t<INS>,<*>\t213.73\t.\tEND=4371;SVLEN=.;SVCLAIM=.\tGT:LEN\t0/1:7\t0|0:.\n" \
+    "1\t4378\t.\tG\t<DEL>,<INS>,<*>\t213.73\t.\tEND=4379;SVLEN=3,5,.;SVCLAIM=D,J,.\tGT:LEN\t0/1:7\t0|0:.\n" \
+    "1\t4385\t.\tG\tT,<DEL>\t213.73\t.\tEND=4387;SVLEN=.,180\tGT\t0/1\t0|0\n" \
+    "1\t4585\t.\tG\tT,<DEL:ME>\t213.73\t.\tEND=4587;SVLEN=.,180\tGT\t0/1\t0|0\n" \
+    "1\t4685\t.\tG\t<DUP>,<DUP>\t213.73\t.\tEND=4687;SVLEN=10,10\tGT\t0/1\t0|0\n" \
+    "1\t4705\t.\tG\t<CNV>\t213.73\t.\tEND=4707;SVLEN=11;CN=2\tGT\t0/1\t0|0\n" \
+    "1\t4725\t.\tG\t<CNV:TR>\t213.73\t.\tEND=4727;SVLEN=12;CN=1.5\tGT\t0/1\t0|0\n" \
+    "1\t4745\t.\tG\t<INV>\t213.73\t.\tEND=4747;SVLEN=10\tGT\t0/1\t0|0\n" \
+    "1\t4885\t.\tG\tT,<*>\t213.73\t.\tEND=4887\tGT:LEN\t0/1:190\t0|0:.\n" \
+    "1\t5885\t.\tG\tT\t213.73\t.\tEND=5887;SVLEN=8;SVCLAIM=.\tGT:LEN\t0/1:.\t0|0:10\n"
+    // For the last line, SVLEN should be ignored as the allele is not symbolic
+    // and LEN should be ignored as there is no <*> allele.  The END tag will
+    // be used as it's higher than POS + length of REF.
+
+    //test vcf with different versions
+    const int testsz = 3;
+    static char d43[] = "data:,"
+    "##fileformat=VCFv4.3\n" data;
+    static char d44[] = "data:,"
+    "##fileformat=VCFv4.4\n" data;
+    static char d45[] = "data:,"
+    "##fileformat=VCFv4.5\n" data;
+    /* ideal expected rlen for tests
+    int rlen43[] = {1, 1, 2, 1, 1, 1, 11, 5, 5, 5, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3};
+    int rlen44[] = {1, 1, 2, 1, 11, 1, 11, 5, 5, 5, 2, 4, 181, 181, 11, 12, 13, 11, 3, 3};
+    int rlen45[] = {1, 1, 2, 1, 11, 1, 11, 8, 7, 7, 7, 7, 181, 181, 11, 12, 13, 11, 190, 3};*/
+    // but we dont check version and hence resulting rlen should be
+    int rlen[] = {1, 1, 2, 1, 11, 1, 11, 8, 7, 7, 7, 7, 181, 181, 11, 12, 13, 11, 190, 3};
+
+    const int vcfsz = sizeof(rlen)/sizeof(rlen[0]);
+
+    char *darr[] = {&d43[0], &d44[0], &d45[0]};     //data array
+    int *rarr[] = {&rlen[0], &rlen[0], &rlen[0]};   //result array
+
+    enum htsLogLevel logging = hts_get_log_level();
+
+    // Silence warning messages
+    hts_set_log_level(HTS_LOG_ERROR);
+
+    rec = bcf_init1(); rec2 = bcf_init1();
+    if (!rec || !rec2) error("Failed to allocate BCF record : %s", strerror(errno));
+    //calculating rlen with different vcf versions
+    for (i = 0; i < testsz; ++i) {
+        htsFile *fp = hts_open(darr[i], "r");
+        if (!fp) error("Failed to open vcf data with %d : %s", i + 1, strerror(errno));
+        bcf_clear1(rec);
+        hdr = bcf_hdr_read(fp);
+        if (!hdr) error("Failed to read BCF header with %d : %s", i + 1, strerror(errno));
+        for (j = 0; j < vcfsz; ++j) {
+            check0(bcf_read(fp, hdr, rec));
+            if (rec->rlen != rarr[i][j]) {
+                error("Incorrect rlen @ vcf %d on test %d - expected %d got %"PRIhts_pos"\n", j + 1, i + 1, rarr[i][j], rec->rlen);
+            }
+        }
+        bcf_hdr_destroy(hdr);
+        hts_close(fp);
+    }
+
+    //calculating rlen with update to fields
+    htsFile *fp = hts_open(d45, "r");
+    int id  = 1, val[]= { 1, 15 };
+    bcf_clear1(rec);
+    hdr = bcf_hdr_read(fp);
+    if (!hdr) error("Failed to read BCF header : %s", strerror(errno));
+    check0(bcf_read(fp, hdr, rec));
+    //"1\t4310\t.\tG\tA\t.\t.\t.\tGT\t0/0\t0|1\n"
+    if (rec->rlen != 1)
+        error("Incorrect rlen set, expected 1 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    //alt change A->AT
+    ++id; check0(bcf_update_alleles_str(hdr, rec, "G,AT"));
+    if (rec->rlen != 1)
+        error("Incorrect rlen set, expected 1 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    //ref change G->GC, alt AT -> A, "1\t4310\t.\tGC\tA\t.\t.\t.\tGT\t0/0\t0|1\n"
+    id++; check0(bcf_update_alleles_str(hdr, rec, "GC,A"));
+    if (rec->rlen != 2)
+        error("Incorrect rlen set, expected 2 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    ++id; check0(bcf_update_alleles_str(hdr, rec, "G,<*>"));
+    if (rec->rlen != 1)
+        error("Incorrect rlen set, expected 1 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    tmpi = 4323;
+    ++id; check0(bcf_update_info_int32(hdr, rec, "END", &tmpi, 1));  //SVLEN to infer from END and use
+    if (rec->rlen != 14)
+        error("Incorrect rlen set, expected 14 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    ++id; check0(bcf_update_format_int32(hdr, rec, "LEN", &val, 2));
+    if (rec->rlen != 15)
+        error("Incorrect rlen set, expected 15 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    ++id; check0(bcf_update_info_int32(hdr, rec, "END", &tmpi, 0));  //removes END
+    if (rec->rlen != 15)
+        error("Incorrect rlen set, expected 15 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    ++id; check0(bcf_update_format_int32(hdr, rec, "LEN", &tmpi, 0));  //removes LEN
+    if (rec->rlen != 1)
+        error("Incorrect rlen set, expected 1 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    //ALT -> DEL, "1\t4310\t.\tG\tT,<DEL>\t.\t.\t.\tGT\t0/0\t0|1\n"
+    ++id; check0(bcf_update_alleles_str(hdr, rec, "G,T,<DEL>"));
+    if (rec->rlen != 1)
+        error("Incorrect rlen set, expected 1 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    val[0] = 0; val[1] = -5;
+    ++id; check0(bcf_update_info_int32(hdr, rec, "SVLEN", &val, 2));  //Add svlen
+    if (rec->rlen != 6)
+        error("Incorrect rlen set, expected 6 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+    ++id; bcf_copy(rec2, rec);
+    if (rec2->rlen != 6)
+        error("Incorrect rlen set, expected 6 got %"PRIhts_pos" @ %d\n", rec->rlen, id);
+
+    //needs update when header version change is handled
+    bcf_destroy1(rec);
+    bcf_destroy1(rec2);
+    bcf_hdr_destroy(hdr);
+
+    hts_close(fp);
+
+    hts_set_log_level(logging);
+}
+
+static void test_vl_types(void)
+{
+    const char *test_vcf = "data:,"
+        "##fileformat=VCFv4.5\n"
+        "##FILTER=<ID=PASS,Description=\"All filters passed\">\n"
+        "##contig=<ID=5,length=243199373>\n"
+        "##INFO=<ID=FIXED_1_INFO,Number=1,Type=Integer,Description=\"Fixed number 1\">\n"
+        "##INFO=<ID=FIXED_4_INFO,Number=4,Type=Float,Description=\"Fixed number 4\">\n"
+        "##INFO=<ID=VL_DOT_INFO,Number=.,Type=Integer,Description=\"Variable number\">\n"
+        "##INFO=<ID=VL_A_INFO,Number=A,Type=Integer,Description=\"One value for each ALT allele\">\n"
+        "##INFO=<ID=VL_G_INFO,Number=G,Type=Integer,Description=\"One value for each possible genotype\">\n"
+        "##INFO=<ID=VL_R_INFO,Number=R,Type=Integer,Description=\"One value for each allele including REF\">\n"
+        "##FORMAT=<ID=FIXED_1_FMT,Number=1,Type=String,Description=\"Fixed number 1\">\n"
+        "##FORMAT=<ID=FIXED_4_FMT,Number=4,Type=String,Description=\"Fixed number 4\">\n"
+        "##FORMAT=<ID=VL_DOT_FMT,Number=.,Type=String,Description=\"Variable number\">\n"
+        "##FORMAT=<ID=VL_A_FMT,Number=A,Type=Integer,Description=\"One value for each ALT allele\">\n"
+        "##FORMAT=<ID=VL_G_FMT,Number=G,Type=Integer,Description=\"One value for each possible genotype\">\n"
+        "##FORMAT=<ID=VL_R_FMT,Number=R,Type=Integer,Description=\"One value for each allele including REF\">\n"
+        "##FORMAT=<ID=VL_P_FMT,Number=P,Type=String,Description=\"One value for each allele value defined in GT\">\n"
+        "##FORMAT=<ID=VL_LA_FMT,Number=LA,Type=Integer,Description=\"One value for each local ALT allele\">\n"
+        "##FORMAT=<ID=VL_LG_FMT,Number=LG,Type=Integer,Description=\"One value for each local genotype\">\n"
+        "##FORMAT=<ID=VL_LR_FMT,Number=LR,Type=Integer,Description=\"One value for each local allele including REF\">\n"
+        "##FORMAT=<ID=VL_M_FMT,Number=M,Type=Integer,Description=\"One value for each posible base modification of the given type\">\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tAAA\n";
+
+    typedef struct {
+        const char *id;
+        int type;
+        int expected_vl_code;
+        int expected_number;
+    } expected_types_t;
+
+    expected_types_t expected[] = {
+        { "FIXED_1_INFO", BCF_HL_INFO, BCF_VL_FIXED, 1 },
+        { "FIXED_4_INFO", BCF_HL_INFO, BCF_VL_FIXED, 4 },
+        { "VL_DOT_INFO",  BCF_HL_INFO, BCF_VL_VAR,   0xfffff },
+        { "VL_A_INFO",    BCF_HL_INFO, BCF_VL_A,     0xfffff },
+        { "VL_G_INFO",    BCF_HL_INFO, BCF_VL_G,     0xfffff },
+        { "VL_R_INFO",    BCF_HL_INFO, BCF_VL_R,     0xfffff },
+        { "FIXED_1_FMT",  BCF_HL_FMT,  BCF_VL_FIXED, 1 },
+        { "FIXED_4_FMT",  BCF_HL_FMT,  BCF_VL_FIXED, 4 },
+        { "VL_DOT_FMT",   BCF_HL_FMT,  BCF_VL_VAR,   0xfffff },
+        { "VL_A_FMT",     BCF_HL_FMT,  BCF_VL_A,     0xfffff },
+        { "VL_G_FMT",     BCF_HL_FMT,  BCF_VL_G,     0xfffff },
+        { "VL_R_FMT",     BCF_HL_FMT,  BCF_VL_R,     0xfffff },
+        { "VL_P_FMT",     BCF_HL_FMT,  BCF_VL_P,     0xfffff },
+        { "VL_LA_FMT",    BCF_HL_FMT,  BCF_VL_LA,    0xfffff },
+        { "VL_LG_FMT",    BCF_HL_FMT,  BCF_VL_LG,    0xfffff },
+        { "VL_LR_FMT",    BCF_HL_FMT,  BCF_VL_LR,    0xfffff },
+        { "VL_M_FMT",     BCF_HL_FMT,  BCF_VL_M,     0xfffff },
+    };
+
+    htsFile *fp = hts_open(test_vcf, "r");
+    if (!fp) error("Failed to open test data\n");
+    bcf_hdr_t *hdr = bcf_hdr_read(fp);
+    if (!hdr) error("Failed to read BCF header\n");
+    size_t i;
+    for (i = 0; i < sizeof(expected)/sizeof(expected[0]); i++)
+    {
+        int id_num = bcf_hdr_id2int(hdr, BCF_DT_ID, expected[i].id);
+        if (id_num < 0)
+        {
+            error("Couldn't look up VCF header ID %s\n", expected[i].id);
+        }
+        int vl_code = bcf_hdr_id2length(hdr, expected[i].type, id_num);
+        if (vl_code != expected[i].expected_vl_code)
+        {
+            const char *length_types[] = {
+                "BCF_VL_FIXED", "BCF_VL_VAR", "BCF_VL_A", "BCF_VL_G",
+                "BCF_VL_R", "BCF_VL_P", "BCF_VL_LA", "BCF_VL_LG",
+                "BCF_VL_LR", "BCF_VL_M"
+            };
+            if (vl_code >= 0 && vl_code < sizeof(length_types)/sizeof(length_types[0]))
+            {
+                error("Unexpected length code for %s: expected %s got %s\n",
+                      expected[i].id,
+                      length_types[expected[i].expected_vl_code],
+                      length_types[vl_code]);
+            }
+            else
+            {
+                error("Unexpected length code for %s: expected %s got %d\n",
+                      expected[i].id,
+                      length_types[expected[i].expected_vl_code], vl_code);
+            }
+        }
+        int num = bcf_hdr_id2number(hdr, expected[i].type, id_num);
+        if (num != expected[i].expected_number)
+        {
+            error("Unexpected number for %s: expected %d%s got %d%s\n",
+                  expected[i].id,
+                  expected[i].expected_number,
+                  (expected[i].expected_number == 0xfffff
+                   ? " (= code for not fixed)" : ""),
+                  num,
+                  num == 0xfffff ? " (= code for not fixed)" : "");
+        }
+    }
+    bcf_hdr_destroy(hdr);
+    bcf_close(fp);
+}
+
+static int read_vcf_line(const char *line, bcf_hdr_t *hdr, bcf1_t *rec,
+                         kstring_t *kstr)
+{
+    int ret;
+    if (kputsn(line, strlen(line), ks_clear(kstr)) < 0)
+        return -1;
+
+    ret = vcf_parse(kstr, hdr, rec);
+    if (ret != 0) {
+        fprintf(stderr, "vcf_parse(\"%s\", hdr, rec) returned %d\n",
+                ks_c_str(kstr), ret);
+    }
+    return ret;
+}
+
+static void chomp(kstring_t *kstr)
+{
+    if (kstr->l < 1)
+        return;
+    if (kstr->s[kstr->l - 1] == '\n')
+        kstr->s[--kstr->l] = '\0';
+}
+
+// Test bcf_remove_allele_set()
+void test_bcf_remove_allele_set(void)
+{
+    char header[] = "##fileformat=VCFv4.5\n"
+        "##FILTER=<ID=PASS,Description=\"All filters passed\">\n"
+        "##contig=<ID=5,length=243199373>\n"
+        "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count\">\n"
+        "##INFO=<ID=AD,Number=R,Type=Integer,Description=\"Allele depth\">\n"
+        "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">\n"
+        "##INFO=<ID=CN,Number=A,Type=Float,Description=\"Copy number of CNV/breakpoint\">\n"
+        "##INFO=<ID=CICN,Number=.,Type=Float,Description=\"Confidence interval around copy number\">\n"
+        "##INFO=<ID=CIEND,Number=.,Type=Integer,Description=\"Confidence interval around the inferred END for symbolic structural variants\">\n"
+        "##INFO=<ID=CILEN,Number=.,Type=Integer,Description=\"Confidence interval for the SVLEN field\">\n"
+        "##INFO=<ID=CIPOS,Number=.,Type=Integer,Description=\"Confidence interval around POS for symbolic structural variants\">\n"
+        "##INFO=<ID=CIRB,Number=.,Type=Integer,Description=\"Confidence interval around RB\">\n"
+        "##INFO=<ID=CIRUC,Number=.,Type=Float,Description=\"Confidence interval around RUC\">\n"
+        "##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variant\">\n"
+        "##INFO=<ID=MEINFO,Number=.,Type=String,Description=\"Mobile element info of the form NAME,START,END,POLARITY\">\n"
+        "##INFO=<ID=METRANS,Number=.,Type=String,Description=\"Mobile element transduction info of the form CHR,START,END,POLARITY\">\n"
+        "##INFO=<ID=RB,Number=.,Type=Integer,Description=\"Total number of bases in the corresponding repeat sequence\">\n"
+        "##INFO=<ID=RN,Number=A,Type=Integer,Description=\"Total number of repeat sequences in this allele\">\n"
+        "##INFO=<ID=RUB,Number=.,Type=Integer,Description=\"Number of bases in each individual repeat unit\">\n"
+        "##INFO=<ID=RUC,Number=.,Type=Float,Description=\"Repeat unit count of corresponding repeat sequence\">\n"
+        "##INFO=<ID=RUL,Number=.,Type=Integer,Description=\"Repeat unit length of the corresponding repeat sequence\">\n"
+        "##INFO=<ID=RUS,Number=.,Type=String,Description=\"Repeat unit sequence of the corresponding repeat sequence\">\n"
+        "##INFO=<ID=SVLEN,Number=A,Type=Integer,Description=\"Length of structural variant\">\n"
+        "##INFO=<ID=VL_A_STR_INFO,Number=A,Type=String,Description=\"INFO string Number=A\">\n"
+        "##INFO=<ID=VL_R_STR_INFO,Number=R,Type=String,Description=\"INFO string Number=R\">\n"
+        "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allele depth\">\n"
+        "##FORMAT=<ID=EC,Number=A,Type=Integer,Description=\"Expected allele count\">\n"
+        "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+        "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"List of Phred-scaled genotype likelihoods\">\n"
+        "##FORMAT=<ID=LAA,Number=.,Type=Integer,Description=\"Local alleles\">\n"
+        "##FORMAT=<ID=LAD,Number=LR,Type=Integer,Description=\"Local allele depth\">\n"
+        "##FORMAT=<ID=LEC,Number=LA,Type=Integer,Description=\"Local expected allele count\">\n"
+        "##FORMAT=<ID=LPL,Number=LG,Type=Integer,Description=\"List of Phred-scaled local genotype likelihoods\">\n"
+        "##FORMAT=<ID=VL_A_STR_FMT,Number=A,Type=String,Description=\"FMT string Number=A\">\n"
+        "##FORMAT=<ID=VL_G_STR_FMT,Number=G,Type=String,Description=\"FMT string Number=G\">\n"
+        "##FORMAT=<ID=VL_LA_STR_FMT,Number=LA,Type=String,Description=\"FMT string Number=LA\">\n"
+        "##FORMAT=<ID=VL_LG_STR_FMT,Number=LG,Type=String,Description=\"FMT string Number=LG\">\n"
+        "##FORMAT=<ID=VL_LR_STR_FMT,Number=LR,Type=String,Description=\"FMT string Number=LR\">\n"
+        "##FORMAT=<ID=VL_R_STR_FMT,Number=R,Type=String,Description=\"FMT string Number=R\">\n"
+        "##ALT=<ID=CNV:TR,Description=\"Tandem repeat determined based on DNA abundance\">\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tAAA\tBBB\tCCC\n";
+    const char * inputs[] = {
+        "5\t110285\t.\tT\tC,<*>\t.\tPASS\tAC=1,0;AD=6,5,0;AF=0.99,0.01;VL_A_STR_INFO=alt_c,alt_nonref;VL_R_STR_INFO=ref,alt_c,alt_nonref\tGT:AD:EC:PL:VL_A_STR_FMT:VL_G_STR_FMT:VL_R_STR_FMT\t.:.:.:.:.:.:.\t0/1:6,5,0:4,0:114,0,15,35,73,113:alt_c,alt_nonref:gt_00,gt_01,gt_11,gt_02,gt_12,gt_22:ref,alt_c,alt_nonref\t.:.:.:.:.:.:.",
+        "5\t110290\t.\tT\tC,A\t.\tPASS\tAC=90,1;AD=6,5,6;AF=0.009,0.0001;VL_A_STR_INFO=alt_c,alt_a;VL_R_STR_INFO=ref,alt_c,alt_a\tGT:LAA:LAD:LEC:LPL:VL_LA_STR_FMT:VL_LG_STR_FMT:VL_LR_STR_FMT\t0/0:.:3:.:0:.:gt_00:ref\t0/1:1,2:3,2,0:44,27:114,0,15,35,73,113:alt_c,alt_a:gt_00,gt_01,gt_11,gt_02,gt_12,gt_22:ref,alt_c,alt_a\t1/1:1:0,3:46:110,15,0:alt_c:gt_00,gt_01,gt_11:ref,alt_c",
+        "5\t110350\t.\tT\t<INS>,<INS>\t.\tPASS\tIMPRECISE;SVLEN=100,200;CIEND=-50,50,-25,25;CIPOS=-10,10,-20,20\tGT\t0/1\t0/1\t0/1",
+        "5\t110500\t.\tT\t<CNV>,<CNV>\t.\tPASS\tIMPRECISE;SVLEN=50,100;CILEN=0,25,-25,25;CN=2,4;CICN=-0.5,1,-1.5,1.5\tGT\t0/1\t0/1\t0/1",
+        "5\t110700\t.\tA\t<INS:ME>,<INS:ME>\t.\tPASS\tMEINFO=AluY,1,260,+,FLAM_C,1,110,-;METRANS=1,94820,95080,+,1,129678,129788,-\tGT\t0/1\t0/1\t0/1",
+        "5\t112000\t.\tC\t<CNV:TR>,<CNV:TR>\t.\tPASS\tRN=2,1;RUS=CAG,TTG,CA;RUL=3,3,2;RB=12,6,6;RUC=4,2,3;RUB=3,3,3,3,3,3,2,2,2;SVLEN=18,6",
+        "5\t113000\t.\tT\tC,A\t.\tPASS\tAC=90,1;AD=6,5,6;AF=0.009,0.0001;VL_A_STR_INFO=alt_c,alt_a;VL_R_STR_INFO=ref,alt_c,alt_a\tGT:LAA:LAD:LEC:LPL:VL_LA_STR_FMT:VL_LG_STR_FMT:VL_LR_STR_FMT\t0/0:.:3:.:0:.:gt_00:ref\t0/1:1,2:3,2,0:44,27:114,0,15,35,73,113:alt_c,alt_a:gt_00,gt_01,gt_11,gt_02,gt_12,gt_22:ref,alt_c,alt_a\t1/1:1:0,3:46:110,15,0:alt_c:gt_00,gt_01,gt_11:ref,alt_c",
+        "5\t114000\t.\tT\tC,A\t.\tPASS\tAC=90,1;AD=6,5,6;AF=0.009,0.0001;VL_A_STR_INFO=alt_c,alt_a;VL_R_STR_INFO=ref,alt_c,alt_a\tGT:LAA:LAD:LEC:LPL:VL_LA_STR_FMT:VL_LG_STR_FMT:VL_LR_STR_FMT\t0/0:.:3:.:0:.:gt_00:ref\t0/1:1,2:3,2,0:44,27:114,0,15,35,73,113:alt_c,alt_a:gt_00,gt_01,gt_11,gt_02,gt_12,gt_22:ref,alt_c,alt_a\t1/1:1:0,3:46:110,15,0:alt_c:gt_00,gt_01,gt_11:ref,alt_c",
+        "5\t115000\t.\tC\t<CNV:TR>,<CNV:TR>\t.\tPASS\tRN=2,1;RUS=CAG,TTG,CA;RUL=3,3,2;RB=12,6,6;RUC=4,2,3;RUB=3,3,3,3,3,3,2,2,2;SVLEN=18,6",
+    };
+    const char * expected[] = {
+        // 2nd allele removed
+        "5\t110285\t.\tT\tC\t.\tPASS\tAC=1;AD=6,5;AF=0.99;VL_A_STR_INFO=alt_c;VL_R_STR_INFO=ref,alt_c\tGT:AD:EC:PL:VL_A_STR_FMT:VL_G_STR_FMT:VL_R_STR_FMT\t.:.:.:.:.:.:.\t0/1:6,5:4:114,0,15:alt_c:gt_00,gt_01,gt_11:ref,alt_c\t.:.:.:.:.:.:.",
+        "5\t110290\t.\tT\tC\t.\tPASS\tAC=90;AD=6,5;AF=0.009;VL_A_STR_INFO=alt_c;VL_R_STR_INFO=ref,alt_c\tGT:LAA:LAD:LEC:LPL:VL_LA_STR_FMT:VL_LG_STR_FMT:VL_LR_STR_FMT\t0/0:.:3:.:0:.:gt_00:ref\t0/1:1:3,2:44:114,0,15:alt_c:gt_00,gt_01,gt_11:ref,alt_c\t1/1:1:0,3:46:110,15,0:alt_c:gt_00,gt_01,gt_11:ref,alt_c",
+        "5\t110350\t.\tT\t<INS>\t.\tPASS\tIMPRECISE;SVLEN=100;CIEND=-50,50;CIPOS=-10,10\tGT\t0/1\t0/1\t0/1",
+        "5\t110500\t.\tT\t<CNV>\t.\tPASS\tIMPRECISE;SVLEN=50;CILEN=0,25;CN=2;CICN=-0.5,1\tGT\t0/1\t0/1\t0/1",
+        "5\t110700\t.\tA\t<INS:ME>\t.\tPASS\tMEINFO=AluY,1,260,+;METRANS=1,94820,95080,+\tGT\t0/1\t0/1\t0/1",
+        "5\t112000\t.\tC\t<CNV:TR>\t.\tPASS\tRN=2;RUS=CAG,TTG;RUL=3,3;RB=12,6;RUC=4,2;RUB=3,3,3,3,3,3;SVLEN=18",
+        // 1st allele removed
+        "5\t113000\t.\tT\tA\t.\tPASS\tAC=1;AD=6,6;AF=0.0001;VL_A_STR_INFO=alt_a;VL_R_STR_INFO=ref,alt_a\tGT:LAA:LAD:LEC:LPL:VL_LA_STR_FMT:VL_LG_STR_FMT:VL_LR_STR_FMT\t0/0:.:3:.:0:.:gt_00:ref\t0/.:1:3,0:27:114,35,113:alt_a:gt_00,gt_02,gt_22:ref,alt_a\t./.:.:0:.:110:.:gt_00:ref",
+        // Both alleles removed
+        "5\t114000\t.\tT\t.\t.\tPASS\tAD=6;VL_R_STR_INFO=ref\tGT:LAA:LAD:LEC:LPL:VL_LA_STR_FMT:VL_LG_STR_FMT:VL_LR_STR_FMT\t0/0:.:3:.:0:.:gt_00:ref\t0/.:.:3:.:114:.:gt_00:ref\t./.:.:0:.:110:.:gt_00:ref",
+        "5\t115000\t.\tC\t.\t.\tPASS\t.",
+    };
+
+    kstring_t kstr = KS_INITIALIZE;
+
+    bcf_hdr_t *hdr = bcf_hdr_init("r");
+    bcf1_t *rec = bcf_init();
+    struct kbitset_t *rm_set = kbs_init(3);
+    size_t i;
+
+    if (!hdr)
+        error("bcf_hdr_init() failed\n");
+
+    if (!rec)
+        error("bcf_init() failed\n");
+
+    if (!rm_set)
+        error("kbs_init() failed\n");
+
+    check0(ks_resize(&kstr, 1000));
+    check0(bcf_hdr_parse(hdr, header));
+    for (i = 0; i < sizeof(inputs)/sizeof(inputs[0]); i++)
+    {
+        check0(read_vcf_line(inputs[i], hdr, rec, &kstr));
+        kbs_clear(rm_set);
+        if (rec->pos == 113000 - 1) {
+            kbs_insert(rm_set, 1);
+        } else if (rec->pos >= 114000 - 1) {
+            kbs_insert(rm_set, 1);
+            kbs_insert(rm_set, 2);
+        } else {
+            kbs_insert(rm_set, 2);
+        }
+        check0(bcf_remove_allele_set(hdr, rec, rm_set));
+        check0(vcf_format(hdr, rec, ks_clear(&kstr)));
+        chomp(&kstr);
+        if (strcmp(expected[i], ks_c_str(&kstr)) != 0)
+        {
+            error("bcf_remove_allele_set() output differs\nExpected:\n%s\nGot:\n%s\n",
+                  expected[i], ks_c_str(&kstr));
+        }
+    }
+    bcf_destroy(rec);
+    bcf_hdr_destroy(hdr);
+    ks_free(&kstr);
+    kbs_destroy(rm_set);
+}
+
 int main(int argc, char **argv)
 {
     char *fname = argc>1 ? argv[1] : "rmme.bcf";
@@ -671,8 +1058,11 @@ int main(int argc, char **argv)
     iterator(fname);
 
     // additional tests. quiet unless there's a failure.
+    test_vl_types();
     test_get_info_values(fname);
     test_invalid_end_tag();
     test_open_format();
+    test_rlen_values();
+    test_bcf_remove_allele_set();
     return 0;
 }
