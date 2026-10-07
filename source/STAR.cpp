@@ -244,6 +244,9 @@ int main(int argInN, char *argIn[])
         mapThreadsSpawn(P, RAchunk.data());
     };
 
+    // Validate input producers before publishing final statistics/counts.
+    P.closeReadsFiles();
+
     // close some BAM files
     if (P.inOut->outBAMfileUnsorted != NULL)
     {
@@ -342,8 +345,6 @@ int main(int argInN, char *argIn[])
 
     P.inOut->logMain << "ALL DONE!\n"
                      << flush;
-
-    P.closeReadsFiles(); // kill readFilesCommand child processes before removing temp files
 
     // All mapping, Solo and sorting consumers have finished. Release writers
     // before deleting their temporary files (especially important on Windows).

@@ -105,7 +105,17 @@ void SharedMemory::Allocate(size_t shmSize)
     const bool created = !_exception.HasError();
     _exception.ClearError(); // someone else came in first so retry open
 
-    OpenIfExists();
+    try {
+        OpenIfExists();
+    } catch (...) {
+        // Roll back only the object created by this allocation attempt. Never
+        // unlink a pre-existing segment when attaching/mapping it fails.
+        if (created) {
+            _needsAllocation = false;
+            try { Unlink(); } catch (...) {} // preserve the original failure
+        }
+        throw;
+    }
 
     _isAllocator = created;
 }
@@ -152,7 +162,10 @@ void SharedMemory::CreateAndInitSharedObject(size_t shmSize)
     int err = ftruncate(_shmID, toReserve);
     if (err == -1)
     {
-        ThrowError(EFTRUNCATE);
+        const int detail = errno;
+        _needsAllocation = false; // this attempt owns the newly created name
+        try { Unlink(); } catch (...) {}
+        ThrowError(EFTRUNCATE, detail);
     }
 #endif
 }

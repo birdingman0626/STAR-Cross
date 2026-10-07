@@ -167,6 +167,33 @@ def check_emptydrops(star_exe, root, include_invalid=True):
     assert (filtered / "barcodes.tsv").read_text().splitlines() == ["CELL0"]
     assert (filtered / "matrix.mtx").read_text().splitlines()[-1].split() == ["1", "1", "1000"]
     checks.append("EmptyDrops insufficient SGT: explicit knee-only fallback preserves the known cell")
+    rescue_raw = root / "rescue-raw"
+    rescue_raw.mkdir()
+    (rescue_raw / "features.tsv").write_bytes((raw / "features.tsv").read_bytes())
+    (rescue_raw / "barcodes.tsv").write_bytes((raw / "barcodes.tsv").read_bytes())
+    # The known signal cell is below the knee cutoff but concentrated in a
+    # low-ambient-probability gene; the other candidates follow the ambient mix.
+    rescue_entries = [(1, 1, 1000), (1, 2, 60)] + [(g, c, g) for c in range(3, 11) for g in range(1, 7)]
+    (rescue_raw / "matrix.mtx").write_text("%%MatrixMarket matrix coordinate integer general\n"
+        + f"6 10 {len(rescue_entries)}\n" + "".join(f"{g} {c} {n}\n" for g, c, n in rescue_entries))
+    for filtering, params, expected in (("knee", ["CellRanger2.2", "1", ".99", "10"], ["CELL0"]),
+        ("rescue", ["EmptyDrops_CR", "1", ".99", "10", "3", "10", "1", "0", "100", ".01", "1000"], ["CELL0", "CELL1"])):
+        case = root / filtering
+        case.mkdir()
+        filtered = case / "filtered"
+        result = subprocess.run([str(Path(star_exe).resolve()), "--runMode", "soloCellFiltering",
+            str(rescue_raw.resolve()), str(filtered.resolve()) + "/", "--soloCellFilter", *params,
+            "--outFileNamePrefix", str(case.resolve()) + "/"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+        (case / "process.log").write_text(result.stdout)
+        assert result.returncode == 0, result.stdout
+        assert (filtered / "barcodes.tsv").read_text().splitlines() == expected
+        if filtering == "rescue":
+            assert "number of additional non-ambient cells=1" in (case / "Log.out").read_text()
+            rows = [line.split() for line in (filtered / "matrix.mtx").read_text().splitlines()
+                    if line and not line.startswith("%")]
+            assert rows == [["6", "2", "2"], ["1", "1", "1000"], ["1", "2", "60"]]
+    checks.append("EmptyDrops positive rescue: detects the known below-knee signal cell, excludes ambient cells")
     if not include_invalid:
         return checks
     invalid = [("TopCells", "0"), ("TopCells", "-1"), ("TopCells", "4294967296"),

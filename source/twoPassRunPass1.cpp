@@ -73,6 +73,7 @@ void twoPassRunPass1(Parameters &P, Genome &genomeMain, Transcriptome *transcrip
         RAchunk1[ii]=chunkOwners[ii].get();
     };
     mapThreadsSpawn(P1, RAchunk1.data());
+    P.closeReadsFiles(); // reject failed input before pass1 completion or pass2 growth
     outputSJ(RAchunk1.data(),P1); //collapse and output junctions
     chunkOwners.clear(); // release pass1 arenas before pass2 index growth
 
@@ -92,6 +93,5 @@ void twoPassRunPass1(Parameters &P, Genome &genomeMain, Transcriptome *transcrip
     sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);
 
     //reopen reads files
-    P.closeReadsFiles();
     P.openReadsFiles();
 };

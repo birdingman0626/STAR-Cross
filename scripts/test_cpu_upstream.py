@@ -14,6 +14,7 @@ from pathlib import Path
 import random
 import struct
 import subprocess
+import sys
 import tempfile
 from test_solo_cell_filtering import check_cell_filtering, check_invalid_matrices, check_emptydrops
 
@@ -128,6 +129,43 @@ def main():
                                       "--outSAMunmapped", "Within"])
     assert len(bam_records(mapped / "Aligned.out.bam")) == len(fragments)
     checks.append("real miniature genome and mapped/spliced/unmapped BAM")
+    failing_command = root / "failing-producer.py"
+    later_reads = root / "later-success.fastq"
+    later_reads.write_bytes(reads.read_bytes())
+    failing_command.write_text(
+        "import sys\nfrom pathlib import Path\n"
+        "if Path(sys.argv[-1]).name != 'later-success.fastq':\n    raise SystemExit(23)\n"
+        "sys.stdout.buffer.write(Path(sys.argv[-1]).read_bytes())\n", encoding="utf-8")
+    command_tmp = tempfile.TemporaryDirectory(prefix="star-producer-", dir="/tmp") if os.name != "nt" else None
+    # STAR parses readFilesCommand as tokens, not a shell-quoted argv vector.
+    # Windows CI exposes Python on PATH; avoid a space-containing install path.
+    producer_python = "python" if os.name == "nt" else sys.executable
+    failure_options = common + ["--readFilesIn", str(reads), "--readFilesCommand",
+                                producer_python, str(failing_command)]
+    if command_tmp:
+        failure_options += ["--outTmpDir", str(Path(command_tmp.name) / "failed")]
+    failed = run("failed-read-command", failure_options, valid=False)
+    assert "ALL DONE!" not in (failed / "Log.out").read_text()
+    assert not (failed / "Log.final.out").exists()
+    checks.append("failed readFilesCommand rejects completion rather than a successful empty analysis")
+    multi_failure_options = list(failure_options)
+    multi_failure_options[multi_failure_options.index("--readFilesIn") + 1] = str(reads) + "," + str(later_reads)
+    if command_tmp:
+        multi_failure_options[multi_failure_options.index("--outTmpDir") + 1] = str(Path(command_tmp.name) / "failed-multi")
+    failed_multi = run("failed-first-read-command", multi_failure_options, valid=False)
+    assert "ALL DONE!" not in (failed_multi / "Log.out").read_text()
+    assert not (failed_multi / "Log.final.out").exists()
+    checks.append("later successful input cannot conceal the first producer failure")
+    success_options = list(failure_options)
+    success_options[success_options.index("--readFilesIn") + 1] = str(later_reads)
+    if command_tmp:
+        success_options[success_options.index("--outTmpDir") + 1] = str(Path(command_tmp.name) / "successful")
+    success = run("successful-read-command", success_options)
+    assert (success / "Log.final.out").exists(), "producer must execute, not fail due to its launcher"
+    bounded = run("bounded-read-command", success_options + ["--readMapNumber", "1"])
+    assert (bounded / "Log.final.out").exists(), "bounded input consumption remains supported"
+    if command_tmp:
+        command_tmp.cleanup()
     # Exercise actual destruction after worker join and pass1 index growth,
     # including auxiliary ReadAlign objects sharing the chimeric output stream.
     complement = str.maketrans("ACGTN", "TGCAN")

@@ -100,6 +100,7 @@ void Parameters::openReadsFiles()
             if (sysShell!="-") {//executed via specified shell
                 readsCommandFile << "#!" <<sysShell <<"\n";
             };
+            readsCommandFile << "set -e\n"; // do not conceal an earlier input-command failure
             readsCommandFile << "exec > \""<<readFilesInTmp.at(imate)<<"\"\n" ; // redirect stdout to temp fifo files
 
             for (uint32 ifile=0; ifile<readFilesN; ifile++) {

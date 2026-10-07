@@ -97,6 +97,8 @@ public:
 
         size_t GetSize()
         {
+            // Usable mapped capacity, which may exceed the allocation request
+            // when the OS rounds a POSIX shared-memory object to page size.
             if (!_needsAllocation)
                 return _mappedSize - sizeof(size_t);
 
