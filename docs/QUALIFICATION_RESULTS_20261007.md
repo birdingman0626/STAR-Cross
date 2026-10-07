@@ -462,3 +462,15 @@ Keep package/update failures fatal. Apply the same acquisition settings to
 the Debian s390x harness, with a larger installation budget under emulation.
 References: https://github.com/actions/runner-images/issues/14594 and
 https://github.com/actions/runner-images/pull/14643.
+
+### BGZF test initialization race
+
+Release run `37696246253` passed hosted ASan but exposed a BGZF unit-test race
+in the rebuilt C++17 half of the Intel macOS language comparison. The test
+started writer threads before enabling on-the-fly indexing, contrary to the
+documented ordering in `source/htslib/htslib/bgzf.h`. Depending on scheduling,
+the writer could skip initial index allocation and then observe indexing
+enabled while processing blocks, producing an invalid index. Initialize the
+index before `bgzf_mt`, matching HTSlib's own `bgzip` implementation. Keep the
+full random-access assertion and both payload types; production code is
+unmodified by this test repair. The failed release remains unpublished.

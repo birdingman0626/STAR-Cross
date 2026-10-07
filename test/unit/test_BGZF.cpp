@@ -19,8 +19,9 @@ TEST_CASE("BGZF round trip, multithreaded blocks, EOF and random access index") 
         for (auto &byte : payload) byte = compressible ? 'A' : random() & 255;
         BGZF *output = bgzf_open(path.c_str(), "w6");
         REQUIRE(output != nullptr);
-        REQUIRE(bgzf_mt(output, 2, 64) == 0);
+        // HTSlib requires index initialization before starting writer threads.
         REQUIRE(bgzf_index_build_init(output) == 0);
+        REQUIRE(bgzf_mt(output, 2, 64) == 0);
         REQUIRE(bgzf_write(output, payload.data(), payload.size()) == static_cast<int64_t>(payload.size()));
         REQUIRE(bgzf_flush(output) == 0);
         REQUIRE(bgzf_index_dump(output, path.c_str(), ".gzi") == 0);
