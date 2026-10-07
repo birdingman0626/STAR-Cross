@@ -37,7 +37,11 @@ jobs:
       # Linux
       - name: Install dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev ninja-build
+        timeout-minutes: 10
+        run: |
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          timeout 180s sudo apt-get "${apt_options[@]}" update --error-on=any
+          timeout 300s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends zlib1g-dev ninja-build
       - name: Build (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |

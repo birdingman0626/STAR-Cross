@@ -34,13 +34,16 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install dependencies
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zlib1g-dev ninja-build
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          timeout 180s sudo apt-get "${apt_options[@]}" update --error-on=any
+          timeout 300s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends zlib1g-dev ninja-build
 
       - name: Install Clang + OpenMP
         if: matrix.compiler == 'clang'
-        run: sudo apt-get install -y clang libomp-dev
+        timeout-minutes: 10
+        run: timeout 300s sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y --no-install-recommends clang libomp-dev
 
       - name: Build
         run: |
@@ -182,9 +185,11 @@ jobs:
           fetch-depth: 1
 
       - name: Install dependencies
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zlib1g-dev ninja-build
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          timeout 180s sudo apt-get "${apt_options[@]}" update --error-on=any
+          timeout 300s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends zlib1g-dev ninja-build
 
       - name: Build candidate (this branch)
         run: |
@@ -216,9 +221,11 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install dependencies
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zlib1g-dev ninja-build
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          timeout 180s sudo apt-get "${apt_options[@]}" update --error-on=any
+          timeout 300s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends zlib1g-dev ninja-build
 
       - name: Build with AddressSanitizer
         run: |

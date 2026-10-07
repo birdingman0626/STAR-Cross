@@ -6,8 +6,9 @@
 set -euxo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y --no-install-recommends \
+apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+timeout 180s apt-get "${apt_options[@]}" update --error-on=any
+timeout 600s apt-get "${apt_options[@]}" install -y --no-install-recommends \
     g++ cmake ninja-build zlib1g-dev git ca-certificates make gawk python3
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

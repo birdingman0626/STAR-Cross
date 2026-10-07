@@ -439,3 +439,26 @@ harness runs these BAM tests for both language configurations. Local Windows
 C++17 passes 101 tests and frozen-baseline miniature comparisons; Linux Release
 passes 103 tests. Hosted macOS/s390x acceptance must be tied to the new commit's
 workflow result; the preceding failed run is retained as the reproduction.
+
+### Hosted acceptance and APT stall
+
+Commit `260f16a` in Build and Test run `37681369483` passed all four macOS
+configurations, both Windows configurations, all four Linux compiler/language
+configurations, the frozen genome-index comparison and s390x. The s390x job
+completed at 22:13 UTC after approximately 112 minutes under QEMU.
+
+The remaining ASan job `112997974761` had not reached compilation: its live
+log showed `apt-get update` repeatedly ignoring Azure Ubuntu mirror indexes,
+with some successful HTTPS fallback indexes, for almost two hours. This is
+consistent with runner-images issue 14594 and its upstream fix 14643; the
+observed log cannot distinguish DNS, connection or server response failures.
+Local ASan/UBSan passed 103 tests and the miniature alignment/count contract.
+The real 100,000-read-pair Windows prefix comparison also preserved every
+declared raw artifact. Neither substitutes for the remaining hosted ASan gate.
+
+Bound APT requests to one retry and 15-second HTTP/HTTPS timeouts, bound the
+update/install commands and add a ten-minute hosted installation-step limit.
+Keep package/update failures fatal. Apply the same acquisition settings to
+the Debian s390x harness, with a larger installation budget under emulation.
+References: https://github.com/actions/runner-images/issues/14594 and
+https://github.com/actions/runner-images/pull/14643.
