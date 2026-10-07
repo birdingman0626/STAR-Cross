@@ -10,6 +10,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
 jobs:
   # Core platforms with reliable hosted runners. These gate the release.
   build:
@@ -19,8 +22,10 @@ jobs:
         include:
           - os: ubuntu-latest
             asset: STAR-linux-x86_64
-          - os: macos-latest      # Apple Silicon (arm64)
+          - os: macos-15          # Apple Silicon (arm64)
             asset: STAR-macos-aarch64
+          - os: macos-15-intel
+            asset: STAR-macos-x86_64
           - os: windows-latest
             asset: STAR-windows-x86_64
     runs-on: ${{ matrix.os }}
@@ -36,10 +41,10 @@ jobs:
         run: |
           cd source
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
-          cmake --build build
+          cmake --build build --parallel 4
       - name: Unit tests (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: ctest --test-dir source/build/test --output-on-failure -j4
+        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
       - name: Package (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: cp source/build/STAR "${{ matrix.asset }}" && chmod +x "${{ matrix.asset }}"
@@ -63,10 +68,10 @@ jobs:
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER="${GCC_C_BIN}" -DCMAKE_CXX_COMPILER="${GCC_BIN}" \
             -DSTAR_BUILD_TESTS=ON
-          cmake --build build
+          cmake --build build --parallel 4
       - name: Unit tests (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: ctest --test-dir source/build/test --output-on-failure -j4
+        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
       - name: Package (macOS)
         if: startsWith(matrix.os, 'macos')
         run: cp source/build/STAR "${{ matrix.asset }}" && chmod +x "${{ matrix.asset }}"
@@ -85,28 +90,31 @@ jobs:
         run: |
           cd source
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
-          cmake --build build
+          cmake --build build --parallel 4
       - name: Unit tests (Windows)
         if: matrix.os == 'windows-latest'
-        run: ctest --test-dir source/build/test --output-on-failure -j4
+        run: ctest --test-dir source/build/test --no-tests=error --output-on-failure -j4
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path staging | Out-Null
           Copy-Item source\build\STAR.exe staging\
+          Copy-Item LICENSE staging\
           $redistDir = $env:VCToolsRedistDir
+          if (-not $redistDir) { throw "MSVC redist directory missing" }
           if ($redistDir) {
             $crtDir = Get-ChildItem (Join-Path $redistDir "x64") -Filter "Microsoft.VC*.CRT" |
                       Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty FullName
             if ($crtDir -and (Test-Path $crtDir)) {
               foreach ($dll in @("msvcp140.dll","vcruntime140.dll","vcruntime140_1.dll")) {
-                Copy-Item "$crtDir\$dll" staging\ -ErrorAction SilentlyContinue
+                Copy-Item "$crtDir\$dll" staging\ -ErrorAction Stop
               }
             }
             $ompDll = Get-ChildItem "$redistDir\x64" -Recurse -Filter "vcomp*.dll" -ErrorAction SilentlyContinue |
                       Sort-Object Name -Descending | Select-Object -First 1
-            if ($ompDll) { Copy-Item $ompDll.FullName staging\ }
+            if (-not $crtDir -or -not $ompDll) { throw "Required runtime directory/DLL missing" }
+            Copy-Item $ompDll.FullName staging\
           }
           Compress-Archive -Path staging\* -DestinationPath "${{ matrix.asset }}.zip"
       - name: Smoke test (Windows)
@@ -126,9 +134,9 @@ jobs:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}.zip
 
-  # Publish the release with the core binaries as soon as they pass.
+  # Publish only after every supported release target passes.
   release:
-    needs: build
+    needs: [build, bigendian]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -136,7 +144,7 @@ jobs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
-      - name: Download core artifacts
+      - name: Download all platform artifacts
         uses: actions/download-artifact@v8
         with:
           merge-multiple: true
@@ -150,63 +158,27 @@ jobs:
           else
             echo "tag=0.0.1_$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
-      - name: Create / update GitHub Release (core binaries)
+      - name: Create / update GitHub Release (all platforms)
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          fail_on_unmatched_files: true
           name: STAR-Cross ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
           files: |
             STAR-linux-x86_64
             STAR-macos-aarch64
+            STAR-macos-x86_64
+            STAR-linux-s390x
             STAR-windows-x86_64.zip
-
-  # ── Best-effort extra binaries: attached to the release asynchronously so a
-  #    scarce/slow runner never blocks the core release. ──────────────────────
-
-  # macOS Intel (x86_64). GitHub's macos-13 Intel runners can be heavily queued.
-  macos-intel:
-    needs: release
-    runs-on: macos-13
-    continue-on-error: true
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install dependencies
-        run: |
-          brew install gcc ninja
-          GCC_BIN=$(ls $(brew --prefix gcc)/bin/g++-* | sort -V | tail -1)
-          GCC_VER=$(basename "$GCC_BIN" | grep -oE '[0-9]+$')
-          echo "GCC_BIN=${GCC_BIN}"       >> $GITHUB_ENV
-          echo "GCC_C_BIN=$(brew --prefix gcc)/bin/gcc-${GCC_VER}" >> $GITHUB_ENV
-      - name: Build
-        run: |
-          cd source
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER="${GCC_C_BIN}" -DCMAKE_CXX_COMPILER="${GCC_BIN}" \
-            -DSTAR_BUILD_TESTS=OFF
-          cmake --build build
-      - name: Package + smoke test
-        run: |
-          cp source/build/STAR STAR-macos-x86_64
-          chmod +x STAR-macos-x86_64
-          ./STAR-macos-x86_64 --version
-      - name: Attach to release
-        run: gh release upload "${{ needs.release.outputs.tag }}" STAR-macos-x86_64 --clobber --repo "${{ github.repository }}"
+            LICENSE
 
   # Big-endian (s390x) via QEMU emulation. Also runs the big-endian code path
   # (--version + tiny genomeGenerate) to validate the byteOrder fix.
   bigendian:
-    needs: release
     runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU (s390x)
@@ -219,5 +191,9 @@ jobs:
             debian:bookworm bash extras/tests/scripts/build_validate_s390x.sh
           cp source/build/STAR STAR-linux-s390x
           chmod +x STAR-linux-s390x
-      - name: Attach to release
-        run: gh release upload "${{ needs.release.outputs.tag }}" STAR-linux-s390x --clobber --repo "${{ github.repository }}"
+      - name: Upload s390x artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: STAR-linux-s390x
+          path: STAR-linux-s390x
+          if-no-files-found: error
