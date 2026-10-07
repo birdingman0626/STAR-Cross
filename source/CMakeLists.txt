@@ -37,6 +37,28 @@ else()
 endif()
 option(STAR_ASAN "Enable AddressSanitizer" OFF)
 
+option(STAR_ENABLE_CUDA "Build experimental CUDA junction SA remap" OFF)
+option(STAR_CAPTURE_SEEDS "Diagnostic bounded post-clipping seed capture (not for benchmarks)" OFF)
+if(STAR_CAPTURE_SEEDS)
+    set_property(SOURCE ReadAlign_maxMappableLength2strands.cpp APPEND PROPERTY
+                 COMPILE_DEFINITIONS STAR_CAPTURE_SEEDS=1)
+endif()
+if(STAR_ENABLE_CUDA)
+    if(CMAKE_VERSION VERSION_LESS "3.24")
+        message(FATAL_ERROR "Experimental CUDA build requires CMake >= 3.24")
+    endif()
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+    set(STAR_CUDA_ARCHITECTURES "native" CACHE STRING "CUDA architectures for the experimental adapter")
+    add_library(star_sjdb_remap STATIC gpuSjdbRemap.cu)
+    set_target_properties(star_sjdb_remap PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON
+                          CUDA_ARCHITECTURES "${STAR_CUDA_ARCHITECTURES}")
+    target_link_libraries(star_sjdb_remap PUBLIC CUDA::cudart)
+else()
+    add_library(star_sjdb_remap STATIC gpuSjdbRemap.cpp)
+endif()
+target_include_directories(star_sjdb_remap PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 # ---------- Find or build zlib ----------
 find_package(ZLIB QUIET)
 if(NOT ZLIB_FOUND)
@@ -437,7 +459,7 @@ target_include_directories(STAR SYSTEM PRIVATE
     ${nlohmann_json_SOURCE_DIR}/include  # nlohmann/json.hpp
 )
 
-target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB parasail)
+target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB parasail star_sjdb_remap)
 
 # ---------- Compile-time defines ----------
 # Build date/place

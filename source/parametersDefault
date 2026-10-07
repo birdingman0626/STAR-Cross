@@ -36,6 +36,9 @@ legacy                          None
                                 None  ... use current algorithms (default)
                                 True  ... restore 2.7.11b behavior for all result-affecting algorithm changes
 
+gpuSjdbRemap                    off
+    string: experimental CUDA suffix-array remap during junction preparation: off, auto (preflight fallback only), required. Currently supports no newly inserted suffixes only. CPU remains default.
+
 ### WebUI Parameters (--runMode webui)
 webuiHost                       127.0.0.1
     string: host/IP to bind the WebUI HTTP server to.

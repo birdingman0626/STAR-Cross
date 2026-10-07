@@ -20,6 +20,7 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "runDirPerm", &runDirPermIn));
     parArray.push_back(new ParameterInfoScalar <int> (-1, -1, "runRNGseed", &runRNGseed));
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "legacy", &legacyIn));
+    parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "gpuSjdbRemap", &gpuSjdbRemapMode));
 
     //webui
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "webuiHost",    &webui.host));

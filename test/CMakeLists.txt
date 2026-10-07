@@ -37,6 +37,8 @@ add_executable(star_tests
     unit/test_samAux.cpp
     unit/test_BGZF.cpp
     unit/test_ClipCR4.cpp
+    unit/test_gpuSjdbRemap.cpp
+    unit/test_ParametersGenome.cpp
     ${STAR_TEST_SOURCES}
 )
 
@@ -48,7 +50,23 @@ target_include_directories(star_tests PRIVATE
 
 # IncludeDefine.h includes <omp.h>; the test binary must link OpenMP
 find_package(OpenMP REQUIRED)
-target_link_libraries(star_tests PRIVATE OpenMP::OpenMP_CXX hts parasail)
+target_link_libraries(star_tests PRIVATE OpenMP::OpenMP_CXX hts parasail star_sjdb_remap)
+if(STAR_ENABLE_CUDA)
+    target_compile_definitions(star_tests PRIVATE STAR_TEST_CUDA=1)
+    add_library(star_seed_search STATIC ${STAR_SOURCE_DIR}/gpuSeedSearch.cu)
+    set_target_properties(star_seed_search PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON
+                          CUDA_ARCHITECTURES "${STAR_CUDA_ARCHITECTURES}")
+    target_include_directories(star_seed_search PUBLIC ${STAR_SOURCE_DIR})
+    target_link_libraries(star_seed_search PUBLIC CUDA::cudart)
+    add_executable(star_seed_benchmark benchmark_seed_search.cpp
+        ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp)
+    target_include_directories(star_seed_benchmark PRIVATE ${STAR_SOURCE_DIR})
+    target_link_libraries(star_seed_benchmark PRIVATE star_seed_search OpenMP::OpenMP_CXX parasail)
+    if(MSVC)
+        target_compile_definitions(star_seed_benchmark PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
+        target_link_libraries(star_seed_benchmark PRIVATE psapi ws2_32)
+    endif()
+endif()
 
 # ---------- Platform-specific settings (mirrors source/CMakeLists.txt) ----------
 if(MSVC)

@@ -103,7 +103,7 @@ OBJECTS = systemFunctions.o funPrimaryAlignMark.o \
 	GTF.o GTF_transcriptGeneSJ.o GTF_superTranscript.o SuperTranscriptome.o \
 	ReadAlign_outputAlignments.o  \
 	ReadAlign.o STAR.o \
-	SharedMemory.o PackedArray.o SuffixArrayFuns.o Parameters.o Parameters_samAttributes.o InOutStreams.o SequenceFuns.o Genome.o ParametersGenome.o Stats.o \
+	SharedMemory.o PackedArray.o gpuSjdbRemap.o SuffixArrayFuns.o Parameters.o Parameters_samAttributes.o InOutStreams.o SequenceFuns.o Genome.o ParametersGenome.o Stats.o \
 	Transcript.o Transcript_alignScore.o Transcript_generateCigarP.o Chain.o \
 	Transcript_variationAdjust.o Variation.o ReadAlign_waspMap.o \
 	ReadAlign_storeAligns.o ReadAlign_stitchPieces.o ReadAlign_multMapSelect.o ReadAlign_mapOneRead.o readLoad.o \

@@ -15,6 +15,40 @@ import subprocess
 import tempfile
 
 
+def bam_scientific_header(path):
+    """Reference IDs/order and scientific header lines; PG invocation is provenance."""
+    with gzip.open(path, 'rb') as stream:
+        assert stream.read(4)==b'BAM\1'
+        length=struct.unpack('<i',stream.read(4))[0]
+        assert length>=0
+        text=stream.read(length)
+        assert len(text)==length
+        count=struct.unpack('<i',stream.read(4))[0]
+        assert count>=0
+        refs=[]
+        for _ in range(count):
+            length=struct.unpack('<i',stream.read(4))[0]
+            assert length>0
+            name=stream.read(length)
+            assert len(name)==length
+            refs.append((name,struct.unpack('<i',stream.read(4))[0]))
+        return refs,sorted(line for line in text.decode().splitlines() if line.startswith(('@SQ','@RG','@HD')))
+
+
+def scientific_final_fields(path):
+    """Exclude only known non-scientific job timestamps and mapping speed."""
+    fields={}
+    excluded={'Started job on','Started mapping on','Finished on','Mapping speed, Million of reads per hour'}
+    for line in Path(path).read_text().splitlines():
+        if '|' in line:
+            key,value=(part.strip() for part in line.split('|',1))
+            if key not in excluded:
+                assert key not in fields
+                fields[key]=value
+    assert fields
+    return fields
+
+
 def bam_records(path):
     records = []
     # Stream BGZF members: gzip.decompress on concatenated members repeatedly
@@ -44,9 +78,13 @@ def main():
     parser.add_argument("--star-exe", required=True)
     parser.add_argument("--ref-exe")
     parser.add_argument("--threads", type=int, default=2)
+    parser.add_argument("--sa-sparse", type=int, default=1,
+                        help="Miniature index suffix-array sparsity (exercise sparse seed competition)")
     args = parser.parse_args()
     if args.threads < 1:
         parser.error("Thread count must be positive")
+    if args.sa_sparse < 1:
+        parser.error("Suffix-array sparsity must be positive")
     root = Path(tempfile.mkdtemp(prefix="star-cpu-regression-"))
     print(f"Evidence retained at: {root}", flush=True)
     checks = []
@@ -74,7 +112,8 @@ def main():
     genome.mkdir()
     run("index", ["--runMode", "genomeGenerate", "--genomeDir", str(genome),
                   "--genomeFastaFiles", str(fasta), "--sjdbGTFfile", str(gtf),
-                  "--sjdbOverhang", "49", "--genomeSAindexNbases", "4", "--genomeChrBinNbits", "10"])
+                  "--sjdbOverhang", "49", "--genomeSAindexNbases", "4", "--genomeChrBinNbits", "10",
+                  "--genomeSAsparseD", str(args.sa_sparse)])
     common = ["--genomeDir", str(genome)]
     reads = root / "reads.fastq"
     fragments = [sequence[p:p+100] for p in range(100, 9000, 137)]

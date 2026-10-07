@@ -1,6 +1,8 @@
 # GPU Validation and Benchmark Contract
 
-Status: implementation specification; GPU kernels and the proposed harness are not implemented.
+Status: general qualification specification; one bounded CUDA SA-remap adapter
+and focused harness are implemented. The general comparator and full promotion
+coverage below remain incomplete. See [executed experiment](261006-gpu-sjdb-remap-experiment.md).
 Reviewed: 2026-10-06. Companion: [implementation plan](261006-gpu-acceleration-research-and-roadmap.md).
 This is the authoritative GPU acceptance contract. The historical 21-file CPU
 comparison remains a fixture check, not proof of GPU or Velocity coverage.

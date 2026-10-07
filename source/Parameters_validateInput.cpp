@@ -22,6 +22,8 @@ void Parameters::inputParameters_validate() {
     };
 
     //run
+    if(gpuSjdbRemapMode!="off" && gpuSjdbRemapMode!="auto" && gpuSjdbRemapMode!="required")
+        exitWithError("FATAL: gpuSjdbRemap must be off, auto or required\n",std::cerr,inOut->logMain,EXIT_CODE_PARAMETER,*this);
     if (runThreadN<=0) {
         ostringstream errOut;
         errOut <<"EXITING: fatal input ERROR: runThreadN must be >0, user-defined runThreadN="<<runThreadN<<"\n";

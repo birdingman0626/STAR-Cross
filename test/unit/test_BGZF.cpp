@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include <string>
 #include "htslib/htslib/bgzf.h"
 #include <chrono>
 #include <filesystem>

@@ -218,6 +218,13 @@ void ParametersSolo::initialize(Parameters *pPin)
             };
         };
     };
+    //Velocyto/VelocytoSimple counting reads Gene's readInfo, and cell filtering indexes Gene's SoloFeature,
+    //so Gene must always be present when Velocyto is requested, even if the user did not list it explicitly.
+    if ( (featureYes[SoloFeatureTypes::Velocyto] || featureYes[SoloFeatureTypes::VelocytoSimple]) && !featureYes[SoloFeatureTypes::Gene] ) {
+        featureYes[SoloFeatureTypes::Gene]=true;
+        features.push_back(SoloFeatureTypes::Gene);
+    };
+
     nFeatures=features.size();
     std::sort(features.begin(), features.end());
     for (uint32 ii=0; ii<nFeatures; ii++)

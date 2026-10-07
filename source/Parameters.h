@@ -42,6 +42,7 @@ class Parameters {
         string runDirPermIn; //permission for directores created at run-time
         int runRNGseed; //random number generator seed
         string legacyIn; //legacy algorithm selection
+        string gpuSjdbRemapMode; //experimental packed SA remap, default off
 
         struct {
             string host;

@@ -1,5 +1,10 @@
 # CPU stability and experimental GPU entry
 
+Follow-up: CPU prerequisite committed/pushed as `54ecaed`. The first bounded
+CUDA implementation and corrected toolkit discovery are recorded in
+[GPU remap experiment](261006-gpu-sjdb-remap-experiment.md). The readiness snapshot
+below is preserved as historical evidence, not current GPU implementation status.
+
 Date: 2026-10-06. Status: CPU_ORACLE_QUALIFIED_FOR_SCOPED_GPU_EXPERIMENT.
 Scope: WSL Ubuntu / GCC 13.3, default non-chimeric CB16/UMI12 cynomolgus
 engineering prefix. This is not full-library/cross-platform/GPU certification.

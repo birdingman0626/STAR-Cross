@@ -72,6 +72,11 @@ for feature in ("Gene", "GeneFull_Ex50pAS", "Velocyto"):
                                      "--output-dir", str(reused), "--reference-run", str(root/"same/baseline"),
                                      "--binary", f"same={binary}"], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+            result = subprocess.run(["python3", str(script), "--fixture", str(fixture), "--data-dir", str(root),
+                                     "--output-dir", str(root/"fake-gpu"), "--binary", f"baseline={binary}",
+                                     "--binary", f"same={binary}", "--gpu-sjdb-remap", "same=required"], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(json.loads((root/"fake-gpu/result.json").read_text())["status"], "FAILED_VALIDATION")
             receipt = root/"same/baseline/input_signatures.json"
             original_receipt = receipt.read_text()
             receipt.unlink()

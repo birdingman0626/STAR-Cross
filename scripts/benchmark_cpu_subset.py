@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import subprocess
 import time
+import sys
 from compare_raw_counts import matrix
 
 
@@ -29,6 +30,7 @@ def main():
     parser.add_argument("--binary", action="append", required=True, help="label=/absolute/path")
     parser.add_argument("--threads", type=int, default=8)
     parser.add_argument("--legacy", action="store_true")
+    parser.add_argument("--gpu-sjdb-remap", action="append", default=[], help="label=off|auto|required, explicit experimental backend per binary")
     parser.add_argument("--reference-run", type=Path, help="Reuse a successful run with identical arguments, avoiding another full index load")
     args = parser.parse_args()
     if args.threads < 1:
@@ -41,6 +43,12 @@ def main():
         if label in labels or not Path(binary).is_absolute() or not Path(binary).is_file():
             parser.error("Duplicate label or missing/nonabsolute binary")
         labels.append(label)
+    gpu_modes = {}
+    for specification in args.gpu_sjdb_remap:
+        label, mode = specification.split("=", 1)
+        if label not in labels or label in gpu_modes or mode not in ("off", "auto", "required"):
+            parser.error("Invalid or duplicate GPU backend assignment")
+        gpu_modes[label] = mode
     if len(args.binary) < 2 and args.reference_run is None:
         parser.error("At least two binaries are required for a comparison")
     fixture, data, output = (Path(path).resolve() for path in (args.fixture, args.data_dir, args.output_dir))
@@ -145,14 +153,17 @@ def main():
         run.mkdir()
         (run/"input_signatures.json").write_text(json.dumps(signatures, indent=2))
         binary_digest = sha256(binary)
-        command = [binary, *common, "--outFileNamePrefix", str(run)+"/"]
+        backend = ["--gpuSjdbRemap", gpu_modes[label]] if label in gpu_modes else []
+        command = [binary, *common, *backend, "--outFileNamePrefix", str(run)+"/"]
         (run/"command.json").write_text(json.dumps(command))
         print(f"Starting {label}", flush=True)
         start = time.monotonic()
         with (run/"console.log").open("w") as console:
-            process = subprocess.run(["/usr/bin/time", "-v", "-o", str(run/"time.txt"), *command],
+            invocation = command if sys.platform == "win32" else ["/usr/bin/time", "-v", "-o", str(run/"time.txt"), *command]
+            process = subprocess.run(invocation,
                                      stdout=console, stderr=subprocess.STDOUT, cwd=run)
         item = {"label": label, "binary_sha256": binary_digest, "exit_code": process.returncode,
+                "requested_gpu_mode": gpu_modes.get(label, "off"),
                 "monotonic_elapsed_seconds": time.monotonic()-start}
         result["runs"].append(item)
         save()
@@ -160,12 +171,19 @@ def main():
             result["status"] = "FAILED_EXECUTION"
             save()
             raise RuntimeError(f"{label} failed: inspect {run}/console.log")
+        if sys.platform == "win32":
+            item["wall_seconds"] = item["monotonic_elapsed_seconds"]
+            item["wall_clock_source"] = "Windows monotonic whole-process elapsed"
+            item["peak_rss_status"] = "UNMEASURED"
+            (run/"time.txt").write_text(f"Windows whole-process wall seconds: {item['wall_seconds']}\nPeak RSS: UNMEASURED\n")
         elapsed = [line.rsplit(": ", 1)[-1].strip() for line in read_text(run/"time.txt").splitlines()
                    if "Elapsed (wall clock)" in line]
-        if len(elapsed) != 1:
+        if sys.platform != "win32" and len(elapsed) != 1:
             reject("GNU time wall-clock evidence missing")
         try:
-            item["wall_seconds"] = sum(float(part)*60**index
+            if sys.platform != "win32":
+                item["wall_clock_source"] = "GNU time elapsed wall clock"
+                item["wall_seconds"] = sum(float(part)*60**index
                                        for index, part in enumerate(reversed(elapsed[0].split(":"))))
         except ValueError:
             reject("Invalid GNU time wall-clock evidence")
@@ -173,6 +191,11 @@ def main():
                 (path.stat().st_size, path.stat().st_mtime_ns) != input_stats[str(path)] for path in inputs):
             reject("Binary or input changed during execution")
         final_log = read_text(run/"Log.final.out")
+        item["gpu_backend_events"] = [line for line in read_text(run/"Log.out").splitlines()
+                                      if line.startswith("GPU_SJDB_REMAP ")] if backend else []
+        if gpu_modes.get(label) == "required" and (not item["gpu_backend_events"] or any(
+                not line.startswith("GPU_SJDB_REMAP status=0 ") for line in item["gpu_backend_events"])):
+            reject("Required GPU backend did not complete; CPU output cannot qualify GPU execution")
         observed = [line.split("|")[1].strip() for line in final_log.splitlines() if "Number of input reads" in line]
         if observed != [str(manifest["pairs"])]:
             reject(f"Unexpected input-read count: {observed}")

@@ -1,6 +1,15 @@
 # GPU Acceleration: Implementation and Decision Plan
 
-Status: revised planning document; implementation and performance remain unverified.
+Status: opt-in CUDA SA-remap and isolated resident seed-search experiments;
+production search integration and end-to-end promotion remain unqualified.
+
+Current detailed execution sequence: [CPU/GPU optimization plan](../../docs/OPTIMIZATION_PLAN.md).
+It incorporates the executed native and official timelines; this roadmap remains
+the broader candidate inventory and the companion validation contract remains authoritative.
+
+Latest execution: [native Windows and resident seed experiment](261006-native-windows-resident-seed-experiment.md).
+Native CPU/CUDA builds are verified; seed-search local throughput is promising,
+but startup amortization and production read scheduling remain separate gates.
 Reviewed: 2026-10-06. Source inspected: `1f9aba49acad69ead85cc938ccbe2c4785ed62d7`.
 A pre-existing `source/ParametersSolo.cpp` change is also present; capture its diff
 in any baseline. A version string alone does not identify the code tested.
@@ -68,10 +77,21 @@ The official 4.7.1-1 linux/amd64 OCI image was downloaded on 2026-10-06; its
 selected platform manifest is
 `sha256:a748d86cbb850641a1e0afae6de2e7422f1375e4a0cce08a5c2cead9fa302237`.
 Local OCI location: WSL `/home/ubuntu/container-images/clara-parabricks`.
-Download/blob hashes were checked. Container execution and benchmark are not done;
-Docker was absent at inspection time. Keep images out of Git.
+Download/blob hashes were checked. Docker was absent at initial inspection;
+subsequent user-authorized setup and scoped RNA runs are now complete. Keep
+images out of Git. See [executed benchmark](261006-parabricks-benchmark-results.md).
 
-Prepare a compatible container runtime/GPU integration, then record container GPU
+The [runtime preflight](261006-parabricks-runtime-preflight.md) records the initial
+runtime blocker and subsequent user-authorized Docker/NVIDIA setup. The original
+index was rejected without metadata edits; an isolated STAR 2.7.2a-compatible
+index was rebuilt and its Genome is byte-identical to the original. Three matched
+1M-read RNA CPU/GPU rounds completed: CPU median 21.985s, fixed GPU median
+50.937s (no speedup). Auto and auto+GPU-sort/write single runs also completed.
+All nine 1M outputs, including the contextual STAR-Cross CPU run, have identical
+complete normalized BAM record multisets and SJ tables. No STARsolo/Velocity or
+large-library performance qualification follows from this result.
+
+For future profiles, verify compatible container runtime/GPU integration and record GPU
 visibility, `pbrun --version` and `pbrun rna_fq2bam --help`. Host nvidia-smi does
 not prove container readiness. Official RNA docs [S1] declare STAR 2.7.2a compatibility
 and a TranscriptomeSAM primary-selection caveat; this is not the CPU oracle for
@@ -90,7 +110,10 @@ timed runs. Do not infer native Linux performance or GDS support from a WSL resu
 
 ## 4. Minimal architecture
 
-These options are proposed, not currently implemented:
+The general architecture below remains a proposal. The first bounded adapter
+implements `STAR_ENABLE_CUDA` and the module-specific `--gpuSjdbRemap` modes;
+it does not implement the proposed generic `--gpuMode` or an asynchronous queue.
+See [executed remap experiment](261006-gpu-sjdb-remap-experiment.md).
 
 - `STAR_ENABLE_CUDA=OFF` by default. CPU configuration must not require CUDA/nvCOMP.
   Start with Linux/WSL CUDA; preserve Windows/macOS CPU builds.
@@ -185,12 +208,18 @@ including upload for both single-job and reused-index scenarios.
 2026-10-06 executed CPU entry evidence is in
 [CPU stability / GPU entry](261006-cpu-stability-gpu-entry.md): the corrected
 1M-pair default profile agrees with pinned upstream and repeats exactly. A separate
-single-thread profile identifies seed/SA comparison as a mapping hotspot; prioritize
-candidate D as a **bounded resident-index experiment**, not a default activation.
+single-thread profile identifies junction preparation as the largest sampled
+self-time hotspot and seed/SA comparison as a mapping hotspot. The first executed
+experiment targets the packed SA-remap in `sjdbBuildIndex`, with an optimized CPU
+identity-copy baseline. Candidate D is the next bounded mapping experiment if
+this index-preparation offload cannot beat that optimized baseline.
 This subset is dominated end-to-end by index loading/preparation, and no GPU gain
 is established. W0's full-library/platform coverage and W1's future kernel-field
-fixtures remain distinct from the qualified engineering CPU oracle. CUDA toolkit
-is not yet installed; W2/Parabricks runtime is still not qualified.
+fixtures remain distinct from the qualified engineering CPU oracle. CUDA 13.0.88
+was found at `/usr/local/cuda` (absent from PATH), and the adapter runs on the local
+Blackwell device. W2 runtime and scoped 1M RNA equivalence are verified; no
+end-to-end speedup was observed. W2 STARsolo/Velocity and large-library coverage
+remain unverified. See the executed external benchmark before repeating setup.
 
 | Package | Deliverable | Required evidence |
 |---|---|---|

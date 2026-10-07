@@ -10,6 +10,7 @@
 #include "binarySearch2.h"
 #include "ErrorWarning.h"
 #include <cmath>
+#include "gpuSjdbRemap.h"
 
 #include "funCompareUintAndSuffixes.h"
 
@@ -234,7 +235,40 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     oldSAin.close();
     */
 
+    bool remapped=false;
+    const bool supported=nInd==0 && sjNew==0 && mapGen.nGenome==mapGen1.nGenome
+        && SA.wordLength==SA2.wordLength && SA.lengthByte==SA2.lengthByte;
+    if(P.gpuSjdbRemapMode!="off") {
+        GpuSjdbRemapResult result{GpuSjdbRemapResult::Unavailable,"new suffixes or changed index geometry unsupported"};
+        if(supported) result=gpuSjdbRemap({SA.charArray,SA2.charArray,mapGen1.nSA,SA.lengthByte,
+            mapGen1.nGenome,mapGen.chrStart[mapGen.nChrReal],mapGen.sjdbLength,
+            oldSJind,mapGen1.sjdbN,unsigned(SA.wordLength)});
+        P.inOut->logMain << "GPU_SJDB_REMAP status=" << int(result.status) << " reason=" << result.reason
+            << " upload_seconds=" << result.uploadSeconds << " kernel_seconds=" << result.kernelSeconds
+            << " download_seconds=" << result.downloadSeconds << " device_bytes=" << result.deviceBytes
+            << " chunks=" << result.chunks << endl;
+        if(result.status==GpuSjdbRemapResult::Failed ||
+           (result.status==GpuSjdbRemapResult::Unavailable && P.gpuSjdbRemapMode=="required"))
+            exitWithError("FATAL: experimental GPU SA remap: "+result.reason+"\n",std::cerr,P.inOut->logMain,EXIT_CODE_RUNTIME,P);
+        remapped=result.status==GpuSjdbRemapResult::Complete;
+    }
+    if(!remapped && supported) {
+        bool identity=true;
+        for(uint j=0;j<mapGen1.sjdbN;++j) if(oldSJind[j]!=j) {identity=false;break;}
+        if(identity) {
+            const uint bytes=(mapGen1.nSA*SA.wordLength+7)/8;
+            // STAR reserves SA buffers in one allocation; destination can overlap
+            // the source even when no suffixes are added.
+            memmove(SA2.charArray,SA.charArray,bytes);
+            memset(SA2.charArray+bytes,0,SA2.lengthByte-bytes);
+            if((mapGen1.nSA*SA.wordLength)%8)
+                SA2.charArray[bytes-1]&=(1u<<((mapGen1.nSA*SA.wordLength)%8))-1;
+            remapped=true;
+            P.inOut->logMain << "SJDB_SA_REMAP backend=cpu-identity-copy bytes=" << bytes << endl;
+        }
+    }
     uint isj=0, isa2=0;
+    if(!remapped) {
     for (uint isa=0;isa<mapGen1.nSA;isa++) {
         while (isa==indArray[isj*2]) {//insert sj index before the existing index
             uint ind1=indArray[isj*2+1];
@@ -302,6 +336,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
         ++isa2;
     };
 
+    }
     time ( &rawtime );
     P.inOut->logMain  << timeMonthDayTime(rawtime) << "   Finished inserting junction indices" <<endl;
 

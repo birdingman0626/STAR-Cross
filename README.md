@@ -348,6 +348,8 @@ FORK CHANGES
   * **Big-endian support** (`source/byteOrder.h`): the genome, suffix array and packed arrays are accessed as a little-endian byte stream regardless of host byte order, fixing the "next index is smaller than previous" failure on big-endian hosts (s390x, ppc64). Guarded so little-endian builds keep the native single-instruction load (zero performance/behavior change); only known big-endian compiles take the portable byte-wise path. Ported from the patch in upstream issue #2690. *Compile-validated only — no big-endian runner in CI.*
 
 ### Performance Optimizations
+
+  * Dense-index seed search avoids three temporary heap allocations per seed without changing candidate selection. Native Windows full-pipeline checks and rejected experiments are documented in [optimization verification](docs/OPTIMIZATION_RESULTS_20261006.md); measured benefits are workload-scoped, not a full-library guarantee.
   * Multicore `genomeGenerate` suffix-array build (upstream PR #2687): parallel prefix-bucketed chunk sort with sub-binning, optional in-memory chunk retention, and a "skip first word" comparator fast-path. Index output is **byte-identical** to the previous builder (verified in CI across thread counts and chunk layouts via `extras/tests/scripts/validate_genome_equivalence.sh`). Reconciled with the big-endian-safe comparator and MSVC (no native `__uint128`).
   * MSVC compiler: `/O2 /Ob2 /Oi /GL` with `/LTCG` link-time optimization (Windows)
   * SRW locks replacing CRITICAL_SECTION (faster mutex, Windows)
@@ -379,6 +381,8 @@ FORK CHANGES
   * CTest integration with `STAR_BUILD_TESTS=ON` (default)
   * Differential validation harness (`scripts/validate_build.sh`): build + version + 1M-read smoke comparison
   * Real paired-read subsets, input-content-bound regressions and independent clipping tests: [CPU validation](docs/CPU_VALIDATION.md). Qualification is profile-specific, not a blanket correctness or speed claim.
+  * Opt-in CUDA junction-index remap with CPU identity-copy fast path, explicit failure policy and bounded output buffers: [experimental GPU validation](docs/GPU_EXPERIMENT.md). CUDA is OFF by default; this does not accelerate read alignment or establish an end-to-end speedup.
+  * Native Windows CUDA validation and an isolated resident-index batched seed-search experiment (`star_seed_benchmark`); exact CPU field comparisons and transfer-inclusive timing. Not yet integrated into production alignment scheduling.
   * Makefile OBJECTS bug fix (7 entries had `.cpp` instead of `.o`)
 
 ### Dependency Changes
