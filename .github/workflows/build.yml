@@ -8,7 +8,7 @@ on:
     branches: [main]
 
 jobs:
-  # Exercise the release's existing big-endian harness without publishing a tag.
+  # Validate once and retain the package for the release workflow to reuse.
   build-s390x:
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -21,7 +21,15 @@ jobs:
         run: |
           docker run --rm --platform linux/s390x -v "$PWD":/src -w /src \
             -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
-            debian:trixie bash extras/tests/scripts/build_validate_s390x.sh
+            debian:trixie bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt && cmake --install source/build --config Release --component STAR --prefix /src/release-metadata'
+          test "$(cat s390x-version.txt)" = "STAR-Cross $(git rev-parse --short HEAD)"
+          tar -czf STAR-linux-s390x.tar.gz -C release-metadata/bin STAR -C "$PWD/release-metadata/share/STAR-Cross" licenses
+      - name: Upload validated s390x package
+        uses: actions/upload-artifact@v7
+        with:
+          name: qualification-STAR-linux-s390x
+          path: STAR-linux-s390x.tar.gz
+          if-no-files-found: error
 
   build-linux:
     runs-on: ${{ matrix.platform.os }}
