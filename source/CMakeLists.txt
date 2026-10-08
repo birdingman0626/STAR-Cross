@@ -567,7 +567,8 @@ endif()
 # ---------- Testing ----------
 enable_testing()
 add_test(NAME version_check COMMAND STAR --version)
-set_tests_properties(version_check PROPERTIES PASS_REGULAR_EXPRESSION "0\\.0\\.1")
+set_tests_properties(version_check PROPERTIES
+    PASS_REGULAR_EXPRESSION "^STAR-Cross ${GIT_COMMIT_HASH}[\r\n]*$")
 
 option(STAR_BUILD_TESTS "Build unit tests (requires network access for doctest)" ON)
 if(STAR_BUILD_TESTS)
