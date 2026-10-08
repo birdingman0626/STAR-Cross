@@ -178,9 +178,8 @@ jobs:
           name: qualification-STAR-windows-x86_64
           path: source\build\STAR.exe
 
-  # Compare against the independently validated five-platform release, and
-  # verify index determinism across
-  # thread counts and chunk layouts.
+  # Keep the validated baseline source pinned independently of Release retention.
+  # Verify index determinism across thread counts and chunk layouts.
   validate-genome-index:
     runs-on: ubuntu-latest
     env:
@@ -204,11 +203,19 @@ jobs:
           cmake --build build
           cp build/STAR "$GITHUB_WORKSPACE/STAR_new"
 
-      - name: Download hash-pinned released baseline
+      - name: Check out frozen baseline source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.STAR_BASELINE_SHA }}
+          path: baseline
+
+      - name: Build hash-pinned baseline
         run: |
-          curl --fail --location --retry 3 -o STAR_old https://github.com/birdingman0626/STAR-Cross/releases/download/9a6d932/STAR-linux-x86_64
-          echo 'dbd2cfbd295a187491a077f61d99f7fb462c06e32d85dc1c4f849c0c5a547528  STAR_old' | sha256sum --check
-          chmod +x STAR_old
+          test "$(git -C baseline rev-parse HEAD)" = "$STAR_BASELINE_SHA"
+          cmake -S baseline/source -B baseline/source/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=OFF -DSTAR_USE_AVX2=OFF
+          cmake --build baseline/source/build --parallel 4
+          cp baseline/source/build/STAR STAR_old
 
       - name: Genome-index equivalence (old vs new, 1 vs 16 threads, multi-chunk)
         run: |
