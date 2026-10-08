@@ -2,11 +2,11 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    tags: ['v*', '[0-9a-f]*']
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag (e.g. v0.0.1). Leave blank to auto-generate from commit hash.'
+        description: 'Optional release tag. Leave blank to use the commit hash.'
         required: false
         default: ''
 
@@ -56,7 +56,7 @@ jobs:
         run: cp source/build/STAR "${{ matrix.asset }}" && chmod +x "${{ matrix.asset }}"
       - name: Smoke test (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: test "$(./${{ matrix.asset }} --version)" = "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)"
+        run: test "$(./${{ matrix.asset }} --version)" = "STAR-Cross $(git rev-parse --short HEAD)"
 
       # macOS (arm64)
       - name: Install dependencies (macOS)
@@ -83,7 +83,7 @@ jobs:
         run: cp source/build/STAR "${{ matrix.asset }}" && chmod +x "${{ matrix.asset }}"
       - name: Smoke test (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: test "$(./${{ matrix.asset }} --version)" = "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)"
+        run: test "$(./${{ matrix.asset }} --version)" = "STAR-Cross $(git rev-parse --short HEAD)"
 
       # Windows
       - name: Setup MSVC
@@ -106,7 +106,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path staging | Out-Null
           Copy-Item source\build\STAR.exe staging\
-          Copy-Item LICENSE staging\
+          cmake --install source/build --config Release --component STAR --prefix release-metadata
+          Copy-Item release-metadata/share/STAR-Cross/licenses staging/licenses -Recurse
           $redistDir = $env:VCToolsRedistDir
           if (-not $redistDir) { throw "MSVC redist directory missing" }
           if ($redistDir) {
@@ -128,16 +129,16 @@ jobs:
         shell: pwsh
         run: |
           $version = & staging\STAR.exe --version
-          if ($LASTEXITCODE -ne 0 -or $version -ne "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)") {
+          if ($LASTEXITCODE -ne 0 -or $version -ne "STAR-Cross $(git rev-parse --short HEAD)") {
             throw "Binary version does not match the workflow commit"
           }
 
-      - name: Package dependency notices and build record
+      - name: Package Unix binary
+        if: matrix.os != 'windows-latest'
         shell: bash
         run: |
           cmake --install source/build --config Release --component STAR --prefix release-metadata
-          cp source/build/STAR-build-info-Release.json "${{ matrix.asset }}-build-info.json"
-          tar -czf "${{ matrix.asset }}-notices.tar.gz" -C release-metadata/share STAR-Cross
+          tar -czf "${{ matrix.asset }}.tar.gz" -C release-metadata/bin STAR -C "$PWD/release-metadata/share/STAR-Cross" licenses
 
       - name: Native alignment and embedded-server integration
         shell: bash
@@ -152,19 +153,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
-          path: |
-            ${{ matrix.asset }}
-            ${{ matrix.asset }}-build-info.json
-            ${{ matrix.asset }}-notices.tar.gz
+          path: ${{ matrix.asset }}.tar.gz
       - name: Upload artifact (windows)
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
-          path: |
-            ${{ matrix.asset }}.zip
-            ${{ matrix.asset }}-build-info.json
-            ${{ matrix.asset }}-notices.tar.gz
+          path: ${{ matrix.asset }}.zip
 
   # Publish only after every supported release target passes.
   release:
@@ -189,10 +184,8 @@ jobs:
           elif [ -n "${{ inputs.tag_name }}" ]; then
             echo "tag=${{ inputs.tag_name }}" >> $GITHUB_OUTPUT
           else
-            echo "tag=0.0.1_$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
-      - name: Hash all release assets
-        run: sha256sum STAR-linux-x86_64 STAR-linux-s390x STAR-macos-aarch64 STAR-macos-x86_64 STAR-windows-x86_64.zip STAR-*-build-info.json STAR-*-notices.tar.gz LICENSE > SHA256SUMS.txt
       - name: Create / update GitHub Release (all platforms)
         uses: softprops/action-gh-release@v3
         with:
@@ -202,15 +195,11 @@ jobs:
           name: STAR-Cross ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
           files: |
-            STAR-linux-x86_64
-            STAR-macos-aarch64
-            STAR-macos-x86_64
-            STAR-linux-s390x
+            STAR-linux-x86_64.tar.gz
+            STAR-macos-aarch64.tar.gz
+            STAR-macos-x86_64.tar.gz
+            STAR-linux-s390x.tar.gz
             STAR-windows-x86_64.zip
-            STAR-*-build-info.json
-            STAR-*-notices.tar.gz
-            SHA256SUMS.txt
-            LICENSE
 
   # Big-endian (s390x) via QEMU emulation. Also runs the big-endian code path
   # (--version + tiny genomeGenerate) to validate the byteOrder fix.
@@ -229,16 +218,12 @@ jobs:
             -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
             debian:trixie bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt && cmake --install source/build --config Release --component STAR --prefix /src/release-metadata'
           cp source/build/STAR STAR-linux-s390x
-          cp source/build/STAR-build-info-Release.json STAR-linux-s390x-build-info.json
-          tar -czf STAR-linux-s390x-notices.tar.gz -C release-metadata/share STAR-Cross
+          tar -czf STAR-linux-s390x.tar.gz -C release-metadata/bin STAR -C "$PWD/release-metadata/share/STAR-Cross" licenses
           chmod +x STAR-linux-s390x
-          test "$(cat s390x-version.txt)" = "STAR-Cross 0.0.1_$(git rev-parse --short HEAD)"
+          test "$(cat s390x-version.txt)" = "STAR-Cross $(git rev-parse --short HEAD)"
       - name: Upload s390x artifact
         uses: actions/upload-artifact@v7
         with:
           name: STAR-linux-s390x
-          path: |
-            STAR-linux-s390x
-            STAR-linux-s390x-build-info.json
-            STAR-linux-s390x-notices.tar.gz
+          path: STAR-linux-s390x.tar.gz
           if-no-files-found: error

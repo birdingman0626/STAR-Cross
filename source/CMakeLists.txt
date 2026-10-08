@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
 endif()
-project(STAR VERSION 0.0.1 LANGUAGES CXX C)
+project(STAR LANGUAGES CXX C)
 
 set(STAR_CXX_STANDARD "17" CACHE STRING "C++ language level for STAR targets (17 or 20)")
 set_property(CACHE STAR_CXX_STANDARD PROPERTY STRINGS 17 20)
@@ -30,7 +30,7 @@ endif()
 if(NOT GIT_COMMIT_HASH)
     set(GIT_COMMIT_HASH "unknown")
 endif()
-# Override STAR_VERSION at compile time: "STAR-Cross 0.0.1_<hash>"
+# Identify the exact source revision: "STAR-Cross <hash>".
 # STAR-Cross is derived from the preserved upstream boundary b1edc12.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/StarBuildOptions.cmake)
 
@@ -645,7 +645,7 @@ if(WIN32)
     include(InstallRequiredSystemLibraries)
 endif()
 
-message(STATUS "STAR ${PROJECT_VERSION} build configuration:")
+message(STATUS "STAR-Cross ${GIT_COMMIT_HASH} build configuration:")
 message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "  Long reads: ${STAR_LONG_READS}")
 message(STATUS "  AVX2 SIMD: ${STAR_USE_AVX2}")

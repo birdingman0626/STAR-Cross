@@ -2,7 +2,7 @@
 # FetchContent projects. Sanitizer link flags propagate from static libraries.
 function(star_target_build_options target)
     target_compile_definitions(${target} PRIVATE
-        STAR_VERSION="STAR-Cross 0.0.1_${GIT_COMMIT_HASH}")
+        STAR_VERSION="STAR-Cross ${GIT_COMMIT_HASH}")
     if(MSVC)
         target_compile_options(${target} PRIVATE
             /utf-8

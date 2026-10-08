@@ -16,21 +16,25 @@ Asset availability depends on the release:
 
 | Platform | Asset |
 | --- | --- |
-| Linux x86-64 | `STAR-linux-x86_64` |
-| macOS Apple Silicon | `STAR-macos-aarch64` |
+| Linux x86-64 | `STAR-linux-x86_64.tar.gz` |
+| macOS Apple Silicon | `STAR-macos-aarch64.tar.gz` |
 | Windows x86-64 | `STAR-windows-x86_64.zip` |
-| macOS Intel / Linux s390x | Additional assets when their builds succeed |
+| macOS Intel | `STAR-macos-x86_64.tar.gz` |
+| Linux s390x | `STAR-linux-s390x.tar.gz` |
 
 On Windows, extract the ZIP and keep its runtime DLLs beside `STAR.exe`.
-On Linux/macOS, make the downloaded binary executable. Examples below assume
+On Linux/macOS, extract the archive to obtain `STAR`. Each package includes
+the required license texts; build records remain in CI rather than separate
+Release downloads. Examples below assume
 the executable is named `STAR` and is on your PATH; use `STAR.exe` on Windows.
 
 ```sh
 STAR --version
 ```
 
-The binary version uses `STAR-Cross 0.0.1_<commit>`. CMake defaults to AVX2 on
-x86-64; for older CPUs, build with `-DSTAR_USE_AVX2=OFF`.
+Release tags use the commit hash; the binary reports `STAR-Cross <commit>`.
+Older binaries retain their original version strings. AVX2 is disabled by default;
+enable it for compatible x86-64 CPUs with `-DSTAR_USE_AVX2=ON`.
 
 ## Quick start
 
