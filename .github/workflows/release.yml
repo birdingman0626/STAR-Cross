@@ -24,6 +24,8 @@ jobs:
         include:
           - os: ubuntu-latest
             asset: STAR-linux-x86_64
+          - os: ubuntu-24.04-arm
+            asset: STAR-linux-aarch64
           - os: macos-15          # Apple Silicon (arm64)
             asset: STAR-macos-aarch64
           - os: macos-15-intel
@@ -34,28 +36,32 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Verify native Linux architecture
+        if: startsWith(matrix.os, 'ubuntu')
+        run: test "STAR-linux-$(uname -m)" = "${{ matrix.asset }}"
+
       # Linux
       - name: Install dependencies (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'ubuntu')
         timeout-minutes: 10
         run: |
           apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
           timeout 180s sudo apt-get "${apt_options[@]}" update --error-on=any
           timeout 300s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends zlib1g-dev ninja-build
       - name: Build (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           cd source
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
           cmake --build build --parallel 4
       - name: Unit tests (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'ubuntu')
         run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
       - name: Package (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'ubuntu')
         run: cp source/build/STAR "${{ matrix.asset }}" && chmod +x "${{ matrix.asset }}"
       - name: Smoke test (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'ubuntu')
         run: test "$(./${{ matrix.asset }} --version)" = "STAR-Cross $(git rev-parse --short HEAD)"
 
       # macOS (arm64)
@@ -196,6 +202,7 @@ jobs:
           generate_release_notes: true
           files: |
             STAR-linux-x86_64.tar.gz
+            STAR-linux-aarch64.tar.gz
             STAR-macos-aarch64.tar.gz
             STAR-macos-x86_64.tar.gz
             STAR-linux-s390x.tar.gz

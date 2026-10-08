@@ -24,14 +24,20 @@ jobs:
             debian:trixie bash extras/tests/scripts/build_validate_s390x.sh
 
   build-linux:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
       matrix:
+        platform:
+          - {os: ubuntu-24.04, arch: x86_64}
+          - {os: ubuntu-24.04-arm, arch: aarch64}
         compiler: [gcc, clang]
         standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
+
+      - name: Verify native architecture
+        run: test "$(uname -m)" = "${{ matrix.platform.arch }}"
 
       - name: Install dependencies
         timeout-minutes: 10
@@ -77,7 +83,7 @@ jobs:
         if: matrix.compiler == 'gcc' && matrix.standard == 17
         uses: actions/upload-artifact@v7
         with:
-          name: qualification-STAR-linux-x86_64
+          name: qualification-STAR-linux-${{ matrix.platform.arch }}
           path: source/build/STAR
 
   build-macos:
@@ -200,7 +206,7 @@ jobs:
 
       - name: Download hash-pinned released baseline
         run: |
-          curl --fail --location --retry 3 -o STAR_old https://github.com/birdingman0626/STAR-Cross/releases/download/0.0.1_9a6d932/STAR-linux-x86_64
+          curl --fail --location --retry 3 -o STAR_old https://github.com/birdingman0626/STAR-Cross/releases/download/9a6d932/STAR-linux-x86_64
           echo 'dbd2cfbd295a187491a077f61d99f7fb462c06e32d85dc1c4f849c0c5a547528  STAR_old' | sha256sum --check
           chmod +x STAR_old
 

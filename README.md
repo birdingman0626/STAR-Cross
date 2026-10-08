@@ -17,6 +17,7 @@ Asset availability depends on the release:
 | Platform | Asset |
 | --- | --- |
 | Linux x86-64 | `STAR-linux-x86_64.tar.gz` |
+| Linux ARM64 | `STAR-linux-aarch64.tar.gz` |
 | macOS Apple Silicon | `STAR-macos-aarch64.tar.gz` |
 | Windows x86-64 | `STAR-windows-x86_64.zip` |
 | macOS Intel | `STAR-macos-x86_64.tar.gz` |
@@ -35,6 +36,12 @@ STAR --version
 Release tags use the commit hash; the binary reports `STAR-Cross <commit>`.
 Older binaries retain their original version strings. AVX2 is disabled by default;
 enable it for compatible x86-64 CPUs with `-DSTAR_USE_AVX2=ON`.
+
+Linux ARM64 builds use a native Ubuntu 24.04 runner, with GCC/Clang tests and
+alignment/count integration. They target the AArch64 CPU architecture (including
+Kunpeng and Yitian), not vendor-specific accelerators. Distribution/runtime
+compatibility and performance on individual vendor machines require validation;
+the macOS ARM64 package is not a Linux substitute.
 
 ## Quick start
 
