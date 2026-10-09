@@ -75,3 +75,11 @@ Local receipts are retained under
 Normal-input integration qualifies scientific fixtures, not every possible
 input and not a full real-data performance benchmark. GitHub alert resolution
 requires a later push and a new CodeQL run; local tests do not establish that.
+
+Release preflight also reproduced the earlier MSVC C++20 benchmark build
+failure: nested lambdas used `threads` only in an OpenMP pragma. Explicit
+value captures fix MSVC's capture analysis without changing the thread count.
+The native C++20 build, all 122 CTest cases and the 1,000-record rank-hint
+sweep pass. The old local build initially retained unpatched Parasail
+FetchContent sources; reapplying the maintained patch before rebuilding
+restored the allocation-boundary tests. C++17 remains the release default.

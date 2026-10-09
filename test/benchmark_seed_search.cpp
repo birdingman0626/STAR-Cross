@@ -215,11 +215,12 @@ int main(int argc,char** argv) try {
     if(executor=="pwl" || executor=="pla" || executor=="hint-sweep") {
         output["hint_scope"]="reference-trained sampled rank hints only; no global rank certificate or predicted pruning; exact original eligible bounds";
         output["experiments"]=Json::array();
-        auto experiment=[&](const std::string& kind,unsigned width,uint64_t error) {
+        auto experiment=[&, threads](const std::string& kind,unsigned width,uint64_t error) {
             auto building=Clock::now();SeedRankHint model(g,kind,width,error);
             const double buildSeconds=elapsed(building);
             std::vector<GpuSeedMatch> candidate(queries.size());
-            auto candidateRun=[&]() {
+            // MSVC does not infer lambda captures from OpenMP pragma clauses.
+            auto candidateRun=[&, threads]() {
                 uint64_t used=0;auto start=Clock::now();
                 #pragma omp parallel for num_threads(threads) reduction(+:used)
                 for(long long i=0;i<static_cast<long long>(queries.size());++i) {
