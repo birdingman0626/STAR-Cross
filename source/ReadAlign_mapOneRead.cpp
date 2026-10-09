@@ -2,8 +2,13 @@
 #include "SequenceFuns.h"
 #include "Stats.h"
 #include "serviceFuns.cpp"
+#include "SeedDiagnostics.h"
 
 int ReadAlign::mapOneRead() {
+    #ifdef STAR_CAPTURE_SEEDS
+    seedTrace::beginRead(iReadAll);
+    seedTrace::Timer diagnostic(&seedTrace::Worker::mapNs);
+    #endif
 
     #ifdef OFF_BEFORE_SEEDING
         #warning OFF_BEFORE_SEEDING
@@ -95,6 +100,10 @@ int ReadAlign::mapOneRead() {
     #ifdef OFF_AFTER_SEEDING
         #warning OFF_AFTER_SEEDING
         return 0;
+    #endif
+
+    #ifdef STAR_CAPTURE_SEEDS
+    seedTrace::finalSeeds(nP,PC);
     #endif
 
     if (Lread<P.outFilterMatchNmin) {//read is too short (trimmed too much?)

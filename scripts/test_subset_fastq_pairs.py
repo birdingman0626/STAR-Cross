@@ -39,6 +39,18 @@ class PairedPrefix(unittest.TestCase):
             with self.assertRaises(ValueError):
                 subset(root/"r1.gz", root/"r2.gz", root/"out", 1)
 
+    def test_offset_selects_segment_and_validates_skipped_pairs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)
+            for mate in (1,2):
+                (root/f'r{mate}').write_bytes(f'@a/{mate}\nAC\n+\nII\n@b/{mate}\nGT\n+\nII\n'.encode())
+            result=subset(root/'r1',root/'r2',root/'out',1,1)
+            self.assertEqual(result['first_source_pair'],2)
+            self.assertEqual((root/'out/R1.fastq').read_bytes(),b'@b/1\nGT\n+\nII\n')
+            with self.assertRaises(ValueError):subset(root/'r1',root/'r2',root/'short',1,2)
+            (root/'r2').write_bytes(b'@different/2\nAC\n+\nII\n@b/2\nGT\n+\nII\n')
+            with self.assertRaises(ValueError):subset(root/'r1',root/'r2',root/'mismatch',1,1)
+
 
 if __name__ == "__main__":
     unittest.main()

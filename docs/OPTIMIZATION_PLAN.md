@@ -4,6 +4,8 @@
 
 本文件统一规定下一轮工作的顺序、交付物和决策条件。科学结果验收沿用[GPU 验收契约](../.agentdocs/workflow/261006-gpu-validation-and-benchmark-plan.md)，本计划不放宽该契约。各阶段按证据进入下一阶段，不要求把所有候选都实现。
 
+2026-10-08：论文与本地教材驱动的查询/索引候选细化见 [LITERATURE_OPTIMIZATION_PLAN.md](LITERATURE_OPTIMIZATION_PLAN.md)。该补充保留本文件的等价性和晋级门槛，先诊断后选择候选；不是已完成实现，也不要求机械执行全部可选路线。
+
 ## 1. 目标与已有证据
 
 目标：减少用户实际完成一次 STAR/STARsolo 任务的时间，同时保留比对、定量、细胞判定和 Velocity 结果。分别评估单次冷启动、同进程索引复用及多样本工作流。

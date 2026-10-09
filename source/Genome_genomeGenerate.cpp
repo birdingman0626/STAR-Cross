@@ -662,7 +662,7 @@ void Genome::genomeGenerate() {
                     };
                     if (!saChunksInMemoryActive) {
                         string chunkFileName=pGe.gDir+"/SA_"+to_string(iChunkAbs);
-                        ofstream & saChunkFile = ofstrOpen(chunkFileName,ERROR_OUT, P);
+                        ofstream saChunkFile = ofstrOpenOwned(chunkFileName,ERROR_OUT, P);
                         fstreamWriteBig(saChunkFile, (char*) saChunk, sizeof(saChunk[0])*indPrefChunkCount[iChunkAbs],chunkFileName,ERROR_OUT,P);
                         saChunkFile.close();
                     };
@@ -714,7 +714,7 @@ void Genome::genomeGenerate() {
                 //write files
                 if (!saChunksInMemoryActive) {
                     string chunkFileName=pGe.gDir+"/SA_"+to_string( (uint) iChunk);
-                    ofstream & saChunkFile = ofstrOpen(chunkFileName,ERROR_OUT, P);
+                    ofstream saChunkFile = ofstrOpenOwned(chunkFileName,ERROR_OUT, P);
                     fstreamWriteBig(saChunkFile, (char*) saChunk, sizeof(saChunk[0])*indPrefChunkCount[iChunk],chunkFileName,ERROR_OUT,P);
                     saChunkFile.close();
                     delete [] saChunk;
@@ -850,7 +850,7 @@ void Genome::genomeGenerate() {
     P.inOut->logMain     << timeMonthDayTime(rawTime) <<" ... writing Suffix Array to disk ...\n" <<flush;
     *P.inOut->logStdOut  << timeMonthDayTime(rawTime) <<" ... writing Suffix Array to disk ...\n" <<flush;
 
-    ofstream & SAout = ofstrOpen(pGe.gDir+"/SA",ERROR_OUT, P);
+    ofstream SAout = ofstrOpenOwned(pGe.gDir+"/SA",ERROR_OUT, P);
     fstreamWriteBig(SAout,(char*) SA.charArray, (streamsize) SA.lengthByte,pGe.gDir+"/SA",ERROR_OUT,P);
     SAout.close();
 
@@ -860,7 +860,7 @@ void Genome::genomeGenerate() {
     *P.inOut->logStdOut << timeMonthDayTime(rawTime) <<" ... writing SAindex to disk\n" <<flush;
 
     //write SAi to disk
-    ofstream & SAiOut = ofstrOpen(pGe.gDir+"/SAindex",ERROR_OUT, P);
+    ofstream SAiOut = ofstrOpenOwned(pGe.gDir+"/SAindex",ERROR_OUT, P);
 
     fstreamWriteBig(SAiOut, (char*) &pGe.gSAindexNbases, sizeof(pGe.gSAindexNbases),pGe.gDir+"/SAindex",ERROR_OUT,P);
     fstreamWriteBig(SAiOut, (char*) genomeSAindexStart, sizeof(genomeSAindexStart[0])*(pGe.gSAindexNbases+1),pGe.gDir+"/SAindex",ERROR_OUT,P);
@@ -876,10 +876,10 @@ void Genome::genomeGenerate() {
 
 void Genome::writeChrInfo(const string dirOut) 
 {//write chr information
-    ofstream & chrN = ofstrOpen(dirOut+"/chrName.txt",ERROR_OUT, P);
-    ofstream & chrS = ofstrOpen(dirOut+"/chrStart.txt",ERROR_OUT, P);
-    ofstream & chrL = ofstrOpen(dirOut+"/chrLength.txt",ERROR_OUT, P);
-    ofstream & chrNL = ofstrOpen(dirOut+"/chrNameLength.txt",ERROR_OUT, P);
+    ofstream chrN = ofstrOpenOwned(dirOut+"/chrName.txt",ERROR_OUT, P);
+    ofstream chrS = ofstrOpenOwned(dirOut+"/chrStart.txt",ERROR_OUT, P);
+    ofstream chrL = ofstrOpenOwned(dirOut+"/chrLength.txt",ERROR_OUT, P);
+    ofstream chrNL = ofstrOpenOwned(dirOut+"/chrNameLength.txt",ERROR_OUT, P);
 
     for (uint ii=0;ii<nChrReal;ii++) {//output names, starts, lengths
         chrN<<chrName[ii]<<"\n";
@@ -892,7 +892,7 @@ void Genome::writeChrInfo(const string dirOut)
 };
 void Genome::writeGenomeSequence(const string dirOut) 
 {//write genome sequence
-    ofstream &genomeOut = ofstrOpen(dirOut+"/Genome",ERROR_OUT, P);
+    ofstream genomeOut = ofstrOpenOwned(dirOut+"/Genome",ERROR_OUT, P);
     fstreamWriteBig(genomeOut,G,nGenome,dirOut+"/Genome",ERROR_OUT,P);
     genomeOut.close();
 };

@@ -4,11 +4,15 @@
 #include "binarySearch2.h"
 #include <cmath>
 #include <ctime>
+#include "SeedDiagnostics.h"
 
 void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, uint tG2, Transcript trA, \
                         uint Lread, uiWA* WA, char* R, Genome &mapGen, \
                         Parameters& P, Transcript** wTr, uint* nWinTr, ReadAlign *RA) {
     //recursively stitch aligns for one gene
+    #ifdef STAR_CAPTURE_SEEDS
+    if(auto* w=seedTrace::worker()) ++w->recursiveStates;
+    #endif
     //*nWinTr - number of transcripts for the current window
 
     if (iA>=nA && tR2==0) return; //no aligns in the transcript
@@ -336,6 +340,9 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
         Transcript trAi=trA; //trA copy with this align included, to be used in the 1st recursive call of StitchAlign
         if (trA.nExons>0) {//stitch, a transcript has already been originated
 
+            #ifdef STAR_CAPTURE_SEEDS
+            if(auto* w=seedTrace::worker()) ++w->transitions;
+            #endif
             dScore=stitchAlignToTranscript(tR2, tG2, WA[iA][WA_rStart], WA[iA][WA_gStart], WA[iA][WA_Length], WA[iA][WA_iFrag],  WA[iA][WA_sjA], P, R, mapGen, &trAi, RA->outFilterMismatchNmaxTotal);
             //TODO check if the new stitching creates too many MM, quit this transcript if so
 

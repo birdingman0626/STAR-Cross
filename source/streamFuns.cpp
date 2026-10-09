@@ -92,8 +92,8 @@ void fstreamWriteBig(std::ofstream &S, char* A, unsigned long long N, std::strin
     P.inOut->logMain << " done\n" <<flush;
 };
 
-std::ofstream &ofstrOpen (std::string fileName, std::string errorID, Parameters &P) {//open file 'fileName', generate error if cannot open
-    std::ofstream & ofStream = *new std::ofstream(fileName.c_str(), std::fstream::out | std::fstream::trunc | std::fstream::binary);//binary mode: avoid Windows text-mode corruption of binary data (LF->CRLF, 0x1A as EOF)
+std::ofstream ofstrOpenOwned (std::string fileName, std::string errorID, Parameters &P) {//open file 'fileName', generate error if cannot open
+    std::ofstream ofStream(fileName.c_str(), std::fstream::out | std::fstream::trunc | std::fstream::binary);//binary mode: avoid Windows text-mode corruption of binary data (LF->CRLF, 0x1A as EOF)
     if (ofStream.fail()) {//
         ostringstream errOut;
         errOut << errorID<<": exiting because of *OUTPUT FILE* error: could not create output file "<< fileName <<"\n";
@@ -102,6 +102,11 @@ std::ofstream &ofstrOpen (std::string fileName, std::string errorID, Parameters 
     };
     return ofStream;
 };
+
+// Compatibility for legacy callers that still manage heap stream lifetimes.
+std::ofstream &ofstrOpen (std::string fileName, std::string errorID, Parameters &P) {
+    return *new std::ofstream(ofstrOpenOwned(fileName,errorID,P));
+}
 
 std::fstream &fstrOpen (std::string fileName, std::string errorID, Parameters &P, bool flagDelete) {//open file 'fileName', generate error if cannot open
     //std::fstream &fStream = *new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out );

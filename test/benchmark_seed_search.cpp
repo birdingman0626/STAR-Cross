@@ -1,9 +1,16 @@
 #include "gpuSeedSearch.h"
 #include "SuffixArrayFuns.h"
+#include "SeedRankHint.h"
 #include <filesystem>
 #include <chrono>
 #include <stdexcept>
 #include <memory>
+#include <nlohmann/json.hpp>
+#ifdef _WIN32
+#include <psapi.h>
+#else
+#include <sys/resource.h>
+#endif
 
 // This isolated executable only needs a valid holder for production search fields.
 // It does not link STAR's configuration/IO constructors or replace search logic.
@@ -11,25 +18,57 @@ Parameters::Parameters() {}
 Genome::Genome(Parameters& p,ParametersGenome& pg):P(p),pGe(pg),sharedMemory(nullptr) {}
 namespace {
 using Clock=std::chrono::steady_clock;
+using Json=nlohmann::json;
 double elapsed(Clock::time_point t) {return std::chrono::duration<double>(Clock::now()-t).count();}
-std::vector<char> load(const std::filesystem::path& path) {
+Json peakMemory() {
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS_EX info{};info.cb=sizeof(info);
+    if(GetProcessMemoryInfo(GetCurrentProcess(),reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&info),sizeof(info)))
+        return {{"status","MEASURED"},{"method","Windows peak working set"},{"peak_rss_bytes",info.PeakWorkingSetSize},
+                {"peak_commit_bytes",info.PeakPagefileUsage}};
+#else
+    rusage usage{};
+    if(getrusage(RUSAGE_SELF,&usage)==0) {
+#ifdef __APPLE__
+        const uint64_t factor=1;
+#else
+        const uint64_t factor=1024;
+#endif
+        return {{"status","MEASURED"},{"method","getrusage process lifetime peak RSS"},
+                {"peak_rss_bytes",uint64_t(usage.ru_maxrss)*factor}};
+    }
+#endif
+    return {{"status","UNVERIFIED"}};
+}
+std::vector<char> load(const std::filesystem::path& path,size_t padding=0) {
     std::ifstream f(path,std::ios::binary);if(!f) throw std::runtime_error("cannot open index file");
-    std::vector<char> data(std::filesystem::file_size(path));
-    f.read(data.data(),data.size());if(!f) throw std::runtime_error("incomplete index read");return data;
+    const auto bytes=std::filesystem::file_size(path);
+    if(padding>std::numeric_limits<size_t>::max()/2 || bytes>std::numeric_limits<size_t>::max()-2*padding)
+        throw std::runtime_error("index file exceeds addressable memory");
+    std::vector<char> data(static_cast<size_t>(bytes)+2*padding,5);
+    f.read(data.data()+padding,bytes);if(!f) throw std::runtime_error("incomplete index read");return data;
 }
 bool same(const GpuSeedMatch& a,const GpuSeedMatch& b) {
     return a.length==b.length && a.lower==b.lower && a.upper==b.upper && a.multiplicity==b.multiplicity;
 }
 }
 int main(int argc,char** argv) try {
-    if(argc<3 || argc>7) throw std::invalid_argument("usage: star_seed_benchmark genomeDir R2.fastq|captureDir [records=100000] [batch=65536] [repeats=3] [cpuThreads=8]");
+    if(argc<3 || argc>10) throw std::invalid_argument("usage: star_seed_benchmark genomeDir R2.fastq|captureDir [records=100000] [batch=65536] [repeats=3] [cpuThreads=8] [executor=cpu|cuda|pwl|pla|hint-sweep] [hintK=18] [hintError=64]");
     const size_t limit=argc>3?std::stoull(argv[3]):100000,batch=argc>4?std::stoull(argv[4]):65536;
     const int repeats=argc>5?std::stoi(argv[5]):3,threads=argc>6?std::stoi(argv[6]):8;
+    const std::string executor=argc>7?argv[7]:"cpu";
+    const unsigned hintK=argc>8?std::stoul(argv[8]):18;
+    const uint64_t hintError=argc>9?std::stoull(argv[9]):64;
+    if(executor!="cpu" && executor!="cuda" && executor!="pwl" && executor!="pla" && executor!="hint-sweep")
+        throw std::invalid_argument("unsupported executor");
+    if((hintK!=14 && hintK!=18 && hintK!=21) || (hintError!=16 && hintError!=64 && hintError!=256))
+        throw std::invalid_argument("hint k/error outside declared screening grid");
+#ifndef STAR_SEED_REPLAY_CUDA
+    if(executor=="cuda") throw std::invalid_argument("CUDA executor was not built; use cpu or enable STAR_ENABLE_CUDA");
+#endif
     if(!limit || !batch || repeats<1 || threads<1) throw std::invalid_argument("positive run parameters required");
-    std::filesystem::path root(argv[1]);auto genome=load(root/"Genome"),sa=load(root/"SA");
-    std::vector<char> guardedGenome(genome.size()+400,5);
-    std::copy(genome.begin(),genome.end(),guardedGenome.begin()+200);
-    Parameters p;Genome g(p,p.pGe);g.G=guardedGenome.data()+200;g.nGenome=genome.size();g.GstrandBit=0;
+    std::filesystem::path root(argv[1]);auto genome=load(root/"Genome",200),sa=load(root/"SA");
+    Parameters p;Genome g(p,p.pGe);g.G=genome.data()+200;g.nGenome=genome.size()-400;g.GstrandBit=0;
     std::ifstream parameters(root/"genomeParameters.txt");std::string line;
     uint capturedRecords=0;
     while(std::getline(parameters,line)) {
@@ -43,28 +82,60 @@ int main(int argc,char** argv) try {
     if(g.SA.lengthByte!=sa.size()) throw std::runtime_error("packed SA geometry mismatch");
     std::vector<char> reads,complement;std::vector<GpuSeedQuery> queries;
     std::vector<GpuSeedMatch> captured;
-    size_t observed=0,skipped=0;
+    std::vector<uint> readIds;
+    std::vector<std::string> captureSources;
+    std::string captureAbi="NOT_APPLICABLE";
+    size_t observed=0,skipped=0,availableCaptureRecords=0;
     if(std::filesystem::is_directory(argv[2])) {
+        const auto metadataPath=std::filesystem::path(argv[2])/"capture_metadata.json";
+        captureAbi="UNVERIFIED_LEGACY_NATIVE_ABI";
+        if(std::filesystem::exists(metadataPath)) {
+            std::ifstream metadataFile(metadataPath);Json metadata;metadataFile>>metadata;
+            const uint16_t endian=1;
+            const std::string byteOrder=*reinterpret_cast<const unsigned char*>(&endian)?"little":"big";
+            if(metadata.at("format")!=1 || metadata.at("native_uint_bytes")!=sizeof(uint)
+               || metadata.at("query_bytes")!=sizeof(GpuSeedQuery) || metadata.at("match_bytes")!=sizeof(GpuSeedMatch)
+               || metadata.at("byte_order")!=byteOrder) throw std::runtime_error("capture native ABI mismatch");
+            captureAbi="VERIFIED_NATIVE_ABI";
+        }
         std::vector<std::filesystem::path> files;
         for(const auto& entry:std::filesystem::directory_iterator(argv[2]))
-            if(entry.path().extension()==".bin") files.push_back(entry.path());
+            if(entry.path().extension()==".bin" && entry.path().filename().string().rfind("queries-",0)==0)
+                files.push_back(entry.path());
         std::sort(files.begin(),files.end());
         for(const auto& path:files) {
             std::ifstream input(path,std::ios::binary);uint readId;
             char magic[8];input.read(magic,8);
             if(!input || std::string(magic,8)!="STARSD01") throw std::runtime_error("unknown capture format");
-            while(observed<limit && input.read(reinterpret_cast<char*>(&readId),sizeof(readId))) {
+            uint fileRecords=0;
+            for(;;) {
+                input.read(reinterpret_cast<char*>(&readId),sizeof(readId));
+                if(input.gcount()==0 && input.eof()) break;
+                if(!input || input.gcount()!=sizeof(readId)) throw std::runtime_error("truncated capture header");
                 GpuSeedQuery q;GpuSeedMatch match;
                 input.read(reinterpret_cast<char*>(&q),sizeof(q));
                 input.read(reinterpret_cast<char*>(&match),sizeof(match));
-                if(!input || !q.readBytes || q.readBytes>16*1024*1024-reads.size())
+                if(!input || !q.readBytes || q.readBytes>16*1024*1024)
                     throw std::runtime_error("malformed or over-capacity captured query");
-                q.offset=reads.size();reads.resize(reads.size()+q.readBytes);
-                input.read(reads.data()+q.offset,q.readBytes);
+                std::vector<char> record(q.readBytes);
+                input.read(record.data(),q.readBytes);
                 if(!input) throw std::runtime_error("truncated captured read");
-                queries.push_back(q);captured.push_back(match);++observed;
+                if(!q.length || q.initialLength>q.length || q.forward>1 || q.lower>q.upper || q.upper>=g.nSA
+                   || q.start>=q.readBytes || (q.forward?q.length>q.readBytes-q.start:q.length>q.start+1))
+                    throw std::runtime_error("invalid captured replay query");
+                ++fileRecords;
+                ++availableCaptureRecords;
+                if(observed>=limit) continue; // Still validate every trailing record, including capped inputs.
+                if(q.readBytes>16*1024*1024-reads.size()) throw std::runtime_error("captured read pool exceeds 16 MiB; reduce read count");
+                q.offset=reads.size();reads.insert(reads.end(),record.begin(),record.end());
+                queries.push_back(q);captured.push_back(match);readIds.push_back(readId);
+                captureSources.push_back(path.filename().string());++observed;
             }
-            if(input.gcount()!=0 && observed<limit) throw std::runtime_error("truncated capture header");
+            const auto statsPath=std::filesystem::path(path.string()+".json");
+            if(std::filesystem::exists(statsPath)) {
+                std::ifstream statsFile(statsPath);Json stats;statsFile>>stats;
+                if(stats.at("recorded")!=fileRecords) throw std::runtime_error("capture recorded count does not match file");
+            }
         }
         for(char code:reads) complement.push_back(code<4?3-code:code);
     } else {
@@ -125,9 +196,80 @@ int main(int argc,char** argv) try {
         }
         return elapsed(start);
     };
-    cpuRun(expected);
+    const double cpuWarmup=cpuRun(expected);
     for(size_t i=0;i<captured.size();++i)
         if(!same(captured[i],expected[i])) throw std::runtime_error("captured production CPU result differs in replay");
+    Json output={{"status","PASS"},{"executor",executor},{"scope","search length/lower/upper/multiplicity only; emitted seeds and full mapping require integration verification"},
+                 {"input_mode",captured.empty()?"FASTQ":"POST_CLIPPING_CAPTURE"},{"capture_abi",captureAbi},
+                 {"input_records",observed},{"queries",queries.size()},{"skipped_prefix_cases",skipped},
+                 {"cpu_threads",threads},{"batch",batch},{"cpu_warmup_seconds",cpuWarmup},
+                 {"cache","warmup performed; OS cache not flushed; no cold-cache claim"},{"runs",Json::array()}};
+    if(!captured.empty()) {
+        output["available_capture_records"]=availableCaptureRecords;
+        output["replay_limit_omitted_records"]=availableCaptureRecords-observed;
+        output["captured_read_ids"]=readIds;
+        output["capture_sources"]=captureSources;
+    }
+    if(executor=="cpu") {
+        for(int repeat=0;repeat<repeats;++repeat) {
+            double seconds=cpuRun(cpu);
+            for(size_t i=0;i<cpu.size();++i) if(!same(cpu[i],expected[i])) throw std::runtime_error("CPU nondeterminism");
+            output["runs"].push_back({{"order","CPU"},{"cpu_seconds",seconds}});
+        }
+        output["memory"]=peakMemory();std::cout<<output.dump()<<"\n";return 0;
+    }
+    if(executor=="pwl" || executor=="pla" || executor=="hint-sweep") {
+        output["hint_scope"]="reference-trained sampled rank hints only; no global rank certificate or predicted pruning; exact original eligible bounds";
+        output["experiments"]=Json::array();
+        auto experiment=[&](const std::string& kind,unsigned width,uint64_t error) {
+            auto building=Clock::now();SeedRankHint model(g,kind,width,error);
+            const double buildSeconds=elapsed(building);
+            std::vector<GpuSeedMatch> candidate(queries.size());
+            auto candidateRun=[&]() {
+                uint64_t used=0;auto start=Clock::now();
+                #pragma omp parallel for num_threads(threads) reduction(+:used)
+                for(long long i=0;i<static_cast<long long>(queries.size());++i) {
+                    const auto& q=queries[i];char* s[2]={reads.data()+q.offset,complement.data()+q.offset};
+                    uint length=q.initialLength,range[2],probe=0;
+                    const bool supported=model.probe(q,s,probe);
+                    const uint count=supported?maxMappableLengthHint(g,s,q.start,q.length,q.lower,q.upper,q.forward,length,range,probe)
+                                              :maxMappableLength(g,s,q.start,q.length,q.lower,q.upper,q.forward,length,range);
+                    if(supported) ++used;
+                    candidate[i]={length,range[0],range[1],count};
+                }
+                return std::make_pair(elapsed(start),used);
+            };
+            auto verify=[&](const std::vector<GpuSeedMatch>& actual,const char* label) {
+                for(size_t i=0;i<actual.size();++i) if(!same(actual[i],expected[i]))
+                    throw std::runtime_error(std::string(label)+" search field mismatch at query "+std::to_string(i));
+            };
+            const auto warm=candidateRun();verify(candidate,"hint warmup");
+            Json item={{"model",kind},{"k",width},{"error",error},{"error_role",kind=="pla"?"sampled slope-envelope target only; uncertified globally":"unused by fixed-bin PWL"},
+                       {"sampled_sa_ranks",model.sampledRanks},{"valid_samples",model.validSamples},{"duplicate_samples",model.duplicateSamples},
+                       {"unique_sampled_keys",model.uniqueKeys()},{"pieces",model.pieces()},{"model_bytes",model.modelBytes()},
+                       {"construction_extra_bytes_upper_bound",2*model.modelBytes()},
+                       {"build_seconds",buildSeconds},{"candidate_warmup_seconds",warm.first},{"hint_usable_queries",warm.second},
+                       {"hint_usable_fraction",double(warm.second)/queries.size()},{"runs",Json::array()}};
+            for(int repeat=0;repeat<repeats;++repeat) {
+                double baselineSeconds;std::pair<double,uint64_t> measured;
+                if(repeat%2) {measured=candidateRun();baselineSeconds=cpuRun(cpu);}
+                else {baselineSeconds=cpuRun(cpu);measured=candidateRun();}
+                verify(cpu,"CPU");verify(candidate,"hint");
+                if(measured.second!=warm.second) throw std::runtime_error("rank hint usability is nondeterministic");
+                item["runs"].push_back({{"order",repeat%2?"HINT-CPU":"CPU-HINT"},{"cpu_seconds",baselineSeconds},
+                    {"candidate_seconds",measured.first},{"candidate_to_cpu_ratio",measured.first/baselineSeconds}});
+            }
+            item["memory"]=peakMemory();output["experiments"].push_back(std::move(item));
+        };
+        if(executor=="hint-sweep") {
+            for(unsigned width:{14U,18U,21U}) {
+                experiment("pwl",width,64);
+                for(uint64_t error:{16ULL,64ULL,256ULL}) experiment("pla",width,error);
+            }
+        } else experiment(executor,hintK,hintError);
+        output["memory"]=peakMemory();std::cout<<output.dump()<<"\n";return 0;
+    }
+#ifdef STAR_SEED_REPLAY_CUDA
     auto allocationStart=Clock::now();GpuSeedIndex device(g.G,g.nGenome,g.SA.charArray,g.SA.lengthByte,g.nSA,g.GstrandBit,batch);
     double setup=elapsed(allocationStart);
     auto gpuRun=[&](bool verify,GpuSeedTiming& totals) {
@@ -150,19 +292,18 @@ int main(int argc,char** argv) try {
         return elapsed(start)-validation;
     };
     GpuSeedTiming warm;double warmSeconds=gpuRun(true,warm);
-    std::ostringstream output;
-    output<<"{\"status\":\"PASS\",\"input_mode\":\""<<(captured.empty()?"FASTQ":"POST_CLIPPING_CAPTURE")
-        <<"\",\"input_records\":"<<observed<<",\"queries\":"<<queries.size()<<",\"skipped_prefix_cases\":"<<skipped
-        <<",\"cpu_threads\":"<<threads<<",\"batch\":"<<batch<<",\"device_buffer_bytes\":"<<device.deviceBytes
-        <<",\"index_upload_seconds\":"<<device.indexUploadSeconds<<",\"index_setup_seconds\":"<<setup<<",\"warmup_seconds\":"<<warmSeconds<<",\"runs\":[";
+    output["device_buffer_bytes"]=device.deviceBytes;output["index_upload_seconds"]=device.indexUploadSeconds;
+    output["index_setup_seconds"]=setup;output["warmup_seconds"]=warmSeconds;
     for(int repeat=0;repeat<repeats;++repeat) {
         GpuSeedTiming timing;double gpuSeconds=0,cpuSeconds=0;
         if(repeat%2) {gpuSeconds=gpuRun(true,timing);cpuSeconds=cpuRun(cpu);}
         else {cpuSeconds=cpuRun(cpu);gpuSeconds=gpuRun(true,timing);}
         for(size_t i=0;i<cpu.size();++i) if(!same(cpu[i],expected[i])) throw std::runtime_error("CPU nondeterminism");
-        if(repeat) output<<",";
-        output<<"{\"order\":\""<<(repeat%2?"GPU-CPU":"CPU-GPU")<<"\",\"cpu_seconds\":"<<cpuSeconds<<",\"gpu_seconds\":"<<gpuSeconds<<",\"upload_seconds\":"<<timing.upload
-            <<",\"kernel_seconds\":"<<timing.kernel<<",\"download_seconds\":"<<timing.download<<"}";
+        output["runs"].push_back({{"order",repeat%2?"GPU-CPU":"CPU-GPU"},{"cpu_seconds",cpuSeconds},
+            {"gpu_seconds",gpuSeconds},{"upload_seconds",timing.upload},{"kernel_seconds",timing.kernel},{"download_seconds",timing.download}});
     }
-    output<<"]}\n";std::cout<<output.str();return 0;
+    output["memory"]=peakMemory();std::cout<<output.dump()<<"\n";return 0;
+#else
+    throw std::runtime_error("unreachable unavailable executor");
+#endif
 } catch(const std::exception& e) {std::cerr<<"FAIL: "<<e.what()<<"\n";return 1;}

@@ -5,6 +5,9 @@
 #include "SeedTrace.h"
 
 uint ReadAlign::maxMappableLength2strands(uint pieceStartIn, uint pieceLengthIn, uint iDir, uint iSA1, uint iSA2, uint& maxLbest, uint iFrag) {
+    #ifdef STAR_CAPTURE_SEEDS
+    seedTrace::Timer diagnostic(&seedTrace::Worker::seedNs);
+    #endif
     //returns number of mappings, maxMappedLength=mapped length
     uint Nrep=0, indStartEnd[2], maxL;
 
@@ -79,6 +82,9 @@ uint ReadAlign::maxMappableLength2strands(uint pieceStartIn, uint pieceLengthIn,
     #else
         bool iSA1noN = (iSA1 & mapGen.SAiMarkNmaskC)==0;
         if (Lind < P.pGe.gSAindexNbases && iSA1noN && iSA2good) {//no need for SA search
+            #ifdef STAR_CAPTURE_SEEDS
+            if(auto* w=seedTrace::worker()) ++w->prefix;
+            #endif
             // very short seq, already found hits in suffix array w/o having to search the genome for extensions.
             indStartEnd[0]=iSA1;
             indStartEnd[1]=iSA2;

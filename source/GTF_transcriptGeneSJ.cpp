@@ -4,6 +4,7 @@
 
 //#include <ctime>
 #include <map>
+#include <memory>
 
 #define GTF_extrLoci_size 6
 #define GTF_extrTrStart(ii) ((ii)*GTF_extrLoci_size)
@@ -32,7 +33,8 @@ uint64 GTF::transcriptGeneSJ(const string &dirOut)
 
     {//exon-gene data structures: exon start/end/strand/gene/transcript
         //re-sort exons by exons loci
-        uint64* exgeLoci=new uint64 [exonN*GTF_exgeLoci_size]; //this also contains transcripts start and end
+        std::unique_ptr<uint64[]> exgeStorage(new uint64 [exonN*GTF_exgeLoci_size]);
+        uint64* exgeLoci=exgeStorage.get(); //this also contains transcripts start and end
 
         for (uint64 iex=0; iex<exonN; iex++) {
             exgeLoci[GTF_exgeExStart(iex)]=exonLoci[iex][exS];
@@ -44,7 +46,7 @@ uint64 GTF::transcriptGeneSJ(const string &dirOut)
 
         qsort((void*) exgeLoci, exonN, sizeof(uint64)*GTF_exgeLoci_size, funCompareArrays<uint64,5>);
 
-        ofstream & exgeOut = ofstrOpen(dirOut+"/exonGeTrInfo.tab",ERROR_OUT,P);
+        ofstream exgeOut = ofstrOpenOwned(dirOut+"/exonGeTrInfo.tab",ERROR_OUT,P);
         exgeOut<<exonN<<"\n";
         for (uint64 iex=0; iex<exonN; iex++) {
              exgeOut<<exgeLoci[GTF_exgeExStart(iex)] <<"\t"<<  exgeLoci[GTF_exgeExEnd(iex)] <<"\t"<< exgeLoci[GTF_exgeExStrand(iex)] \
@@ -52,7 +54,7 @@ uint64 GTF::transcriptGeneSJ(const string &dirOut)
         };
         exgeOut.close();
 
-        ofstream & geOut = ofstrOpen(dirOut+"/geneInfo.tab",ERROR_OUT,P);
+        ofstream geOut = ofstrOpenOwned(dirOut+"/geneInfo.tab",ERROR_OUT,P);
         geOut << geneID.size() << "\n";
         for (uint64 ig=0; ig<geneID.size(); ig++) {//just geneID for now
             geOut << geneID[ig] <<"\t"<< geneAttr[ig][0] <<"\t"<< geneAttr[ig][1] <<"\n";
@@ -63,7 +65,8 @@ uint64 GTF::transcriptGeneSJ(const string &dirOut)
 
     {//exon-transcript data structures
         //re-sort transcripts by transcript start/end
-        uint64* extrLoci=new uint64 [exonN*GTF_extrLoci_size]; //this also contains transcripts start and end
+        std::unique_ptr<uint64[]> extrStorage(new uint64 [exonN*GTF_extrLoci_size]);
+        uint64* extrLoci=extrStorage.get(); //this also contains transcripts start and end
 
         uint64 trex1=0;
         for (uint64 iex=0; iex<=exonN; iex++) {
@@ -114,7 +117,8 @@ uint64 GTF::transcriptGeneSJ(const string &dirOut)
 
     //make junctions
     const uint64 sjStride=4;
-    uint64* sjLoci = new uint64 [exonN*sjStride];
+    std::unique_ptr<uint64[]> sjStorage(new uint64 [exonN*sjStride]);
+    uint64* sjLoci=sjStorage.get();
     uint64 trIDn=exonLoci[0][exT];
     uint64 sjN=0;
     for (uint64 iex=1; iex<exonN; iex++) {

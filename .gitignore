@@ -55,6 +55,9 @@ source/parametersDefault.xxd
 .idea/
 
 # Local tool configs
+# Local literature and research notes (not redistributed)
+/knowledge/
+
 .claude/
 .omx/
 

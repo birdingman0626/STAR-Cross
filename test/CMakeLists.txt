@@ -57,6 +57,39 @@ target_include_directories(star_tests PRIVATE
 # IncludeDefine.h includes <omp.h>; the test binary must link OpenMP
 find_package(OpenMP REQUIRED)
 target_link_libraries(star_tests PRIVATE OpenMP::OpenMP_CXX hts parasail star_sjdb_remap)
+add_executable(star_seed_benchmark benchmark_seed_search.cpp
+    ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp
+    ${STAR_SOURCE_DIR}/SharedMemory.cpp)
+star_target_build_options(star_seed_benchmark)
+star_target_sanitizers(star_seed_benchmark)
+target_include_directories(star_seed_benchmark PRIVATE ${STAR_SOURCE_DIR})
+target_link_libraries(star_seed_benchmark PRIVATE OpenMP::OpenMP_CXX parasail nlohmann_json::nlohmann_json)
+target_compile_definitions(star_seed_benchmark PRIVATE STAR_SEED_HINT_REPLAY=1)
+add_executable(star_seed_properties seed_search_properties.cpp
+    ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp
+    ${STAR_SOURCE_DIR}/SharedMemory.cpp)
+star_target_build_options(star_seed_properties)
+star_target_sanitizers(star_seed_properties)
+target_include_directories(star_seed_properties PRIVATE ${STAR_SOURCE_DIR})
+target_link_libraries(star_seed_properties PRIVATE OpenMP::OpenMP_CXX parasail)
+target_compile_definitions(star_seed_properties PRIVATE STAR_SEED_HINT_REPLAY=1)
+add_executable(star_rank_hint_properties seed_rank_hint_properties.cpp
+    ${STAR_SOURCE_DIR}/PackedArray.cpp ${STAR_SOURCE_DIR}/SharedMemory.cpp)
+star_target_build_options(star_rank_hint_properties)
+star_target_sanitizers(star_rank_hint_properties)
+target_include_directories(star_rank_hint_properties PRIVATE ${STAR_SOURCE_DIR})
+target_link_libraries(star_rank_hint_properties PRIVATE OpenMP::OpenMP_CXX parasail)
+if(MSVC)
+    target_compile_options(star_seed_benchmark PRIVATE /EHsc)
+    target_compile_definitions(star_seed_benchmark PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
+    target_link_libraries(star_seed_benchmark PRIVATE psapi ws2_32)
+    target_compile_options(star_seed_properties PRIVATE /EHsc)
+    target_compile_definitions(star_seed_properties PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
+    target_link_libraries(star_seed_properties PRIVATE psapi ws2_32)
+    target_compile_options(star_rank_hint_properties PRIVATE /EHsc)
+    target_compile_definitions(star_rank_hint_properties PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
+    target_link_libraries(star_rank_hint_properties PRIVATE psapi ws2_32)
+endif()
 if(STAR_ENABLE_CUDA)
     target_compile_definitions(star_tests PRIVATE STAR_TEST_CUDA=1)
     add_library(star_seed_search STATIC ${STAR_SOURCE_DIR}/gpuSeedSearch.cu)
@@ -64,17 +97,8 @@ if(STAR_ENABLE_CUDA)
                           CUDA_ARCHITECTURES "${STAR_CUDA_ARCHITECTURES}")
     target_include_directories(star_seed_search PUBLIC ${STAR_SOURCE_DIR})
     target_link_libraries(star_seed_search PUBLIC CUDA::cudart)
-    add_executable(star_seed_benchmark benchmark_seed_search.cpp
-        ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp
-        ${STAR_SOURCE_DIR}/SharedMemory.cpp)
-    star_target_build_options(star_seed_benchmark)
-    target_include_directories(star_seed_benchmark PRIVATE ${STAR_SOURCE_DIR})
-    target_link_libraries(star_seed_benchmark PRIVATE star_seed_search OpenMP::OpenMP_CXX parasail)
-    if(MSVC)
-        target_compile_options(star_seed_benchmark PRIVATE /EHsc)
-        target_compile_definitions(star_seed_benchmark PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
-        target_link_libraries(star_seed_benchmark PRIVATE psapi ws2_32)
-    endif()
+    target_compile_definitions(star_seed_benchmark PRIVATE STAR_SEED_REPLAY_CUDA=1)
+    target_link_libraries(star_seed_benchmark PRIVATE star_seed_search)
 endif()
 
 # ---------- Platform-specific settings (mirrors source/CMakeLists.txt) ----------
@@ -98,6 +122,8 @@ endif()
 # ---------- Register with CTest ----------
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(star_tests)
+add_test(NAME seed_search_properties COMMAND star_seed_properties)
+add_test(NAME seed_rank_hint_properties COMMAND star_rank_hint_properties)
 
 # Exercise both Unix mapping implementations in separate processes. Windows IPC
 # is deliberately unsupported; do not substitute a stub test for this contract.

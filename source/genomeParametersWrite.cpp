@@ -3,7 +3,7 @@
 
 void genomeParametersWrite(string fileName, Parameters& P, string errorOut, Genome &mapGen)
 {//write the genome information into the genomePar stream
-    ofstream & genomePar = ofstrOpen(fileName, errorOut, P);
+    ofstream genomePar = ofstrOpenOwned(fileName, errorOut, P);
 
     genomePar << "### "<<P.commandLineFull <<"\n";
     genomePar << "### GstrandBit "<< int(mapGen.GstrandBit) <<"\n";

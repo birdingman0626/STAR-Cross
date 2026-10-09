@@ -264,6 +264,12 @@ jobs:
           UBSAN_OPTIONS: print_stacktrace=1
         run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build-asan/STAR"
 
+      - name: Leak-checked genome generation and CPU seed integration
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: python3 scripts/test_gpu_seed_integration.py --star "$GITHUB_WORKSPACE/source/build-asan/STAR" --benchmark "$GITHUB_WORKSPACE/source/build-asan/test/star_seed_benchmark" --executor cpu --sa-sparse 3
+
       - name: sjdb insertion memory-safety (issue #2657)
         run: |
           chmod +x extras/tests/scripts/validate_sjdb_asan.sh

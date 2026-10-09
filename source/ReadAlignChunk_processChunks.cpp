@@ -3,12 +3,18 @@
 #include "ErrorWarning.h"
 #include "SequenceFuns.h"
 #include "GlobalVariables.h"
+#include "SeedDiagnostics.h"
 
 inline uint64 fastqReadOneLine(ifstream &streamIn, char *arrIn);
 inline void removeStringEndControl(string &str);
 
 
 void ReadAlignChunk::processChunks() {//read-map-write chunks
+    #ifdef STAR_CAPTURE_SEEDS
+    if(std::getenv("STAR_SEED_TRACE_DIR") && (P.twoPass.yes || P.outFilterBySJoutStage!=0 || P.wasp.yes || P.peOverlap.yes))
+        throw std::runtime_error("diagnostic seed capture requires a fixed one-pass index without remapping or mate-overlap mapping");
+    seedTrace::Lifetime diagnostic(iThread);
+    #endif
     noReadsLeft=false; //true if there no more reads left in the file
     bool newFile=false; //new file marker in the input stream
     vector<string> headerExtra(P.readNends); //reuse comment storage across reads

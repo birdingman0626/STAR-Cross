@@ -1,5 +1,6 @@
 #include "SuffixArrayFuns.h"
 #include "PackedArray.h"
+#include "SeedDiagnostics.h"
 
 inline uint medianUint2(uint a, uint b)
 {
@@ -16,6 +17,9 @@ uint compareSeqToGenome(Genome &mapGen, char** s2, uint S, uint N, uint L, uint 
      */
 
     int64 ii;
+    #ifdef STAR_CAPTURE_SEEDS
+    seedTrace::Comparison diagnostic(ii,N-L);
+    #endif
 
     uint SAstr=mapGen.SA[iSA];
     bool dirG = (SAstr>>mapGen.GstrandBit) == 0; //forward or reverse strand of the genome
@@ -105,6 +109,9 @@ uint compareSeqToGenome(Genome &mapGen, char** s2, uint S, uint N, uint L, uint 
 
 uint findMultRange(Genome &mapGen, uint i3, uint L3, uint i1, uint L1, uint i1a, uint L1a, uint i1b, uint L1b, char** s, bool dirR, uint S)
 {    // given SA index i3 and identity length L3, return the index of the farthest element with the same length, starting from i1,L1 or i1a,L1a, or i1b,L1b
+    #ifdef STAR_CAPTURE_SEEDS
+    if(auto* w=seedTrace::worker()) ++w->ranges;
+    #endif
 
     bool compRes;
 
@@ -130,8 +137,17 @@ uint findMultRange(Genome &mapGen, uint i3, uint L3, uint i1, uint L1, uint i1a,
     return i1a;
 };
 
+#ifdef STAR_SEED_HINT_REPLAY
+template<bool UseHint>
+uint maxMappableLengthCore(Genome &mapGen, char** s, uint S, uint N, uint i1, uint i2,
+                           bool dirR, uint& L, uint* indStartEnd, uint preferredProbe)
+#else
 uint maxMappableLength(Genome &mapGen, char** s, uint S, uint N, uint i1, uint i2, bool dirR, uint& L, uint* indStartEnd)
+#endif
 {
+    #ifdef STAR_CAPTURE_SEEDS
+    seedTrace::Timer diagnostic(&seedTrace::Worker::extensionNs);
+    #endif
     /* find minimum mappable length of sequence s to the genome g with suffix array SA; length(s)=N; [i1 i2] is initial suffix array search bounds.
      * returns number of mappings (1=unique);range indStartEnd; min mapped length = L
      * binary search in SA space
@@ -163,6 +179,14 @@ uint maxMappableLength(Genome &mapGen, char** s, uint S, uint N, uint i1, uint i
 
     i3=i1;L3=L1; //in case i1+1>=i2 an not iteration of the loope below is ever made
     while (i1+1<i2) {//main binary search loop
+        #ifdef STAR_SEED_HINT_REPLAY
+        if constexpr (UseHint) {
+            // A hint chooses a probe, never a bound. All suffixes remain eligible
+            // until the existing exact comparator selects the next half-range.
+            i3=preferredProbe>i1 && preferredProbe<i2 ? preferredProbe : medianUint2(i1,i2);
+            preferredProbe=~0ULL;
+        } else
+        #endif
         i3=medianUint2(i1,i2);
         L3=compareSeqToGenome(mapGen,s,S,N,L,i3,dirR,compRes);
 
@@ -206,6 +230,17 @@ uint maxMappableLength(Genome &mapGen, char** s, uint S, uint N, uint i1, uint i
     return i2-i1+1;
 };
 
+
+#ifdef STAR_SEED_HINT_REPLAY
+uint maxMappableLength(Genome &mapGen, char** s, uint S, uint N, uint i1, uint i2,
+                      bool dirR, uint& L, uint* indStartEnd) {
+    return maxMappableLengthCore<false>(mapGen,s,S,N,i1,i2,dirR,L,indStartEnd,~0ULL);
+}
+uint maxMappableLengthHint(Genome &mapGen, char** s, uint S, uint N, uint i1, uint i2,
+                          bool dirR, uint& L, uint* indStartEnd,uint preferredProbe) {
+    return maxMappableLengthCore<true>(mapGen,s,S,N,i1,i2,dirR,L,indStartEnd,preferredProbe);
+}
+#endif
 
 int compareRefEnds (Genome &mapGen, uint64 SAstr,  uint64 gInsert, bool strG, bool strR)
 {

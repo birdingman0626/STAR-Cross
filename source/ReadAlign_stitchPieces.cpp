@@ -8,8 +8,12 @@
 #include "PackedArray.h"
 #include "GlobalVariables.h"
 #include <time.h>
+#include "SeedDiagnostics.h"
 
 void ReadAlign::stitchPieces(char **R, uint Lread) {
+    #ifdef STAR_CAPTURE_SEEDS
+    seedTrace::Timer diagnostic(&seedTrace::Worker::stitchNs);
+    #endif
 
     //reset winBin — O(modified) instead of O(N) memset
     winBin[0].reset();
@@ -278,6 +282,9 @@ std::time(&timeStart);
             WA[ iW ][ WlastAnchor[iW] ][ WA_Anchor]=2; //mark the last anchor
         };
 
+        #ifdef STAR_CAPTURE_SEEDS
+        if(auto* w=seedTrace::worker()) {++w->windows;w->windowSeeds+=nWA[iW];}
+        #endif
         for (uint ii=0;ii<nWA[iW];ii++) WAincl[ii]=false; //initialize mask
 
         trA=*trInit; //that one is initialized

@@ -62,7 +62,9 @@ if(NOT STAR_CUDA_STANDARD MATCHES "^(17|20)$")
 endif()
 option(STAR_CAPTURE_SEEDS "Diagnostic bounded post-clipping seed capture (not for benchmarks)" OFF)
 if(STAR_CAPTURE_SEEDS)
-    set_property(SOURCE ReadAlign_maxMappableLength2strands.cpp APPEND PROPERTY
+    set_property(SOURCE ReadAlign_maxMappableLength2strands.cpp ReadAlign_mapOneRead.cpp
+                 SuffixArrayFuns.cpp ReadAlign_stitchPieces.cpp ReadAlign_stitchWindowSeeds.cpp
+                 stitchWindowAligns.cpp ReadAlignChunk_processChunks.cpp APPEND PROPERTY
                  COMPILE_DEFINITIONS STAR_CAPTURE_SEEDS=1)
 endif()
 if(STAR_ENABLE_CUDA)

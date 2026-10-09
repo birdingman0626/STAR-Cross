@@ -52,7 +52,9 @@ def bam_signature(path):
     Temporary database is only comparator scratch, never a scientific result.
     """
     digest = hashlib.sha256()
-    with tempfile.TemporaryDirectory(prefix="star-bam-compare-") as scratch:
+    # Keep the large record database on the BAM's data volume. SQLite's sorter
+    # may additionally use OS temporary storage; allow space on both volumes.
+    with tempfile.TemporaryDirectory(prefix="star-bam-compare-",dir=Path(path).parent) as scratch:
         with closing(sqlite3.connect(str(Path(scratch)/"records.sqlite"))) as db:
             db.execute("PRAGMA cache_size=-8192")
             db.execute("PRAGMA temp_store=FILE")

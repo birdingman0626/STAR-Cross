@@ -8,6 +8,7 @@
 #include "extendAlign.h"
 #include "binarySearch2.h"
 #include "ErrorWarning.h"
+#include "SeedDiagnostics.h"
 
 void ReadAlign::stitchWindowSeeds (uint iW, uint iWrec, bool *WAexcl, char *R) {//stitches all seeds in one window: iW
 
@@ -28,6 +29,9 @@ void ReadAlign::stitchWindowSeeds (uint iW, uint iWrec, bool *WAexcl, char *R) {
                 trA1.exons[0][EX_L] = WA[iW][iS2][WA_Length];
                 trA1.exons[0][EX_iFrag]=WA[iW][iS2][WA_iFrag];
                 trA1.exons[0][EX_sjA]=WA[iW][iS2][WA_sjA];
+                #ifdef STAR_CAPTURE_SEEDS
+                if(auto* w=seedTrace::worker()) ++w->transitions;
+                #endif
                 score2=\
                     stitchAlignToTranscript(WA[iW][iS2][WA_rStart]+WA[iW][iS2][WA_Length]-1, WA[iW][iS2][WA_gStart]+WA[iW][iS2][WA_Length]-1,\
                                         WA[iW][iS1][WA_rStart], WA[iW][iS1][WA_gStart], WA[iW][iS1][WA_Length], WA[iW][iS1][WA_iFrag],  WA[iW][iS1][WA_sjA], \
