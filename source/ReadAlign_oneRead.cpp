@@ -75,7 +75,7 @@ int ReadAlign::oneRead() {//process one read: load, map, write
     statsRA.readBases += readLength[0]+readLength[1];
 
     //max number of mismatches allowed for this read
-    outFilterMismatchNmaxTotal=min(P.outFilterMismatchNmax, (uint) (P.outFilterMismatchNoverReadLmax*(readLength[0]+readLength[1])));
+    outFilterMismatchNmaxTotal=min(P.alignFilter.mismatchMax, (uint) (P.alignFilter.mismatchOverReadLengthMax*(readLength[0]+readLength[1])));
 
     //map the read
     if (P.pGe.gType==101) {//SpliceGraph

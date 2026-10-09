@@ -12,7 +12,7 @@ class PackedArray {
         std::unique_ptr<char[]> storage;
     public:
         uint wordLength, length, lengthByte;
-        uint operator [] (uint ii);
+        uint operator [] (uint ii) const;
         char* charArray;
 
     PackedArray();
@@ -29,7 +29,7 @@ class PackedArray {
 //     PackedArray(uint N);
 };
 
-inline uint PackedArray::operator [] (uint ii) {
+inline uint PackedArray::operator [] (uint ii) const {
    uint b=ii*wordLength;
    uint B=b/8;
    uint S=b%8;

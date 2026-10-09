@@ -142,9 +142,44 @@ and random seeds remain unchanged on supported inputs. This removes a dense
 allocation, not a measured end-to-end performance claim. Truly huge candidate
 counts can still require large factorial tables and long simulations.
 
-The isolated CUDA seed executable must link SharedMemory.cpp after Genome's
-shared-memory holder became uniquely owned. It now links the production
-implementation rather than adding a dummy destructor or weakening ownership.
+The initial isolated CUDA seed executable linked SharedMemory.cpp after Genome's
+shared-memory holder became uniquely owned, rather than adding a dummy
+destructor or weakening ownership. The 2026-10-09 index-view refactor removes
+Genome from the standalone search/replay boundary and eliminates that linkage
+entirely; production Genome retains its real shared-memory owner.
 Host/device C++17 remap and seed correctness tests and targeted device memcheck
 pass locally. This does not establish whole-application race freedom, global
 cleanup, all IPC modes or fatal-error unwinding.
+
+## 2026-10-09 interior ownership review
+
+ReadAlign scratch storage, SpliceGraph arrays, Solo/SoloFeature and SoloRead
+holders already use unique ownership behind borrowed public pointer views.
+No extra owning wrapper was added to those views. The new SeedIndexView and
+AlignmentResultView are explicitly borrowed and synchronous; neither extends
+the lifetime of its owner or permits async reuse of the underlying buffers.
+See [architecture implementation record](ARCHITECTURE_IMPLEMENTATION_20261009.md)
+for the tested boundaries and optional bounded scheduler/output transport.
+
+Continuation review found insertion scratch arrays still manually owned;
+`insertSeqSA` now has unique_ptr holders without adding buffer copies or zeroing
+allocations. Replacing SAi explicitly releases the old owned table before
+rebuilding it. The newly covered on-the-fly insertion completes under ASan with
+leak detection enabled; this does not qualify arbitrary whole-library insertion
+sizes or every configured finite suffix length.
+
+The non-GPU continuation uses existing value-returning output-stream helpers for
+GTF super-transcriptome files and explicit owners for conversion/junction input
+streams. The temporary output-genome Parameters reader borrows the main streams
+instead of allocating and abandoning a second InOutStreams. BySJout novel
+junction arrays now have shared lifetime across Parameters pass copies, while
+the existing search API retains borrowed raw views. Normal Full/graph generation,
+graph mapping and two-stage filter paths are checked with leak detection enabled.
+Fatal exits and every exceptional BGZF/OS resource remain separate boundaries.
+
+The expanded leak-checked integration also found an unused early coordinate-BAM
+BGZF handle. It is removed: sorting already creates/checks the final stream when
+its bins are ready. This avoids duplicate file/stdout ownership without changing
+the sorting algorithm. Sorting bin boundaries now use vector ownership, and
+outputSJ's local pointer/filter arrays use unique ownership. No extra matrix,
+index or per-read allocation is introduced by these fixes.

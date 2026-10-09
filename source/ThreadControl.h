@@ -2,6 +2,8 @@
 #define THREAD_CONTROL_DEF
 
 #include "ReadAlignChunk.h"
+#include <mutex>
+#include <exception>
 #ifdef _WIN32
     #include "wincompat.h"
 #else
@@ -19,14 +21,12 @@ public:
     pthread_mutex_t mutexStats, mutexLogMain, mutexBAMsortBins, mutexError;
 
     uint chunkInN,chunkOutN;
+    std::mutex failureMutex;
+    std::exception_ptr mappingFailure;
 
     ThreadControl();
 
-    static void* threadRAprocessChunks(void *RAchunk) {
-        ( (ReadAlignChunk*) RAchunk )->processChunks();
-        pthread_exit(0);
-        return NULL;
-    };
+    static void* threadRAprocessChunks(void *RAchunk);
 };
 
 #endif

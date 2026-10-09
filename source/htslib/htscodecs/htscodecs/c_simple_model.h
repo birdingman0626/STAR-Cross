@@ -130,7 +130,7 @@ static inline void SIMPLE_MODEL(NSYM,_encodeSymbol)(SIMPLE_MODEL(NSYM,_) *m,
         SIMPLE_MODEL(NSYM,_normalize)(m);
 
     /* Keep approx sorted */
-    if (s[0].Freq > s[-1].Freq) {
+    if (s > m->F && s[0].Freq > s[-1].Freq) {
         SymFreqs t = s[0];
         s[0] = s[-1];
         s[-1] = t;
@@ -160,7 +160,7 @@ static inline uint16_t SIMPLE_MODEL(NSYM,_decodeSymbol)(SIMPLE_MODEL(NSYM,_) *m,
         SIMPLE_MODEL(NSYM,_normalize)(m);
 
     /* Keep approx sorted */
-    if (s[0].Freq > s[-1].Freq) {
+    if (s > m->F && s[0].Freq > s[-1].Freq) {
         SymFreqs t = s[0];
         s[0] = s[-1];
         s[-1] = t;

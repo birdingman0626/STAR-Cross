@@ -32,6 +32,19 @@ TEST_CASE("Genome parameter readers release registrations without closing borrow
     }
 }
 
+TEST_CASE("Novel junction arrays retain their owners across Parameters pass copies") {
+    InOutStreams streams;
+    Parameters parameters(streams);
+    parameters.sjNovelStartStorage.reset(new uint64[1]{17});
+    parameters.sjNovelEndStorage.reset(new uint64[1]{29});
+    parameters.sjNovelStart=parameters.sjNovelStartStorage.get();
+    parameters.sjNovelEnd=parameters.sjNovelEndStorage.get();
+    Parameters pass(parameters);
+    parameters.sjNovelStartStorage.reset();parameters.sjNovelEndStorage.reset();
+    CHECK(pass.sjNovelStart[0]==17);
+    CHECK(pass.sjNovelEnd[0]==29);
+}
+
 TEST_CASE("Quantifications owns independent count arrays and releases repeatedly") {
     for (int iteration=0; iteration<32; ++iteration) {
         Quantifications total(17), incoming(17);

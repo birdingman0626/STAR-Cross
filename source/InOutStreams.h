@@ -3,12 +3,17 @@
 
 #include "IncludeDefine.h"
 #include SAMTOOLS_BGZF_H
+#include <memory>
+class AsyncByteWriter;
+class ChunkInputDispatcher;
 
 class InOutStreams {
     public:
     ostream *logStdOut, *outSAM;
     ofstream logStdOutFile, outSAMfile;
-    BGZF *outBAMfileUnsorted, *outBAMfileCoord, *outQuantBAMfile;
+    BGZF *outBAMfileUnsorted, *outQuantBAMfile;
+    std::unique_ptr<AsyncByteWriter> unsortedWriter,quantWriter,samWriter;
+    std::unique_ptr<ChunkInputDispatcher> chunkInputDispatcher;
 
     ofstream outChimSAM, outChimJunction, logMain, logProgress, logFinal, outUnmappedReadsStream[MAX_N_MATES];
     ifstream readIn[MAX_N_MATES];

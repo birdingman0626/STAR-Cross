@@ -4788,8 +4788,10 @@ static inline uint8_t *skip_aux(uint8_t *s, uint8_t *end)
         size = aux_type2size(*s); ++s;
         n = le_to_u32(s);
         s += 4;
-        if (size == 0 || end - s < size * n) return NULL;
-        return s + size * n;
+        // Divide before multiplying: a malformed 32-bit count must not wrap
+        // the length check, including on platforms with 32-bit size_t.
+        if (size == 0 || n > (size_t)(end - s) / (unsigned)size) return NULL;
+        return s + (size_t)size * n;
     case 0:
         return NULL;
     default:
@@ -5556,6 +5558,7 @@ int bam_plp_insertion_mod(const bam_pileup1_t *p,
                 if (m && (nm = bam_mods_at_qpos(p->b, p->qpos + j - p->is_del,
                                                 m, mod, 256)) > 0) {
                     int o_indel = indel;
+                    if (nm > 256) return -1;
                     if (ks_resize(ins, ins->l + nm*16+3) < 0)
                         return -1;
                     ins->s[indel++] = '[';
@@ -5566,19 +5569,25 @@ int bam_plp_insertion_mod(const bam_pileup1_t *p,
                             snprintf(qual, sizeof(qual), "%d", mod[j].qual);
                         else
                             *qual=0;
+                        int written;
+                        if (indel < 0 || (size_t)indel >= ins->m) return -1;
+                        size_t available = ins->m - (size_t)indel;
                         if (mod[j].modified_base < 0)
                             // ChEBI
-                            indel += snprintf(&ins->s[indel], ins->m - indel,
-                                              "%c(%d)%s",
+                            written = snprintf(&ins->s[indel], available,
+                                              "%c(%u)%s",
                                               "+-"[mod[j].strand],
-                                              -mod[j].modified_base,
+                                              0u - (unsigned)mod[j].modified_base,
                                               qual);
                         else
-                            indel += snprintf(&ins->s[indel], ins->m - indel,
+                            written = snprintf(&ins->s[indel], available,
                                               "%c%c%s",
                                               "+-"[mod[j].strand],
                                               mod[j].modified_base,
                                               qual);
+                        if (written < 0 || (size_t)written >= available ||
+                            written > INT_MAX - indel) return -1;
+                        indel += written;
                     }
                     ins->s[indel++] = ']';
                     ins->l += indel - o_indel; // grow by amount we used

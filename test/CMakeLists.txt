@@ -20,6 +20,11 @@ set(STAR_TEST_SOURCES
     ${STAR_SOURCE_DIR}/binarySearch2.cpp
     ${STAR_SOURCE_DIR}/ClipCR4.cpp
     ${STAR_SOURCE_DIR}/Quantifications.cpp
+    ${STAR_SOURCE_DIR}/AsyncByteWriter.cpp
+    ${STAR_SOURCE_DIR}/SequenceFuns.cpp
+    ${STAR_SOURCE_DIR}/PairedReadMerger.cpp
+    ${STAR_SOURCE_DIR}/funCompareUintAndSuffixes.cpp
+    ${STAR_SOURCE_DIR}/funCompareUintAndSuffixesMemcmp.cpp
     ${STAR_SOURCE_DIR}/Parameters_register.cpp
     ${STAR_SOURCE_DIR}/InOutStreams.cpp
 )
@@ -43,6 +48,12 @@ add_executable(star_tests
     unit/test_gpuSjdbRemap.cpp
     unit/test_ParametersGenome.cpp
     unit/test_ownership.cpp
+    unit/test_AlignmentFilter.cpp
+    unit/test_AsyncByteWriter.cpp
+    unit/test_ChunkInputDispatcher.cpp
+    unit/test_OutputAlignmentSelection.cpp
+    unit/test_PairedReadMerger.cpp
+    unit/test_InsertSuffixCompare.cpp
     ${STAR_TEST_SOURCES}
 )
 star_target_build_options(star_tests)
@@ -58,23 +69,21 @@ target_include_directories(star_tests PRIVATE
 find_package(OpenMP REQUIRED)
 target_link_libraries(star_tests PRIVATE OpenMP::OpenMP_CXX hts parasail star_sjdb_remap)
 add_executable(star_seed_benchmark benchmark_seed_search.cpp
-    ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp
-    ${STAR_SOURCE_DIR}/SharedMemory.cpp)
+    ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp)
 star_target_build_options(star_seed_benchmark)
 star_target_sanitizers(star_seed_benchmark)
 target_include_directories(star_seed_benchmark PRIVATE ${STAR_SOURCE_DIR})
 target_link_libraries(star_seed_benchmark PRIVATE OpenMP::OpenMP_CXX parasail nlohmann_json::nlohmann_json)
 target_compile_definitions(star_seed_benchmark PRIVATE STAR_SEED_HINT_REPLAY=1)
 add_executable(star_seed_properties seed_search_properties.cpp
-    ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp
-    ${STAR_SOURCE_DIR}/SharedMemory.cpp)
+    ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp)
 star_target_build_options(star_seed_properties)
 star_target_sanitizers(star_seed_properties)
 target_include_directories(star_seed_properties PRIVATE ${STAR_SOURCE_DIR})
 target_link_libraries(star_seed_properties PRIVATE OpenMP::OpenMP_CXX parasail)
 target_compile_definitions(star_seed_properties PRIVATE STAR_SEED_HINT_REPLAY=1)
 add_executable(star_rank_hint_properties seed_rank_hint_properties.cpp
-    ${STAR_SOURCE_DIR}/PackedArray.cpp ${STAR_SOURCE_DIR}/SharedMemory.cpp)
+    ${STAR_SOURCE_DIR}/PackedArray.cpp)
 star_target_build_options(star_rank_hint_properties)
 star_target_sanitizers(star_rank_hint_properties)
 target_include_directories(star_rank_hint_properties PRIVATE ${STAR_SOURCE_DIR})
@@ -124,6 +133,16 @@ include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(star_tests)
 add_test(NAME seed_search_properties COMMAND star_seed_properties)
 add_test(NAME seed_rank_hint_properties COMMAND star_rank_hint_properties)
+if(UNIX)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(hts_security_flags)
+    if(STAR_ASAN)
+        list(APPEND hts_security_flags --sanitize)
+    endif()
+    add_test(NAME hts_private_security_boundaries
+        COMMAND ${Python3_EXECUTABLE} ${STAR_SOURCE_DIR}/../scripts/test_security_boundaries.py
+            --cc ${CMAKE_C_COMPILER} ${hts_security_flags})
+endif()
 
 # Exercise both Unix mapping implementations in separate processes. Windows IPC
 # is deliberately unsupported; do not substitute a stub test for this contract.

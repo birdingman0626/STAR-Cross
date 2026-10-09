@@ -103,10 +103,10 @@ ReadAlign::ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, in
     storage->trInit.reset(new Transcript); trInit=storage->trInit.get();
     
     if (mapGen.genomeOut.convYes) {//allocate output transcripts
-        storage->outputTranscripts.reset(new Transcript*[P.outFilterMultimapNmax]);
+        storage->outputTranscripts.reset(new Transcript*[P.alignFilter.multimapMax]);
         alignsGenOut.alMult=storage->outputTranscripts.get();
-        storage->transformed.resize(P.outFilterMultimapNmax);
-        for (uint32 ii=0; ii<P.outFilterMultimapNmax; ii++) {
+        storage->transformed.resize(P.alignFilter.multimapMax);
+        for (uint32 ii=0; ii<P.alignFilter.multimapMax; ii++) {
             storage->transformed[ii].reset(new Transcript);
             alignsGenOut.alMult[ii]=storage->transformed[ii].get();
         }

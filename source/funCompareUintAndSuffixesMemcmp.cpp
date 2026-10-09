@@ -1,8 +1,10 @@
 #include "funCompareUintAndSuffixesMemcmp.h"
 #include <string.h> //for memcmp
+#include <algorithm>
 
 char* g_funCompareUintAndSuffixesMemcmp_G;
 uint64_t g_funCompareUintAndSuffixesMemcmp_L;
+uint64_t g_funCompareUintAndSuffixesMemcmp_N;
 
 int funCompareUintAndSuffixesMemcmp ( const void *a, const void *b)
 {
@@ -21,10 +23,13 @@ int funCompareUintAndSuffixesMemcmp ( const void *a, const void *b)
 //         char *p5=g_funCompareUintAndSuffixesMemcmp_G+va[1]+g_funCompareUintAndSuffixesMemcmp_L;
         //compare suffixes but only until first char=5
 //         int comp=memcmp(g_funCompareUintAndSuffixesMemcmp_G+va[1],g_funCompareUintAndSuffixesMemcmp_G+vb[1],p5+1-(g_funCompareUintAndSuffixesMemcmp_G+va[1]));
-        int comp=memcmp(g_funCompareUintAndSuffixesMemcmp_G+va[1],g_funCompareUintAndSuffixesMemcmp_G+vb[1],g_funCompareUintAndSuffixesMemcmp_L);
+        const auto length=std::min(g_funCompareUintAndSuffixesMemcmp_L,
+            g_funCompareUintAndSuffixesMemcmp_N-std::max(va[1],vb[1]));
+        int comp=memcmp(g_funCompareUintAndSuffixesMemcmp_G+va[1],g_funCompareUintAndSuffixesMemcmp_G+vb[1],length);
 
         if (comp==0)
         {
+            if (va[1]==vb[1]) return 0;
             comp=va[1]>vb[1] ? 1 : -1;
         };
 //         int comp=va[1]>vb[1] ? 1 : -1;

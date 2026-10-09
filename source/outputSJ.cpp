@@ -20,7 +20,7 @@ int compareUint(const void* i1, const void* i2) {//compare uint arrays
 void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions from all therads/chunks; outputs junctions to file
 
     Junction oneSJ(RAchunk[0]->RA->genOut);
-    char** sjChunks = new char* [P.runThreadN+1];
+    std::unique_ptr<char*[]> sjChunks(new char* [P.runThreadN+1]);
     #define OUTSJ_limitScale 2
     OutSJ allSJ (P.limitOutSJcollapsed*OUTSJ_limitScale, P, RAchunk[0]->RA->genOut);
 
@@ -82,7 +82,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
         sjChunks[icOut] += oneSJ.dataSize;//shift icOut-chunk by one junction
     };
 
-    bool* sjFilter=new bool[allSJ.N];
+    std::unique_ptr<bool[]> sjFilter(new bool[allSJ.N]);
     if (P.outFilterBySJoutStage!=2) {
         //filter non-canonical junctions that are close to canonical
         uint* sjA = new uint [allSJ.N*3];
@@ -143,8 +143,10 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
                 if (*oneSJ.annot==0) P.sjNovelN++;
             };
         };
-        P.sjNovelStart = new uint [P.sjNovelN];
-        P.sjNovelEnd = new uint [P.sjNovelN];
+        P.sjNovelStartStorage.reset(new uint [P.sjNovelN]);
+        P.sjNovelEndStorage.reset(new uint [P.sjNovelN]);
+        P.sjNovelStart = P.sjNovelStartStorage.get();
+        P.sjNovelEnd = P.sjNovelEndStorage.get();
         P.inOut->logMain <<"Detected " <<P.sjNovelN<<" novel junctions that passed filtering, will proceed to filter reads that contained unannotated junctions"<<endl;
 
         uint isj=0;
@@ -160,6 +162,4 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
         };
     };
 
-    delete[] sjFilter; // fix memory leak (upstream PR #2676)
-    delete[] sjChunks; // fix memory leak (upstream PR #2676)
 };

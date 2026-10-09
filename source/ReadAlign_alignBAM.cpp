@@ -273,7 +273,7 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
                 packedCIGAR[nCIGAR++]=trimR1<<BAM_CIGAR_OperationShift | (alignType==-12 ? BAM_CIGAR_H : BAM_CIGAR_S);
             };
 
-            MAPQ=P.outSAMmapqUnique;
+            MAPQ=P.output.uniqueMapq;
             if (nTrOut>=5) {
                 MAPQ=0;
             } else if (nTrOut>=3) {

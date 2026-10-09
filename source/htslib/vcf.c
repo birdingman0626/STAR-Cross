@@ -1987,9 +1987,15 @@ static int updatephasing(uint8_t *p, uint8_t *end, uint8_t **q, int samples, int
 {
     int j, k;
     unsigned int inc = 1 << bcf_type_shift[type];
-    ptrdiff_t bytes = samples * ploidy * inc;
-
-    if (samples < 0 || ploidy < 0 || end - p < bytes)
+    if (samples < 0 || ploidy < 0 || p > end)
+        return 1;
+    if (samples == 0) {
+        *q = p;
+        return 0;
+    }
+    if (ploidy == 0 ||
+        (size_t)ploidy > (size_t)(end - p) / inc ||
+        (size_t)samples > (size_t)(end - p) / inc / (size_t)ploidy)
         return 1;
 
     /*
@@ -2020,9 +2026,9 @@ static int updatephasing(uint8_t *p, uint8_t *end, uint8_t **q, int samples, int
         for (j = 0; j < samples; ++j) {
             uint8_t allphased = 1;
             for (k = 1; k < ploidy; ++k)
-                allphased &= (p[inc * k]);
+                allphased &= (p[(size_t)inc * k]);
             *p |= allphased;
-            p += ploidy * inc;
+            p += (size_t)ploidy * inc;
         }
     }
     *q = p;
@@ -3354,7 +3360,7 @@ static int vcf_parse_format_alloc4(kstring_t *s, const bcf_hdr_t *h, bcf1_t *v,
             v->errcode |= BCF_ERR_LIMITS;
             return -1;
         }
-        mem->l += v->n_sample * f->size;
+        mem->l += v->n_sample * (size_t)f->size;
     }
 
     {
@@ -5787,7 +5793,9 @@ int bcf_update_format(const bcf_hdr_t *hdr, bcf1_t *line, const char *key, const
         return 0;
     }
 
+    if (n < 0 || !values) return -1;
     line->n_sample = bcf_hdr_nsamples(hdr);
+    if (line->n_sample == 0 || n % line->n_sample != 0) return -1;
     int nps = n / line->n_sample;  // number of values per sample
     assert( nps && nps*line->n_sample==n );     // must be divisible by n_sample
 
@@ -5800,12 +5808,12 @@ int bcf_update_format(const bcf_hdr_t *hdr, bcf1_t *line, const char *key, const
     else if ( type==BCF_HT_REAL )
     {
         bcf_enc_size(&str, nps, BCF_BT_FLOAT);
-        serialize_float_array(&str, nps*line->n_sample, (float *) values);
+        serialize_float_array(&str, n, (float *) values);
     }
     else if ( type==BCF_HT_STR )
     {
         bcf_enc_size(&str, nps, BCF_BT_CHAR);
-        kputsn((char*)values, nps*line->n_sample, &str);
+        kputsn((char*)values, n, &str);
     }
     else
     {

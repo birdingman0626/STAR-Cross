@@ -38,6 +38,7 @@ private:
     Parameters &P;
     string bamDir;
     void checkStream(uint32 bin);
+    void writeUnsortedBatch();
 };
 
 #endif

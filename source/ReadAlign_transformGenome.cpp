@@ -7,7 +7,7 @@ void ReadAlign::transformGenome()
     
     alignsGenOut.alBest = trBest; //it will be redefined below if alignment passes mapping filter
     
-    if (!mapGen.genomeOut.convYes || mapGen.pGe.transform.type==0 || nTr > P.outFilterMultimapNmax || nTr==0)
+    if (!mapGen.genomeOut.convYes || mapGen.pGe.transform.type==0 || nTr > P.alignFilter.multimapMax || nTr==0)
         return; //no transformation necessary
     
     uint32 nTr1=0;

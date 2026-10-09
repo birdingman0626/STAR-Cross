@@ -1,0 +1,797 @@
+--- /dev/null
++++ b/config.h
+@@ -0,0 +1,12 @@
++/* config.h for bundled htslib 1.24 in STAR */
++/* Minimal configuration - only zlib required */
++
++/* #undef HAVE_LIBBZ2 */
++/* #undef HAVE_LIBLZMA */
++/* #undef HAVE_LIBDEFLATE */
++/* #undef HAVE_LIBCURL */
++/* #undef HAVE_EXTERNAL_HTSCODECS */
++
++#ifdef _WIN32
++#define HAVE_DRAND48
++#endif
+--- /dev/null
++++ b/config_vars.h
+@@ -0,0 +1,5 @@
++#define HTS_CC ""
++#define HTS_CPPFLAGS ""
++#define HTS_CFLAGS ""
++#define HTS_LDFLAGS ""
++#define HTS_LIBS ""
+--- a/cram/cram_io.c
++++ b/cram/cram_io.c
+@@ -2655,10 +2655,11 @@
+         path += cp-dir;
+         sz -= cp-dir;
+ 
+-        if (*++cp == 's') {
++        if (!*++cp) return -1; // incomplete escape, do not advance past NUL
++        if (*cp == 's') {
+             len = strlen(fn);
+             if (len >= sz) return -1;
+-            strcpy(path, fn);
++            memcpy(path, fn, len + 1);
+             path += len;
+             sz -= len;
+             fn += len;
+@@ -2681,18 +2682,20 @@
+                 if (sz < 3) return -1;
+                 *path++ = '%';
+                 *path++ = *cp++;
++                sz -= 2;
+             }
+         } else {
+             if (sz < 3) return -1;
+             *path++ = '%';
+             *path++ = *cp++;
++            sz -= 2;
+         }
+         dir = cp;
+     }
+ 
+     len = strlen(dir);
+     if (len >= sz) return -1;
+-    strcpy(path, dir);
++    memcpy(path, dir, len + 1);
+     path += len;
+     sz -= len;
+ 
+@@ -2700,7 +2703,7 @@
+     if (len >= sz) return -1;
+     if (*fn && path > start && path[-1] != '/')
+         *path++ = '/';
+-    strcpy(path, fn);
++    memcpy(path, fn, strlen(fn) + 1);
+     return 0;
+ }
+ 
+@@ -2737,6 +2740,12 @@
+  * Returns 0 on success
+  *        -1 on failure
+  */
++static int valid_md5_name(const char *name) {
++    // M5 identifies a digest, not a caller-supplied path or URL.
++    return name && strlen(name) == 32 &&
++        strspn(name, "0123456789abcdefABCDEF") == 32;
++}
++
+ static int cram_populate_ref(cram_fd *fd, int id, ref_entry *r) {
+     char *ref_path = getenv("REF_PATH");
+     sam_hrec_type_t *ty;
+@@ -2757,6 +2766,11 @@
+ 
+     if (!(tag = sam_hrecs_find_key(ty, "M5", NULL)))
+         goto no_M5;
++
++    if (!valid_md5_name(tag->str+3)) {
++        hts_log_error("Invalid M5 digest for reference %s", r->name);
++        return -1;
++    }
+ 
+     hts_log_info("Querying ref %s", tag->str+3);
+ 
+--- a/errmod.c
++++ b/errmod.c
+@@ -27,6 +27,7 @@
+ #include <config.h>
+ 
+ #include <math.h>
++#include <errno.h>
+ #include "htslib/hts.h"
+ #include "htslib/ksort.h"
+ #include "htslib/hts_os.h" // for drand48
+@@ -53,7 +54,7 @@
+     /* prob distribution for binom var is p(k) = {n! \over k! (n-k)! } p^k (1-p)^{n-k} */
+     /* this calcs p(k) = {log(n!) - log(k!) - log((n-k)!) */
+     int k, n;
+-    double *logbinom = (double*)calloc(n_size * n_size, sizeof(double));
++    double *logbinom = (double*)calloc((size_t)n_size * n_size, sizeof(double));
+     if (!logbinom) return NULL;
+     for (n = 1; n < n_size; ++n) {
+         double lfn = lfact(n);
+@@ -150,7 +151,12 @@
+     // The total count of each base observed per strand
+     int w[32];
+ 
+-    memset(q, 0, m * m * sizeof(float)); // initialise q to 0
++    // The likelihood model has sixteen base bins; validate before touching q.
++    if (n < 0 || m < 1 || m > 16 || !q || (n > 0 && (!em || !bases))) {
++        errno = EINVAL;
++        return -1;
++    }
++    memset(q, 0, (size_t)m * m * sizeof(float)); // initialise q to 0
+     if (n == 0) return 0;
+     // This section randomly downsamples to 255 depth so as not to go beyond our precalculated matrix
+     if (n > 255) { // if we exceed 255 bases observed then shuffle them to sample and only keep the first 255
+--- a/hts_internal.h
++++ b/hts_internal.h
+@@ -137,7 +137,7 @@
+  */
+ int bgzf_idx_push(BGZF *fp, hts_idx_t *hidx, int tid, hts_pos_t beg, hts_pos_t end, uint64_t offset, int is_mapped);
+ 
+-static inline int find_file_extension(const char *fn, char ext_out[static HTS_MAX_EXT_LEN])
++static inline int find_file_extension(const char *fn, char ext_out[HTS_MAX_EXT_LEN])
+ {
+     const char *delim = fn ? strstr(fn, HTS_IDX_DELIM) : NULL, *ext;
+     if (!fn) return -1;
+@@ -158,8 +158,14 @@
+ 
+ static inline int hts_usleep(long long usec)
+ {
++#ifdef _WIN32
++    // STAR-Cross's force-included compatibility layer supplies usleep.
++    if (usec < 0 || usec > UINT_MAX) { errno = EINVAL; return -1; }
++    return usleep((unsigned int)usec);
++#else
+     struct timespec req = { usec / 1000000, (usec % 1000000) * 1000 };
+     return nanosleep(&req, NULL);
++#endif
+ }
+ 
+ /*!
+--- a/htscodecs/htscodecs/c_simple_model.h
++++ b/htscodecs/htscodecs/c_simple_model.h
+@@ -130,7 +130,7 @@
+         SIMPLE_MODEL(NSYM,_normalize)(m);
+ 
+     /* Keep approx sorted */
+-    if (s[0].Freq > s[-1].Freq) {
++    if (s > m->F && s[0].Freq > s[-1].Freq) {
+         SymFreqs t = s[0];
+         s[0] = s[-1];
+         s[-1] = t;
+@@ -160,7 +160,7 @@
+         SIMPLE_MODEL(NSYM,_normalize)(m);
+ 
+     /* Keep approx sorted */
+-    if (s[0].Freq > s[-1].Freq) {
++    if (s > m->F && s[0].Freq > s[-1].Freq) {
+         SymFreqs t = s[0];
+         s[0] = s[-1];
+         s[-1] = t;
+--- a/sam.c
++++ b/sam.c
+@@ -4788,8 +4788,10 @@
+         size = aux_type2size(*s); ++s;
+         n = le_to_u32(s);
+         s += 4;
+-        if (size == 0 || end - s < size * n) return NULL;
+-        return s + size * n;
++        // Divide before multiplying: a malformed 32-bit count must not wrap
++        // the length check, including on platforms with 32-bit size_t.
++        if (size == 0 || n > (size_t)(end - s) / (unsigned)size) return NULL;
++        return s + (size_t)size * n;
+     case 0:
+         return NULL;
+     default:
+@@ -5556,6 +5558,7 @@
+                 if (m && (nm = bam_mods_at_qpos(p->b, p->qpos + j - p->is_del,
+                                                 m, mod, 256)) > 0) {
+                     int o_indel = indel;
++                    if (nm > 256) return -1;
+                     if (ks_resize(ins, ins->l + nm*16+3) < 0)
+                         return -1;
+                     ins->s[indel++] = '[';
+@@ -5566,19 +5569,25 @@
+                             snprintf(qual, sizeof(qual), "%d", mod[j].qual);
+                         else
+                             *qual=0;
++                        int written;
++                        if (indel < 0 || (size_t)indel >= ins->m) return -1;
++                        size_t available = ins->m - (size_t)indel;
+                         if (mod[j].modified_base < 0)
+                             // ChEBI
+-                            indel += snprintf(&ins->s[indel], ins->m - indel,
+-                                              "%c(%d)%s",
++                            written = snprintf(&ins->s[indel], available,
++                                              "%c(%u)%s",
+                                               "+-"[mod[j].strand],
+-                                              -mod[j].modified_base,
++                                              0u - (unsigned)mod[j].modified_base,
+                                               qual);
+                         else
+-                            indel += snprintf(&ins->s[indel], ins->m - indel,
++                            written = snprintf(&ins->s[indel], available,
+                                               "%c%c%s",
+                                               "+-"[mod[j].strand],
+                                               mod[j].modified_base,
+                                               qual);
++                        if (written < 0 || (size_t)written >= available ||
++                            written > INT_MAX - indel) return -1;
++                        indel += written;
+                     }
+                     ins->s[indel++] = ']';
+                     ins->l += indel - o_indel; // grow by amount we used
+--- a/vcf.c
++++ b/vcf.c
+@@ -1987,9 +1987,15 @@
+ {
+     int j, k;
+     unsigned int inc = 1 << bcf_type_shift[type];
+-    ptrdiff_t bytes = samples * ploidy * inc;
+-
+-    if (samples < 0 || ploidy < 0 || end - p < bytes)
++    if (samples < 0 || ploidy < 0 || p > end)
++        return 1;
++    if (samples == 0) {
++        *q = p;
++        return 0;
++    }
++    if (ploidy == 0 ||
++        (size_t)ploidy > (size_t)(end - p) / inc ||
++        (size_t)samples > (size_t)(end - p) / inc / (size_t)ploidy)
+         return 1;
+ 
+     /*
+@@ -2020,9 +2026,9 @@
+         for (j = 0; j < samples; ++j) {
+             uint8_t allphased = 1;
+             for (k = 1; k < ploidy; ++k)
+-                allphased &= (p[inc * k]);
++                allphased &= (p[(size_t)inc * k]);
+             *p |= allphased;
+-            p += ploidy * inc;
++            p += (size_t)ploidy * inc;
+         }
+     }
+     *q = p;
+@@ -3354,7 +3360,7 @@
+             v->errcode |= BCF_ERR_LIMITS;
+             return -1;
+         }
+-        mem->l += v->n_sample * f->size;
++        mem->l += v->n_sample * (size_t)f->size;
+     }
+ 
+     {
+@@ -5787,7 +5793,9 @@
+         return 0;
+     }
+ 
++    if (n < 0 || !values) return -1;
+     line->n_sample = bcf_hdr_nsamples(hdr);
++    if (line->n_sample == 0 || n % line->n_sample != 0) return -1;
+     int nps = n / line->n_sample;  // number of values per sample
+     assert( nps && nps*line->n_sample==n );     // must be divisible by n_sample
+ 
+@@ -5800,12 +5808,12 @@
+     else if ( type==BCF_HT_REAL )
+     {
+         bcf_enc_size(&str, nps, BCF_BT_FLOAT);
+-        serialize_float_array(&str, nps*line->n_sample, (float *) values);
++        serialize_float_array(&str, n, (float *) values);
+     }
+     else if ( type==BCF_HT_STR )
+     {
+         bcf_enc_size(&str, nps, BCF_BT_CHAR);
+-        kputsn((char*)values, nps*line->n_sample, &str);
++        kputsn((char*)values, n, &str);
+     }
+     else
+     {
+--- /dev/null
++++ b/version.h
+@@ -0,0 +1,2 @@
++#define HTS_VERSION_TEXT "1.24"
++#define HTS_VERSION "1.24"
+--- /dev/null
++++ b/win32_compat.h
+@@ -0,0 +1,361 @@
++// win32_compat.h - Windows compatibility for htslib C code
++// Included via force-include in CMakeLists.txt on Windows builds
++
++#ifndef HTSLIB_WIN32_COMPAT_H
++#define HTSLIB_WIN32_COMPAT_H
++
++#ifdef _WIN32
++
++#ifndef WIN32_LEAN_AND_MEAN
++#define WIN32_LEAN_AND_MEAN
++#endif
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++
++#include <windows.h>
++#include <time.h>
++#include <io.h>
++#include <direct.h>
++#include <process.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <errno.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++// Type definitions
++typedef int mode_t;
++typedef int pid_t;
++typedef int uid_t;
++typedef int gid_t;
++
++#ifndef _SSIZE_T_DEFINED
++typedef intptr_t ssize_t;
++#define _SSIZE_T_DEFINED
++#endif
++
++// PATH_MAX
++#ifndef PATH_MAX
++#define PATH_MAX 260
++#endif
++
++// SSIZE_MAX
++#ifndef SSIZE_MAX
++#define SSIZE_MAX ((ssize_t)(((size_t)(~0)) >> 1))
++#endif
++
++// Signals
++#include <signal.h>
++#ifndef SIGTERM
++#define SIGTERM 15
++#endif
++#ifndef SIGPIPE
++#define SIGPIPE 13
++#endif
++
++// Standard file descriptors
++#ifndef STDIN_FILENO
++#define STDIN_FILENO 0
++#define STDOUT_FILENO 1
++#define STDERR_FILENO 2
++#endif
++
++// Provide stubs for headers that don't exist on Windows
++// unistd.h equivalents
++#define access _access
++#define F_OK 0
++#define R_OK 4
++#define W_OK 2
++#define getcwd _getcwd
++#define lseek _lseek
++#define open _open
++#define close _close
++#define read _read
++#define write _write
++#define popen _popen
++#define pclose _pclose
++
++static __inline int ftruncate(int fd, long long length) {
++    return _chsize_s(fd, length);
++}
++
++#define mkdir(path, mode) _mkdir(path)
++
++// sleep
++static __inline unsigned int sleep(unsigned int seconds) {
++    Sleep(seconds * 1000);
++    return 0;
++}
++
++// File permission bits
++#define S_IRUSR _S_IREAD
++#define S_IWUSR _S_IWRITE
++#define S_IXUSR _S_IEXEC
++#define S_IRGRP 0
++#define S_IWGRP 0
++#define S_IXGRP 0
++#define S_IROTH 0
++#define S_IWOTH 0
++#define S_IXOTH 0
++#define S_IRWXU (_S_IREAD | _S_IWRITE | _S_IEXEC)
++#define S_IRWXG 0
++#define S_IRWXO 0
++
++#ifndef S_ISDIR
++#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
++#endif
++#ifndef S_ISREG
++#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
++#endif
++
++// Stub out sysconf
++#ifndef sysconf
++#define sysconf(x) 512
++#endif
++
++// pthread compatibility - minimal for htslib thread pool
++typedef HANDLE hts_pthread_t;
++typedef CRITICAL_SECTION hts_pthread_mutex_t;
++typedef CONDITION_VARIABLE hts_pthread_cond_t;
++
++// Map pthread types to hts_ prefixed ones to avoid conflicts
++#define pthread_t hts_pthread_t
++#define pthread_mutex_t hts_pthread_mutex_t
++#define pthread_cond_t hts_pthread_cond_t
++#define pthread_attr_t int
++
++#define PTHREAD_MUTEX_INITIALIZER {0}
++#define PTHREAD_CREATE_JOINABLE 0
++#define PTHREAD_MUTEX_RECURSIVE 1
++typedef int pthread_condattr_t;
++typedef int pthread_mutexattr_t;
++
++static __inline int pthread_mutexattr_init(pthread_mutexattr_t *attr) { *attr = 0; return 0; }
++static __inline int pthread_mutexattr_settype(pthread_mutexattr_t *attr, int type) { *attr = type; return 0; }
++static __inline int pthread_mutexattr_destroy(pthread_mutexattr_t *attr) { (void)attr; return 0; }
++
++static __inline int pthread_attr_getstacksize(const pthread_attr_t *attr, size_t *stacksize) {
++    (void)attr; *stacksize = 16 * 1024 * 1024; return 0;
++}
++static __inline int pthread_attr_setstacksize(pthread_attr_t *attr, size_t stacksize) {
++    (void)attr; (void)stacksize; return 0;
++}
++
++static __inline int pthread_mutex_init(pthread_mutex_t *mutex, const void *attr) {
++    (void)attr;
++    InitializeCriticalSection(mutex);
++    return 0;
++}
++
++static __inline int pthread_mutex_destroy(pthread_mutex_t *mutex) {
++    DeleteCriticalSection(mutex);
++    return 0;
++}
++
++static __inline int pthread_mutex_lock(pthread_mutex_t *mutex) {
++    EnterCriticalSection(mutex);
++    return 0;
++}
++
++static __inline int pthread_mutex_unlock(pthread_mutex_t *mutex) {
++    LeaveCriticalSection(mutex);
++    return 0;
++}
++
++static __inline int pthread_cond_init(pthread_cond_t *cond, const void *attr) {
++    (void)attr;
++    InitializeConditionVariable(cond);
++    return 0;
++}
++
++static __inline int pthread_cond_destroy(pthread_cond_t *cond) {
++    (void)cond;
++    return 0; // Windows condition variables don't need explicit destroy
++}
++
++static __inline int pthread_cond_signal(pthread_cond_t *cond) {
++    WakeConditionVariable(cond);
++    return 0;
++}
++
++static __inline int pthread_cond_broadcast(pthread_cond_t *cond) {
++    WakeAllConditionVariable(cond);
++    return 0;
++}
++
++static __inline int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex) {
++    SleepConditionVariableCS(cond, mutex, INFINITE);
++    return 0;
++}
++
++struct _hts_pthread_start_info {
++    void *(*start_routine)(void*);
++    void *arg;
++};
++
++static __inline DWORD WINAPI _hts_pthread_start_wrapper(LPVOID param) {
++    struct _hts_pthread_start_info *info = (struct _hts_pthread_start_info*)param;
++    void *(*start_routine)(void*) = info->start_routine;
++    void *arg = info->arg;
++    free(info);
++    start_routine(arg);
++    return 0;
++}
++
++static __inline int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
++                                    void *(*start_routine)(void*), void *arg) {
++    struct _hts_pthread_start_info *info;
++    (void)attr;
++    info = (struct _hts_pthread_start_info*)malloc(sizeof(struct _hts_pthread_start_info));
++    if (!info) return ENOMEM;
++    info->start_routine = start_routine;
++    info->arg = arg;
++    *thread = CreateThread(NULL, 0, _hts_pthread_start_wrapper, info, 0, NULL);
++    if (*thread == NULL) {
++        free(info);
++        return EAGAIN;
++    }
++    return 0;
++}
++
++static __inline int pthread_join(pthread_t thread, void **retval) {
++    (void)retval;
++    WaitForSingleObject(thread, INFINITE);
++    CloseHandle(thread);
++    return 0;
++}
++
++static __inline void pthread_exit(void *retval) {
++    (void)retval;
++    ExitThread(0);
++}
++
++static __inline int pthread_detach(pthread_t thread) {
++    CloseHandle(thread);
++    return 0;
++}
++
++// HTSlib 1.24 identifies workers by thread identity. The current-thread pseudo
++// handle must never be joined/closed, and equality compares IDs, not handles.
++static __inline pthread_t pthread_self(void) { return GetCurrentThread(); }
++static __inline int pthread_equal(pthread_t first, pthread_t second) {
++    return GetThreadId(first) == GetThreadId(second);
++}
++
++// Networking stubs - STAR doesn't use remote file access from htslib
++// but the code references socket headers. Stub them out.
++#ifndef _SYS_SOCKET_H
++#define _SYS_SOCKET_H
++// Prevent inclusion of sys/socket.h
++#endif
++
++#ifndef _SYS_SELECT_H
++#define _SYS_SELECT_H
++// Prevent inclusion of sys/select.h
++#endif
++
++// GCC atomic built-ins
++#define __sync_fetch_and_add(ptr, val) InterlockedExchangeAdd((volatile LONG*)(ptr), (val))
++
++// String comparison
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++
++// fsync
++#define fsync(fd) _commit(fd)
++
++// alloca
++#include <malloc.h>
++#define alloca _alloca
++
++// pthread_attr functions (stubs)
++static __inline int pthread_attr_init(pthread_attr_t *attr) { (void)attr; return 0; }
++static __inline int pthread_attr_setdetachstate(pthread_attr_t *attr, int state) { (void)attr; (void)state; return 0; }
++static __inline int pthread_attr_destroy(pthread_attr_t *attr) { (void)attr; return 0; }
++
++// pthread_cond_timedwait
++static __inline int pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime) {
++    DWORD ms = INFINITE;
++    if (abstime) {
++        FILETIME ft;
++        ULARGE_INTEGER uli;
++        GetSystemTimeAsFileTime(&ft);
++        uli.LowPart = ft.dwLowDateTime;
++        uli.HighPart = ft.dwHighDateTime;
++        long long now_ms = (long long)(uli.QuadPart / 10000ULL - 11644473600000ULL);
++        long long target_ms = (long long)abstime->tv_sec * 1000LL + abstime->tv_nsec / 1000000LL;
++        long long diff = target_ms - now_ms;
++        ms = (diff > 0) ? (DWORD)diff : 0;
++    }
++    return SleepConditionVariableCS(cond, mutex, ms) ? 0 : ETIMEDOUT;
++}
++
++// pthread_kill (stub - used only for thread cancellation in htslib thread pool)
++static __inline int pthread_kill(pthread_t thread, int sig) {
++    (void)thread; (void)sig;
++    return 0; // stub - not really needed for STAR's use of htslib
++}
++
++// off_t for file operations
++#ifndef off_t
++#define off_t __int64
++#endif
++
++#ifndef fseeko
++#define fseeko _fseeki64
++#endif
++#ifndef ftello
++#define ftello _ftelli64
++#endif
++
++// drand48 / srand48 - used in htslib
++static __inline double drand48(void) {
++    return (double)rand() / RAND_MAX;
++}
++
++static __inline void srand48(long seed) {
++    srand((unsigned int)seed);
++}
++
++static __inline double erand48(unsigned short xsubi[3]) {
++    (void)xsubi;
++    return (double)rand() / RAND_MAX;
++}
++
++static __inline long lrand48(void) {
++    return rand();
++}
++
++static __inline int usleep(unsigned int usec) {
++    Sleep(usec / 1000 > 0 ? usec / 1000 : 1);
++    return 0;
++}
++
++
++// pthread_once / TLS (thread-local storage) support
++typedef INIT_ONCE pthread_once_t;
++#define PTHREAD_ONCE_INIT INIT_ONCE_STATIC_INIT
++typedef DWORD pthread_key_t;
++
++static __inline BOOL CALLBACK _pthread_once_cb(PINIT_ONCE io, PVOID param, PVOID *ctx) {
++    (void)io; (void)ctx;
++    void (*fn)(void) = (void (*)(void))param;
++    fn();
++    return TRUE;
++}
++static __inline int pthread_once(pthread_once_t *once, void (*fn)(void)) {
++    InitOnceExecuteOnce(once, _pthread_once_cb, (PVOID)fn, NULL);
++    return 0;
++}
++static __inline int pthread_key_create(pthread_key_t *key, void (*dtor)(void*)) {
++    (void)dtor; *key = TlsAlloc(); return (*key == TLS_OUT_OF_INDEXES) ? -1 : 0;
++}
++static __inline int pthread_key_delete(pthread_key_t key) { return TlsFree(key) ? 0 : -1; }
++static __inline void *pthread_getspecific(pthread_key_t key) { return TlsGetValue(key); }
++static __inline int pthread_setspecific(pthread_key_t key, const void *val) { return TlsSetValue(key, (LPVOID)val) ? 0 : -1; }
++
++#endif // _WIN32
++#endif // HTSLIB_WIN32_COMPAT_H
+--- /dev/null
++++ b/win32_stubs/getopt.h
+@@ -0,0 +1,4 @@
++// Stub getopt.h for Windows builds - not needed for library code
++#ifndef _GETOPT_H_WIN32_STUB
++#define _GETOPT_H_WIN32_STUB
++#endif
+--- /dev/null
++++ b/win32_stubs/pthread.h
+@@ -0,0 +1,5 @@
++// Stub pthread.h for Windows builds - real implementation in win32_compat.h
++#ifndef _PTHREAD_H_WIN32_STUB
++#define _PTHREAD_H_WIN32_STUB
++#include "../win32_compat.h"
++#endif
+--- /dev/null
++++ b/win32_stubs/regex.h
+@@ -0,0 +1,41 @@
++// Stub regex.h for Windows builds
++// htslib 1.21 uses regex for filter expressions. STAR doesn't use hts_expr filters.
++#ifndef _REGEX_H_WIN32_STUB
++#define _REGEX_H_WIN32_STUB
++
++#define REG_EXTENDED 1
++#define REG_ICASE    2
++#define REG_NOSUB    4
++#define REG_NOMATCH  1
++
++typedef struct {
++    void *re_pcre;
++    size_t re_nsub;
++} regex_t;
++
++typedef size_t regoff_t;
++
++typedef struct {
++    regoff_t rm_so;
++    regoff_t rm_eo;
++} regmatch_t;
++
++static __inline int regcomp(regex_t *preg, const char *pattern, int cflags) {
++    (void)preg; (void)pattern; (void)cflags;
++    return REG_NOMATCH; // always fail - STAR doesn't use regex filters
++}
++
++static __inline int regexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatch[], int eflags) {
++    (void)preg; (void)string; (void)nmatch; (void)pmatch; (void)eflags;
++    return REG_NOMATCH;
++}
++
++static __inline void regfree(regex_t *preg) { (void)preg; }
++
++static __inline size_t regerror(int errcode, const regex_t *preg, char *errbuf, size_t errbuf_size) {
++    (void)errcode; (void)preg;
++    if (errbuf && errbuf_size > 0) errbuf[0] = '\0';
++    return 0;
++}
++
++#endif
+--- /dev/null
++++ b/win32_stubs/strings.h
+@@ -0,0 +1,7 @@
++// Stub strings.h for Windows builds
++#ifndef _STRINGS_H_WIN32_STUB
++#define _STRINGS_H_WIN32_STUB
++#include <string.h>
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++#endif
+--- /dev/null
++++ b/win32_stubs/sys/select.h
+@@ -0,0 +1,4 @@
++// Stub sys/select.h for Windows builds
++#ifndef _SYS_SELECT_H_WIN32_STUB
++#define _SYS_SELECT_H_WIN32_STUB
++#endif
+--- /dev/null
++++ b/win32_stubs/sys/socket.h
+@@ -0,0 +1,7 @@
++// Stub sys/socket.h for Windows builds
++#ifndef _SYS_SOCKET_H_WIN32_STUB
++#define _SYS_SOCKET_H_WIN32_STUB
++#ifdef _WIN32
++#include <winsock2.h>
++#endif
++#endif
+--- /dev/null
++++ b/win32_stubs/sys/statvfs.h
+@@ -0,0 +1,4 @@
++// Stub sys/statvfs.h for Windows builds
++#ifndef _SYS_STATVFS_H_WIN32_STUB
++#define _SYS_STATVFS_H_WIN32_STUB
++#endif
+--- /dev/null
++++ b/win32_stubs/sys/time.h
+@@ -0,0 +1,29 @@
++// Stub sys/time.h for Windows builds
++#ifndef _SYS_TIME_H_WIN32_STUB
++#define _SYS_TIME_H_WIN32_STUB
++
++#ifdef _WIN32
++#include <time.h>
++#include <winsock2.h> // for struct timeval
++
++// gettimeofday
++static __inline int gettimeofday(struct timeval *tv, void *tz) {
++    FILETIME ft;
++    unsigned long long tmpres = 0;
++    (void)tz;
++    if (tv) {
++        GetSystemTimeAsFileTime(&ft);
++        tmpres |= ft.dwHighDateTime;
++        tmpres <<= 32;
++        tmpres |= ft.dwLowDateTime;
++        // Convert to microseconds since Unix epoch
++        tmpres /= 10;
++        tmpres -= 11644473600000000ULL;
++        tv->tv_sec = (long)(tmpres / 1000000UL);
++        tv->tv_usec = (long)(tmpres % 1000000UL);
++    }
++    return 0;
++}
++#endif
++
++#endif
+--- /dev/null
++++ b/win32_stubs/unistd.h
+@@ -0,0 +1,6 @@
++// Stub unistd.h for Windows builds
++// Real functionality is provided by win32_compat.h (force-included)
++#ifndef _UNISTD_H_WIN32_STUB
++#define _UNISTD_H_WIN32_STUB
++#include "../win32_compat.h"
++#endif

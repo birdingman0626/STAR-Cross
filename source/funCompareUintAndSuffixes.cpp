@@ -4,6 +4,7 @@ char* g_funCompareUintAndSuffixes_G;
 uint64_t g_funCompareUintAndSuffixes_L;
 
 int funCompareUintAndSuffixes ( const void *a, const void *b){
+    if (a==b) return 0;
     uint64_t* va= ((uint64_t*) a);
     uint64_t* vb= ((uint64_t*) b);
 
@@ -24,6 +25,7 @@ int funCompareUintAndSuffixes ( const void *a, const void *b){
                     return -1;
                 } else if (ga[ig]==5)
                 {//reached the end of chr, now simply compare the indexes for stable search
+                    if (va[1]==vb[1]) return 0;
                     if (va[1]>vb[1])
                     {
                         return 1;

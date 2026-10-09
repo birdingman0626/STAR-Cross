@@ -34,7 +34,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
         } else if(maxMem==0 && unmappedReadsN==0) {//both mapped and unmapped reads are absent
             P.inOut->logMain << "WARNING: nothing to sort - no output alignments" <<endl;
             BGZF *bgzfOut;
-            bgzfOut=bgzf_open(P.outBAMfileCoordName.c_str(),("w"+to_string((long long) P.outBAMcompression)).c_str());
+            bgzfOut=bgzf_open(P.outBAMfileCoordName.c_str(),("w"+to_string((long long) P.output.bamCompression)).c_str());
             if (bgzfOut==NULL) {
                 ostringstream errOut;
                 errOut <<"EXITING because of fatal ERROR: could not open output bam file: " << P.outBAMfileCoordName << "\n";

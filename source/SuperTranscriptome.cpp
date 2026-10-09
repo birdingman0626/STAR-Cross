@@ -18,7 +18,7 @@ void SuperTranscriptome::sjCollapse()
             sjCollapsed[ sj[i].super ].push_back({sj[i].start, sj[i].end});
     };
     
-    ofstream & superTrSJstream = ofstrOpen(P.pGe.gDir+"/superTranscriptSJcollapsed.tsv", ERROR_OUT, P);
+    auto superTrSJstream = ofstrOpenOwned(P.pGe.gDir+"/superTranscriptSJcollapsed.tsv", ERROR_OUT, P);
     for(uint64 i = 0; i < sjCollapsed.size(); i++) {
         for(auto &sj1 : sjCollapsed[i])
             superTrSJstream << i <<"\t"<< sj1[0] <<"\t"<< sj1[1] << "\n";
@@ -38,7 +38,8 @@ void SuperTranscriptome::load(char *G, vector<uint64> &chrStart, vector<uint64> 
         superTrs[ii].seqP=(uint8*)G+chrStart[ii];
     };
     
-    ifstream & superTrSJstream = ifstrOpen(P.pGe.gDir+"/superTranscriptSJcollapsed.tsv", ERROR_OUT, "SOLUTION: re-generate the genome.", P);
+    std::unique_ptr<ifstream> superTrSJowner(&ifstrOpen(P.pGe.gDir+"/superTranscriptSJcollapsed.tsv", ERROR_OUT, "SOLUTION: re-generate the genome.", P));
+    ifstream & superTrSJstream = *superTrSJowner;
     
     uint32 sutr=0,sutr1=0;
     vector<array<uint32,3>> sjC1;

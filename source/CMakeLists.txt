@@ -64,7 +64,8 @@ option(STAR_CAPTURE_SEEDS "Diagnostic bounded post-clipping seed capture (not fo
 if(STAR_CAPTURE_SEEDS)
     set_property(SOURCE ReadAlign_maxMappableLength2strands.cpp ReadAlign_mapOneRead.cpp
                  SuffixArrayFuns.cpp ReadAlign_stitchPieces.cpp ReadAlign_stitchWindowSeeds.cpp
-                 stitchWindowAligns.cpp ReadAlignChunk_processChunks.cpp APPEND PROPERTY
+                 stitchWindowAligns.cpp WindowStitcher.cpp ReadAlignChunk_processChunks.cpp
+                 ReadAlignChunk_readChunk.cpp APPEND PROPERTY
                  COMPILE_DEFINITIONS STAR_CAPTURE_SEEDS=1)
 endif()
 if(STAR_ENABLE_CUDA)
@@ -345,6 +346,7 @@ set(STAR_SOURCES
     GTF_superTranscript.cpp
     SuperTranscriptome.cpp
     ReadAlign_outputAlignments.cpp
+    ReadAlign_serializeAlignments.cpp
     ReadAlign.cpp
     STAR.cpp
     SharedMemory.cpp
@@ -358,6 +360,7 @@ set(STAR_SOURCES
     Parameters_samAttributes.cpp
     InOutStreams.cpp
     SequenceFuns.cpp
+    PairedReadMerger.cpp
     Genome.cpp
     ParametersGenome.cpp
     Stats.cpp
@@ -375,6 +378,7 @@ set(STAR_SOURCES
     readLoad.cpp
     ReadAlignChunk.cpp
     ReadAlignChunk_processChunks.cpp
+    ReadAlignChunk_readChunk.cpp
     ReadAlignChunk_mapChunk.cpp
     OutSJ.cpp
     outputSJ.cpp
@@ -391,6 +395,7 @@ set(STAR_SOURCES
     ReadAlign_assignAlignToWindow.cpp
     ReadAlign_oneRead.cpp
     ReadAlign_stitchWindowSeeds.cpp
+    WindowStitcher.cpp
     ReadAlign_peOverlapMergeMap.cpp
     ReadAlign_mappedFilter.cpp
     ParametersChimeric_initialize.cpp
@@ -440,6 +445,7 @@ set(STAR_SOURCES
     serviceFuns.cpp
     GlobalVariables.cpp
     BAMoutput.cpp
+    AsyncByteWriter.cpp
     cramOutput.cpp
     BAMfunctions.cpp
     ReadAlign_alignBAM.cpp

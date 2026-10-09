@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 
 #include "IncludeDefine.h"
+#include "AsyncByteWriter.h"
 #include "Parameters.h"
 #include "SequenceFuns.h"
 #include "Genome.h"
@@ -61,6 +62,7 @@ void usage(int usageType)
 };
 
 int main(int argInN, char *argIn[])
+try
 {
     // If no argument is given, or the first argument is either '-h' or '--help', run usage()
     if (argInN == 1)
@@ -77,6 +79,7 @@ int main(int argInN, char *argIn[])
     ///////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////// Parameters
     Parameters P; // all parameters
+    std::unique_ptr<InOutStreams> streamsOwner(P.inOut);
     P.inputParameters(argInN, argIn);
 
     *(P.inOut->logStdOut) << "\t" << P.commandLine << '\n';
@@ -144,7 +147,7 @@ int main(int argInN, char *argIn[])
     Solo soloCellFilter(P, *transcriptomeMain);
     if (P.runMode == "soloCellFiltering") {
         soloCellFilter.releaseStorage();
-        delete P.inOut;
+        streamsOwner.reset();
         return 0;
     }
     std::unique_ptr<Transcriptome> transcriptomeStorage;
@@ -250,6 +253,7 @@ int main(int argInN, char *argIn[])
     // close some BAM files
     if (P.inOut->outBAMfileUnsorted != NULL)
     {
+        if (P.inOut->unsortedWriter) P.inOut->unsortedWriter->finish();
         const int flushStatus=bgzf_flush(P.inOut->outBAMfileUnsorted);
         const int closeStatus=bgzf_close(P.inOut->outBAMfileUnsorted);
         P.inOut->outBAMfileUnsorted=nullptr;
@@ -258,6 +262,7 @@ int main(int argInN, char *argIn[])
     };
     if (P.inOut->outQuantBAMfile != NULL)
     {
+        if (P.inOut->quantWriter) P.inOut->quantWriter->finish();
         const int flushStatus=bgzf_flush(P.inOut->outQuantBAMfile);
         const int closeStatus=bgzf_close(P.inOut->outQuantBAMfile);
         P.inOut->outQuantBAMfile=nullptr;
@@ -303,6 +308,7 @@ int main(int argInN, char *argIn[])
         RAchunk[0]->chunkFilesCat(P.inOut->outSAM, P.outFileTmp + "/Aligned.out.sam.chunk", g_threadChunks.chunkOutN);
     };
 
+    if (P.inOut->samWriter) P.inOut->samWriter->finish();
     bamSortByCoordinate(P, RAchunk.data(), *genomeMain.genomeOut.g, soloMain);
 
     // wiggle output
@@ -365,7 +371,10 @@ int main(int argInN, char *argIn[])
     };
     genomeMain.releaseSharedMemory(); // release while the borrowed log stream is still alive
 
-    delete P.inOut; // to close files
+    streamsOwner.reset(); // to close files
 
     return 0;
-};
+} catch (const std::exception& error) {
+    std::cerr << "EXITING because of runtime exception: " << error.what() << std::endl;
+    return EXIT_CODE_RUNTIME;
+}

@@ -77,8 +77,28 @@ jobs:
       - name: Validation harness failure gates
         run: python3 -m unittest discover -s scripts -p 'test_*py'
 
+      - name: Reconstruct locked HTSlib patch queue
+        if: matrix.compiler == 'gcc' && matrix.standard == 17 && matrix.platform.arch == 'x86_64'
+        run: |
+          mkdir -p data/validation
+          readarray -t source_info < <(python3 -c 'import json; d=next(x for x in json.load(open("dependencies.lock.json"))["dependencies"] if x["name"]=="HTSlib"); print(d["source"])')
+          curl --fail --location --retry 2 --max-time 120 "${source_info[0]}" -o data/validation/htslib.tar.bz2
+          python3 scripts/maintain_htslib.py --archive data/validation/htslib.tar.bz2
+
       - name: Miniature STAR integration
         run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build/STAR" --shared-memory
+
+      - name: STARlong and super-transcriptome lifecycle regression
+        if: matrix.compiler == 'gcc' && matrix.standard == 17 && matrix.platform.arch == 'x86_64'
+        run: |
+          cmake -S source -B source/build-long -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DSTAR_CXX_STANDARD=17 \
+            -DSTAR_LONG_READS=ON -DSTAR_BUILD_TESTS=OFF \
+            -DFETCHCONTENT_SOURCE_DIR_HTTPLIB="$GITHUB_WORKSPACE/source/build/_deps/httplib-src" \
+            -DFETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON="$GITHUB_WORKSPACE/source/build/_deps/nlohmann_json-src" \
+            -DFETCHCONTENT_SOURCE_DIR_PARASAIL="$GITHUB_WORKSPACE/source/build/_deps/parasail-src"
+          cmake --build source/build-long --parallel 4
+          python3 scripts/test_experimental_genomes.py --star-exe source/build/STAR --long-exe source/build-long/STAR
 
       - name: Embedded HTTP and JSON integration
         run: python3 scripts/test_webui.py --star-exe source/build/STAR
@@ -251,7 +271,7 @@ jobs:
       - name: Build with AddressSanitizer
         run: |
           cd source
-          cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_BUILD_TESTS=ON -DSTAR_ASAN=ON -DSTAR_UBSAN=ON
+          cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_BUILD_TESTS=ON -DSTAR_ASAN=ON -DSTAR_UBSAN=ON -DSTAR_CAPTURE_SEEDS=ON
           cmake --build build-asan
 
       - name: Sanitized unit tests
@@ -259,8 +279,7 @@ jobs:
 
       - name: Sanitized alignment and count integration
         env:
-          # The CLI retains process-lifetime allocations; unit tests check leaks.
-          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1
         run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build-asan/STAR"
 
@@ -268,7 +287,15 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
-        run: python3 scripts/test_gpu_seed_integration.py --star "$GITHUB_WORKSPACE/source/build-asan/STAR" --benchmark "$GITHUB_WORKSPACE/source/build-asan/test/star_seed_benchmark" --executor cpu --sa-sparse 3
+          STAR_CHUNK_PIPELINE: '1'
+          STAR_ASYNC_BAM: '1'
+        run: python3 scripts/test_gpu_seed_integration.py --star "$GITHUB_WORKSPACE/source/build-asan/STAR" --capture-star "$GITHUB_WORKSPACE/source/build-asan/STAR" --benchmark "$GITHUB_WORKSPACE/source/build-asan/test/star_seed_benchmark" --executor cpu --sa-sparse 3
+
+      - name: Leak-checked super-transcriptome lifecycle
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: python3 scripts/test_experimental_genomes.py --star-exe source/build-asan/STAR
 
       - name: sjdb insertion memory-safety (issue #2657)
         run: |

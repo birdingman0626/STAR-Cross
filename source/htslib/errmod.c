@@ -27,6 +27,7 @@ DEALINGS IN THE SOFTWARE.  */
 #include <config.h>
 
 #include <math.h>
+#include <errno.h>
 #include "htslib/hts.h"
 #include "htslib/ksort.h"
 #include "htslib/hts_os.h" // for drand48
@@ -53,7 +54,7 @@ static double* logbinomial_table( const int n_size )
     /* prob distribution for binom var is p(k) = {n! \over k! (n-k)! } p^k (1-p)^{n-k} */
     /* this calcs p(k) = {log(n!) - log(k!) - log((n-k)!) */
     int k, n;
-    double *logbinom = (double*)calloc(n_size * n_size, sizeof(double));
+    double *logbinom = (double*)calloc((size_t)n_size * n_size, sizeof(double));
     if (!logbinom) return NULL;
     for (n = 1; n < n_size; ++n) {
         double lfn = lfact(n);
@@ -150,7 +151,12 @@ int errmod_cal(const errmod_t *em, int n, int m, uint16_t *bases, float *q)
     // The total count of each base observed per strand
     int w[32];
 
-    memset(q, 0, m * m * sizeof(float)); // initialise q to 0
+    // The likelihood model has sixteen base bins; validate before touching q.
+    if (n < 0 || m < 1 || m > 16 || !q || (n > 0 && (!em || !bases))) {
+        errno = EINVAL;
+        return -1;
+    }
+    memset(q, 0, (size_t)m * m * sizeof(float)); // initialise q to 0
     if (n == 0) return 0;
     // This section randomly downsamples to 255 depth so as not to go beyond our precalculated matrix
     if (n > 255) { // if we exceed 255 bases observed then shuffle them to sample and only keep the first 255

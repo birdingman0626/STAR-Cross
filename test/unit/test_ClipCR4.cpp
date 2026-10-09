@@ -2,6 +2,8 @@
 #include "ClipCR4.h"
 #include <stdexcept>
 #include <random>
+#include <limits>
+#include <parasail/memory.h>
 
 // Independent scalar affine overlap recurrence. Free leading ends; choose the
 // first best target endpoint on the last query row, then the last target column
@@ -76,4 +78,29 @@ TEST_CASE("CellRanger4 invalid inputs are rejected and unknown query bases norma
     clip.align(query, 5, 1);
     CHECK(clip.alignRes[0].score == unknown.score);
     CHECK(clip.alignRes[0].endLocationTarget == unknown.endLocationTarget);
+}
+
+TEST_CASE("Parasail rejects overflowing profile dimensions before reading the query") {
+    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> matrix(
+        parasail_matrix_create("ACGTN", 1, -2), parasail_matrix_free);
+    REQUIRE(matrix != nullptr);
+    // Only one byte exists: dimension validation must precede allocation/read.
+    const char query = 'A';
+    CHECK(parasail_profile_create_16(&query, std::numeric_limits<int>::max(), matrix.get()) == nullptr);
+    CHECK(parasail_memalign_int(16, std::numeric_limits<size_t>::max() / sizeof(int) + 1) == nullptr);
+    CHECK(parasail_memalign_int64_t(16, std::numeric_limits<size_t>::max() / sizeof(int64_t) + 1) == nullptr);
+    CHECK(parasail_result_new_table1(std::numeric_limits<int>::max(), 2) == nullptr);
+}
+
+TEST_CASE("Parasail 64-bit scan keeps large gap penalties in 64-bit arithmetic") {
+    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> matrix(
+        parasail_matrix_create("ACGTN", 1, -2), parasail_matrix_free);
+    REQUIRE(matrix != nullptr);
+    const std::string sequence(300, 'A');
+    std::unique_ptr<parasail_result_t, decltype(&parasail_result_free)> result(
+        parasail_sw_scan_64(sequence.data(), sequence.size(), sequence.data(), sequence.size(),
+            std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), matrix.get()),
+        parasail_result_free);
+    REQUIRE(result != nullptr);
+    CHECK(parasail_result_get_score(result.get()) == 300);
 }

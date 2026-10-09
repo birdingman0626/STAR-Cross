@@ -97,6 +97,10 @@ def main():
         from summarize_seed_capture import summarize,compare
         result['capture_summary']=summarize(capture)
         assert result['capture_summary']['workers']==2
+        lock_totals=result['capture_summary']['totals']
+        assert lock_totals['input_lock_chunks']>0
+        assert lock_totals['input_lock_wait_ns']>=0
+        assert lock_totals['input_lock_held_ns']>0
         result['thread_invariant_ordered_seeds']=compare(capture,second_capture)
         for batch in (1,7,256):
             process=subprocess.run([binary,str(capture),str(capture),'40000',str(batch),'3','2',args.executor],capture_output=True,text=True)

@@ -1,4 +1,5 @@
 #include "ReadAlignChunk.h"
+#include "AsyncByteWriter.h"
 #ifdef _WIN32
     #include "wincompat.h"
 #else
@@ -157,9 +158,16 @@ void ReadAlignChunk::chunkFilesCat(ostream *allOut, string filePrefix, uint &iC)
                 name1 << filePrefix <<iC;
                 ifstream fileChunkIn(name1.str().c_str());
                 if (fileChunkIn.good()) {
-                    *allOut << fileChunkIn.rdbuf();
-                    allOut->flush();
-                    allOut->clear();
+                    if (P.inOut->samWriter && allOut==P.inOut->outSAM) {
+                        const auto bytes=min<uint>(65536,P.chunkOutBAMsizeBytes);
+                        while(fileChunkIn.read(chunkOutBAM,bytes) || fileChunkIn.gcount())
+                            P.inOut->samWriter->submit(chunkOutBAM,fileChunkIn.gcount());
+                        if (!fileChunkIn.eof()) throw std::runtime_error("ordered SAM chunk read failed");
+                    } else {
+                        *allOut << fileChunkIn.rdbuf();
+                        allOut->flush();
+                        allOut->clear();
+                    }
                     fileChunkIn.close();
                     fileChunkIn.clear();
                     remove(name1.str().c_str());

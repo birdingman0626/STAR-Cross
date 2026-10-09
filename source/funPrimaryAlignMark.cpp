@@ -7,7 +7,7 @@ void funPrimaryAlignMark(Transcript **trMult, uint64 nTr,
         trMult[0]->primaryFlag=true;
     } else {//multimappers
         int nbest=0;
-        if (P.outMultimapperOrder.random || P.outSAMmultNmax != (uint) -1 ) {//bring the best alignment to the top of the list. TODO sort alignments by the score?
+        if (P.outMultimapperOrder.random || P.output.maxAlignments != (uint) -1 ) {//bring the best alignment to the top of the list. TODO sort alignments by the score?
             for (uint itr=0; itr<nTr; itr++) {//move the best aligns to the top of the list
                 if ( trMult[itr]->maxScore == maxScore ) {
                     swap(trMult[itr],trMult[nbest]);
@@ -32,7 +32,7 @@ void funPrimaryAlignMark(Transcript **trMult, uint64 nTr,
             {//mark all best score aligns as primary
                 if ( trMult[itr]->maxScore == maxScore ) trMult[itr]->primaryFlag=true;
             };
-        } else if (P.outMultimapperOrder.random || P.outSAMmultNmax != (uint) -1) {
+        } else if (P.outMultimapperOrder.random || P.output.maxAlignments != (uint) -1) {
             trMult[0]->primaryFlag=true;//mark as primary the first one in the random ordered list: best scoring aligns are already in front of the list
         } else {//old way
             //trBest->primaryFlag=true; //cannot do it, trBest may not be defined

@@ -56,7 +56,7 @@ uint ReadAlign::quantTranscriptome (Transcriptome *Tr, uint nAlignG, Transcript 
                 align2.exons[iab][EX_L] += left1+right1;
             };
 
-            if ( (align2.nMM + nMM1) > min(outFilterMismatchNmaxTotal, (uint) (P.outFilterMismatchNoverLmax*(Lread-1)) ) ) {
+            if ( (align2.nMM + nMM1) > min(outFilterMismatchNmaxTotal, (uint) (P.alignFilter.mismatchOverLengthMax*(Lread-1)) ) ) {
                 //extension of soft clips yielded too many mismatches, no output
                 continue;
             };

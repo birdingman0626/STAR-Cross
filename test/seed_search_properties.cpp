@@ -1,10 +1,8 @@
 #include "SuffixArrayFuns.h"
+#include "SeedTestIndex.h"
+#include "SeedSearch.h"
 #include <random>
 #include <stdexcept>
-
-// A separate executable provides the same lightweight holders as seed replay.
-Parameters::Parameters() {}
-Genome::Genome(Parameters& p,ParametersGenome& pg):P(p),pGe(pg),sharedMemory(nullptr) {}
 
 namespace {
 void require(bool condition,const char* message) {
@@ -12,11 +10,10 @@ void require(bool condition,const char* message) {
 }
 
 struct Fixture {
-    Parameters parameters;
-    Genome genome;
+    SeedTestIndex genome;
     std::vector<char> storage;
     Fixture(const std::vector<char>& sequence,unsigned strandBit,uint records):
-        genome(parameters,parameters.pGe),storage(sequence.size()+128,5) {
+        storage(sequence.size()+128,5) {
         std::copy(sequence.begin(),sequence.end(),storage.begin()+64);
         genome.G=storage.data()+64;genome.nGenome=sequence.size();
         genome.GstrandBit=static_cast<unsigned char>(strandBit);
@@ -137,6 +134,35 @@ uint64_t multiRecordProperties(const std::vector<std::vector<char>>& inputs) {
 }
 
 int main() try {
+    Fixture batchFixture({0,1,2,3,4,5,0,1},8,2);
+    batchFixture.genome.SA.writePacked(0,0);
+    batchFixture.genome.SA.writePacked(1,1ULL<<8);
+    Query batchRead({0,1,2,3,4,5});
+    std::vector<SeedQuery> batchQueries;
+    std::vector<SeedMatch> expected;
+    for (bool forward:{true,false}) for (uint rank=0;rank<2;++rank) {
+        const uint start=forward?0:5;
+        batchQueries.push_back({0,6,start,6,rank,rank,0,uint64_t(forward)});
+        uint length=0,range[2];
+        const uint count=maxMappableLength(batchFixture.genome,batchRead.strands,start,6,rank,rank,forward,length,range);
+        expected.push_back({length,range[0],range[1],count});
+    }
+    const SeedSearchEngine engine(batchFixture.genome);
+    std::vector<SeedMatch> output(expected.size());
+    for (int threads:{1,2}) {
+        engine.searchBatch(batchRead.strands[0],batchRead.strands[1],6,batchQueries.data(),batchQueries.size(),output.data(),threads);
+        for (size_t i=0;i<expected.size();++i)
+            require(output[i].length==expected[i].length && output[i].lower==expected[i].lower
+                && output[i].upper==expected[i].upper && output[i].multiplicity==expected[i].multiplicity,
+                "CPU batch changed order or exact search fields");
+    }
+    engine.searchBatch(nullptr,nullptr,0,nullptr,0,nullptr);
+    batchQueries.back().offset=7;
+    output.assign(output.size(),SeedMatch{99,99,99,99});
+    bool rejected=false;
+    try { engine.searchBatch(batchRead.strands[0],batchRead.strands[1],6,batchQueries.data(),batchQueries.size(),output.data(),2); }
+    catch (const std::invalid_argument&) { rejected=true; }
+    require(rejected && output.front().length==99,"invalid tail batch partially committed results");
     const auto inputs=queries();
     const auto singleton=singletonProperties(inputs),multiple=multiRecordProperties(inputs);
     std::cout<<"{\"status\":\"PASS\",\"singleton_checks\":"<<singleton<<",\"sorted_forward_checks\":"<<multiple<<"}\n";

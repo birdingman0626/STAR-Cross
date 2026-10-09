@@ -1,5 +1,7 @@
 #include "doctest/doctest.h"
 #include "samAux.h"
+#include <cerrno>
+#include <memory>
 
 TEST_CASE("SAM auxiliary parser preserves all B subtypes and numeric boundaries") {
     const char *tags[] = {"XA:B:c,-128,127", "XA:B:C,0,255", "XA:B:s,-32768,32767",
@@ -40,4 +42,25 @@ TEST_CASE("SAM auxiliary parser rejects invalid input and buffer overflow") {
     CHECK_THROWS(samAuxBytes("XA:Q:hello", 100));
     const auto mixed = samAuxBytes("XI:i:42\tXZ:Z:index\tXA:A:Y\tXF:f:1.5\tXB:B:i,1,2", 100);
     CHECK(mixed.size() > 20);
+}
+
+TEST_CASE("HTSlib rejects truncated BAM arrays whose count wraps a 32-bit product") {
+    for (const auto subtype : {'s', 'i', 'f'}) {
+        for (const uint32_t count : {0x40000000u, 0x80000000u, 0xffffffffu}) {
+            std::unique_ptr<bam1_t, decltype(&bam_destroy1)> record(bam_init1(), bam_destroy1);
+            REQUIRE(record != nullptr);
+            REQUIRE(bam_set1(record.get(), 1, "a", 4, -1, 0, 0, 0, nullptr,
+                             -1, 0, 0, 0, nullptr, nullptr, 0) >= 0);
+            uint8_t payload[] = {static_cast<uint8_t>(subtype),
+                static_cast<uint8_t>(count), static_cast<uint8_t>(count >> 8),
+                static_cast<uint8_t>(count >> 16), static_cast<uint8_t>(count >> 24)};
+            REQUIRE(bam_aux_append(record.get(), "XA", 'B', sizeof(payload), payload) == 0);
+            errno = 0;
+            CHECK(bam_aux_get(record.get(), "XA") == nullptr);
+            CHECK(errno == EINVAL);
+            errno = 0;
+            CHECK(bam_aux_get(record.get(), "ZZ") == nullptr);
+            CHECK(errno == EINVAL);
+        }
+    }
 }

@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| 2.7.11c (this fork) | Yes — active development |
+| Current STAR-Cross commit-hash release | Yes — active development |
 | 2.7.11b (upstream)  | See [alexdobin/STAR](https://github.com/alexdobin/STAR) |
 | < 2.7.11b           | No |
 
@@ -47,23 +47,26 @@ Please include:
 - Incorrect output that could silently corrupt downstream analysis
 - Windows portability layer (`source/wincompat.h`) security issues
 
-**Out of scope (report to upstream instead):**
-- Issues in bundled third-party libraries:
+**Also report to the dependency upstream where applicable:**
+- Issues in bundled third-party libraries (reachable findings are reviewed and
+  may receive bounded local patches here):
   - **HTSlib** → [samtools/htslib](https://github.com/samtools/htslib/security)
-- Issues in build-time dependencies fetched via CMake FetchContent:
+- Issues in dependencies fetched via CMake FetchContent:
   - **Parasail** → [jeffdaily/parasail](https://github.com/jeffdaily/parasail)
 - Issues in the reference genome or annotation files (not part of this codebase)
-- Denial-of-service via crafted input files (STAR is a bioinformatics CLI tool,
-  not a network service; malicious input files are considered out of scope)
+- Expected resource exhaustion from legitimately large input is not by itself a
+  security defect. Memory corruption and invalid length checks on malformed
+  inputs are in scope even though STAR is primarily a local CLI.
 
 ## Vendored Dependencies
 
 STAR bundles the following third-party libraries. Known issues in these libraries
-are tracked upstream and are excluded from this repository's CodeQL scanning:
+are tracked upstream and reviewed individually in this repository's CodeQL
+scanning; dependencies are not blanket-excluded:
 
 | Library | Version | Upstream |
 |---------|---------|----------|
-| HTSlib  | 1.21    | [samtools/htslib](https://github.com/samtools/htslib) |
+| HTSlib  | 1.24    | [samtools/htslib](https://github.com/samtools/htslib) |
 | SimpleGoodTuring | (bundled) | N/A |
 
 Additionally, **Parasail v2.6.2** is fetched at build time via CMake FetchContent

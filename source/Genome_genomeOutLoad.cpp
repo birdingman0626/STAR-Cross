@@ -7,12 +7,11 @@
 
 void Genome::genomeOutLoad(){//allocate and load *output* Genome
     
-    Parameters P1;
+    Parameters P1(*P.inOut);
 
     ifstream parFile((pGe.gDir+("/genomeParameters.txt")).c_str());
     if (parFile.good()) {
         P.inOut->logMain << "Reading output genome generation parameters:\n";
-        P1.inOut = P.inOut;
         P1.scanAllLines(parFile,3,-1);
         parFile.close();
     } else {
@@ -46,7 +45,8 @@ void Genome::genomeOutLoad(){//allocate and load *output* Genome
 
     chrBinFill();
 
-    ifstream &convStream= ifstrOpen(genomeOut.convFile, ERROR_OUT, "SOLUTION: regenerate genome.", P);
+    std::unique_ptr<ifstream> convOwner(&ifstrOpen(genomeOut.convFile, ERROR_OUT, "SOLUTION: regenerate genome.", P));
+    ifstream &convStream = *convOwner;
     uint32 nconv;
     convStream >> nconv >> genomeOut.nMinusStrandOffset;
     genomeOut.convBlocks.resize(nconv+1);

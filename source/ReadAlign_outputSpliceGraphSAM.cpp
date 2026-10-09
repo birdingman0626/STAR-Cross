@@ -58,7 +58,7 @@ uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint nTrOut, uin
     seqOut[Lread]=0;//to ensure string termination
     qualOut[Lread]=0;
     
-    int MAPQ=P.outSAMmapqUnique;
+    int MAPQ=P.output.uniqueMapq;
     if (nTrOut>=5) {
         MAPQ=0;
     } else if (nTrOut>=3) {

@@ -4,6 +4,7 @@
 #include "IncludeDefine.h"
 #include "Parameters.h"
 #include "PackedArray.h"
+#include "SeedIndexView.h"
 #include "SharedMemory.h"
 #include "Variation.h"
 #include "SuperTranscriptome.h"
@@ -30,6 +31,9 @@ private:
     std::unique_ptr<SuperTranscriptome> superTranscriptomeStorage;
     std::unique_ptr<Genome> outputGenomeStorage;
 public:
+    operator SeedIndexView() const {
+        return {G,SA,nGenome,GstrandBit,GstrandMask,nSA};
+    }
     Parameters &P;
     ParametersGenome &pGe;
     SharedMemory *sharedMemory;

@@ -14,7 +14,7 @@ ClipCR4::ClipCR4() : scoreMatrix(nullptr, parasail_matrix_free)
     // N-vs-N should be 0 (neutral) instead of 1 (match)
     parasail_matrix_set_value(scoreMatrix.get(), 4, 4, 0);
 
-    dbSeqArr.resize(dbN * readLen);
+    dbSeqArr.resize(static_cast<size_t>(dbN) * readLen);
     dbSeqs.resize(dbN);
     for (int id = 0; id < dbN; id++) {
         dbSeqs[id] = dbSeqArr.data() + id * readLen;

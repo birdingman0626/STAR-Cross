@@ -3,12 +3,11 @@
 #include <cstdint>
 #include <cstddef>
 #include <vector>
+#include "SeedSearchTypes.h"
 
 // Isolated experimental search adapter. No alignment/candidate selection changes.
-struct GpuSeedQuery {
-    uint64_t offset, readBytes, start, length, lower, upper, initialLength, forward;
-};
-struct GpuSeedMatch {uint64_t length, lower, upper, multiplicity;};
+using GpuSeedQuery = SeedQuery;
+using GpuSeedMatch = SeedMatch;
 struct GpuSeedTiming {double upload=0, kernel=0, download=0;};
 class GpuSeedIndex {
 public:

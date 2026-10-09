@@ -126,7 +126,7 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
     bam_hdr_t *bamHeader=bam_hdr_read(bamIn);
 
     BGZF *bgzfOut;
-    bgzfOut=bgzf_open(bamFileNameOut.c_str(),("w"+to_string((long long) P.outBAMcompression)).c_str());
+    bgzfOut=bgzf_open(bamFileNameOut.c_str(),("w"+to_string((long long) P.output.bamCompression)).c_str());
     bam_hdr_write(bgzfOut, bamHeader);
 
     uint bamLengthMax=P.limitBAMsortRAM; //max length to load

@@ -1,14 +1,12 @@
 #include "SeedRankHint.h"
+#include "SeedTestIndex.h"
 #include <random>
-
-Parameters::Parameters() {}
-Genome::Genome(Parameters& p,ParametersGenome& pg):P(p),pGe(pg),sharedMemory(nullptr) {}
 
 namespace {
 void require(bool condition,const char* message) {if(!condition) throw std::runtime_error(message);}
 struct Fixture {
-    Parameters p;Genome g;std::vector<char> sequence;
-    explicit Fixture(bool repeated=false):g(p,p.pGe),sequence(256) {
+    SeedTestIndex g;std::vector<char> sequence;
+    explicit Fixture(bool repeated=false):sequence(256) {
         std::mt19937_64 rng(1729);for(auto& code:sequence) code=repeated?0:rng()%4;
         g.G=sequence.data();g.nGenome=sequence.size();g.GstrandBit=10;g.GstrandMask=(1ULL<<10)-1;
         std::vector<uint> suffixes;

@@ -1,2 +1,4 @@
 # Executable Unix scripts must survive Windows checkouts without CRLF.
 *.sh text eol=lf
+# The patch queue hashes raw bytes and must be identical on every checkout.
+source/cmake/htslib-patches/* text eol=lf

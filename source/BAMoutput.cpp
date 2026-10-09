@@ -1,4 +1,5 @@
 #include "BAMoutput.h"
+#include "AsyncByteWriter.h"
 #include "unaligned.h"
 #include "bamEndian.h"
 #include <sys/stat.h>
@@ -72,11 +73,7 @@ void BAMoutput::unsortedOneAlign (char *bamIn, uint bamSize, uint bamSize2) {//r
 
     if (binBytes1+bamSize2 > bamArraySize) {//write out this buffer
 
-        if (g_threadChunks.threadBool) pthread_mutex_lock(&g_threadChunks.mutexOutSAM);
-        const auto written=bamWriteNativeRecords(bgzfBAM,bamArray.get(),binBytes1);
-        if (g_threadChunks.threadBool) pthread_mutex_unlock(&g_threadChunks.mutexOutSAM);
-        if (written < 0 || static_cast<uint64>(written) != binBytes1)
-            exitWithError("EXITING because of fatal BAM output write error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
+        writeUnsortedBatch();
 
         binBytes1=0;//rewind the buffer
     };
@@ -87,12 +84,22 @@ void BAMoutput::unsortedOneAlign (char *bamIn, uint bamSize, uint bamSize2) {//r
 };
 
 void BAMoutput::unsortedFlush () {//flush all alignments
+    writeUnsortedBatch();
+    binBytes1=0;
+};
+
+void BAMoutput::writeUnsortedBatch() {
+    auto* writer=(bgzfBAM==P.inOut->outBAMfileUnsorted ? P.inOut->unsortedWriter.get() :
+                  bgzfBAM==P.inOut->outQuantBAMfile ? P.inOut->quantWriter.get() : nullptr);
+    if (writer) {
+        writer->submit(bamArray.get(),binBytes1);
+        return;
+    }
     if (g_threadChunks.threadBool) pthread_mutex_lock(&g_threadChunks.mutexOutSAM);
     const auto written=bamWriteNativeRecords(bgzfBAM,bamArray.get(),binBytes1);
     if (g_threadChunks.threadBool) pthread_mutex_unlock(&g_threadChunks.mutexOutSAM);
     if (written < 0 || static_cast<uint64>(written) != binBytes1)
         exitWithError("EXITING because of fatal BAM output flush error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
-    binBytes1=0;//rewind the buffer
 };
 
 void BAMoutput::coordOneAlign (char *bamIn, uint bamSize, uint iRead) {
@@ -110,7 +117,7 @@ void BAMoutput::coordOneAlign (char *bamIn, uint bamSize, uint iRead) {
         if (bamIn32[1] == ((uint32) -1) ) {//unmapped
             iBin=P.outBAMcoordNbins-1;
         } else if (nBins>1) {//bin starts have already been determined
-            iBin=binarySearch1a <uint64> (alignG, P.outBAMsortingBinStart, (int32) (nBins-1));
+            iBin=binarySearch1a <uint64> (alignG, P.outBAMsortingBinStart.data(), (int32) (nBins-1));
         };
     };
 

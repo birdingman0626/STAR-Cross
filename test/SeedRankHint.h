@@ -26,7 +26,7 @@ class SeedRankHint {
     }
 public:
     uint64_t sampledRanks=0,validSamples=0,duplicateSamples=0;
-    SeedRankHint(Genome& g,const std::string& kind,unsigned width,uint64_t error,size_t sampleCount=65536,size_t binCount=4096):
+    SeedRankHint(const SeedIndexView& g,const std::string& kind,unsigned width,uint64_t error,size_t sampleCount=65536,size_t binCount=4096):
         lastRank(g.nSA?g.nSA-1:0),k(width) {
         if((kind!="pwl" && kind!="pla") || (k!=14 && k!=18 && k!=21) || !error || !g.nSA
            || sampleCount<2 || sampleCount>65536 || !binCount || binCount>65536)

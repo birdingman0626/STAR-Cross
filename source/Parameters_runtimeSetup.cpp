@@ -208,7 +208,7 @@ void Parameters::inputParameters_runtimeSetup() {
                 };
                 if (outCRAMbool)
                     outCRAMfileUnsortedName=outFileNamePrefix + "Aligned.out.cram";
-                inOut->outBAMfileUnsorted = bgzf_open(outBAMfileUnsortedName.c_str(),("w"+to_string((long long) outBAMcompression)).c_str());
+                inOut->outBAMfileUnsorted = bgzf_open(outBAMfileUnsortedName.c_str(),("w"+to_string((long long) output.bamCompression)).c_str());
             };
             if (outBAMcoord) {
                 if (outStd=="BAM_SortedByCoordinate") {
@@ -218,14 +218,16 @@ void Parameters::inputParameters_runtimeSetup() {
                 };
                 if (outCRAMbool)
                     outCRAMfileCoordName=outFileNamePrefix + "Aligned.sortedByCoord.out.cram";
-                inOut->outBAMfileCoord = bgzf_open(outBAMfileCoordName.c_str(),("w"+to_string((long long) outBAMcompression)).c_str());
+                // Sorting opens the final stream exactly once, after its bins
+                // are ready. An unused early BGZF handle leaks and duplicates
+                // file/stdout ownership.
                 if (outBAMsortingThreadN==0) {
                     outBAMsortingThreadNactual=min(6, runThreadN);
                 } else {
                     outBAMsortingThreadNactual=outBAMsortingThreadN;
                 };
                 outBAMcoordNbins=max((uint32)outBAMsortingThreadNactual*3,outBAMsortingBinsN);
-                outBAMsortingBinStart= new uint64 [outBAMcoordNbins];
+                outBAMsortingBinStart.resize(outBAMcoordNbins);
                 outBAMsortingBinStart[0]=1;//this initial value means that the bin sizes have not been determined yet
 
                 outBAMsortTmpDir=outFileTmp+"/BAMsort/";

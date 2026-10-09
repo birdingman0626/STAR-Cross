@@ -20,6 +20,9 @@ Compared with that release, the local adaptation consists of:
 - Windows worker identity uses `GetCurrentThread` / `GetThreadId`; current-thread
   pseudo handles are used only for identity, never closed or joined.
 - CMake owns the compiled source list and includes `simd.c` from the official list.
+- BAM array lengths, CRAM cache-path capacity, VCF phasing dimensions and
+  frequency-model predecessor access have locally tested boundary hardening.
+  See `SECURITY_SCAN_REVIEW_20261009.md` for evidence and remaining findings.
 
 The Windows compatibility layer predates this upgrade. It is not a replacement
 for full upstream POSIX support; qualify BAM/CRAM and multithreaded compression
@@ -28,10 +31,33 @@ on native Windows whenever HTSlib changes.
 Parasail 2.6.2 is still the latest official release reviewed on 2026-10-07.
 `PatchParasail.cmake` fixes the fetched project's fixture path and non-x86 s390x
 CPUID guard, and bounds the tiny verification fixture's OpenMP threads/time.
+It also checks profile/allocation bounds and widens gap-penalty arithmetic in
+the compiled kernels and generator templates. These are local patches, not an
+upstream release upgrade or a claim that all library findings are resolved.
 Changes happen before configuration, consistently for fresh builds. With custom
 `FETCHCONTENT_SOURCE_DIR_PARASAIL`, apply the same patch explicitly before configuring.
 
 ## Update procedure
+
+`source/cmake/htslib-patches/` records the minimal release-based compatibility
+patch and the normalized content inventory. Verify it without changing the
+vendored tree:
+
+```sh
+python scripts/maintain_htslib.py --archive /path/to/htslib-1.24.tar.bz2
+```
+
+The archive must match the lock SHA256. Verification reconstructs 962 maintained
+files in private scratch storage and checks the current vendor against the same
+inventory. Non-build files retained from older upstream checkouts are separately
+fingerprinted; they are not copied into the compatibility patch. This checks
+file contents, not executable permissions or runtime behavior. The Linux CI job
+performs the reconstruction check before integration qualification.
+
+For an upgrade, review the new release and port compatibility changes first,
+then generate a **new** queue with `--record --queue <new-directory>`. Inspect
+its patch and inventory before replacing the old queue. Recording refuses to
+overwrite a queue. Patch drift fails verification; there is no fuzzy application.
 
 1. Read the official release notes and assess the APIs actually used.
 2. Verify the release archive, update its URL/hash and the lock record together.

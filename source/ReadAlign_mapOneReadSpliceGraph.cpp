@@ -11,7 +11,7 @@ void ReadAlign::mapOneReadSpliceGraph()
         return;
     #endif
 
-    if (Lread<P.outFilterMatchNmin) {//read is too short (trimmed too much?)
+    if (Lread<P.alignFilter.matchMin) {//read is too short (trimmed too much?)
         mapMarker=MARKER_READ_TOO_SHORT;
         trBest->rLength=0; //min good piece length
         nW=0;

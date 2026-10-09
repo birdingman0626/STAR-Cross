@@ -36,6 +36,7 @@ struct Worker {
     uint64_t seedRows=0,seedReads=0,prefix=0,compares=0,bases=0,packed=0,ranges=0;
     uint64_t windows=0,windowSeeds=0,transitions=0,recursiveStates=0;
     uint64_t mapNs=0,seedNs=0,extensionNs=0,stitchNs=0,ioNs=0;
+    uint64_t inputLockWaitNs=0,inputLockHeldNs=0,inputLockChunks=0;
     uint64_t firstRead=UINT64_MAX,lastRead=0;
     uint64_t firstObserved=UINT64_MAX,lastObserved=0;
     std::array<uint64_t,64> widths{},lengths{},multiplicities{};
@@ -68,7 +69,10 @@ struct Worker {
            <<",\"recursive_stitch_states\":"<<recursiveStates
            <<",\"sampled_map_ns\":"<<mapNs<<",\"sampled_seed_ns\":"<<seedNs
            <<",\"sampled_extension_ns\":"<<extensionNs<<",\"sampled_stitch_ns\":"<<stitchNs
-           <<",\"capture_io_ns\":"<<ioNs;
+           <<",\"capture_io_ns\":"<<ioNs
+           <<",\"input_lock_wait_ns\":"<<inputLockWaitNs
+           <<",\"input_lock_held_ns\":"<<inputLockHeldNs
+           <<",\"input_lock_chunks\":"<<inputLockChunks;
         auto histogram=[&](const char* key,const std::array<uint64_t,64>& h) {
             out<<",\""<<key<<"\":[";for(unsigned i=0;i<64;++i) {if(i) out<<',';out<<h[i];}out<<']';
         };
@@ -79,7 +83,13 @@ struct Worker {
 inline std::unique_ptr<Worker>& storage() {
     thread_local std::unique_ptr<Worker> value;return value;
 }
-inline Worker* worker() {return storage().get();}
+inline Worker*& borrowedWorker() {thread_local Worker* value=nullptr;return value;}
+inline Worker* worker() {return borrowedWorker() ? borrowedWorker() : storage().get();}
+struct BorrowedScope {
+    Worker* previous;
+    explicit BorrowedScope(Worker* worker):previous(borrowedWorker()){borrowedWorker()=worker;}
+    ~BorrowedScope(){borrowedWorker()=previous;}
+};
 struct Lifetime {
     explicit Lifetime(int id) {
         const char* destination=std::getenv("STAR_SEED_TRACE_DIR");

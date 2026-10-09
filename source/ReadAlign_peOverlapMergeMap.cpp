@@ -1,5 +1,6 @@
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
+#include "PairedReadMerger.h"
 
 void ReadAlign::peOverlapMergeMap() {
 
@@ -78,46 +79,13 @@ void ReadAlign::peOverlapMergeMap() {
 
 void ReadAlign::peMergeMates() {
 
-    uint s1=localSearchNisMM(Read1[0],readLength[0],Read1[0]+readLength[0]+1,readLength[1],P.peOverlap.MMp);
-    uint s0=localSearchNisMM(Read1[0]+readLength[0]+1,readLength[1],Read1[0],readLength[0],P.peOverlap.MMp);
-
-    uint o1=min(readLength[1],readLength[0]-s1);
-    uint o0=min(readLength[0],readLength[1]-s0);
-
-    peOv.nOv=max(o0,o1);
-
-    if (peOv.nOv<P.peOverlap.NbasesMin) {//overlap is smaller than minimum allowed
-        peOv.nOv=0;
-        return;
-    };
-
-    if (o1>=o0) {
-        peOv.mateStart[0]=0;
-        peOv.mateStart[1]=s1;
-        if (o1<readLength[1]) {//otherwise, if o1==readLength[1], read2 is entirely contained in read1
-            //move unoverlapped portion of read2 to the end of read1
-            memmove(Read1[0]+readLength[0], Read1[0]+readLength[0]+1+o1, readLength[1]-o1);
-        };
-    } else {
-        peOv.mateStart[1]=0;
-        peOv.mateStart[0]=s0;
-        memmove(Read1[0]+Lread, Read1[0], readLength[0]);//temp move 0
-        memmove(Read1[0], Read1[0]+readLength[0]+1, readLength[1]); //move 1 into 0
-        if (o0<readLength[0]) {
-            memmove(Read1[0]+readLength[1], Read1[0]+Lread+o0, readLength[0]-o0); //move 0 into 1
-        };
-    };
-
-    //uint nMM=0;
-    //for (uint ii=peOv.ovS; ii<readLength[0]; ii++) {//check for MM in the overlap area
-    //    if (Read1[0][ii]!=Read1[0][ii-peOv.ovS+readLength[0]+1]) {
-    //        Read1[0][ii]=4; //replace mismatched base with N
-    //        ++nMM;
-    //    };
-    //};
-
-
-    Lread=Lread-peOv.nOv-1;
+    const auto merged=mergePairedRead(Read1[0],DEF_readSeqLengthMax+1,
+        readLength[0],readLength[1],P.peOverlap.NbasesMin,P.peOverlap.MMp);
+    peOv.nOv=merged.overlap;
+    if (!peOv.nOv) return;
+    peOv.mateStart[0]=merged.mateStart[0];
+    peOv.mateStart[1]=merged.mateStart[1];
+    Lread=merged.length;
     readLength[0]=Lread;
     readLength[1]=0;
     readLengthOriginal[0]=Lread;

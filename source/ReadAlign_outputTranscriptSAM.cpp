@@ -207,7 +207,7 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
 
 //         return;
 
-        int MAPQ=P.outSAMmapqUnique;
+        int MAPQ=P.output.uniqueMapq;
         if (nTrOut>=5) {
             MAPQ=0;
         } else if (nTrOut>=3) {

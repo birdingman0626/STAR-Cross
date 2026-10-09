@@ -1,4 +1,6 @@
 #include "InOutStreams.h"
+#include "AsyncByteWriter.h"
+#include "ChunkInputDispatcher.h"
 #include "GlobalVariables.h"
 
 InOutStreams::InOutStreams() {
@@ -9,6 +11,9 @@ InOutStreams::InOutStreams() {
 };
 
 InOutStreams::~InOutStreams() {
+    // Normal success explicitly finishes before reporting. Exception teardown
+    // must stop a SAM consumer before the underlying stream is closed here.
+    samWriter.reset();
 
     if (logStdOut!=NULL) logStdOut->flush();
     if (outSAM!=NULL) outSAM->flush();

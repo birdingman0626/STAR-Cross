@@ -141,7 +141,7 @@ void GTF::superTranscript() {
 
     //output normal transcript sequences
     vector<char> numToCharConverter{'A','C','G','T','N'};
-    ofstream & trSeqOut = ofstrOpen(P.pGe.gDir+"/transcriptSequences.fasta",ERROR_OUT, P);
+    auto trSeqOut = ofstrOpenOwned(P.pGe.gDir+"/transcriptSequences.fasta",ERROR_OUT, P);
     for (uint64 ii = 0; ii < transcriptSeq.size(); ii++) {
         trSeqOut << ">" << transcriptID[ii] << "\n";
         for(uint64 jj = 0; jj < transcriptSeq[ii].size(); jj++) {
@@ -150,7 +150,7 @@ void GTF::superTranscript() {
         trSeqOut << "\n";
     };
     trSeqOut.close();
-    ofstream & sutrSeqOut = ofstrOpen(P.pGe.gDir+"/superTranscriptSequences.fasta",ERROR_OUT, P);
+    auto sutrSeqOut = ofstrOpenOwned(P.pGe.gDir+"/superTranscriptSequences.fasta",ERROR_OUT, P);
     for (uint64 ii = 0; ii < superTrome.seq.size(); ii++) {
         sutrSeqOut << ">st" << to_string(ii) << "\n";
         for(uint64 jj = 0; jj < superTrome.seq[ii].size(); jj++) {
@@ -211,7 +211,7 @@ void GTF::superTranscript() {
     };
     
     //output conversion blocks
-    ofstream & convStream = ofstrOpen(P.pGe.gDir+"/fullGenome/conversionToFullGenome.tsv",ERROR_OUT, P);
+    auto convStream = ofstrOpenOwned(P.pGe.gDir+"/fullGenome/conversionToFullGenome.tsv",ERROR_OUT, P);
     convStream << mergedIntervals.size() <<'\t'<< nMinusStrandOffset <<'\n';
     
     uint64 condGstart=0; //start of the interval in the condensed genome

@@ -53,7 +53,8 @@ uint insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char * 
     char* seq1[2]; // stack array (fix: memory leak)
 
     #define GENOME_endFillL 16
-    char* seqq=new char [4*nG1+3*GENOME_endFillL];//ends shouldbe filled with 5 to mark boundaries
+    std::unique_ptr<char[]> sequenceStorage(new char[4*nG1+3*GENOME_endFillL]);
+    char* seqq=sequenceStorage.get();//ends are filled with 5 to mark boundaries
 
     seq1[0]=seqq+GENOME_endFillL;//TODO: avoid defining an extra array, use reverse search
     seq1[1]=seqq+2*GENOME_endFillL+2*nG1;
@@ -69,7 +70,8 @@ uint insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char * 
     };
     complementSeqNumbers(seq1[0], seq1[1], 2*nG1);//complement
 
-    uint64* indArray=new uint64[nG1*2*2+2];// for each base, 1st number - insertion place in SA, 2nd number - index, *2 for reverse compl
+    std::unique_ptr<uint64[]> insertionStorage(new uint64[nG1*2*2+2]);
+    uint64* indArray=insertionStorage.get();// insertion place and index for both strands
 
 
     #pragma omp parallel num_threads(P.runThreadN)
@@ -108,9 +110,17 @@ uint insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char * 
     P.inOut->logMain  << timeMonthDayTime(rawtime) << "   Finished qsort - old " <<endl;
     */
 
-    g_funCompareUintAndSuffixesMemcmp_G=seq1[0];
-    g_funCompareUintAndSuffixesMemcmp_L=mapGen.pGe.gSuffixLengthMax/sizeof(uint64_t);
-    qsort((void*) indArray, nInd, 2*sizeof(uint64_t), funCompareUintAndSuffixesMemcmp);
+    if (mapGen.pGe.gSuffixLengthMax==static_cast<uint>(-1)) {
+        // The default means unlimited suffix length, not a memcmp byte count.
+        // The existing numeric comparator stops at the chromosome separator.
+        g_funCompareUintAndSuffixes_G=seq1[0];
+        qsort((void*) indArray,nInd,2*sizeof(uint64_t),funCompareUintAndSuffixes);
+    } else {
+        g_funCompareUintAndSuffixesMemcmp_G=seq1[0];
+        g_funCompareUintAndSuffixesMemcmp_L=mapGen.pGe.gSuffixLengthMax/sizeof(uint64_t);
+        g_funCompareUintAndSuffixesMemcmp_N=2*nG1+GENOME_endFillL;
+        qsort((void*) indArray,nInd,2*sizeof(uint64_t),funCompareUintAndSuffixesMemcmp);
+    }
 
 //     qsort((void*) indArray, nInd, 2*sizeof(uint64), funCompareUint2);
     time ( &rawtime );
@@ -305,6 +315,7 @@ uint insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char * 
     mapGen.nSAbyte=SA.lengthByte;
 
     //generate SAi
+    SAi.deallocateArray(); // Replace the old owned prefix table, not a second allocation.
     genomeSAindex(G,SA,P,SAi,mapGen);
 
     time ( &rawtime );
@@ -315,7 +326,5 @@ uint insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char * 
 //     memcpy(G+mapGen.chrStart[mapGen.nChrReal],seq1[0], nseq1[0]);
 
 
-    delete[] indArray;
-    delete[] seqq;
     return nInd;
 };

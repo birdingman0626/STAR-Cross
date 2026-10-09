@@ -8,7 +8,7 @@
 
 void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, uint tG2, Transcript trA, \
                         uint Lread, uiWA* WA, char* R, Genome &mapGen, \
-                        Parameters& P, Transcript** wTr, uint* nWinTr, ReadAlign *RA) {
+                        Parameters& P, Transcript** wTr, uint* nWinTr, const WindowAlignmentContext& context) {
     //recursively stitch aligns for one gene
     #ifdef STAR_CAPTURE_SEEDS
     if(auto* w=seedTrace::worker()) ++w->recursiveStates;
@@ -46,7 +46,7 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
                 trAstep1.reset();
                 uint imate=trA.exons[0][EX_iFrag];
                 if ( extendAlign(R, mapGen.G, trA.rStart-1, trA.gStart-1, -1, -1, trA.rStart, tR2-trA.rStart+1, \
-                                 trA.nMM, RA->outFilterMismatchNmaxTotal, P.outFilterMismatchNoverLmax, \
+                                 trA.nMM, context.mismatchLimit, P.alignFilter.mismatchOverLengthMax, \
                                  P.alignEndsType.ext[imate][(int)(trA.Str!=imate)], &trAstep1) ) {//if could extend
 
                     trA.add(&trAstep1);
@@ -67,7 +67,7 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
                 trAstep1.reset();
                 uint imate=trA.exons[trA.nExons-1][EX_iFrag];
                 if ( extendAlign(R, mapGen.G, tR2+1, tG2+1, +1, +1, Lread-tR2-1, tR2-trA.rStart+1, \
-                                 trA.nMM, RA->outFilterMismatchNmaxTotal,  P.outFilterMismatchNoverLmax, \
+                                 trA.nMM, context.mismatchLimit,  P.alignFilter.mismatchOverLengthMax, \
                                  P.alignEndsType.ext[imate][(int)(imate==trA.Str)], &trAstep1) ) {//if could extend
 
                     trA.add(&trAstep1);
@@ -160,7 +160,7 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
             for (uint iex=0;iex<trA.nExons;iex++) {//
                 exl+=trA.exons[iex][EX_L];
                 if (iex==trA.nExons-1 || trA.canonSJ[iex]==-3) {//mate is completed, make the checks
-                    if (nsj>0 && (exl<P.alignSplicedMateMapLmin || exl < (uint) (P.alignSplicedMateMapLminOverLmate*RA->readLength[trA.exons[iex][EX_iFrag]])) ) {
+                    if (nsj>0 && (exl<P.alignSplicedMateMapLmin || exl < (uint) (P.alignSplicedMateMapLminOverLmate*context.readLength[trA.exons[iex][EX_iFrag]])) ) {
                         return; //do not record this transcript
                     };
                     exl=0;nsj=0;
@@ -235,7 +235,7 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
 
         if (trA.exons[0][EX_iFrag]==trA.exons[trA.nExons-1][EX_iFrag]) {//mark single fragment transcripts
             trA.iFrag=trA.exons[0][EX_iFrag];
-            RA->maxScoreMate[trA.iFrag] = max (RA->maxScoreMate[trA.iFrag] , Score);
+            context.maxScoreMate[trA.iFrag] = max (context.maxScoreMate[trA.iFrag] , Score);
         } else {
             trA.iFrag=-1;
         };
@@ -246,8 +246,8 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
         trA.maxScore=Score;
 
         // transcript has been finalized, compare the score and record
-        if (       Score+P.outFilterMultimapScoreRange >= wTr[0]->maxScore \
-                || ( trA.iFrag>=0 && Score+P.outFilterMultimapScoreRange >= RA->maxScoreMate[trA.iFrag] ) \
+        if (       Score+P.alignFilter.multimapScoreRange >= wTr[0]->maxScore \
+                || ( trA.iFrag>=0 && Score+P.alignFilter.multimapScoreRange >= context.maxScoreMate[trA.iFrag] ) \
                 || P.pCh.segmentMin>0) {
                 //only record the transcripts within the window that are in the Score range
                 //OR within the score range of each mate
@@ -258,7 +258,7 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
 // //                 for (uint iex=1;iex<trA.nExons;iex++) {//find the inside exons
 // //                     rTotal+=trA.exons[iex][EX_R]-trA.exons[iex-1][EX_R];
 // //                 };
-//                 if ( (trA.iFrag<0 && rTotal<(RA->readLength[0]+RA->readLength[1])) || (trA.iFrag>=0 && rTotal<RA->readLength[trA.iFrag])) return;
+//                 if ( (trA.iFrag<0 && rTotal<(context.readLength[0]+context.readLength[1])) || (trA.iFrag>=0 && rTotal<context.readLength[trA.iFrag])) return;
 //             };
 
             uint iTr=0; //transcript insertion/replacement place
@@ -343,7 +343,7 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
             #ifdef STAR_CAPTURE_SEEDS
             if(auto* w=seedTrace::worker()) ++w->transitions;
             #endif
-            dScore=stitchAlignToTranscript(tR2, tG2, WA[iA][WA_rStart], WA[iA][WA_gStart], WA[iA][WA_Length], WA[iA][WA_iFrag],  WA[iA][WA_sjA], P, R, mapGen, &trAi, RA->outFilterMismatchNmaxTotal);
+            dScore=stitchAlignToTranscript(tR2, tG2, WA[iA][WA_rStart], WA[iA][WA_gStart], WA[iA][WA_Length], WA[iA][WA_iFrag],  WA[iA][WA_sjA], P, R, mapGen, &trAi, context.mismatchLimit);
             //TODO check if the new stitching creates too many MM, quit this transcript if so
 
         } else { //this is the first align in the transcript
@@ -370,14 +370,14 @@ void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, ui
             if ( WA[iA][WA_Nrep]==1 ) trAi.nUnique++; //unique piece
             if ( WA[iA][WA_Anchor]>0 ) trAi.nAnchor++; //anchor piece piece
 
-            stitchWindowAligns(iA+1, nA, Score+dScore, WAincl, WA[iA][WA_rStart]+WA[iA][WA_Length]-1, WA[iA][WA_gStart]+WA[iA][WA_Length]-1, trAi, Lread, WA, R, mapGen, P, wTr, nWinTr, RA);
+            stitchWindowAligns(iA+1, nA, Score+dScore, WAincl, WA[iA][WA_rStart]+WA[iA][WA_Length]-1, WA[iA][WA_gStart]+WA[iA][WA_Length]-1, trAi, Lread, WA, R, mapGen, P, wTr, nWinTr, context);
         };
     }
 
     //also run a transcript w/o including this align
     if (WA[iA][WA_Anchor]!=2 || trA.nAnchor>0) {//only allow exclusion if this is not the last anchor, or other anchors have been used
         WAincl[iA]=false;
-        stitchWindowAligns(iA+1, nA, Score, WAincl, tR2, tG2, trA, Lread, WA, R, mapGen, P, wTr, nWinTr, RA);
+        stitchWindowAligns(iA+1, nA, Score, WAincl, tR2, tG2, trA, Lread, WA, R, mapGen, P, wTr, nWinTr, context);
     };
     return;
 };

@@ -95,12 +95,12 @@ def main():
     print(f"Evidence retained at: {root}", flush=True)
     checks = []
 
-    def run(label, options, binary=None, valid=True):
+    def run(label, options, binary=None, valid=True, env=None):
         out = root / label
         out.mkdir()
         cmd = [binary or args.star_exe, "--runThreadN", str(args.threads), *options,
                "--outFileNamePrefix", str(out) + "/"]
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,env=env)
         (out / "command.json").write_text(json.dumps(cmd))
         (out / "console.log").write_text(proc.stdout)
         assert (proc.returncode == 0) == valid, (label, proc.returncode, proc.stdout[-3000:])
@@ -129,6 +129,90 @@ def main():
                                       "--outSAMunmapped", "Within"])
     assert len(bam_records(mapped / "Aligned.out.bam")) == len(fragments)
     checks.append("real miniature genome and mapped/spliced/unmapped BAM")
+    for label, settings in (("producer",{"STAR_CHUNK_PIPELINE":"1"}),
+                            ("writer",{"STAR_ASYNC_BAM":"1"}),
+                            ("combined",{"STAR_CHUNK_PIPELINE":"1","STAR_ASYNC_BAM":"1"})):
+        pipeline = run("pipeline-"+label,common + ["--readFilesIn",str(reads),
+                       "--outSAMtype","BAM","Unsorted","--outSAMunmapped","Within"],
+                       env={**os.environ,**settings})
+        assert bam_records(mapped / "Aligned.out.bam")==bam_records(pipeline / "Aligned.out.bam")
+        assert bam_scientific_header(mapped / "Aligned.out.bam")==bam_scientific_header(pipeline / "Aligned.out.bam")
+        assert scientific_final_fields(mapped / "Log.final.out")==scientific_final_fields(pipeline / "Log.final.out")
+        assert (mapped / "SJ.out.tab").read_bytes()==(pipeline / "SJ.out.tab").read_bytes()
+    checks.append("bounded input/owning BAM output pipelines separately and together: exact BAM/SJ/logs")
+    for ordering in ('Unsorted','PairedKeepInputOrder'):
+        options=common+['--readFilesIn',str(reads),'--outSAMtype','SAM','--outSAMorder',ordering,
+                        '--outSAMunmapped','Within']
+        sync=run('sam-normal-'+ordering,options)
+        async_out=run('sam-pipeline-'+ordering,options,
+                      env={**os.environ,'STAR_CHUNK_PIPELINE':'1','STAR_ASYNC_SAM':'1'})
+        def sam_scientific(out):
+            lines=(out/'Aligned.out.sam').read_text().splitlines()
+            return [line for line in lines if not line.startswith(('@PG','@CO\tuser command line:'))]
+        left,right=sam_scientific(sync),sam_scientific(async_out)
+        assert (left==right if ordering=='PairedKeepInputOrder' else sorted(left)==sorted(right))
+        assert scientific_final_fields(sync/'Log.final.out')==scientific_final_fields(async_out/'Log.final.out')
+    checks.append('owning SAM batches: unordered records and ordered byte sequence preserved')
+    for key in ('STAR_CHUNK_PIPELINE','STAR_ASYNC_BAM','STAR_ASYNC_SAM'):
+        failed=run('invalid-'+key,common+['--readFilesIn',str(reads),'--outSAMtype','None'],
+                   valid=False,env={**os.environ,key:'invalid'})
+        assert key+' must be 1 or unset' in (failed/'console.log').read_text()
+    if args.threads>1:
+        failed=run('pipeline-random-rejected',common+['--readFilesIn',str(reads),
+                   '--outMultimapperOrder','Random','--outSAMtype','None'],valid=False,
+                   env={**os.environ,'STAR_CHUNK_PIPELINE':'1'})
+        assert 'requires one logical worker' in (failed/'console.log').read_text()
+    checks.append('experimental switches reject invalid values and unsupported parallel RNG ordering')
+    many_reads=root/'multichunk.fastq'
+    many_reads.write_text(reads.read_text()*100)
+    options=common+['--readFilesIn',str(many_reads),'--limitIObufferSize','1000000','1000000',
+                    '--outSAMtype','SAM','--outSAMorder','PairedKeepInputOrder','--outSAMunmapped','Within']
+    sync=run('multichunk-ordered-sam-sync',options)
+    async_out=run('multichunk-ordered-sam-pipeline',options,
+                  env={**os.environ,'STAR_CHUNK_PIPELINE':'1','STAR_ASYNC_SAM':'1'})
+    assert sam_scientific(sync)==sam_scientific(async_out)
+    checks.append('ordered SAM across multiple chunks retains the exact record sequence')
+    for mode,extra in (('ordinary',[]),('two-pass',['--twopassMode','Basic']),
+                       ('by-junction',['--outFilterType','BySJout'])):
+        options=common+['--readFilesIn',str(many_reads),'--limitIObufferSize','1000000','1000000',
+                        '--outSAMtype','BAM','Unsorted','--outSAMunmapped','Within',
+                        '--quantMode','TranscriptomeSAM',*extra]
+        sync=run('multichunk-sync-'+mode,options)
+        async_out=run('multichunk-pipeline-'+mode,options,
+                      env={**os.environ,'STAR_CHUNK_PIPELINE':'1','STAR_ASYNC_BAM':'1'})
+        for name in ('Aligned.out.bam','Aligned.toTranscriptome.out.bam'):
+            assert bam_records(sync/name)==bam_records(async_out/name), (mode,name)
+            assert bam_scientific_header(sync/name)==bam_scientific_header(async_out/name)
+        assert scientific_final_fields(sync/'Log.final.out')==scientific_final_fields(async_out/'Log.final.out')
+        assert (sync/'SJ.out.tab').read_bytes()==(async_out/'SJ.out.tab').read_bytes()
+    checks.append('multiple chunks, two-pass and BySJout: BAM/transcriptome/SJ/log equality')
+    added = root / "added-reference.fa"
+    novel = "".join(rng.choices("ACGT", k=1000))
+    added.write_text(">added\n" + sequence[:5000] + novel + "\n")
+    selection_reads = root / "selection.fastq"
+    selection_reads.write_bytes(reads.read_bytes() +
+        f"@novel\n{novel[100:200]}\n+\n{'I'*100}\n".encode())
+    for policy in ("KeepOnlyAddedReferences", "KeepAllAddedReferences"):
+        options = common + ["--genomeFastaFiles", str(added), "--readFilesIn", str(selection_reads),
+                            "--outSAMfilter", policy, "--outSAMtype", "BAM", "Unsorted",
+                            "--outSAMunmapped", "Within"]
+        selected = run("selection-" + policy, options)
+        records = bam_records(selected / "Aligned.out.bam")
+        assert records, "selection fixture must retain records"
+        assert any(not (struct.unpack('<I', record[12:16])[0] >> 16) & 4 for record in records)
+        # Every mapped output must be on the newly inserted reference.
+        assert all(struct.unpack('<i', record[:4])[0] == 1 for record in records
+                   if not (struct.unpack('<I', record[12:16])[0] >> 16) & 4)
+        # The frozen binary fails both unlimited comparison and prefix-table
+        # replacement in insertion. Compare the repaired unlimited path with
+        # the existing bounded comparator on this fixture, not a broken oracle.
+        bounded = run("bounded-selection-" + policy,
+                      options + ["--genomeSuffixLengthMax", "128"])
+        assert records == bam_records(bounded / "Aligned.out.bam")
+        assert bam_scientific_header(selected / "Aligned.out.bam") == bam_scientific_header(bounded / "Aligned.out.bam")
+        assert scientific_final_fields(selected / "Log.final.out") == scientific_final_fields(bounded / "Log.final.out")
+        assert (selected / "SJ.out.tab").read_bytes() == (bounded / "SJ.out.tab").read_bytes()
+    checks.append("on-the-fly references: both selection policies, independent reference-ID checks, unlimited/bounded equivalence (not frozen-binary qualified)")
     failing_command = root / "failing-producer.py"
     later_reads = root / "later-success.fastq"
     later_reads.write_bytes(reads.read_bytes())

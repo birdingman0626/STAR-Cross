@@ -1,4 +1,5 @@
 #include "ReadAlignChunk.h"
+#include "AsyncByteWriter.h"
 #include "GlobalVariables.h"
 #include "ThreadControl.h"
 #include "ErrorWarning.h"
@@ -50,12 +51,16 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
                     chunkOutBAMfile.clear(); //in case 0 bytes were written which could set fail bit
                     //chunkOutBAMfile.flush(); //not needed
                 } else {//standard way, directly into Aligned.out.sam file
+                    if (P.inOut->samWriter) {
+                        P.inOut->samWriter->submit(chunkOutBAM,chunkOutBAMtotal);
+                    } else {
                     //SAM output
                     if (P.runThreadN>1) pthread_mutex_lock(&g_threadChunks.mutexOutSAM);
                     P.inOut->outSAM->write(chunkOutBAM,chunkOutBAMtotal);
                     P.inOut->outSAM->clear();//in case 0 bytes were written which could set fail bit
                     //P.inOut->outSAM->flush(); //not needed
                     if (P.runThreadN>1) pthread_mutex_unlock(&g_threadChunks.mutexOutSAM);
+                    }
                 };
                 RA->outSAMstream->seekp(0,ios::beg); //rewind the chunk storage
                 chunkOutBAMtotal=0;

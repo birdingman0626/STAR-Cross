@@ -16,6 +16,8 @@
 #include "ParametersSolo.h"
 #include "ParametersClip.h"
 #include "ParametersGenome.h"
+#include "AlignFilterConfig.h"
+#include "OutputConfig.h"
 #include <vector>
 #include <array>
 #include <unordered_set>
@@ -169,9 +171,9 @@ class Parameters {
         string outSAMmode,  outSAMorder, outSAMprimaryFlag;
         vector<string> outSAMattributes, outSAMheaderHD, outSAMheaderPG;
         vector<string> outSAMattrRGline,outSAMattrRGlineSplit,outSAMattrRG;
-        uint outSAMmultNmax,outSAMattrIHstart;
+        OutputConfig output;
+        uint outSAMattrIHstart;
         string outSAMheaderCommentFile;
-        int outSAMmapqUnique;
 
         struct {
             string in;
@@ -183,7 +185,6 @@ class Parameters {
         struct {bool NH,HI,AS,NM,MD,nM,jM,jI,RG,XS,rB,vG,vA,vW,ha,ch,MC,CR,CY,UR,UY,CB,UB,GX,GN,gx,gn,sM,sS,sQ,cN,sF;} outSAMattrPresent, outSAMattrPresentQuant;
 
         vector <int> outSAMattrOrder, outSAMattrOrderQuant;
-        int outBAMcompression;
         vector <string> outSAMtype;
         bool outBAMunsorted, outBAMcoord, outSAMbool;
         bool outCRAMbool;//true when --outSAMtype CRAM: produce BAM then transcode to referenceless CRAM
@@ -201,7 +202,7 @@ class Parameters {
         } removeDuplicates;
 
         int outBAMsortingThreadN, outBAMsortingThreadNactual;
-        uint64 *outBAMsortingBinStart; //genomic starts for bins for sorting BAM files
+        vector<uint64> outBAMsortingBinStart; //owned genomic starts for sorting bins
         uint16 outSAMflagOR, outSAMflagAND;
 
         struct {
@@ -234,12 +235,8 @@ class Parameters {
         string outFileTmp;
 
         //output filtering
-        uint outFilterMismatchNmax;
-        double outFilterMismatchNoverLmax, outFilterMismatchNoverReadLmax; //max proportion of all MM within all bases
+        AlignFilterConfig alignFilter;
 
-        uint outFilterMatchNmin,outFilterMultimapNmax;//min number of matches
-        double outFilterScoreMinOverLread, outFilterMatchNminOverLread;//normalzied to read length
-        intScore outFilterScoreMin,outFilterMultimapScoreRange;//min score to output
         string outFilterIntronMotifs,outFilterIntronStrands;
         string outFilterType; //type of filtering
         int outFilterBySJoutStage; //indicates the stage of filtering by SJout
@@ -367,6 +364,8 @@ class Parameters {
         //not really parameters, but global variables:
         array<vector<uint64>,2> sjAll;
         uint64 sjNovelN, *sjNovelStart, *sjNovelEnd; //novel junctions collapased and filtered
+        // Pass copies borrow the arrays and share their actual lifetime.
+        std::shared_ptr<uint64[]> sjNovelStartStorage,sjNovelEndStorage;
 
     ////////////////////// CLEAN-UP needed
     InOutStreams *inOut; //main input output streams

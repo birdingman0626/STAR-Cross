@@ -38,6 +38,7 @@ public:
 
     ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, int iChunk);
     void processChunks();
+    void readChunk();
     void mapChunk();
     void chunkFstreamOpen(string filePrefix, int iChunk, fstream &fstreamOut);
     void chunkFstreamCat (fstream &chunkOut, ofstream &allOut, bool mutexFlag, pthread_mutex_t &mutexVal);
@@ -45,6 +46,8 @@ public:
 
     Genome &mapGen;
 private:
+    bool newFile=false;
+    std::vector<std::string> headerExtra;
     std::unique_ptr<Transcriptome> transcriptomeStorage;
     std::unique_ptr<Quantifications> quantificationStorage;
     std::unique_ptr<char*[]> inputPointers;

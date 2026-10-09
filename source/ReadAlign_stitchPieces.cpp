@@ -325,7 +325,8 @@ std::time(&timeStart);
             stitchWindowSeeds(iW, iW1, WAincl, R[trA.roStr==0 ? 0:2]);
         };
     #else
-        stitchWindowAligns(0, nWA[iW], 0, WAincl, 0, 0, trA, Lread, WA[iW], R[trA.roStr==0 ? 0:2], mapGen, P, trAll[iW1], nWinTr+iW1, this);
+        stitchWindowAligns(0, nWA[iW], 0, WAincl, 0, 0, trA, Lread, WA[iW], R[trA.roStr==0 ? 0:2], mapGen, P, trAll[iW1], nWinTr+iW1,
+                          {outFilterMismatchNmaxTotal,readLength,maxScoreMate});
     #endif
 
         if (nWinTr[iW1]==0) {

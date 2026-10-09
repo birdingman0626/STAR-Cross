@@ -1,6 +1,8 @@
 #include "gpuSeedSearch.h"
 #include "SuffixArrayFuns.h"
 #include "SeedRankHint.h"
+#include "SeedTestIndex.h"
+#include "SeedSearch.h"
 #include <filesystem>
 #include <chrono>
 #include <stdexcept>
@@ -12,10 +14,6 @@
 #include <sys/resource.h>
 #endif
 
-// This isolated executable only needs a valid holder for production search fields.
-// It does not link STAR's configuration/IO constructors or replace search logic.
-Parameters::Parameters() {}
-Genome::Genome(Parameters& p,ParametersGenome& pg):P(p),pGe(pg),sharedMemory(nullptr) {}
 namespace {
 using Clock=std::chrono::steady_clock;
 using Json=nlohmann::json;
@@ -68,7 +66,7 @@ int main(int argc,char** argv) try {
 #endif
     if(!limit || !batch || repeats<1 || threads<1) throw std::invalid_argument("positive run parameters required");
     std::filesystem::path root(argv[1]);auto genome=load(root/"Genome",200),sa=load(root/"SA");
-    Parameters p;Genome g(p,p.pGe);g.G=genome.data()+200;g.nGenome=genome.size()-400;g.GstrandBit=0;
+    SeedTestIndex g;g.G=genome.data()+200;g.nGenome=genome.size()-400;
     std::ifstream parameters(root/"genomeParameters.txt");std::string line;
     uint capturedRecords=0;
     while(std::getline(parameters,line)) {
@@ -186,14 +184,10 @@ int main(int argc,char** argv) try {
            || (q.forward ? q.length>q.readBytes-q.start : q.length>q.start+1))
             throw std::runtime_error("invalid replay query");
     std::vector<GpuSeedMatch> expected(queries.size()),cpu(queries.size());
+    const SeedSearchEngine engine(g);
     auto cpuRun=[&, threads](std::vector<GpuSeedMatch>& out) {
         auto start=Clock::now();
-        #pragma omp parallel for num_threads(threads)
-        for(long long i=0;i<static_cast<long long>(queries.size());++i) {
-            const auto& q=queries[i];char* s[2]={reads.data()+q.offset,complement.data()+q.offset};
-            uint length=q.initialLength,range[2];uint count=maxMappableLength(g,s,q.start,q.length,q.lower,q.upper,q.forward,length,range);
-            out[i]={length,range[0],range[1],count};
-        }
+        engine.searchBatch(reads.data(),complement.data(),reads.size(),queries.data(),queries.size(),out.data(),threads);
         return elapsed(start);
     };
     const double cpuWarmup=cpuRun(expected);

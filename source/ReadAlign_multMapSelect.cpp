@@ -25,7 +25,7 @@ void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts 
 
     for (uint iW=0; iW<nW; iW++) {//scan windows
         for (uint iTr=0; iTr<nWinTr[iW]; iTr++) {//scan transcripts
-            if ( (trAll[iW][iTr]->maxScore + P.outFilterMultimapScoreRange) >= maxScore  ) {//record this alignment
+            if ( (trAll[iW][iTr]->maxScore + P.alignFilter.multimapScoreRange) >= maxScore  ) {//record this alignment
                 // if paired-end, record alignments from ALL windows
                 if (nTr==MAX_N_MULTMAP) {//too many alignments for this read, do not record it
                     ostringstream errOut;
@@ -43,7 +43,7 @@ void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts 
         };
     };
 
-    if (nTr > P.outFilterMultimapNmax || nTr==0){
+    if (nTr > P.alignFilter.multimapMax || nTr==0){
         //too multi OR no alignments, no need for further processing, since it will be considered unmapped
         return;
     };
@@ -59,7 +59,7 @@ void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts 
         trMult[0]->primaryFlag=true;
     } else {//multimappers
         int nbest=0;
-        if (P.outMultimapperOrder.random || P.outSAMmultNmax != (uint) -1 ) {//bring the best alignment to the top of the list. TODO sort alignments by the score?
+        if (P.outMultimapperOrder.random || P.output.maxAlignments != (uint) -1 ) {//bring the best alignment to the top of the list. TODO sort alignments by the score?
             for (uint itr=0; itr<nTr; itr++) {//move the best aligns to the top of the list
                 if ( trMult[itr]->maxScore == maxScore ) {
                     swap(trMult[itr],trMult[nbest]);
@@ -84,7 +84,7 @@ void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts 
             {//mark all best score aligns as primary
                 if ( trMult[itr]->maxScore == maxScore ) trMult[itr]->primaryFlag=true;
             };
-        } else if (P.outMultimapperOrder.random || P.outSAMmultNmax != (uint) -1) {
+        } else if (P.outMultimapperOrder.random || P.output.maxAlignments != (uint) -1) {
             trMult[0]->primaryFlag=true;//mark as primary the first one in the random ordered list: best scoring aligns are already in front of the list
         } else {//old way
             trBest->primaryFlag=true;

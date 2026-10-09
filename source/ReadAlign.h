@@ -16,6 +16,7 @@
 #include "FastResetVector.h"
 #include "SpliceGraph.h"
 #include "ClipMate.h"
+#include "AlignmentResultView.h"
 
 #include <time.h>
 #include <random>
@@ -236,7 +237,7 @@ class ReadAlign {
         void outReadsUnmapped();
         void spliceGraphWriteSAM();
         void alignedAnnotation();
-        void writeSAM(uint64 nTrOutSAM, Transcript **trOutSAM, Transcript *trBestSAM);
+        void serializeAlignments(AlignmentResultView result);
         void recordSJ(uint64 nTrO, Transcript **trO, OutSJ *cSJ);
 
 };

@@ -167,9 +167,9 @@ void Parameters::inputParameters_validate() {
         };
     };
 
-    if (outSAMmapqUnique<0 || outSAMmapqUnique>255) {
+    if (output.uniqueMapq<0 || output.uniqueMapq>255) {
             ostringstream errOut;
-            errOut <<"EXITING because of FATAL input ERROR: out of range value for outSAMmapqUnique=" << outSAMmapqUnique <<"\n";
+            errOut <<"EXITING because of FATAL input ERROR: out of range value for outSAMmapqUnique=" << output.uniqueMapq <<"\n";
             errOut <<"SOLUTION: specify outSAMmapqUnique within the range of 0 to 255\n";
             exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };

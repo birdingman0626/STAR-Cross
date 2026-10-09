@@ -2655,10 +2655,11 @@ static int expand_cache_path(char *path, char *dir, const char *fn) {
         path += cp-dir;
         sz -= cp-dir;
 
-        if (*++cp == 's') {
+        if (!*++cp) return -1; // incomplete escape, do not advance past NUL
+        if (*cp == 's') {
             len = strlen(fn);
             if (len >= sz) return -1;
-            strcpy(path, fn);
+            memcpy(path, fn, len + 1);
             path += len;
             sz -= len;
             fn += len;
@@ -2681,18 +2682,20 @@ static int expand_cache_path(char *path, char *dir, const char *fn) {
                 if (sz < 3) return -1;
                 *path++ = '%';
                 *path++ = *cp++;
+                sz -= 2;
             }
         } else {
             if (sz < 3) return -1;
             *path++ = '%';
             *path++ = *cp++;
+            sz -= 2;
         }
         dir = cp;
     }
 
     len = strlen(dir);
     if (len >= sz) return -1;
-    strcpy(path, dir);
+    memcpy(path, dir, len + 1);
     path += len;
     sz -= len;
 
@@ -2700,7 +2703,7 @@ static int expand_cache_path(char *path, char *dir, const char *fn) {
     if (len >= sz) return -1;
     if (*fn && path > start && path[-1] != '/')
         *path++ = '/';
-    strcpy(path, fn);
+    memcpy(path, fn, strlen(fn) + 1);
     return 0;
 }
 
@@ -2737,6 +2740,12 @@ static void mkdir_prefix(char *path, int mode) {
  * Returns 0 on success
  *        -1 on failure
  */
+static int valid_md5_name(const char *name) {
+    // M5 identifies a digest, not a caller-supplied path or URL.
+    return name && strlen(name) == 32 &&
+        strspn(name, "0123456789abcdefABCDEF") == 32;
+}
+
 static int cram_populate_ref(cram_fd *fd, int id, ref_entry *r) {
     char *ref_path = getenv("REF_PATH");
     sam_hrec_type_t *ty;
@@ -2757,6 +2766,11 @@ static int cram_populate_ref(cram_fd *fd, int id, ref_entry *r) {
 
     if (!(tag = sam_hrecs_find_key(ty, "M5", NULL)))
         goto no_M5;
+
+    if (!valid_md5_name(tag->str+3)) {
+        hts_log_error("Invalid M5 digest for reference %s", r->name);
+        return -1;
+    }
 
     hts_log_info("Querying ref %s", tag->str+3);
 
