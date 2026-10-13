@@ -23,9 +23,40 @@ def measured_run(command, console, cwd):
     Keep the handle open after exit so short-lived processes are measurable.
     """
     process = subprocess.Popen(command, stdout=console, stderr=subprocess.STDOUT, cwd=cwd)
-    process.wait()
     memory = {}
     if sys.platform == "win32":
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.GetSystemTimes.argtypes = [ctypes.POINTER(wintypes.FILETIME)]*3
+        kernel.GetProcessTimes.argtypes = [wintypes.HANDLE]+[ctypes.POINTER(wintypes.FILETIME)]*4
+        def ticks(value):
+            return (value.dwHighDateTime << 32) | value.dwLowDateTime
+        def cpu_times():
+            system = [wintypes.FILETIME() for _ in range(3)]
+            own = [wintypes.FILETIME() for _ in range(4)]
+            if not kernel.GetSystemTimes(*(ctypes.byref(item) for item in system)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if not kernel.GetProcessTimes(wintypes.HANDLE(int(process._handle)),
+                                          *(ctypes.byref(item) for item in own)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            return ticks(system[0]), ticks(system[1])+ticks(system[2]), ticks(own[2])+ticks(own[3])
+        previous = cpu_times()
+        background = []
+        while True:
+            try:
+                process.wait(timeout=0.25)
+            except subprocess.TimeoutExpired:
+                pass
+            current = cpu_times()
+            idle, total, own = (right-left for left, right in zip(previous, current))
+            if total > 0:
+                background.append(100*max(0, total-idle-own)/total)
+            previous = current
+            if process.returncode is not None:
+                break
+        memory.update(background_cpu_samples=len(background),
+                      background_cpu_mean_percent=statistics.mean(background) if background else None,
+                      background_cpu_p95_percent=sorted(background)[math.ceil(len(background)*0.95)-1] if background else None,
+                      background_cpu_source="Windows GetSystemTimes minus STAR GetProcessTimes; all logical CPUs")
         class Counters(ctypes.Structure):
             _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
                 (name, ctypes.c_size_t) for name in (
@@ -39,9 +70,11 @@ def measured_run(command, console, cwd):
         api.restype = wintypes.BOOL
         if not api(wintypes.HANDLE(int(process._handle)), ctypes.byref(counters), counters.cb):
             raise ctypes.WinError(ctypes.get_last_error())
-        memory = {"peak_rss_bytes": counters.PeakWorkingSetSize,
+        memory.update({"peak_rss_bytes": counters.PeakWorkingSetSize,
                   "peak_commit_bytes": counters.PeakPagefileUsage,
-                  "memory_source": "Windows GetProcessMemoryInfo, STAR process only"}
+                  "memory_source": "Windows GetProcessMemoryInfo, STAR process only"})
+    else:
+        process.wait()
     return process.returncode, memory
 
 
@@ -140,3 +173,11 @@ def paired_assessment(runs, labels, seed=1729):
             "median_peak_rss_delta_bytes": statistics.median(memory_deltas) if memory_deltas else None,
             "requires_independent_AA_calibration": not identical,
             "speedup_supported_by_interval": not identical and enough and upper < 1 and memory_ok}
+
+
+def background_environment_pass(runs, limit):
+    measured = [run for run in runs if not run["warmup"]]
+    return bool(measured) and all(run.get("background_cpu_samples", 0) > 0 and
+                all(run.get(key) is not None and run[key] <= limit
+                    for key in ("background_cpu_mean_percent", "background_cpu_p95_percent"))
+                for run in measured)

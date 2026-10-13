@@ -5,10 +5,17 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from qualification import bam_signature, measured_run, paired_assessment
+from qualification import bam_signature, measured_run, paired_assessment, background_environment_pass
 
 
 class QualificationTests(unittest.TestCase):
+    def test_background_gate(self):
+        quiet = dict(warmup=False, background_cpu_samples=3,
+                     background_cpu_mean_percent=2, background_cpu_p95_percent=5)
+        self.assertTrue(background_environment_pass([quiet], 5))
+        for runs in ([], [dict(warmup=False)], [dict(quiet, background_cpu_p95_percent=6)],
+                     [dict(quiet, background_cpu_mean_percent=float("nan"))], [dict(quiet, warmup=True)]):
+            self.assertFalse(background_environment_pass(runs, 5))
     def test_pair_gates(self):
         def runs(n, ratio=1, same=True, measured=True):
             return [dict(label=label, round=i, warmup=False, wall_seconds=100*(ratio if label == "b" else 1),

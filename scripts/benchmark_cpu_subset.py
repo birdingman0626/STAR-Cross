@@ -12,7 +12,7 @@ import subprocess
 import time
 import sys
 import random
-from qualification import measured_run, bam_signature, paired_assessment, scientific_final_fields
+from qualification import measured_run, bam_signature, paired_assessment, scientific_final_fields, background_environment_pass
 from compare_raw_counts import matrix
 
 
@@ -36,6 +36,8 @@ def main():
     parser.add_argument("--order-seed", type=int, default=1729)
     parser.add_argument("--full-contract", action="store_true", help="Also compare BAM/header, scientific logs and all Solo matrices/axes; floats exact by default")
     parser.add_argument("--calibration-receipt", type=Path, help="Successful independent A/A result.json; required before accepting paired performance")
+    parser.add_argument("--max-background-cpu-percent", type=float, default=5.0,
+                        help="Windows per-run background CPU mean/p95 limit, recorded before measurement")
     parser.add_argument("--legacy", action="store_true")
     parser.add_argument("--gpu-sjdb-remap", action="append", default=[], help="label=off|auto|required, explicit experimental backend per binary")
     parser.add_argument("--reference-run", type=Path, help="Reuse a successful run with identical arguments, avoiding another full index load")
@@ -44,6 +46,8 @@ def main():
         parser.error("Thread count must be positive")
     if args.rounds < 1 or args.warmups < 0:
         parser.error("Invalid repetitions")
+    if not 0 < args.max_background_cpu_percent <= 100:
+        parser.error("Invalid background CPU threshold")
     if args.rounds > 1 and (not args.full_contract or len(args.binary) != 2 or args.reference_run):
         parser.error("Paired runs require exactly two binaries, full contract and no reused run")
     if args.full_contract and args.reference_run:
@@ -108,6 +112,7 @@ def main():
     if args.legacy:
         common += ["--legacy", "True"]
     result = {"status": "RUNNING", "pairs": manifest["pairs"], "sampling": manifest["sampling"],
+              "max_background_cpu_percent": args.max_background_cpu_percent,
               "runner_sha256": hashlib.sha256(runner).hexdigest(),
               "count_comparator_sha256": hashlib.sha256(comparator).hexdigest(),
               "helper_sha256": helper_signatures,
@@ -174,6 +179,8 @@ def main():
             reject("Calibration receipt incomplete")
         if paired_assessment(calibration["runs"], calibration_labels).get("status") != "CALIBRATION_PASS":
             reject("Calibration receipt did not pass")
+        if not background_environment_pass(calibration["runs"], args.max_background_cpu_percent):
+            reject("Calibration environment missing or busy")
         if calibration.get("pairs") != manifest["pairs"] or calibration.get("threads") != args.threads:
             reject("Calibration workload differs")
         for prior in calibration["runs"]:
@@ -363,6 +370,13 @@ def main():
         result["performance_acceptance"] = "UNVERIFIED_ENVIRONMENT_AND_CALIBRATION"
         if args.calibration_receipt:
             result["performance_acceptance"] = "UNVERIFIED_ENVIRONMENT"
+        result["background_environment_gate"] = "PASS" if background_environment_pass(result["runs"], args.max_background_cpu_percent) else "UNVERIFIED_OR_BUSY"
+        if result["background_environment_gate"] == "PASS":
+            assessment = result["paired_assessment"]["status"]
+            if assessment == "CALIBRATION_PASS":
+                result["performance_acceptance"] = "CALIBRATION_PASS"
+            elif args.calibration_receipt and calibration.get("performance_acceptance") == "CALIBRATION_PASS" and assessment == "TIME_NONREGRESSION_PASS":
+                result["performance_acceptance"] = "NONREGRESSION_PASS"
         result["limitations"] = ["prefix not cell-representative", "not full-library regression",
                                 "performance requires idle-machine and independent calibration evidence",
                                 "float matrices compared exactly; no post-hoc tolerance"]

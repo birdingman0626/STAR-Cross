@@ -21,6 +21,8 @@ def release_contract(build, release):
         raise ValueError("Big-endian validation harness missing")
     if "-e STAR_CXX_STANDARD" not in bigendian:
         raise ValueError("Big-endian migration language not passed into container")
+    if "name: qualification-s390x-language-pair" not in bigendian:
+        raise ValueError("Big-endian language evidence not retained")
     if "uses: ./.github/workflows/build.yml" not in job(release, "qualification"):
         raise ValueError("Release does not qualify its own SHA")
     publication = job(release, "release")
@@ -52,6 +54,7 @@ class CIContractTests(unittest.TestCase):
                        build.replace("  build-s390x:\n", "  build-s390x:\n    continue-on-error: true\n"),
                        build.replace("bash extras/tests/scripts/build_validate_s390x.sh", "true"),
                        build.replace("-e STAR_CXX_STANDARD", ""),
+                       build.replace("name: qualification-s390x-language-pair", "name: unretained-language-pair"),
                        build.replace("name: qualification-STAR-linux-s390x", "name: unvalidated-s390x")):
             with self.assertRaises(ValueError):
                 release_contract(broken, release)

@@ -23,22 +23,36 @@ PY
 
 standard="${STAR_CXX_STANDARD:-17}"
 case "$standard" in 17|20) ;; *) echo 'Expected STAR_CXX_STANDARD=17 or 20' >&2; exit 2;; esac
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD="$standard"
+mkdir -p build
+python3 - <<'PY'
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd().parent / 'scripts'))
+from qualify_language_pair import source_signature
+Path('build/initial-source-signature.json').write_text(json.dumps(source_signature(Path.cwd()), indent=2))
+PY
+# Build the C++17 baseline first when qualifying C++20. The comparison then
+# makes only one transition, leaving the shipping C++20 binary in this cache.
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=17
 
 # CMake's hash-verified Parasail patch step also handles s390x CPUID.
 
 # Build only the executable and the unit-test binary used below. Native
-# platforms separately qualify the C++17/C++20 language pair; emulated s390x
-# qualifies the selected language and its big-endian behavior in one build.
+# platforms qualify the full native test suite; emulated s390x retains its
+# endian/BAM subset and runs the scientific fixture for both language modes.
 cmake --build build --target STAR star_tests -j2
-if [ "$standard" = 20 ]; then
-    cmake --build build --target star_seed_properties -j2
-    ctest --test-dir build/test --no-tests=error --output-on-failure -R '^seed_search_properties$'
-fi
-
 ./build/STAR --version
 ctest --test-dir build/test --no-tests=error --output-on-failure -R 'PackedArray|byteOrder|unaligned|BAM'
-python3 "$SCRIPT_DIR/../../../scripts/test_cpu_upstream.py" --star-exe "$SRC_DIR/build/STAR" --sa-sparse 3
+if [ "$standard" = 20 ]; then
+    python3 "$SCRIPT_DIR/../../../scripts/qualify_language_pair.py" \
+        --build-dir "$SRC_DIR/build" --initial-standard 17 --parallel 2 \
+        --evidence-root "$SRC_DIR/build/language-pair-evidence" \
+        --initial-source-signature "$SRC_DIR/build/initial-source-signature.json" \
+        --build-target STAR star_tests star_seed_properties \
+        --ctest-regex 'PackedArray|byteOrder|unaligned|BAM|^seed_search_properties$'
+else
+    python3 "$SCRIPT_DIR/../../../scripts/test_cpu_upstream.py" --star-exe "$SRC_DIR/build/STAR" --sa-sparse 3
+fi
 
 # End-to-end big-endian validation: building a genome index exercises the
 # PackedArray / SuffixArrayFuns / Genome_genomeGenerate byte-order paths. On an

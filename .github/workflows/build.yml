@@ -18,6 +18,8 @@ jobs:
       STAR_CXX_STANDARD: ${{ github.ref == 'refs/heads/codex/cxx20-migration' && '20' || '17' }}
     steps:
       - uses: actions/checkout@v7
+      - name: Test language-pair qualification harness
+        run: python3 scripts/test_qualify_language_pair.py
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: s390x
@@ -28,6 +30,13 @@ jobs:
             debian:trixie bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt && cmake --install source/build --config Release --component STAR --prefix /src/release-metadata'
           test "$(cat s390x-version.txt)" = "STAR-Cross $(git rev-parse --short HEAD)"
           tar -czf STAR-linux-s390x.tar.gz -C release-metadata/bin STAR -C "$PWD/release-metadata/share/STAR-Cross" licenses
+      - name: Retain s390x same-source language evidence
+        if: always() && github.ref == 'refs/heads/codex/cxx20-migration'
+        uses: actions/upload-artifact@v7
+        with:
+          name: qualification-s390x-language-pair
+          path: source/build/language-pair-evidence/
+          if-no-files-found: error
       - name: Upload validated s390x package
         uses: actions/upload-artifact@v7
         with:
