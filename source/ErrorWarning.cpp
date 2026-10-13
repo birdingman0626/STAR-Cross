@@ -17,7 +17,11 @@ void exitWithError(string messageOut, ostream &streamOut1, ostream &streamOut2, 
     if (streamOut2.good()) {
         streamOut2 << "\n" << messageOut << endl << timeMonthDayTime(timeCurrent) <<" ...... FATAL ERROR, exiting\n"  <<flush;
     };
-    delete P.inOut; //to close files
+    // This can run in a mapping worker or the input dispatcher. Other workers
+    // still borrow these streams: deleting them here races their reads/writes
+    // and may join the dispatcher from its own thread. Diagnostics above are
+    // flushed; process termination reclaims descriptors and memory. Normal
+    // successful execution retains its explicit, post-join RAII cleanup.
 //     if (P.runThreadN>1) pthread_mutex_unlock(&g_threadChunks.mutexError);
     exit(errorInt);
 };

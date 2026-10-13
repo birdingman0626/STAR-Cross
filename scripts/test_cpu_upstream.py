@@ -96,7 +96,7 @@ def main():
     print(f"Evidence retained at: {root}", flush=True)
     checks = []
 
-    def run(label, options, binary=None, valid=True, env=None):
+    def run(label, options, binary=None, valid=True, env=None, expected_code=None):
         out = root / label
         out.mkdir()
         cmd = [binary or args.star_exe, "--runThreadN", str(args.threads), *options,
@@ -105,6 +105,9 @@ def main():
         print(f"Running fixture: {label}", flush=True)
         proc = run_fixture(cmd, out / "console.log", env=env)
         assert (proc.returncode == 0) == valid, (label, proc.returncode, proc.stdout[-3000:])
+        if expected_code is not None:
+            assert proc.returncode == expected_code, (label, proc.returncode, proc.stdout[-3000:])
+        assert "AddressSanitizer" not in proc.stdout and "runtime error:" not in proc.stdout, (label, proc.stdout[-3000:])
         return out
 
     rng = random.Random(12345)
@@ -347,7 +350,12 @@ def main():
         assert bam_records(fasta_output / "Aligned.out.bam") == bam_records(fasta_before / "Aligned.out.bam")
     oversized_fasta = root / "oversized.fasta"
     oversized_fasta.write_text(">" + "A" * 50000 + "\n" + sequence[100:200] + "\n")
-    run("oversized-fasta", common + ["--readFilesIn", str(oversized_fasta), "--outSAMtype", "None"], valid=False)
+    oversized_options = common + ["--readFilesIn", str(oversized_fasta), "--outSAMtype", "None"]
+    for label, environment in (("oversized-fasta", None),
+                               ("oversized-fasta-pipeline", dict(os.environ, STAR_CHUNK_PIPELINE="1"))):
+        failed = run(label, oversized_options, valid=False, env=environment, expected_code=104)
+        assert "FASTA header is too long" in (failed / "console.log").read_text()
+        assert not (failed / "Log.final.out").exists()
     checks.append("multiline FASTA identity and oversized FASTA header rejection")
 
     # Distinct indexes on the two mates, CRLF, no comment and short comments.

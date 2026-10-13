@@ -137,3 +137,21 @@ their case, write command/log evidence before completion, and fail after
 process tree). Standalone filtering is also bounded. A regression checks
 output, failure status, timeout and Unix descendant termination; failed CI
 fixture evidence is retained. No scientific assertion was relaxed.
+
+The instrumented main CI reproduced the stall at `oversized-fasta`:
+job `115116230525`, artifact `11788100048`. The console records an ASan
+heap-use-after-free in mapping thread T1 after the correctly reported
+"FASTA header is too long" fatal error. `exitWithError` deleted shared
+`InOutStreams` before mapping workers had joined. It now flushes diagnostics
+and retains the existing process-fatal exit without deleting shared streams;
+the OS reclaims the process resources. Successful post-join RAII cleanup is
+unchanged. Ordinary and dispatcher-mode malformed FASTA must return exactly
+104, without sanitizer diagnostics or a success report. Fixture assertions
+also reject sanitizer reports instead of accepting any nonzero exit as a
+successful invalid-input test. External producer descendant cleanup remains
+a separate boundary; this fix does not claim a general cancellation redesign.
+
+Fatal-path fix verification: Windows CTest **124/124** and full native
+scientific fixtures pass; Linux RelWithDebInfo ASan/UBSan full scientific
+fixtures pass with leak detection and halt-on-error. Both malformed FASTA
+modes return 104 without sanitizer output or a final success report.
