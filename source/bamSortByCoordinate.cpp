@@ -65,11 +65,12 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
                     bool boolWait=true;
                     while (boolWait) {
                         #pragma omp critical
-                        if (totalMem+newMem < P.limitBAMsortRAM) {
+                        // Match the inclusive preflight limit; subtract to avoid overflow.
+                        if (totalMem<=P.limitBAMsortRAM && newMem<=P.limitBAMsortRAM-totalMem) {
                             boolWait=false;
                             totalMem+=newMem;
                         };
-                        sleep(1); // wait for memory (sleep takes unsigned int seconds)
+                        if (boolWait) sleep(1); // wait only when admission failed
                     };
                     BAMbinSortByCoordinate(ibin,binN,binS,P.runThreadN,P.outBAMsortTmpDir, P, genome, solo);
                     #pragma omp critical

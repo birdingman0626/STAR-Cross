@@ -319,6 +319,15 @@ def main():
                 sorted_before = run("sorted-before", sorted_options, args.ref_exe)
             assert bam_records(sorted_output / artifact) == bam_records(sorted_before / artifact)
     checks.append("coordinate-sorted and transcriptome BAM writers")
+    # The preflight accepts equality. Admission must not wait forever at that cap.
+    import re
+    match = re.search(r"Max memory needed for sorting = (\d+)", (sorted_output / "Log.out").read_text())
+    assert match and int(match.group(1)) > 0
+    exact_options = list(sorted_options)
+    exact_options[exact_options.index("--limitBAMsortRAM") + 1] = match.group(1)
+    exact_output = run("sorted-exact-memory-cap", exact_options)
+    assert bam_records(exact_output / "Aligned.sortedByCoord.out.bam") == bam_records(sorted_output / "Aligned.sortedByCoord.out.bam")
+    checks.append("coordinate sorting at exact preflight memory limit")
 
     # Force a deferred compressed write failure; opening a file is not proof
     # that BAM flushing/closing succeeded. Never touch a user's output file.
