@@ -127,6 +127,14 @@ FetchContent_Declare(parasail
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchParasail.cmake
 )
 FetchContent_MakeAvailable(parasail)
+# FetchContent's download stamp can outlive changes to our patch script.
+# Reapply the idempotent patch when reconfiguring an existing build directory.
+execute_process(COMMAND ${CMAKE_COMMAND} -DPARASAIL_SOURCE=${parasail_SOURCE_DIR}
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchParasail.cmake
+    RESULT_VARIABLE _parasail_patch_result)
+if(NOT _parasail_patch_result EQUAL 0)
+    message(FATAL_ERROR "Could not apply maintained Parasail patches")
+endif()
 set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_SAVED} CACHE BOOL "" FORCE)
 
 # Parasail builds its own test/app executables unconditionally. Exclude them from

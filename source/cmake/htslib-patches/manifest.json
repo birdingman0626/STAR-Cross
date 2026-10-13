@@ -72,7 +72,7 @@
     "htscodecs/htscodecs/arith_dynamic.c": "fd10296e9cf37f86d540ed2a68c9f8532cf7a6e9b117ad5fc9cc94633802fb8e",
     "htscodecs/htscodecs/arith_dynamic.h": "bb6bc80410ec22202a9721a8c8441f3e2aef820c0c6b9b8e495bd92cf92eb110",
     "htscodecs/htscodecs/c_range_coder.h": "42de65426e012c0623b310b48b21624fa23260d5c91d38f7f68b644f78aa6c73",
-    "htscodecs/htscodecs/c_simple_model.h": "d42836b2ce2bfc1e4ef94ea6335f2c5811e0f9eb057b775b9add1835a58eae2b",
+    "htscodecs/htscodecs/c_simple_model.h": "c7f819e5dcbceee84777ef7bd739627e9a292f41c374acddf5489f6eaa6189e3",
     "htscodecs/htscodecs/fqzcomp_qual.c": "8addbfdf6dd66310c27d32bbf8cacd28aff282a56592f23f55a388aac367e04e",
     "htscodecs/htscodecs/fqzcomp_qual.h": "d1844834c85125c7b3df24a0987d907e66338f52cc6301e3d92c95f8c17a7e86",
     "htscodecs/htscodecs/htscodecs.c": "d21fe2a7f1ab5b24087fb395c3f0b3599183c78f3ea727ac263dc25c8a98a249",
@@ -965,7 +965,7 @@
     "win32_stubs/unistd.h": "f5dda3a5812b665e7187c6646780735b550e5678deeddf53a69ea7cf06ab82eb"
   },
   "normalization": "CRLF to LF for files without NUL bytes",
-  "patch_sha256": "cbd41c05dab207bed675f0c5e0470a4f71a9f50761de77c83bf9a6c4e86c17eb",
+  "patch_sha256": "00c58d1b57d12c49cb2cffa3c2dcd84719770fdbaa38fbde003482fd8f21a4ba",
   "retained_checkout_extras": {
     ".cirrus.yml": "3c80da69364e578017fe4ffc48f7ae1e24035fe301de179bf401e32d4508d6fe",
     ".gitattributes": "d6e41e66c0854973826a7d5026c049b71c5dc3e11bc5a50e1b2b37d881cd78ce",

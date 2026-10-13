@@ -154,24 +154,38 @@
  /*!
 --- a/htscodecs/htscodecs/c_simple_model.h
 +++ b/htscodecs/htscodecs/c_simple_model.h
-@@ -130,7 +130,7 @@
+@@ -130,10 +130,11 @@
          SIMPLE_MODEL(NSYM,_normalize)(m);
  
      /* Keep approx sorted */
 -    if (s[0].Freq > s[-1].Freq) {
-+    if (s > m->F && s[0].Freq > s[-1].Freq) {
-         SymFreqs t = s[0];
-         s[0] = s[-1];
-         s[-1] = t;
-@@ -160,7 +160,7 @@
+-        SymFreqs t = s[0];
+-        s[0] = s[-1];
+-        s[-1] = t;
++    unsigned int index = (unsigned int)(s - m->F);
++    if (index > 0 && m->F[index].Freq > m->F[index-1].Freq) {
++        SymFreqs t = m->F[index];
++        m->F[index] = m->F[index-1];
++        m->F[index-1] = t;
+     }
+ }
+ 
+@@ -160,10 +161,11 @@
          SIMPLE_MODEL(NSYM,_normalize)(m);
  
      /* Keep approx sorted */
 -    if (s[0].Freq > s[-1].Freq) {
-+    if (s > m->F && s[0].Freq > s[-1].Freq) {
-         SymFreqs t = s[0];
-         s[0] = s[-1];
-         s[-1] = t;
+-        SymFreqs t = s[0];
+-        s[0] = s[-1];
+-        s[-1] = t;
++    unsigned int index = (unsigned int)(s - m->F);
++    if (index > 0 && m->F[index].Freq > m->F[index-1].Freq) {
++        SymFreqs t = m->F[index];
++        m->F[index] = m->F[index-1];
++        m->F[index-1] = t;
+         return t.Symbol;
+     }
+ 
 --- a/sam.c
 +++ b/sam.c
 @@ -4788,8 +4788,10 @@

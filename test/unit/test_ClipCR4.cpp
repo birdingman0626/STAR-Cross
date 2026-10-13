@@ -104,3 +104,24 @@ TEST_CASE("Parasail 64-bit scan keeps large gap penalties in 64-bit arithmetic")
     REQUIRE(result != nullptr);
     CHECK(parasail_result_get_score(result.get()) == 300);
 }
+
+TEST_CASE("Parasail PSSM conversion validates dimensions and accepts a bounded query") {
+    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> matrix(
+        parasail_matrix_create("ACGTN", 1, -2), parasail_matrix_free);
+    REQUIRE(matrix != nullptr);
+    const char query[2] = {'A', 'C'};
+    CHECK(parasail_matrix_convert_square_to_pssm(nullptr, query, 2) == nullptr);
+    CHECK(parasail_matrix_convert_square_to_pssm(matrix.get(), nullptr, 2) == nullptr);
+    CHECK(parasail_matrix_convert_square_to_pssm(matrix.get(), query, 0) == nullptr);
+    CHECK(parasail_matrix_convert_square_to_pssm(matrix.get(), query, -1) == nullptr);
+    CHECK(parasail_matrix_convert_square_to_pssm(matrix.get(), query, std::numeric_limits<int>::max()) == nullptr);
+    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> pssm(
+        parasail_matrix_convert_square_to_pssm(matrix.get(), query, 2), parasail_matrix_free);
+    REQUIRE(pssm != nullptr);
+    CHECK(pssm->length == 2);
+    CHECK(std::string(pssm->query) == "AC");
+    for (int row = 0; row < 2; ++row)
+        for (int col = 0; col < matrix->size; ++col)
+            CHECK(pssm->matrix[row * matrix->size + col]
+                == matrix->matrix[matrix->mapper[static_cast<unsigned char>(query[row])] * matrix->size + col]);
+}

@@ -1,11 +1,14 @@
 # Bounded compatibility/test changes to the hash-verified Parasail 2.6.2 source.
 file(READ "${PARASAIL_SOURCE}/CMakeLists.txt" contents)
+set(original "${contents}")
 string(REPLACE "\${CMAKE_SOURCE_DIR}/data/test_small_2.fasta"
     "\${CMAKE_CURRENT_SOURCE_DIR}/data/test_small_2.fasta" contents "${contents}")
 if(NOT contents MATCHES "STAR_CROSS_TEST_LIMIT")
     string(APPEND contents "\n# STAR_CROSS_TEST_LIMIT: avoid tiny-fixture OpenMP oversubscription\nset_tests_properties(test_verify PROPERTIES ENVIRONMENT \"OMP_NUM_THREADS=2\" TIMEOUT 120)\n")
 endif()
-file(WRITE "${PARASAIL_SOURCE}/CMakeLists.txt" "${contents}")
+if(NOT contents STREQUAL original)
+    file(WRITE "${PARASAIL_SOURCE}/CMakeLists.txt" "${contents}")
+endif()
 
 # Keep security fixes in the reproducible FetchContent patch step, including
 # templates so regenerating SIMD kernels does not reintroduce narrow arithmetic.
@@ -42,6 +45,16 @@ foreach(path IN LISTS security_sources)
         file(WRITE "${path}" "${contents}")
     endif()
 endforeach()
+file(READ "${PARASAIL_SOURCE}/src/memory.c" contents)
+set(original "${contents}")
+string(REPLACE "size_t matrix_size = matrix->size*s1Len;\n    size_t alphabet_size = matrix->size+1;"
+    "/* STAR_CROSS_PSSM_BOUNDS: validate before dereferencing or multiplying. */\n    if (!matrix || !s1 || s1Len <= 0 || matrix->size <= 0\n        || matrix->size > INT_MAX / s1Len) return NULL;\n    size_t matrix_size = (size_t)matrix->size * s1Len;\n    size_t alphabet_size = (size_t)matrix->size+1;"
+    contents "${contents}")
+string(REPLACE "PARASAIL_CALLOC(new_query, char, s1Len+1);\n    (void)memcpy(new_query, s1, sizeof(char)*(s1Len+1));"
+    "PARASAIL_CALLOC(new_query, char, (size_t)s1Len+1);\n    (void)memcpy(new_query, s1, (size_t)s1Len);\n    new_query[s1Len] = '\\0';" contents "${contents}")
+if(NOT contents STREQUAL original)
+    file(WRITE "${PARASAIL_SOURCE}/src/memory.c" "${contents}")
+endif()
 file(READ "${PARASAIL_SOURCE}/parasail/memory.h" contents)
 set(original "${contents}")
 string(REPLACE "size_t _size = sizeof(type)*(count);"

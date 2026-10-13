@@ -83,3 +83,46 @@ The native C++20 build, all 122 CTest cases and the 1,000-record rank-hint
 sweep pass. The old local build initially retained unpatched Parasail
 FetchContent sources; reapplying the maintained patch before rebuilding
 restored the allocation-boundary tests. C++17 remains the release default.
+
+## Follow-up review, 2026-10-12
+
+The authenticated `main` list at `64683dc` contains **22 open / 85 closed**
+alerts. Three residual/new HTScodecs reports (#92, #93, #107) flag negative
+subscripts despite the preceding first-element guard. Both encode and decode
+now express the same swap through an explicit nonnegative array index.
+The model ordering and encoded data are preserved.
+
+Parasail #4 identifies a remaining PSSM conversion product computed in `int`
+before assignment to `size_t`. The function also dereferenced `matrix` before
+checking it and copied one byte beyond the caller's declared query length.
+The maintained patch validates pointers and dimensions first, enforces the
+existing int-indexed matrix limit, promotes the product, and terminates its
+owned query after copying exactly `s1Len` bytes. Regressions cover null,
+nonpositive and overflowing dimensions, a nonterminated two-byte query, and
+every resulting matrix entry. Reconfiguration now reapplies the maintained
+Parasail patch, including to previously populated FetchContent directories.
+
+The other 18 reports remain individually accounted for: #1–3 are in the
+contributed SSW object linked into `test_openmp`, not into Parasail's library
+or STAR; #88 and #99–101 are dependency test utilities; #84 accesses `H[i]`
+inside `for (i=0; i<s1Len; ++i)`; #80–83 use `sscanf`'s result and reject an
+incorrect field count; #102/#103 concern the intentional CRAI tagged-index
+representation; #96/#98 are file/protocol parsing; #106 is the unused HTTP
+client proxy branch. #89's M5 digest is validated as exactly 32 ASCII hex
+digits before cache lookup. Their reasons are recorded without dismissing
+alerts or excluding dependencies from scanning.
+
+The previous s390x qualification reached C++ compilation and was canceled
+at its 120-minute job limit. It now builds the shipping C++17 executable and
+the unit-test binary once, retains big-endian BAM/packing and end-to-end
+scientific/index-generation checks, and allows 240 minutes. C++20 language
+comparisons continue on native Linux, macOS and Windows; s390x C++20 remains
+unqualified. Hosted results and release assets must still be checked before
+calling this release complete.
+
+Local follow-up verification: Windows CTest **123/123**, Linux ASan/UBSan
+CTest **126/126**, with leak detection and halt-on-error enabled. The HTSlib
+queue reconstructs all 962 maintained files. Fresh, cached and repeatedly
+patched Parasail `memory.c` files match; an existing build reconfigures without
+changing the already patched dependency sources. Native scientific fixtures
+pass; the sanitized scientific run is recorded separately in the local receipts.

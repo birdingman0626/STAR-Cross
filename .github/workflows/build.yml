@@ -11,7 +11,8 @@ jobs:
   # Validate once and retain the package for the release workflow to reuse.
   build-s390x:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # QEMU compilation was still progressing at 120 minutes on the hosted runner.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0

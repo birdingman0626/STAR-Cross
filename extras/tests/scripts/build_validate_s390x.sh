@@ -25,21 +25,14 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
 
 # CMake's hash-verified Parasail patch step also handles s390x CPUID.
 
-cmake --build build -j2
+# Build only the executable and the unit-test binary used below. Native
+# platforms separately qualify the C++17/C++20 language pair; emulated s390x
+# qualifies the shipping C++17 artifact and its big-endian behavior.
+cmake --build build --target STAR star_tests -j2
 
 ./build/STAR --version
 ctest --test-dir build/test --no-tests=error --output-on-failure -R 'PackedArray|byteOrder|unaligned|BAM'
 python3 "$SCRIPT_DIR/../../../scripts/test_cpu_upstream.py" --star-exe "$SRC_DIR/build/STAR" --sa-sparse 3
-
-# Reuse C dependencies, but recompile all affected C++ nodes for C++20.
-cp build/STAR build/STAR-cxx17-reference
-cmake -B build -DSTAR_CXX_STANDARD=20
-cmake --build build -j2
-ctest --test-dir build/test --no-tests=error --output-on-failure -R 'PackedArray|byteOrder|unaligned|BAM'
-python3 "$SCRIPT_DIR/../../../scripts/test_cpu_upstream.py" --star-exe "$SRC_DIR/build/STAR" --ref-exe "$SRC_DIR/build/STAR-cxx17-reference" --sa-sparse 3
-# Published s390x binary remains C++17 until promotion is independently approved.
-cmake -B build -DSTAR_CXX_STANDARD=17
-cmake --build build -j2
 
 # End-to-end big-endian validation: building a genome index exercises the
 # PackedArray / SuffixArrayFuns / Genome_genomeGenerate byte-order paths. On an
