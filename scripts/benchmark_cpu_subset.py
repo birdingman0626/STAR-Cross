@@ -13,6 +13,7 @@ import time
 import sys
 import random
 from qualification import measured_run, bam_signature, paired_assessment, scientific_final_fields, background_environment_pass
+from qualification import machine_identity, execution_environment, calibration_profile_matches, performance_acceptance
 from compare_raw_counts import matrix
 
 
@@ -112,6 +113,8 @@ def main():
     if args.legacy:
         common += ["--legacy", "True"]
     result = {"status": "RUNNING", "pairs": manifest["pairs"], "sampling": manifest["sampling"],
+              "machine_identity": machine_identity(),
+              "execution_environment": execution_environment(),
               "max_background_cpu_percent": args.max_background_cpu_percent,
               "runner_sha256": hashlib.sha256(runner).hexdigest(),
               "count_comparator_sha256": hashlib.sha256(comparator).hexdigest(),
@@ -181,14 +184,20 @@ def main():
             reject("Calibration receipt did not pass")
         if not background_environment_pass(calibration["runs"], args.max_background_cpu_percent):
             reject("Calibration environment missing or busy")
-        if calibration.get("pairs") != manifest["pairs"] or calibration.get("threads") != args.threads:
-            reject("Calibration workload differs")
+        if not calibration_profile_matches(calibration, result):
+            reject("Calibration workload, machine or measurement code differs")
         for prior in calibration["runs"]:
             prior_dir = args.calibration_receipt.parent/prior["run_directory"]
             if (prior.get("binary_sha256") != sha256(args.binary[0].split("=", 1)[1])
                     or prior.get("requested_gpu_mode", "off") != gpu_modes.get(labels[0], "off")
                     or read_json(prior_dir/"input_signatures.json") != signatures):
                 reject("Calibration input/binary/backend differs")
+            prior_command = read_json(prior_dir/"command.json")
+            expected_arguments = common + (["--gpuSjdbRemap", gpu_modes[labels[0]]] if labels[0] in gpu_modes else [])
+            if (not isinstance(prior_command, list) or len(prior_command) < 3
+                    or prior_command[1:-2] != expected_arguments or prior_command[-2] != "--outFileNamePrefix"
+                    or sha256(prior_command[0]) != prior["binary_sha256"]):
+                reject("Calibration executed command differs")
             for name in ("full_contract_signature", "full_artifact_hashes"):
                 if not prior.get(name+"_sha256") or sha256(prior_dir/(name+".json")) != prior[name+"_sha256"]:
                     reject("Calibration full-contract provenance missing or changed")
@@ -367,16 +376,11 @@ def main():
     save()
     if args.rounds > 1:
         result["paired_assessment"] = paired_assessment(result["runs"], labels, args.order_seed)
-        result["performance_acceptance"] = "UNVERIFIED_ENVIRONMENT_AND_CALIBRATION"
-        if args.calibration_receipt:
-            result["performance_acceptance"] = "UNVERIFIED_ENVIRONMENT"
         result["background_environment_gate"] = "PASS" if background_environment_pass(result["runs"], args.max_background_cpu_percent) else "UNVERIFIED_OR_BUSY"
-        if result["background_environment_gate"] == "PASS":
-            assessment = result["paired_assessment"]["status"]
-            if assessment == "CALIBRATION_PASS":
-                result["performance_acceptance"] = "CALIBRATION_PASS"
-            elif args.calibration_receipt and calibration.get("performance_acceptance") == "CALIBRATION_PASS" and assessment == "TIME_NONREGRESSION_PASS":
-                result["performance_acceptance"] = "NONREGRESSION_PASS"
+        result["performance_acceptance"] = performance_acceptance(
+            result["status"], result["paired_assessment"]["status"],
+            result["background_environment_gate"] == "PASS",
+            bool(args.calibration_receipt and calibration.get("performance_acceptance") == "CALIBRATION_PASS"))
         result["limitations"] = ["prefix not cell-representative", "not full-library regression",
                                 "performance requires idle-machine and independent calibration evidence",
                                 "float matrices compared exactly; no post-hoc tolerance"]

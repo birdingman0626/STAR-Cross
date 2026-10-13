@@ -5,6 +5,8 @@ from ctypes import wintypes
 import gzip
 import hashlib
 import math
+import os
+import platform
 from pathlib import Path
 import random
 import sqlite3
@@ -39,6 +41,8 @@ def measured_run(command, console, cwd):
                                           *(ctypes.byref(item) for item in own)):
                 raise ctypes.WinError(ctypes.get_last_error())
             return ticks(system[0]), ticks(system[1])+ticks(system[2]), ticks(own[2])+ticks(own[3])
+        kernel.GetActiveProcessorGroupCount.restype = wintypes.WORD
+        single_group = kernel.GetActiveProcessorGroupCount() == 1
         previous = cpu_times()
         background = []
         while True:
@@ -48,7 +52,7 @@ def measured_run(command, console, cwd):
                 pass
             current = cpu_times()
             idle, total, own = (right-left for left, right in zip(previous, current))
-            if total > 0:
+            if single_group and total > 0:
                 background.append(100*max(0, total-idle-own)/total)
             previous = current
             if process.returncode is not None:
@@ -56,7 +60,8 @@ def measured_run(command, console, cwd):
         memory.update(background_cpu_samples=len(background),
                       background_cpu_mean_percent=statistics.mean(background) if background else None,
                       background_cpu_p95_percent=sorted(background)[math.ceil(len(background)*0.95)-1] if background else None,
-                      background_cpu_source="Windows GetSystemTimes minus STAR GetProcessTimes; all logical CPUs")
+                      background_cpu_source="Windows GetSystemTimes minus STAR GetProcessTimes; single processor group only",
+                      background_cpu_scope_verified=single_group)
         class Counters(ctypes.Structure):
             _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
                 (name, ctypes.c_size_t) for name in (
@@ -161,7 +166,9 @@ def paired_assessment(runs, labels, seed=1729):
     identical = (len({run["binary_sha256"] for run in runs}) == 1
                  and len({run.get("requested_gpu_mode", "off") for run in runs}) == 1)
     enough = len(pairs) >= (5 if identical else 10)
-    calibrated = identical and enough and calibration_deviation <= 0.02
+    # A median alone can hide a minority of extreme interruptions. Require the
+    # predeclared interval too; do not loosen it after observing a noisy run.
+    calibrated = identical and enough and calibration_deviation <= 0.02 and lower >= 0.98 and upper <= 1.02
     memory_ok = len(memory_deltas) == len(pairs) and statistics.median(memory_deltas) <= memory_limit
     return {"status": "CALIBRATION_PASS" if calibrated and memory_ok else
             "INCONCLUSIVE" if identical or not enough or not memory_ok else
@@ -178,6 +185,42 @@ def paired_assessment(runs, labels, seed=1729):
 def background_environment_pass(runs, limit):
     measured = [run for run in runs if not run["warmup"]]
     return bool(measured) and all(run.get("background_cpu_samples", 0) > 0 and
-                all(run.get(key) is not None and run[key] <= limit
+                run.get("background_cpu_scope_verified", False) and
+                all(run.get(key) is not None and math.isfinite(run[key]) and 0 <= run[key] <= limit
                     for key in ("background_cpu_mean_percent", "background_cpu_p95_percent"))
                 for run in measured)
+
+
+def machine_identity():
+    """Local calibration identity; no raw hostname in the receipt."""
+    return {"host_sha256": hashlib.sha256(platform.node().encode()).hexdigest(),
+            "platform": platform.platform(), "processor": platform.processor(),
+            "logical_cpus": os.cpu_count(), "python": sys.version}
+
+
+def execution_environment():
+    """Only performance-relevant switches; never capture credentials wholesale."""
+    names = ("STAR_CHUNK_PIPELINE", "STAR_ASYNC_SAM", "STAR_ASYNC_BAM",
+             "STAR_SEED_TRACE_DIR", "STAR_SEED_TRACE_MODULUS", "STAR_PROFILE_SA_SORT",
+             "OMP_NUM_THREADS", "OMP_THREAD_LIMIT", "OMP_DYNAMIC", "OMP_SCHEDULE",
+             "OMP_PROC_BIND", "OMP_PLACES", "OMP_WAIT_POLICY", "KMP_AFFINITY",
+             "KMP_BLOCKTIME", "GOMP_CPU_AFFINITY")
+    return {name: os.environ.get(name) for name in names}
+
+
+def calibration_profile_matches(calibration, current):
+    keys = ("legacy", "threads", "pairs", "machine_identity", "execution_environment", "runner_sha256",
+            "count_comparator_sha256", "helper_sha256")
+    return all(key in calibration and key in current and calibration[key] == current[key] for key in keys)
+
+
+def performance_acceptance(scientific_status, assessment, environment_ok, calibration_ok=False):
+    if scientific_status != "PASSED_DECLARED_RAW_ARTIFACTS":
+        return "UNVERIFIED_SCIENTIFIC_CONTRACT"
+    if not environment_ok:
+        return "UNVERIFIED_ENVIRONMENT"
+    if assessment == "CALIBRATION_PASS":
+        return "CALIBRATION_PASS"
+    if assessment == "TIME_NONREGRESSION_PASS" and calibration_ok:
+        return "NONREGRESSION_PASS"
+    return "UNVERIFIED_ASSESSMENT_OR_CALIBRATION"

@@ -9,7 +9,8 @@ changing the language switch alone.
 
 The user authorized migration after freezing a C++17 checkpoint. Published
 `4a079e7` is retained; the additional exact-sort-memory-cap repair is frozen and
-tagged as `60ea3a4`, with its publication still subject to exact-SHA release gates.
+tagged and published as `60ea3a4`; its 23 release jobs passed and all six platform
+archives are present. This checkpoint is not evidence for later migration commits.
 Work proceeds separately on `codex/cxx20-migration`; it is not a released C++20
 binary and does not change the shipping default yet.
 
@@ -21,10 +22,12 @@ tail query without partial output. The C++17 pointer interface remains available
 there is no owning allocation, device ABI, search ordering or alignment change.
 Configuration requires actual standard-library span support for a C++20 build.
 
-The migration branch runs the existing native 17/20 matrix and qualifies s390x
-with 20 (including the span property executable). Main/tag builds still select 17
-for s390x. This one-build emulated lane establishes compilation and scientific
-fixtures, not same-source 17/20 binary parity or performance on that architecture.
+The migration branch runs the existing native 17/20 matrix. The new s390x lane
+builds 17 first, preserves that binary, then rebuilds 20 from a verified identical
+source signature and compares the complete scientific fixtures, including span
+properties. Its evidence is uploaded separately from the binary archive. Main/tag
+builds still select 17 for s390x. Compilation or launching this lane is not a pass:
+the recorded comparison and hosted job must actually complete successfully.
 Do not promote the default before those remaining gates are resolved.
 
 Next gates: native same-source comparison on this changed source; host20/device17
@@ -50,6 +53,31 @@ Executed local evidence for the first span-interface change (2026-10-13):
 - Hosted platforms, same-source s390x parity and representative elapsed/RSS
   qualification remain pending here.
   No speedup or complete GPU alignment claim follows from these fixtures.
+
+Promotion qualification in progress (2026-10-13):
+
+- `922c485` hosted native 17/20 and s390x-20 matrix passed all 17 jobs. Same-source
+  s390x 17/20 comparison is now implemented in `4e1604e`, run `38398130764`;
+  completion remains a separate gate.
+- A same-source native MSVC 19.51 pair on one million synchronized TMJ read pairs
+  passes exact BAM/header, SJ, Gene/GeneFull/Velocity, filtered/EM and scientific
+  log checks. The C++ source is unchanged between `922c485` and `4e1604e` (only
+  qualification scripts/CI changed). Elapsed and peak memory from this single
+  pair are screening only, not performance admission: background CPU was busy.
+- The interrupted busy-machine A/A record is explicitly isolated as
+  `ABORTED_BACKGROUND_LOAD`, not reused. Promotion requires a new quiet A/A
+  calibration (at least five pairs) and ten alternating C++17/20 pairs. The
+  A/A median absolute relative deviation must be <=2% and its paired-bootstrap
+  interval must lie within [0.98, 1.02]. The C++20 interval upper bound must be
+  <=1.05, and median peak-RSS increase <=max(64 MiB, 1% of reference peak).
+- Per measured run, Windows background CPU mean and p95 must both be <=5%.
+  Missing/invalid metrics or multiple processor groups are UNVERIFIED, not a
+  pass. Calibration is bound to inputs, binary/backend, actual arguments,
+  runner/helper hashes and machine identity. Any scientific difference blocks
+  the performance acceptance field even if timings happen to pass.
+- Native prefix qualification does not establish whole-library, cold-cache,
+  every-thread-count, GPU performance or emulated-s390x performance equivalence.
+  Default C++17 remains unchanged until the actual remaining gates pass.
 
 Evidence logs are retained locally under `data/validation/architecture-20261009/`
 with the `cxx20-migration-` prefix; the source signature and binary hashes are
