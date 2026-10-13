@@ -5,9 +5,60 @@ preset and GCC/Clang CI lanes enable qualification without silently changing
 the minimum supported compiler. No performance improvement is assumed from
 changing the language switch alone.
 
-## Current decision after the ownership continuation
+## Migration started: 2026-10-13
 
-Keep the release default at **C++17**. Named RAII owners, shared metadata,
+The user authorized migration after freezing a C++17 checkpoint. Published
+`4a079e7` is retained; the additional exact-sort-memory-cap repair is frozen and
+tagged as `60ea3a4`, with its publication still subject to exact-SHA release gates.
+Work proceeds separately on `codex/cxx20-migration`; it is not a released C++20
+binary and does not change the shipping default yet.
+
+First bounded change: `SeedSearchEngine::searchBatch` accepts C++20 `std::span`
+views, checks strand/output extents before any result writes, and forwards to the
+existing validated executor. The replay benchmark uses it under C++20. Property
+tests cover serial/parallel parity, empty views, mismatched extents and an invalid
+tail query without partial output. The C++17 pointer interface remains available;
+there is no owning allocation, device ABI, search ordering or alignment change.
+Configuration requires actual standard-library span support for a C++20 build.
+
+The migration branch runs the existing native 17/20 matrix and qualifies s390x
+with 20 (including the span property executable). Main/tag builds still select 17
+for s390x. This one-build emulated lane establishes compilation and scientific
+fixtures, not same-source 17/20 binary parity or performance on that architecture.
+Do not promote the default before those remaining gates are resolved.
+
+Next gates: native same-source comparison on this changed source; host20/device17
+CUDA compatibility; s390x language-pair evidence; representative paired-run
+elapsed/RSS checks; then an explicit default/minimum-toolchain decision. Keep the
+language change separate from algorithm and dependency upgrades. The checklists
+below retain historical and still-unverified requirements rather than asserting
+that a green prior revision qualifies every future change.
+
+Executed local evidence for the first span-interface change (2026-10-13):
+
+- MSVC 19.51: 124/124 C++20 CTest cases; same-cache C++17 rebuild and 124/124
+  cases; complete sparse-SA=3 scientific output comparison passes; C++20 restored.
+- MSVC 19.44 + CUDA 13.3, host20/device17: both experimental adapters compile;
+  span properties pass; resident CUDA seed fixture (including invalid-request
+  controls) passes; required CUDA SJ remap executes and matches CPU BAM/SJ;
+  missing-device/unsupported-junction rejection and automatic fallback pass.
+- GCC 13.3: 127/127 C++20 CTest cases. Optimized ASan/UBSan C++20 seed properties
+  pass (133370 singleton and 71230 sorted-forward checks, plus span batch negative
+  controls); the C++17 sanitizer cache is restored and its binary SHA256 preserved.
+- GCC 13.3 same-cache C++17/20 comparison also passes 127/127 rebuilt C++17 tests
+  and the complete sparse-SA=3 scientific output contract; C++20 restored.
+- Hosted platforms, same-source s390x parity and representative elapsed/RSS
+  qualification remain pending here.
+  No speedup or complete GPU alignment claim follows from these fixtures.
+
+Evidence logs are retained locally under `data/validation/architecture-20261009/`
+with the `cxx20-migration-` prefix; the source signature and binary hashes are
+retained by the comparison/fixture scripts. Hosted results must be tied to the
+committed migration SHA, not to the C++17 checkpoint's workflow results.
+
+## Previous decision after the ownership continuation
+
+The previous recommendation was to keep the release default at **C++17**. Named RAII owners, shared metadata,
 unaligned-safe byte operations and deterministic resource release do not require
 C++20. No measured hot-path benefit or release requirement currently justifies
 raising the minimum. Keep the opt-in C++20 lane; validate the *current* source

@@ -21,14 +21,20 @@ import sys, platform
 assert sys.byteorder == 'big' and platform.machine() == 's390x'
 PY
 
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
+standard="${STAR_CXX_STANDARD:-17}"
+case "$standard" in 17|20) ;; *) echo 'Expected STAR_CXX_STANDARD=17 or 20' >&2; exit 2;; esac
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD="$standard"
 
 # CMake's hash-verified Parasail patch step also handles s390x CPUID.
 
 # Build only the executable and the unit-test binary used below. Native
 # platforms separately qualify the C++17/C++20 language pair; emulated s390x
-# qualifies the shipping C++17 artifact and its big-endian behavior.
+# qualifies the selected language and its big-endian behavior in one build.
 cmake --build build --target STAR star_tests -j2
+if [ "$standard" = 20 ]; then
+    cmake --build build --target star_seed_properties -j2
+    ctest --test-dir build/test --no-tests=error --output-on-failure -R '^seed_search_properties$'
+fi
 
 ./build/STAR --version
 ctest --test-dir build/test --no-tests=error --output-on-failure -R 'PackedArray|byteOrder|unaligned|BAM'

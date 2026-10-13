@@ -3,7 +3,7 @@ name: Build and Test
 on:
   workflow_call:
   push:
-    branches: [main]
+    branches: [main, codex/cxx20-migration]
   pull_request:
     branches: [main]
 
@@ -13,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     # QEMU compilation was still progressing at 120 minutes on the hosted runner.
     timeout-minutes: 240
+    env:
+      # Migration branch qualifies C++20 without changing shipping defaults.
+      STAR_CXX_STANDARD: ${{ github.ref == 'refs/heads/codex/cxx20-migration' && '20' || '17' }}
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
@@ -21,7 +24,7 @@ jobs:
       - name: Build and validate big-endian target
         run: |
           docker run --rm --platform linux/s390x -v "$PWD":/src -w /src \
-            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+            -e STAR_CXX_STANDARD -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
             debian:trixie bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt && cmake --install source/build --config Release --component STAR --prefix /src/release-metadata'
           test "$(cat s390x-version.txt)" = "STAR-Cross $(git rev-parse --short HEAD)"
           tar -czf STAR-linux-s390x.tar.gz -C release-metadata/bin STAR -C "$PWD/release-metadata/share/STAR-Cross" licenses

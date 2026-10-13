@@ -12,6 +12,18 @@ endif()
 set(CMAKE_CXX_STANDARD ${STAR_CXX_STANDARD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+if(STAR_CXX_STANDARD STREQUAL "20")
+    include(CheckCXXSourceCompiles)
+    check_cxx_source_compiles("#include <span>
+        #if !defined(__cpp_lib_span) || __cpp_lib_span < 202002L
+        #error C++20 span support is required
+        #endif
+        int main() { int data[1] = {}; return std::span<int>(data).size() != 1; }"
+        STAR_HAS_CXX20_SPAN)
+    if(NOT STAR_HAS_CXX20_SPAN)
+        message(FATAL_ERROR "C++20 migration requires a compiler and standard library with std::span")
+    endif()
+endif()
 
 # Export compile_commands.json for LSP/IDE support (clangd, ccls)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
