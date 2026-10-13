@@ -279,10 +279,19 @@ jobs:
         run: ctest --test-dir source/build-asan --no-tests=error --output-on-failure
 
       - name: Sanitized alignment and count integration
+        timeout-minutes: 10
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1
         run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build-asan/STAR"
+
+      - name: Retain failed scientific fixture evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: asan-scientific-fixtures
+          path: /tmp/star-cpu-regression-*/
+          if-no-files-found: ignore
 
       - name: Leak-checked genome generation and CPU seed integration
         env:

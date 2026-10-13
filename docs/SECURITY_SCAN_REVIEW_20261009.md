@@ -126,3 +126,14 @@ queue reconstructs all 962 maintained files. Fresh, cached and repeatedly
 patched Parasail `memory.c` files match; an existing build reconfigures without
 changing the already patched dependency sources. Native scientific fixtures
 pass; the sanitized scientific run is recorded separately in the local receipts.
+
+Hosted scan for `d668f07` completed: **18 open / 89 closed**, down from
+22 open / 85 closed; #4, #92, #93 and #107 were closed by that analysis.
+Release qualification's ASan scientific harness then exceeded 30 minutes
+without per-case output, while a local RelWithDebInfo ASan/UBSan run passed.
+This is not yet a diagnosed STAR deadlock. Miniature fixtures now announce
+their case, write command/log evidence before completion, and fail after
+180 seconds while terminating the Unix producer process group (Windows
+process tree). Standalone filtering is also bounded. A regression checks
+output, failure status, timeout and Unix descendant termination; failed CI
+fixture evidence is retained. No scientific assertion was relaxed.

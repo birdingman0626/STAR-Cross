@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 from test_solo_cell_filtering import check_cell_filtering, check_invalid_matrices, check_emptydrops
+from fixture_process import run_fixture
 
 
 def bam_scientific_header(path):
@@ -100,9 +101,9 @@ def main():
         out.mkdir()
         cmd = [binary or args.star_exe, "--runThreadN", str(args.threads), *options,
                "--outFileNamePrefix", str(out) + "/"]
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,env=env)
         (out / "command.json").write_text(json.dumps(cmd))
-        (out / "console.log").write_text(proc.stdout)
+        print(f"Running fixture: {label}", flush=True)
+        proc = run_fixture(cmd, out / "console.log", env=env)
         assert (proc.returncode == 0) == valid, (label, proc.returncode, proc.stdout[-3000:])
         return out
 
@@ -325,9 +326,9 @@ def main():
         command = [args.star_exe, "--runThreadN", str(args.threads), *common,
                    "--readFilesIn", str(reads), "--outSAMtype", "BAM", "Unsorted",
                    "--outFileNamePrefix", str(failed)+"/"]
-        process = subprocess.run(command, capture_output=True, text=True)
         (failed/"command.json").write_text(json.dumps(command))
-        (failed/"console.log").write_text(process.stdout+process.stderr)
+        print("Running fixture: disk-full", flush=True)
+        process = run_fixture(command, failed / "console.log")
         assert process.returncode != 0, "Deferred BAM write failure was accepted"
         assert not (failed/"Log.final.out").exists()
         assert "ALL DONE!" not in (failed/"Log.out").read_text()
@@ -463,6 +464,7 @@ def main():
         checks.append(f"two-cell {layout} SmartSeq {dedup}: positive hand-computed Gene/GeneFull counts and axes")
     if smart_tmp:
         smart_tmp.cleanup()
+    print("Running fixtures: standalone cell filtering", flush=True)
     checks.extend(check_cell_filtering(args.star_exe, root / "cell-filtering"))
     checks.extend(check_invalid_matrices(args.star_exe, root / "invalid-matrices"))
     checks.extend(check_emptydrops(args.star_exe, root / "emptydrops"))

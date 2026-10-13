@@ -45,7 +45,7 @@ def check_cell_filtering(star_exe, root):
              str(raw.resolve()), str(filtered.resolve()) + "/",
              "--soloCellFilter", *filter_parameters,
              "--outFileNamePrefix", str(case.resolve()) + "/"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
         (case / "process.log").write_text(result.stdout)
         assert result.returncode == 0, (name, result.returncode, result.stdout)
         assert (filtered / "features.tsv").read_text() == features, name
