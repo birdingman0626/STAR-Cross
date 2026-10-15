@@ -91,9 +91,50 @@ Follow-up verification (2026-10-15):
   The regression checks assert its POSIX mode for successful and failed
   comparisons; five tests pass on Windows and five on Linux. A new hosted run
   must still confirm successful artifact publication before closing this gate.
-- Local WSL is running another project's velocity analysis. It is not stopped
-  or suspended to obtain favorable timings. Quiet-machine A/A and paired
-  performance/RSS admission remain incomplete, so the default is still C++17.
+- The requested fresh native measurement was completed without controlling
+  other applications: five A/A pairs and ten alternating C++17/20 pairs,
+  each preceded by one warmup per binary, on the one-million synchronized-pair
+  TMJ prefix, eight STAR threads, full cynomolgus index, and exact full-output
+  contract. MSVC 19.51 Release, AVX2/CUDA off, dependency lock and C++ sources
+  are identical. `git diff 922c485 861b995 -- source test` is empty; intervening
+  commits changed qualification/CI/documentation only. Native source/runtime
+  capture and per-run binary/input/helper signatures are retained locally.
+
+| Measurement | Five A/A pairs | Ten C++17/20 pairs |
+| --- | --- | --- |
+| Full scientific output | All identical | All identical |
+| Median paired elapsed ratio (second/first) | 1.012664 | 1.012124 |
+| Paired-bootstrap 95% interval | [0.924817, 1.013528] | [1.004932, 1.064893] |
+| Median paired peak-RSS delta | +20 KiB | -220 KiB |
+| Memory gate | PASS | PASS |
+| Background CPU mean range, measured runs | 14.51–29.10% | 11.09–27.41% |
+| Background CPU p95 range, measured runs | 30.77–92.52% | 19.41–93.82% |
+| Performance acceptance | UNVERIFIED_ENVIRONMENT | UNVERIFIED_ENVIRONMENT |
+
+The A/A interval fails its predeclared [0.98, 1.02] bound. The C++20 interval
+upper bound exceeds 1.05, so non-regression is not established. The helper's
+`TIME_REGRESSION` label means this admission condition failed; it is **not**
+proof of an intrinsic >5% language/compiler regression. Busy-environment
+telemetry and failed independent calibration prevent such a causal claim.
+No time outliers were removed, thresholds relaxed, or favorable runs selected.
+Observed STAR peak RSS is approximately 29.24 GiB for both modes; this excludes
+OS file cache and the Python comparison process, and is not a whole-workflow
+memory bound. No speedup is claimed.
+
+Local receipts (ignored, not release assets) are
+`data/validation/cxx20-promotion-aa-final-1m-20261015/result.json` and
+`data/validation/cxx20-promotion-ab-final-1m-20261015/result.json`; they retain
+commands, input and binary hashes, all scientific checks and OS measurements.
+C++17 binary SHA256 is
+`2925ce26c0ef40504e030d3032f831b45eaf644459ed91b6965bc5ae054c1ac6`;
+C++20 binary SHA256 is
+`a9bd580223e63a4b84c2695246ad5a6fa4923b321871c201322c1398e4b32ef0`.
+
+At this verification, hosted runs `38742508396` (permission fix) and
+`38742597777` (documentation-only successor) each have 16 successful jobs with
+s390x still running. Neither is recorded as a complete hosted pass. The default
+remains C++17: promotion requires retained s390x evidence **and** a new valid
+quiet-machine calibration/performance result, not just successful compilation.
 
 Evidence logs are retained locally under `data/validation/architecture-20261009/`
 with the `cxx20-migration-` prefix; the source signature and binary hashes are
