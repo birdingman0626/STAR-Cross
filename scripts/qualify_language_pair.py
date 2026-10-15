@@ -44,6 +44,10 @@ def main():
     if args.evidence_root:
         args.evidence_root.mkdir(parents=True, exist_ok=True)
     evidence = Path(tempfile.mkdtemp(prefix="star-language-pair-", dir=args.evidence_root))
+    # A container creates mkdtemp directories as root-only 0700. This directory
+    # holds public source hashes/commands, not private reads or credentials;
+    # permit the host artifact uploader to traverse it without changing owners.
+    evidence.chmod(0o755)
     (evidence/"source-signature.json").write_text(json.dumps(source_before, indent=2))
     (evidence/"result.json").write_text(json.dumps({"status": "UNVERIFIED", "initial_standard": args.initial_standard}, indent=2))
     binary = build/("STAR.exe" if (build/"STAR.exe").exists() else "STAR")

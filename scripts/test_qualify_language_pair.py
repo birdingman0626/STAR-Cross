@@ -55,6 +55,8 @@ class LanguagePairTests(unittest.TestCase):
                 else:
                     qualify_language_pair.main()
             evidence = next((root / "evidence").iterdir())
+            if sys.platform != "win32":
+                self.assertEqual(evidence.stat().st_mode & 0o777, 0o755)
             result = json.loads((evidence / "result.json").read_text())
             self.assertEqual(result["status"], "UNVERIFIED" if fail_science or change_source else "PASS")
             self.assertTrue((evidence / "source-signature.json").is_file())
