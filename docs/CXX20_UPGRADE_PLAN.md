@@ -79,6 +79,22 @@ Promotion qualification in progress (2026-10-13):
   every-thread-count, GPU performance or emulated-s390x performance equivalence.
   Default C++17 remains unchanged until the actual remaining gates pass.
 
+Follow-up verification (2026-10-15):
+
+- Run `38400883658` (`ecba0de`) completed 16 native/validation jobs successfully,
+  including macOS Intel C++20. The s390x job's C++17 subset (23 tests), C++20
+  subset (24 tests), same-source scientific comparison and endian index generation
+  all passed. The job nevertheless failed: the host artifact uploader could not
+  traverse the container-root-owned evidence directory created with mode 0700.
+- The evidence directory is now explicitly mode 0755. Only this public
+  qualification directory is affected; missing-artifact failures remain fatal.
+  The regression checks assert its POSIX mode for successful and failed
+  comparisons; five tests pass on Windows and five on Linux. A new hosted run
+  must still confirm successful artifact publication before closing this gate.
+- Local WSL is running another project's velocity analysis. It is not stopped
+  or suspended to obtain favorable timings. Quiet-machine A/A and paired
+  performance/RSS admission remain incomplete, so the default is still C++17.
+
 Evidence logs are retained locally under `data/validation/architecture-20261009/`
 with the `cxx20-migration-` prefix; the source signature and binary hashes are
 retained by the comparison/fixture scripts. Hosted results must be tied to the
