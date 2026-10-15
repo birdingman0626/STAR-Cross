@@ -15,19 +15,38 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 from test_cpu_upstream import bam_scientific_header, scientific_final_fields
 
 
-def measured_run(command, console, cwd):
+def measured_run(command, console, cwd, affinity_mask=None):
     """Whole child process elapsed is timed by caller; retain Windows OS peaks.
 
     STAR's direct process only. No claim about descendants or shared-memory RSS.
     Keep the handle open after exit so short-lived processes are measurable.
     """
     process = subprocess.Popen(command, stdout=console, stderr=subprocess.STDOUT, cwd=cwd)
+    started = time.monotonic()
     memory = {}
     if sys.platform == "win32":
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        if affinity_mask is not None:
+            kernel.SetProcessAffinityMask.argtypes = [wintypes.HANDLE, ctypes.c_size_t]
+            if not kernel.SetProcessAffinityMask(wintypes.HANDLE(int(process._handle)), affinity_mask):
+                error = ctypes.WinError(ctypes.get_last_error())
+                process.kill()
+                process.wait()
+                raise error
+            memory["requested_affinity_mask"] = affinity_mask
+            active, system_mask = ctypes.c_size_t(), ctypes.c_size_t()
+            kernel.GetProcessAffinityMask.argtypes = [wintypes.HANDLE, ctypes.POINTER(ctypes.c_size_t), ctypes.POINTER(ctypes.c_size_t)]
+            if (not kernel.GetProcessAffinityMask(wintypes.HANDLE(int(process._handle)), ctypes.byref(active), ctypes.byref(system_mask))
+                    or active.value != affinity_mask):
+                process.kill()
+                process.wait()
+                raise RuntimeError("STAR affinity could not be verified")
+            memory["applied_affinity_mask"] = active.value
+            memory["affinity_scope"] = "STAR only; applied immediately after spawn, before phase monitoring"
         kernel.GetSystemTimes.argtypes = [ctypes.POINTER(wintypes.FILETIME)]*3
         kernel.GetProcessTimes.argtypes = [wintypes.HANDLE]+[ctypes.POINTER(wintypes.FILETIME)]*4
         def ticks(value):
@@ -45,6 +64,12 @@ def measured_run(command, console, cwd):
         single_group = kernel.GetActiveProcessorGroupCount() == 1
         previous = cpu_times()
         background = []
+        samples = []
+        phases = []
+        markers = ("loading genome", "processing annotations GTF", "inserting junctions",
+                   "started mapping", "finished mapping", "started Solo counting", "finished Solo counting")
+        console_offset = 0
+        pending = b""
         while True:
             try:
                 process.wait(timeout=0.25)
@@ -54,6 +79,26 @@ def measured_run(command, console, cwd):
             idle, total, own = (right-left for left, right in zip(previous, current))
             if single_group and total > 0:
                 background.append(100*max(0, total-idle-own)/total)
+            samples.append({"elapsed_seconds": time.monotonic()-started,
+                            "process_cpu_seconds": current[2]/1e7,
+                            "system_total_delta_seconds": total/1e7,
+                            "system_idle_delta_seconds": idle/1e7,
+                            "process_cpu_delta_seconds": own/1e7})
+            # Observe flushed phase announcements without changing STAR's hot path.
+            # Boundaries are polling observations (<= nominal 250 ms), not exact
+            # instrumentation timestamps; delayed polling is retained in samples.
+            with Path(console.name).open("rb") as output:
+                output.seek(console_offset)
+                payload = output.read()
+                console_offset = output.tell()
+            lines = (pending+payload).split(b"\n")
+            pending = lines.pop()
+            for line in lines:
+                for marker in markers:
+                    if b"..... "+marker.encode() in line:
+                        phases.append({"phase": marker, "elapsed_seconds": time.monotonic()-started,
+                                       "process_cpu_seconds": current[2]/1e7})
+                        break
             previous = current
             if process.returncode is not None:
                 break
@@ -61,7 +106,19 @@ def measured_run(command, console, cwd):
                       background_cpu_mean_percent=statistics.mean(background) if background else None,
                       background_cpu_p95_percent=sorted(background)[math.ceil(len(background)*0.95)-1] if background else None,
                       background_cpu_source="Windows GetSystemTimes minus STAR GetProcessTimes; single processor group only",
-                      background_cpu_scope_verified=single_group)
+                      background_cpu_scope_verified=single_group,
+                      process_cpu_seconds=current[2]/1e7, cpu_samples=samples,
+                      phase_observations=phases)
+        class IoCounters(ctypes.Structure):
+            _fields_ = [(name, ctypes.c_ulonglong) for name in (
+                "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+        io = IoCounters()
+        kernel.GetProcessIoCounters.argtypes = [wintypes.HANDLE, ctypes.POINTER(IoCounters)]
+        if not kernel.GetProcessIoCounters(wintypes.HANDLE(int(process._handle)), ctypes.byref(io)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        memory.update(io_read_bytes=io.ReadTransferCount, io_write_bytes=io.WriteTransferCount,
+                      io_scope="Windows process logical transfers; not physical disk traffic")
         class Counters(ctypes.Structure):
             _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD)] + [
                 (name, ctypes.c_size_t) for name in (
@@ -172,7 +229,7 @@ def paired_assessment(runs, labels, seed=1729):
     memory_ok = len(memory_deltas) == len(pairs) and statistics.median(memory_deltas) <= memory_limit
     return {"status": "CALIBRATION_PASS" if calibrated and memory_ok else
             "INCONCLUSIVE" if identical or not enough or not memory_ok else
-            "TIME_NONREGRESSION_PASS" if upper <= 1.05 else "TIME_REGRESSION",
+            "TIME_NONREGRESSION_PASS" if upper <= 1.05 else "NONREGRESSION_NOT_ESTABLISHED",
             "pairs": len(pairs), "median_time_ratio": median,
             "AA_median_absolute_relative_deviation": calibration_deviation if identical else None,
             "paired_bootstrap_95_percent": [lower, upper], "bootstrap_seed": seed,
@@ -209,7 +266,7 @@ def execution_environment():
 
 
 def calibration_profile_matches(calibration, current):
-    keys = ("legacy", "threads", "pairs", "machine_identity", "execution_environment", "runner_sha256",
+    keys = ("legacy", "threads", "pairs", "affinity_mask", "machine_identity", "execution_environment", "runner_sha256",
             "count_comparator_sha256", "helper_sha256")
     return all(key in calibration and key in current and calibration[key] == current[key] for key in keys)
 

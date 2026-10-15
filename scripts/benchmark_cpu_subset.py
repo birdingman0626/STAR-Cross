@@ -40,9 +40,13 @@ def main():
     parser.add_argument("--max-background-cpu-percent", type=float, default=5.0,
                         help="Windows per-run background CPU mean/p95 limit, recorded before measurement")
     parser.add_argument("--legacy", action="store_true")
+    parser.add_argument("--cpu-affinity", type=lambda value: int(value, 0),
+                        help="Windows STAR-only CPU mask for controlled RCA, e.g. 0xff; not a low-load waiver")
     parser.add_argument("--gpu-sjdb-remap", action="append", default=[], help="label=off|auto|required, explicit experimental backend per binary")
     parser.add_argument("--reference-run", type=Path, help="Reuse a successful run with identical arguments, avoiding another full index load")
     args = parser.parse_args()
+    if args.cpu_affinity is not None and (sys.platform != "win32" or not 0 < args.cpu_affinity <= sys.maxsize*2+1):
+        parser.error("CPU affinity requires Windows and a positive pointer-sized mask")
     if args.threads < 1:
         parser.error("Thread count must be positive")
     if args.rounds < 1 or args.warmups < 0:
@@ -114,6 +118,7 @@ def main():
         common += ["--legacy", "True"]
     result = {"status": "RUNNING", "pairs": manifest["pairs"], "sampling": manifest["sampling"],
               "machine_identity": machine_identity(),
+              "affinity_mask": args.cpu_affinity,
               "execution_environment": execution_environment(),
               "max_background_cpu_percent": args.max_background_cpu_percent,
               "runner_sha256": hashlib.sha256(runner).hexdigest(),
@@ -149,6 +154,18 @@ def main():
             reject(f"Invalid evidence JSON: {path}: {error}")
 
     save()
+    # Admission-sized Windows experiments should fail fast on known-busy hosts.
+    # Short diagnostic pairs remain available for attribution, never promotion.
+    if sys.platform == "win32" and args.rounds >= 5:
+        with (output/"idle_preflight.log").open("w") as console:
+            code, idle = measured_run([sys.executable, "-c", "import time; time.sleep(10)"], console, output)
+        result["idle_preflight"] = dict(exit_code=code, **idle)
+        if code or not background_environment_pass([dict(warmup=False, **idle)], args.max_background_cpu_percent):
+            result["status"] = "UNVERIFIED_ENVIRONMENT_PREFLIGHT"
+            result["performance_acceptance"] = "UNVERIFIED_ENVIRONMENT"
+            save()
+            raise SystemExit(2)
+        save()
     baseline = None
     baseline_run = args.reference_run
     if args.reference_run is not None:
@@ -233,7 +250,7 @@ def main():
         start = time.monotonic()
         with (run/"console.log").open("w") as console:
             invocation = command if sys.platform == "win32" else ["/usr/bin/time", "-v", "-o", str(run/"time.txt"), *command]
-            exit_code, memory = measured_run(invocation, console, run)
+            exit_code, memory = measured_run(invocation, console, run, affinity_mask=args.cpu_affinity)
         item = {"label": label, "round": round_number, "warmup": round_number < 0,
                 "run_directory": run.name, "binary_sha256": binary_digest, "exit_code": exit_code, **memory,
                 "requested_gpu_mode": gpu_modes.get(label, "off"),

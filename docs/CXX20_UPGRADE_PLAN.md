@@ -143,6 +143,12 @@ committed migration SHA, not to the C++17 checkpoint's workflow results.
 
 ## Previous decision after the ownership continuation
 
+Subsequent [performance RCA](CXX20_PERFORMANCE_RCA.md) records fresh CPU/I/O and
+same-P-core diagnostics, an independent no-STAR ambient-load control, the new
+fail-fast idle preflight, and successful s390x evidence publication (17/17 jobs).
+The statistical failure label is now `NONREGRESSION_NOT_ESTABLISHED`; historical
+receipts are not rewritten. Quiet-machine performance admission remains open.
+
 The previous recommendation was to keep the release default at **C++17**. Named RAII owners, shared metadata,
 unaligned-safe byte operations and deterministic resource release do not require
 C++20. No measured hot-path benefit or release requirement currently justifies
