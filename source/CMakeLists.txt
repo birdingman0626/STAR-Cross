@@ -4,7 +4,7 @@ if(POLICY CMP0135)
 endif()
 project(STAR LANGUAGES CXX C)
 
-set(STAR_CXX_STANDARD "17" CACHE STRING "C++ language level for STAR targets (17 or 20)")
+set(STAR_CXX_STANDARD "20" CACHE STRING "C++ language level for STAR targets (17 or 20)")
 set_property(CACHE STAR_CXX_STANDARD PROPERTY STRINGS 17 20)
 if(NOT STAR_CXX_STANDARD MATCHES "^(17|20)$")
     message(FATAL_ERROR "STAR_CXX_STANDARD must be 17 or 20")

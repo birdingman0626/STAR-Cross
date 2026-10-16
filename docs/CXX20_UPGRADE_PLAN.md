@@ -1,6 +1,27 @@
 # C++20 migration checklist
 
-Baseline: C++17 remains the release default. `STAR_CXX_STANDARD=20`, the `cxx20`
+Current decision (2026-10-16): the user explicitly waived remaining calibrated
+performance admission and requested default C++20 migration. The background
+continuation is paused and no further performance experiment will be started.
+CMake, Make, release preset and s390x shipping defaults now select 20; explicit
+17 compatibility remains. This is a user-authorized risk acceptance, not a
+`NONREGRESSION_PASS`. Historical scientific and CI evidence below remains scoped
+to its recorded revision; post-change validation is recorded separately.
+
+Post-change local validation: a fresh Ninja/MSVC 19.51.36243.0 Release directory
+configured without `STAR_CXX_STANDARD` selected 20 and passed the span probe,
+build and 124/124 CTest cases. Same-cache explicit 17 rebuilt and passed 124/124
+cases plus exact sparse-SA=3 scientific comparison with the saved C++20 binary.
+Restoring 20 rebuilt successfully and again passed 124/124 tests. Evidence:
+`data/validation/cxx20-default-promotion-20261016/star-language-pair-ycc9bmru/`,
+source-signature SHA256
+`163399034b1f28cc215592a78776f9e48c98cad3000f80b3407abf2781edfc72`.
+The seven qualification, five language-pair harness and two CI-contract tests
+pass. No new CUDA or real-library performance qualification follows from these
+checks. The earlier 17/17 hosted pass belongs to `ab7d33a`; hosted CI for this
+default switch is a separate pending validation, not covered by that old pass.
+
+Historical baseline: C++17 remained the release default. `STAR_CXX_STANDARD=20`, the `cxx20`
 preset and GCC/Clang CI lanes enable qualification without silently changing
 the minimum supported compiler. No performance improvement is assumed from
 changing the language switch alone.

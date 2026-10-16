@@ -1,5 +1,6 @@
 """Regression checks for the repository's deliberately simple release gate layout."""
 from pathlib import Path
+import json
 import re
 import unittest
 
@@ -39,6 +40,17 @@ def release_contract(build, release):
 
 
 class CIContractTests(unittest.TestCase):
+    def test_cxx20_shipping_defaults_and_explicit17(self):
+        root = Path(__file__).resolve().parents[1]
+        self.assertIn('set(STAR_CXX_STANDARD "20" CACHE', (root/"source/CMakeLists.txt").read_text(encoding="utf-8"))
+        self.assertIn('CXX_STANDARD ?= 20', (root/"source/Makefile").read_text())
+        presets = json.loads((root/"source/CMakePresets.json").read_text())
+        modes = {p["name"]: p for p in presets["configurePresets"]}
+        self.assertEqual(modes["release"]["cacheVariables"]["STAR_CXX_STANDARD"], "20")
+        self.assertEqual(modes["cxx17"]["cacheVariables"]["STAR_CXX_STANDARD"], "17")
+        self.assertIn("STAR_CXX_STANDARD: '20'", (root/".github/workflows/build.yml").read_text())
+        self.assertIn('${STAR_CXX_STANDARD:-20}', (root/"extras/tests/scripts/build_validate_s390x.sh").read_text())
+
     def test_actual_and_bypass_negative_controls(self):
         root = Path(__file__).resolve().parents[1]/".github/workflows"
         build = (root/"build.yml").read_text()

@@ -1,9 +1,15 @@
 # Building STAR-Cross
 
-Run commands from the repository root unless noted otherwise. Use a C++17
+Run commands from the repository root unless noted otherwise. Use a C++20
 compiler, CMake and Git. CMake downloads pinned dependencies, so an initial
 build needs network access. Downloads are verified against archive hashes in
 `dependencies.lock.json`. CUDA is not required for ordinary builds.
+
+C++20 requires working standard-library `std::span` support, checked at configure
+time. C++17 compatibility remains available with `-DSTAR_CXX_STANDARD=17`,
+`make CXX_STANDARD=17`, or the `cxx17` preset. Existing CMake caches retain their
+selected standard: explicitly set 20 or use a fresh directory to migrate them.
+CUDA device language remains independently configured (default 17).
 
 ```sh
 git clone https://github.com/birdingman0626/STAR-Cross.git
@@ -82,7 +88,7 @@ Pass options to the CMake configure command:
 | Option | Default | Use |
 | --- | --- | --- |
 | `STAR_USE_AVX2` | OFF | Optional AVX2-only build; requires an AVX2 CPU |
-| `STAR_CXX_STANDARD` | 17 | Set 20 for migration qualification |
+| `STAR_CXX_STANDARD` | 20 | Set 17 for the compatibility build |
 | `STAR_LONG_READS` | OFF | Build the long-read variant |
 | `STAR_POSIX_SHARED_MEM` | OFF | Unix-only POSIX shared-memory backend (`make POSIXSHARED`) |
 | `STAR_BUILD_TESTS` | ON | Build the CTest unit suite |
@@ -147,7 +153,7 @@ python3 scripts/test_experimental_genomes.py --star-exe <STAR> --ref-exe <refere
 ```
 
 The optional long-read executable must be built with `STAR_LONG_READS=ON`;
-the default build remains C++17 with long reads and CUDA disabled. The fixture
+the default build uses C++20 with long reads and CUDA disabled. The fixture
 checks actual 1200/1600-base exonic/spliced reads, not just compilation.
 Super-transcriptome checks validate index equality, real graph diagnostic scores
 and teardown only. Its upstream alignment output and mapping statistics are

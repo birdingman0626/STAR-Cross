@@ -3,7 +3,7 @@
 CMAKE ?= cmake
 BUILD_DIR ?= ../build/make
 BUILD_TYPE ?= Release
-CXX_STANDARD ?= 17
+CXX_STANDARD ?= 20
 CMAKE_ARGS ?=
 JOBS ?= 4
 LONG_READS ?= OFF
@@ -33,5 +33,5 @@ clean CLEAN:
 	$(CMAKE) --build "$(BUILD_DIR)" --target clean
 
 help:
-	@echo "make STAR [JOBS=4] [CXX_STANDARD=17] [CMAKE_ARGS='-DSTAR_USE_AVX2=ON']"
+	@echo "make STAR [JOBS=4] [CXX_STANDARD=20] [CMAKE_ARGS='-DSTAR_USE_AVX2=ON']"
 	@echo "make STARlong; make gdb; canonical entry: cmake -S source -B build"

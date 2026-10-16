@@ -239,12 +239,15 @@ def paired_assessment(runs, labels, seed=1729):
             "speedup_supported_by_interval": not identical and enough and upper < 1 and memory_ok}
 
 
-def background_environment_pass(runs, limit):
+def background_environment_pass(runs, limit, policy="mean-and-p95"):
+    if policy not in ("mean-and-p95", "mean-only"):
+        return False
+    keys = ("background_cpu_mean_percent", "background_cpu_p95_percent") if policy == "mean-and-p95" else ("background_cpu_mean_percent",)
     measured = [run for run in runs if not run["warmup"]]
     return bool(measured) and all(run.get("background_cpu_samples", 0) > 0 and
                 run.get("background_cpu_scope_verified", False) and
                 all(run.get(key) is not None and math.isfinite(run[key]) and 0 <= run[key] <= limit
-                    for key in ("background_cpu_mean_percent", "background_cpu_p95_percent"))
+                    for key in keys)
                 for run in measured)
 
 
@@ -267,7 +270,7 @@ def execution_environment():
 
 def calibration_profile_matches(calibration, current):
     keys = ("legacy", "threads", "pairs", "affinity_mask", "machine_identity", "execution_environment", "runner_sha256",
-            "count_comparator_sha256", "helper_sha256")
+            "count_comparator_sha256", "helper_sha256", "background_cpu_policy", "max_background_cpu_percent")
     return all(key in calibration and key in current and calibration[key] == current[key] for key in keys)
 
 

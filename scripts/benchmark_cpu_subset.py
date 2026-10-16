@@ -39,6 +39,8 @@ def main():
     parser.add_argument("--calibration-receipt", type=Path, help="Successful independent A/A result.json; required before accepting paired performance")
     parser.add_argument("--max-background-cpu-percent", type=float, default=5.0,
                         help="Windows per-run background CPU mean/p95 limit, recorded before measurement")
+    parser.add_argument("--background-cpu-policy", choices=("mean-and-p95", "mean-only"), default="mean-and-p95",
+                        help="Predeclared environment policy; mean-only retains p95 telemetry but does not gate on it")
     parser.add_argument("--legacy", action="store_true")
     parser.add_argument("--cpu-affinity", type=lambda value: int(value, 0),
                         help="Windows STAR-only CPU mask for controlled RCA, e.g. 0xff; not a low-load waiver")
@@ -121,6 +123,7 @@ def main():
               "affinity_mask": args.cpu_affinity,
               "execution_environment": execution_environment(),
               "max_background_cpu_percent": args.max_background_cpu_percent,
+              "background_cpu_policy": args.background_cpu_policy,
               "runner_sha256": hashlib.sha256(runner).hexdigest(),
               "count_comparator_sha256": hashlib.sha256(comparator).hexdigest(),
               "helper_sha256": helper_signatures,
@@ -160,7 +163,7 @@ def main():
         with (output/"idle_preflight.log").open("w") as console:
             code, idle = measured_run([sys.executable, "-c", "import time; time.sleep(10)"], console, output)
         result["idle_preflight"] = dict(exit_code=code, **idle)
-        if code or not background_environment_pass([dict(warmup=False, **idle)], args.max_background_cpu_percent):
+        if code or not background_environment_pass([dict(warmup=False, **idle)], args.max_background_cpu_percent, args.background_cpu_policy):
             result["status"] = "UNVERIFIED_ENVIRONMENT_PREFLIGHT"
             result["performance_acceptance"] = "UNVERIFIED_ENVIRONMENT"
             save()
@@ -199,7 +202,7 @@ def main():
             reject("Calibration receipt incomplete")
         if paired_assessment(calibration["runs"], calibration_labels).get("status") != "CALIBRATION_PASS":
             reject("Calibration receipt did not pass")
-        if not background_environment_pass(calibration["runs"], args.max_background_cpu_percent):
+        if not background_environment_pass(calibration["runs"], args.max_background_cpu_percent, args.background_cpu_policy):
             reject("Calibration environment missing or busy")
         if not calibration_profile_matches(calibration, result):
             reject("Calibration workload, machine or measurement code differs")
@@ -393,13 +396,13 @@ def main():
     save()
     if args.rounds > 1:
         result["paired_assessment"] = paired_assessment(result["runs"], labels, args.order_seed)
-        result["background_environment_gate"] = "PASS" if background_environment_pass(result["runs"], args.max_background_cpu_percent) else "UNVERIFIED_OR_BUSY"
+        result["background_environment_gate"] = "PASS" if background_environment_pass(result["runs"], args.max_background_cpu_percent, args.background_cpu_policy) else "UNVERIFIED_OR_BUSY"
         result["performance_acceptance"] = performance_acceptance(
             result["status"], result["paired_assessment"]["status"],
             result["background_environment_gate"] == "PASS",
             bool(args.calibration_receipt and calibration.get("performance_acceptance") == "CALIBRATION_PASS"))
         result["limitations"] = ["prefix not cell-representative", "not full-library regression",
-                                "performance requires idle-machine and independent calibration evidence",
+                                "performance requires the declared background-load policy and independent calibration evidence",
                                 "float matrices compared exactly; no post-hoc tolerance"]
         save()
     print(json.dumps(result, indent=2))

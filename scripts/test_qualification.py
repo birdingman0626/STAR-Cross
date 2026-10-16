@@ -51,6 +51,11 @@ class QualificationTests(unittest.TestCase):
                      background_cpu_scope_verified=True,
                      background_cpu_mean_percent=2, background_cpu_p95_percent=5)
         self.assertTrue(background_environment_pass([quiet], 5))
+        spiky = dict(quiet, background_cpu_mean_percent=10, background_cpu_p95_percent=60)
+        self.assertTrue(background_environment_pass([spiky], 10, "mean-only"))
+        self.assertFalse(background_environment_pass([spiky], 10))
+        self.assertFalse(background_environment_pass([dict(spiky, background_cpu_mean_percent=10.01)], 10, "mean-only"))
+        self.assertFalse(background_environment_pass([spiky], 10, "unknown"))
         for runs in ([], [dict(warmup=False)], [dict(quiet, background_cpu_p95_percent=6)],
                      [dict(quiet, background_cpu_mean_percent=float("nan"))], [dict(quiet, warmup=True)],
                      [dict(quiet, background_cpu_mean_percent=-1)],
@@ -81,6 +86,7 @@ class QualificationTests(unittest.TestCase):
 
     def test_performance_requires_science_and_calibration_identity(self):
         profile = dict(legacy=False, threads=8, pairs=1000, machine_identity=machine_identity(),
+                       background_cpu_policy="mean-only", max_background_cpu_percent=10,
                        affinity_mask=3,
                        execution_environment=execution_environment(),
                        runner_sha256="runner", count_comparator_sha256="comparator", helper_sha256={"helper": "sha"})

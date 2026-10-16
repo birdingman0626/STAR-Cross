@@ -2,7 +2,13 @@
 
 ## Decision
 
-Keep the default at C++17. Ambient load and waiting-time variability are
+On 2026-10-16 the user explicitly cancelled further performance testing and
+authorized default C++20 migration without calibrated performance admission.
+The recurring continuation is paused and no benchmark was running when this
+request was inspected. No ten-pair C++17/20 admission is claimed. The completed
+mean-only A/A attempt is retained, not deleted or recast as C++17/20 evidence.
+
+Previous evidence-based recommendation: keep the default at C++17. Ambient load and waiting-time variability are
 demonstrated; an intrinsic C++20 slowdown is neither established nor ruled out.
 The new short diagnostic comparisons are **not** promotion evidence. No alignment
 algorithm, optimization flags, dependencies or admission thresholds were changed.
@@ -100,6 +106,29 @@ passed 17/17 jobs. Downloaded artifact `11980547752` records same-source 17→20
 This proves exercised scientific/endian parity, not emulated performance.
 
 ## Remaining experiment
+
+### Prospective threshold revision authorized 2026-10-16
+
+The subsequent user instruction explicitly removes p95 from admission for the
+new attempt: use `--background-cpu-policy mean-only` together with
+`--max-background-cpu-percent 10`. Record p95 without blocking on it. This
+policy and threshold are bound into calibration compatibility; old receipts
+cannot qualify this experiment. No evidence establishes that observed spikes
+were caused solely by CPU queries. Other scientific/statistical/RSS gates are
+unchanged, and any PASS applies to this revised policy, not the original idle
+contract. The runner's default remains the original mean-and-p95 policy.
+
+The user explicitly revised the background CPU mean and p95 ceiling to 10%
+for a fresh attempt. Pass `--max-background-cpu-percent 10` to both the new
+A/A calibration and subsequent A/B experiment. Do not reclassify historical
+receipts. Scientific equality, pair counts, calibration dispersion/interval,
+elapsed-ratio and RSS bounds remain unchanged. This is qualification under a
+more permissive background-load contract, not proof of an idle host.
+
+The first fresh 10% attempt (`cxx20-aa-limit10-20261016-attempt1`) passed the
+30-second readiness sample (mean 3.2478%, p95 6.6327%), but its independent
+runner preflight measured mean 4.3772%, p95 10.3806%. It therefore exited as
+`UNVERIFIED_ENVIRONMENT_PREFLIGHT`, with zero STAR runs and no calibration.
 
 Use a demonstrably quiet host/window; do not terminate unrelated applications.
 Keep source, compiler, inputs, flags and affinity identical; qualify five fresh

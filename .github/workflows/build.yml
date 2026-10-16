@@ -14,8 +14,7 @@ jobs:
     # QEMU compilation was still progressing at 120 minutes on the hosted runner.
     timeout-minutes: 240
     env:
-      # Migration branch qualifies C++20 without changing shipping defaults.
-      STAR_CXX_STANDARD: ${{ github.ref == 'refs/heads/codex/cxx20-migration' && '20' || '17' }}
+      STAR_CXX_STANDARD: '20'
     steps:
       - uses: actions/checkout@v7
       - name: Test language-pair qualification harness
@@ -31,7 +30,7 @@ jobs:
           test "$(cat s390x-version.txt)" = "STAR-Cross $(git rev-parse --short HEAD)"
           tar -czf STAR-linux-s390x.tar.gz -C release-metadata/bin STAR -C "$PWD/release-metadata/share/STAR-Cross" licenses
       - name: Retain s390x same-source language evidence
-        if: always() && github.ref == 'refs/heads/codex/cxx20-migration'
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: qualification-s390x-language-pair

@@ -21,7 +21,7 @@ import sys, platform
 assert sys.byteorder == 'big' and platform.machine() == 's390x'
 PY
 
-standard="${STAR_CXX_STANDARD:-17}"
+standard="${STAR_CXX_STANDARD:-20}"
 case "$standard" in 17|20) ;; *) echo 'Expected STAR_CXX_STANDARD=17 or 20' >&2; exit 2;; esac
 mkdir -p build
 python3 - <<'PY'
