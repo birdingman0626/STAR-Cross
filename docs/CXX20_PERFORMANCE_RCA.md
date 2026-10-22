@@ -13,6 +13,39 @@ demonstrated; an intrinsic C++20 slowdown is neither established nor ruled out.
 The new short diagnostic comparisons are **not** promotion evidence. No alignment
 algorithm, optimization flags, dependencies or admission thresholds were changed.
 
+## Linux paired result — 2026-10-22
+
+Same-source `dacdf1a` built twice with GCC 14.3.1 on Oracle Linux 10.2 (KVM guest,
+12 vCPU AMD Ryzen 7 5825U, 42 GiB); `-std=c++17` vs `-std=c++20` in all 170 compile
+commands and no other flag difference. Distribution GCC defaults to
+`-march=x86-64-v3`, so these binaries are not the portable CI artifacts.
+Runner: `scripts/linux_paired_benchmark.py` (`5058154`), 1M-pair
+`tmj-condyle-1-prefix-1m-20261006` STARsolo profile, 8 threads, against the host's
+*Macaca fascicularis* 6.0 Ensembl 116 index (annotation embedded; no mapping-time
+GTF), which differs from the Windows experiments' Ensembl 115 index. The index was
+loaded once with `--genomeLoad LoadAndKeep`, so timings cover mapping, Solo and
+output but **not** genome loading; the segment was removed afterwards.
+
+- Every run (12 A/A, 22 A/B) reproduced the first run's BAM record multiset and
+  header, SJ.out.tab, every Solo.out file and scientific log fields exactly.
+- Background non-STAR CPU 0.48–1.33% per run; host otherwise idle.
+- A/A (C++17 vs itself, 5 pairs + warm-up): median ratio 1.0053, median absolute
+  deviation 0.53%, bootstrap 95% [0.996, 1.032]. One 3.2% pair keeps the strict
+  calibration gate (interval within ±2%) **INCONCLUSIVE**.
+- A/B (C++20/C++17, 10 ABBA pairs + warm-up): median 0.9893, bootstrap 95%
+  [0.9824, 0.9994]; peak RSS delta −0.17 MiB. Status `TIME_NONREGRESSION_PASS`.
+
+Interpretation: on this Linux/GCC host C++20 is **not slower** for this profile; the
+~1% speedup is outside the A/B interval but within the A/A outlier range, so treat
+it as suggestive, not established. This does not explain or overturn the
+Windows/MSVC observations above (different OS, compiler, index and load path).
+Receipts: `data/validation/cxx20-linux-ab-20261022/` (ignored, local only).
+
+The same host replayed every Linux x86_64 job of `build.yml` for `a14e2b7`:
+gcc and clang × C++17/20, frozen-baseline index/alignment equivalence and the
+ASan/UBSan job — 37/37 steps passed. aarch64, macOS and Windows hosted lanes
+remain unexecuted for the promoted default.
+
 ## Evidence and attribution
 
 The original five identical-binary A/A pairs failed their [0.98, 1.02] interval
