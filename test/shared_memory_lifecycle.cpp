@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <fcntl.h>
+#include <cstdio>
 #include <cstdlib>
 #include <limits>
 #include <memory>
@@ -139,15 +140,24 @@ int main(int argc, char** argv) {
             struct rlimit limited = original;
             limited.rlim_cur = 0; // deny mapping, without allocating real RAM
             require(setrlimit(RLIMIT_AS, &limited) == 0, "inject mapping failure");
-            bool rejected = false;
-            try { failed->Allocate(128); }
-            catch (const SharedMemoryException&) { rejected = true; }
-            catch (...) { setrlimit(RLIMIT_AS, &original); throw; }
-            require(setrlimit(RLIMIT_AS, &original) == 0, "restore address-space limit");
-            failed.reset();
-            const bool cleaned = absent(key);
-            if (!cleaned) { SharedMemory recovery(key, false); recovery.Clean(); }
-            require(rejected && cleaned, "failed allocation removes its own partial segment");
+            // QEMU user-mode emulation accepts but does not enforce RLIMIT_AS for the
+            // guest, so the failure cannot be injected there. Probe before trusting it.
+            void* probe = mmap(nullptr, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            if (probe != MAP_FAILED) {
+                munmap(probe, 4096);
+                require(setrlimit(RLIMIT_AS, &original) == 0, "restore address-space limit");
+                fprintf(stderr, "SKIP failed-allocation check: RLIMIT_AS is not enforced here (emulated?)\n");
+            } else {
+                bool rejected = false;
+                try { failed->Allocate(128); }
+                catch (const SharedMemoryException&) { rejected = true; }
+                catch (...) { setrlimit(RLIMIT_AS, &original); throw; }
+                require(setrlimit(RLIMIT_AS, &original) == 0, "restore address-space limit");
+                failed.reset();
+                const bool cleaned = absent(key);
+                if (!cleaned) { SharedMemory recovery(key, false); recovery.Clean(); }
+                require(rejected && cleaned, "failed allocation removes its own partial segment");
+            }
         }
 #endif
         {
