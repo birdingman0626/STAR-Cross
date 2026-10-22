@@ -46,6 +46,16 @@ gcc and clang × C++17/20, frozen-baseline index/alignment equivalence and the
 ASan/UBSan job — 37/37 steps passed. aarch64, macOS and Windows hosted lanes
 remain unexecuted for the promoted default.
 
+The `build-windows` job was replayed locally for `4d380b2` (Windows 11, MSVC
+14.51, VS 18 Insiders, Python 3.14), C++17 and C++20 in fresh clones: qualification
+controls, build, smoke, web UI, miniature integration, C++17/20 language-pair
+qualification (C++20) and CTest (125/125) all pass. Miniature integration first
+failed in both lanes because `test_cpu_upstream.py` launched the relative
+`source/build/STAR.exe` that CI passes, which CreateProcess rejected; fixed in
+`87c5a18` by resolving absolute paths, after which both lanes pass. macOS
+(Apple Silicon) is pending an accepted Xcode license on the build Mac; aarch64
+Linux remains unexecuted. Logs: ignored `build/ci-replay-win-4d380b2/`.
+
 ## Evidence and attribution
 
 The original five identical-binary A/A pairs failed their [0.98, 1.02] interval
