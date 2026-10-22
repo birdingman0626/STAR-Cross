@@ -6,7 +6,15 @@
 #ifdef _WIN32
 #include "wincompat.h"
 #else
+// macOS 26 SDK Mach headers (reached via <spawn.h>) use the C11 keyword
+// _Static_assert, which Apple Clang accepts in C++ but GCC rejects.
+#if defined(__APPLE__) && defined(__GNUC__) && !defined(__clang__) && !defined(_Static_assert)
+#define _Static_assert static_assert
 #include <spawn.h>
+#undef _Static_assert
+#else
+#include <spawn.h>
+#endif
 #include <unistd.h>
 // environ is declared in <unistd.h> on glibc but not on macOS; declare it
 // explicitly so posix_spawnp can pass the current environment on every platform.
