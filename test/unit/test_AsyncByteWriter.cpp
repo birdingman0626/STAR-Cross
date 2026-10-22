@@ -34,3 +34,30 @@ TEST_CASE("Concurrent output producers transfer every owned packet exactly once"
     CHECK(output.size()==400);
     for(char value='a';value<='d';++value) CHECK(std::count(output.begin(),output.end(),value)==100);
 }
+TEST_CASE("Recycled packets never leak stale or sink-modified bytes and stay within two buffers") {
+    std::vector<char> output;
+    std::vector<const char*> buffers;
+    AsyncByteWriter writer(64,[&](char* data,size_t size){
+        output.insert(output.end(),data,data+size);
+        if (std::find(buffers.begin(),buffers.end(),data)==buffers.end()) buffers.push_back(data);
+        std::fill(data,data+size,'#'); // sinks may transform bytes in place
+    });
+    std::vector<char> expected;
+    char input[64];
+    for(int packet=0;packet<200;++packet) {
+        const size_t size=1+(packet*37)%64; // alternate long and short packets
+        for(size_t i=0;i<size;++i) input[i]=static_cast<char>('a'+(packet+i)%26);
+        expected.insert(expected.end(),input,input+size);
+        writer.submit(input,size);
+    }
+    writer.finish();
+    CHECK(output==expected);
+    // Growth may reallocate a recycled buffer, so check reuse with full-size packets.
+    buffers.clear();
+    AsyncByteWriter fixed(64,[&](char* data,size_t){
+        if (std::find(buffers.begin(),buffers.end(),data)==buffers.end()) buffers.push_back(data);
+    });
+    for(int packet=0;packet<200;++packet) fixed.submit(input,64);
+    fixed.finish();
+    CHECK(buffers.size()<=2);
+}
