@@ -52,9 +52,18 @@ controls, build, smoke, web UI, miniature integration, C++17/20 language-pair
 qualification (C++20) and CTest (125/125) all pass. Miniature integration first
 failed in both lanes because `test_cpu_upstream.py` launched the relative
 `source/build/STAR.exe` that CI passes, which CreateProcess rejected; fixed in
-`87c5a18` by resolving absolute paths, after which both lanes pass. macOS
-(Apple Silicon) is pending an accepted Xcode license on the build Mac; aarch64
-Linux remains unexecuted. Logs: ignored `build/ci-replay-win-4d380b2/`.
+`87c5a18` by resolving absolute paths, after which both lanes pass. Logs:
+ignored `build/ci-replay-win-4d380b2/`.
+
+The `build-macos` job was replayed for `475ef01` on macOS 26.6.2 (Apple Silicon,
+Xcode SDK 26.4, Homebrew GCC 15, Python 3.14), C++17 and C++20 in fresh clones:
+build, smoke, CTest (128/128), miniature integration, web UI and the C++17/20
+language-pair qualification all pass. Two macOS defects surfaced and were fixed
+first: GCC could not compile the SDK 26 Mach headers reached via `<spawn.h>`
+(`215ff30`), and web UI jobs exec'd a bare `STAR` because `/proc/self/exe` does not
+exist on macOS, so every job exited 127 (`475ef01`). Hosted CI still uses
+macOS 15 images; Intel macOS and aarch64 Linux remain unexecuted. Logs: ignored
+`data/validation/macos-ci-replay-475ef01/`.
 
 ## Evidence and attribution
 
