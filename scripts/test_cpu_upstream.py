@@ -92,6 +92,11 @@ def main():
         parser.error("Thread count must be positive")
     if args.sa_sparse < 1:
         parser.error("Suffix-array sparsity must be positive")
+    # Windows CreateProcess cannot launch a relative path written with '/'
+    # (e.g. source/build/STAR.exe, as CI passes it); launch absolute paths.
+    args.star_exe = str(Path(args.star_exe).resolve(strict=True))
+    if args.ref_exe:
+        args.ref_exe = str(Path(args.ref_exe).resolve(strict=True))
     root = Path(tempfile.mkdtemp(prefix="star-cpu-regression-"))
     print(f"Evidence retained at: {root}", flush=True)
     checks = []

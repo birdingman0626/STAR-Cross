@@ -25,6 +25,7 @@ def main():
     parser.add_argument("--star-exe", required=True)
     parser.add_argument("--timeout", type=int, default=120, help="Per-run seconds; exceeding it is a hang")
     args = parser.parse_args()
+    args.star_exe = str(Path(args.star_exe).resolve(strict=True))  # see test_cpu_upstream.py
     root = Path(tempfile.mkdtemp(prefix="star-malformed-"))
     print(f"Evidence retained at: {root}", flush=True)
     sanitizer_markers = ("AddressSanitizer", "LeakSanitizer", "runtime error:", "UndefinedBehaviorSanitizer")
