@@ -4,45 +4,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-STAR (Spliced Transcripts Alignment to a Reference) is a high-performance RNA-seq aligner written in C++11. It performs spliced alignment of short and long reads to a reference genome, supporting features like chimeric/fusion detection, single-cell (STARsolo), two-pass mapping, and transcriptome quantification.
+STAR-Cross is a cross-platform fork of STAR (Spliced Transcripts Alignment to a Reference), a high-performance RNA-seq aligner written in C++20 (C++17 remains supported via an explicit build option). It performs spliced alignment of short and long reads to a reference genome, supporting features like chimeric/fusion detection, single-cell (STARsolo), two-pass mapping, and transcriptome quantification. It builds on Linux (x86_64, aarch64, s390x), macOS and Windows (MSVC/clang-cl).
 
 ## Build Commands
 
-All builds run from the `source/` directory. HTSlib (bundled) is built automatically as a dependency.
+CMake is the primary build system; see `docs/BUILD.md` for per-platform details. The first configure downloads pinned dependencies (hash-checked against `dependencies.lock.json`).
 
 ```bash
-cd source
+# Release build with unit tests (from the repository root)
+cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
+cmake --build build
 
-# Standard Linux build
-make STAR
-
-# Static binary (no runtime deps)
-make STARstatic
-
-# Long reads variant
-make STARlong
-
-# Debug build (gdb, -O0 -g3)
-make gdb
-
-# macOS (adjust g++ path to your version)
-make STARforMacStatic CXX=/usr/local/Cellar/gcc/8.2.0/bin/g++-8
-
-# For CPUs without AVX2 (use sse or let compiler auto-detect)
-make STAR CXXFLAGS_SIMD=sse
-
-# Clean object files
-make clean
-
-# Deep clean (including htslib)
-make CLEAN
+# Presets (run from source/): release, debug, sanitized (ASan+UBSan), cxx20, cxx17
+cmake --preset cxx17 && cmake --build --preset cxx17
 ```
 
-Custom compiler/flags: `CXX=`, `CXXFLAGSextra=`, `LDFLAGSextra=`, `CXXFLAGS_SIMD=`.
+Useful options: `-DSTAR_CXX_STANDARD=17|20` (default 20), `-DSTAR_LONG_READS=ON` (STARlong), `-DSTAR_USE_AVX2=ON`, `-DSTAR_ASAN=ON`, `-DSTAR_UBSAN=ON`, `-DSTAR_CAPTURE_SEEDS=ON` (diagnostics only, not for benchmarks), and on GCC/Clang `-DSTAR_LTO=ON` and `-DSTAR_PGO=GENERATE|USE` with `-DSTAR_PGO_PATH=` (opt-in; measure before adopting). An existing CMake cache keeps its selected standard.
+
+`source/Makefile` is a thin wrapper around the same CMake build (`make STAR`, `make STAR CXX_STANDARD=17`).
 
 ## Testing
 
-There is no formal unit test suite. Validation is done by running STAR on test data and checking outputs. Some AWK-based validation scripts exist in `extras/tests/scripts/` for STARsolo cell stats.
+- Unit tests (doctest, `test/unit/`, plus seed-search property tests): `ctest --test-dir build --no-tests=error --output-on-failure -j4`
+- Validation-harness self-tests: `python3 -m unittest discover -s scripts -p 'test_*py'`
+- Miniature end-to-end alignment/count regression: `python3 scripts/test_cpu_upstream.py --star-exe build/STAR` (add `--ref-exe` to compare against a frozen baseline binary)
+- C++17 vs C++20 same-source qualification: `python3 scripts/qualify_language_pair.py --build-dir build`
+- `.github/workflows/build.yml` is the authoritative list of CI gates (platform matrix, frozen-baseline index/alignment equivalence, ASan/UBSan jobs).
+
+Scientific changes must preserve exact output parity (BAM records, SJ.out.tab, Solo matrices) against the frozen baseline; performance claims need paired, calibrated measurements (see `docs/QUALIFICATION_PLAN.md`).
 
 ## Architecture
 
