@@ -596,7 +596,7 @@ else()
     set(STAR_PGO "OFF" CACHE STRING "Profile-guided optimization: OFF, GENERATE or USE")
     set_property(CACHE STAR_PGO PROPERTY STRINGS OFF GENERATE USE)
     set(STAR_PGO_PATH "${CMAKE_BINARY_DIR}/pgo" CACHE PATH
-        "GCC: profile directory. Clang: raw-profile directory (GENERATE) or merged .profdata file (USE)")
+        "GCC: profile directory; USE must reconfigure the same build directory as GENERATE (profiles are named by object path). Clang: raw-profile directory (GENERATE) or merged .profdata file (USE)")
     if(STAR_LTO)
         if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             target_compile_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=thin>)

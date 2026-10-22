@@ -81,3 +81,42 @@ candidate inventory is saved under ignored `data/cleanup-candidates-20261016.csv
 Bulk deletion was blocked by the execution safety policy before command start;
 **no data was deleted and no reclaimed-space claim is made**. The inventory is
 only a candidate list, not a completed-cleanup receipt.
+
+## Measured results — 2026-10-22 (Linux, GCC 14)
+
+Host: Oracle Linux 10.2 KVM guest (12 vCPU AMD Ryzen 7 5825U, 42 GiB), otherwise
+idle (non-STAR CPU ≤2.1% per run). All binaries from the same commit `dacdf1a`,
+GCC 14.3.1, C++20, distribution default `-march=x86-64-v3`. Runner
+`scripts/linux_paired_benchmark.py`: 1M-pair `tmj-condyle-1-prefix-1m-20261006`
+STARsolo profile, 8 threads, *M. fascicularis* 6.0 Ensembl 116 index loaded once
+with `--genomeLoad LoadAndKeep` (timings exclude genome loading; segment removed
+afterwards). Every run (12 A/A, 66 A/B) reproduced the reference BAM record
+multiset/header, SJ.out.tab, all Solo.out files and scientific log fields exactly.
+
+| Comparison (variant / baseline) | Pairs | Median | Bootstrap 95% | Status |
+| --- | --- | --- | --- | --- |
+| A/A baseline / baseline | 5 | 1.0024 | [0.9959, 1.0082] | `CALIBRATION_PASS` (MAD 0.41%) |
+| Prefetch disabled (`STAR_NO_SA_PREFETCH`) | 10 | 1.0002 | [0.9924, 1.0181] | no effect |
+| LTO (`STAR_LTO=ON`) | 10 | 1.0131 | [0.9983, 1.0165] | no benefit (≈1% slower) |
+| PGO (`STAR_PGO=USE`) | 10 | 0.9798 | [0.9592, 1.0180] | not established |
+
+PGO was trained once (8.5 s, instrumented) on the held-out
+`tmj-condyle-1-heldout-700k-800k-20261008` reads, never the benchmark prefix.
+Profile use was confirmed (`.text.hot` present only in the PGO object). The
+held-out reads come from the same library, so this is not the multi-workload
+training the plan requires.
+
+Recommendations:
+
+1. **Suffix-array prefetch: revert.** It is hint-only and harmless, but removing it
+   changes nothing measurable; keeping unproven code in the hot path is not
+   justified. Retain this record if it is revisited with a different access model.
+2. **LTO: keep opt-in, default OFF.** No speedup; the point estimate is slower.
+3. **PGO: keep opt-in, default OFF.** A ~2% gain is plausible but the interval
+   includes 1.0. Before any default: train on several workload types (bulk,
+   10x v2/v3, paired/single-end), evaluate on independent libraries, repeat with
+   more pairs, and settle how a portable release would ship profiles.
+4. GCC `STAR_PGO=USE` must reconfigure the same build directory used for
+   `GENERATE`; profiles are keyed by object path (noted in the CMake option).
+
+Receipts: `data/validation/opt-linux-ab-20261022/` (ignored, local only).
