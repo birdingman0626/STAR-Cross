@@ -22,6 +22,13 @@
     #else
         #define STAR_BIG_ENDIAN 0
     #endif
+    // A big-endian compiler without __BYTE_ORDER__ would otherwise silently take
+    // the little-endian load path and misread every index. Forced values skip this.
+    #if (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L) || __cplusplus >= 202002L
+        #include <bit>
+        static_assert(STAR_BIG_ENDIAN == (std::endian::native == std::endian::big),
+                      "STAR_BIG_ENDIAN detection disagrees with std::endian::native");
+    #endif
 #endif
 
 // Portable byte-wise implementations: interpret/produce sizeof(uint) (==8) bytes
