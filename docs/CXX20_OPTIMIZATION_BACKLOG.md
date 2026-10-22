@@ -11,7 +11,8 @@ lanes is separate work, not performed by this document.
    reusable pool with ownership transfer. Preserve byte order, producer backpressure,
    failure propagation, finish semantics and a fixed total memory budget.
 2. **Seed-search memory-level parallelism.** The existing batch executor still
-   completes each request sequentially. Prototype bounded interleaving/prefetch
+   completes each request sequentially. (Single-read bisection prefetch was measured
+   and reverted on 2026-10-22; see below.) Prototype bounded interleaving/prefetch
    of independent fixed-index requests. Restore original result order; do not
    reorder adaptive dependencies or change seed tie-breaking. Reject added work
    or index memory that outweighs reduced cache stalls.
@@ -108,9 +109,12 @@ training the plan requires.
 
 Recommendations:
 
-1. **Suffix-array prefetch: revert.** It is hint-only and harmless, but removing it
+1. **Suffix-array prefetch: reverted.** It is hint-only and harmless, but removing it
    changes nothing measurable; keeping unproven code in the hot path is not
-   justified. Retain this record if it is revisited with a different access model.
+   justified. The candidate (`3ea62a2`, both bisection children prefetched with
+   `__builtin_prefetch`/`_mm_prefetch`) was reverted after this measurement; do not
+   reintroduce it without a different access model (e.g. interleaving independent
+   reads), not a different prefetch distance.
 2. **LTO: keep opt-in, default OFF.** No speedup; the point estimate is slower.
 3. **PGO: keep opt-in, default OFF.** A ~2% gain is plausible but the interval
    includes 1.0. Before any default: train on several workload types (bulk,

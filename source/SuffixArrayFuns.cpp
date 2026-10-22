@@ -8,15 +8,6 @@ inline uint medianUint2(uint a, uint b)
     return a/2 + b/2 + (a%2 + b%2)/2;
 };
 
-// Hint the two SA words the next bisection step may read. The probe's genome
-// comparison depends on its own SA load, so this overlaps the next SA miss with
-// the current genome miss. Prefetch never faults and cannot change any result.
-inline void prefetchSAChildren(const SeedIndexView &mapGen, uint lo, uint mid, uint hi)
-{
-    mapGen.SA.prefetch(medianUint2(lo,mid));
-    mapGen.SA.prefetch(medianUint2(mid,hi));
-};
-
 uint compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, uint S, uint N, uint L, uint iSA, bool dirR, bool& compRes)
 {
     /* compare s to g, find the maximum identity length
@@ -134,7 +125,6 @@ uint findMultRange(const SeedIndexView &mapGen, uint i3, uint L3, uint i1, uint 
     };
     while ( (i1b+1<i1a)|(i1b>i1a+1) ) { //L1a is the target length, i1a...i1b is the initial range, i1c,L1c is the value in the middle
         uint i1c=medianUint2(i1a,i1b);
-        prefetchSAChildren(mapGen,i1a,i1c,i1b);
         //uint L1c=identityLength(&g[mapGen.SA[i3]+L1b],&g[mapGen.SA[i1c]+L1b],L3-L1b)+L1b;
         uint L1c=compareSeqToGenome(mapGen,s,S,L3,L1b,i1c,dirR,compRes);
         if (L1c==L3) {
@@ -198,7 +188,6 @@ uint maxMappableLength(const SeedIndexView &mapGen, const char* const* s, uint S
         } else
         #endif
         i3=medianUint2(i1,i2);
-        prefetchSAChildren(mapGen,i1,i3,i2);
         L3=compareSeqToGenome(mapGen,s,S,N,L,i3,dirR,compRes);
 
         if (L3==N) break; //found exact match, exit the binary search
