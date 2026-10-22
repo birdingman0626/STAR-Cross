@@ -1,4 +1,4 @@
-﻿// CPPHTTPLIB_IMPLEMENTATION must be defined in exactly one TU that includes httplib.h.
+// CPPHTTPLIB_IMPLEMENTATION must be defined in exactly one TU that includes httplib.h.
 #define CPPHTTPLIB_IMPLEMENTATION
 #include "httplib.h"
 #include <nlohmann/json.hpp>
@@ -8,20 +8,26 @@
 #include <atomic>
 #include <chrono>
 #include <ctime>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <mutex>
+#include <random>
+#include <set>
 #include <sstream>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #ifdef _WIN32
 #  include <windows.h>
 #else
+#  include <cerrno>
 #  include <csignal>
 #  include <dirent.h>
+#  include <fcntl.h>
 #  include <sys/stat.h>
 #  include <sys/wait.h>
 #  include <unistd.h>
@@ -34,9 +40,9 @@
 
 using json = nlohmann::json;
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ---------------------------------------------------------------------------
 // Job registry
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ---------------------------------------------------------------------------
 
 // Job struct is defined in WebUI_internal.h (shared with WebUI_report.cpp)
 
@@ -44,14 +50,22 @@ static std::map<int, Job> g_jobs;
 static std::mutex         g_mu;
 static std::atomic<int>   g_nextId{1};
 static std::string        g_persistPath;   // path to .webui_jobs.jsonl (set in run())
+static std::string        g_exe;           // this STAR binary, used for every job
 static std::chrono::steady_clock::time_point g_startTime = std::chrono::steady_clock::now();
 
 // Bounded queue limits: 1 running + up to MAX_QUEUED waiting
 static constexpr int MAX_QUEUED = 9;
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// Only these modes may be submitted or restored; anything else is rejected
+// before it reaches a command line, a persisted record or the page.
+static const std::set<std::string> kRunModes = {"alignReads", "genomeGenerate", "soloCellFiltering"};
+
+// Each job's STAR stdout/stderr, written under its output prefix.
+static const char* kJobConsole = "WebUI_console.log";
+
+// ---------------------------------------------------------------------------
 // Helpers
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ---------------------------------------------------------------------------
 
 static std::string nowISO() {
     auto t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -79,8 +93,21 @@ static std::string starExePath() {
 #endif
 }
 
-static std::string qp(const std::string& s) {
-    return (s.find(' ') != std::string::npos) ? '"' + s + '"' : s;
+// Quote one argument so CommandLineToArgvW / the MSVC CRT parse it back exactly.
+// Also used for the displayed command line on every platform.
+static std::string quoteArg(const std::string& a) {
+    if (!a.empty() && a.find_first_of(" \t\n\v\"") == std::string::npos) return a;
+    std::string r = "\"";
+    size_t backslashes = 0;
+    for (char c : a) {
+        if (c == '\\') { ++backslashes; continue; }
+        if (c == '"') r.append(backslashes * 2 + 1, '\\');
+        else          r.append(backslashes, '\\');
+        backslashes = 0;
+        r += c;
+    }
+    r.append(backslashes * 2, '\\');
+    return r + '"';
 }
 
 std::string readFileTail(const std::string& path, size_t maxBytes) {
@@ -120,12 +147,10 @@ std::string joinPath(const std::string& a, const std::string& b) {
 }
 
 // Detect path traversal: reject if the normalized path contains a ".." component.
+// Absolute paths remain allowed: the server runs jobs as the local user.
 static bool hasPathTraversal(const std::string& p) {
-    // Check for /../ or leading ../ or trailing /..
     std::string n = p;
-    // Normalize backslashes for uniform check
     for (char& c : n) if (c == '\\') c = '/';
-    // Look for /../ sequences or boundary cases
     if (n.find("/../") != std::string::npos) return true;
     if (n.size() >= 3 && n.substr(0, 3) == "../") return true;
     if (n.size() >= 3 && n.substr(n.size()-3) == "/..") return true;
@@ -178,73 +203,168 @@ static void loadPersistedJobs(const std::string& path) {
             j.exitCode     = rec.value("exitCode", -1);
             j.reportPath   = rec.value("reportPath", "");
             j.generateReport = rec.value("generateReport", false);
-            if (j.id <= 0) continue;
-            g_jobs[j.id] = std::move(j);
-            // Advance the ID counter past restored IDs
-            int expected = j.id;
-            int next = expected + 1;
-            // CAS loop to update g_nextId
+            if (j.id <= 0 || !kRunModes.count(j.runMode)) continue;
+            // Only terminal states are persisted; never resurrect a live job.
+            if (j.state != "succeeded" && j.state != "failed" && j.state != "cancelled") continue;
+            const int id = j.id;
+            g_jobs[id] = std::move(j);
             int cur = g_nextId.load();
-            while (cur <= expected) {
-                if (g_nextId.compare_exchange_weak(cur, next)) break;
-            }
+            while (cur <= id && !g_nextId.compare_exchange_weak(cur, id + 1)) {}
         } catch (...) { /* skip malformed lines */ }
     }
 }
 
-static int spawnJob(Job& job, const std::string& exe); // defined below
+// ---------------------------------------------------------------------------
+// Process spawning
+// ---------------------------------------------------------------------------
 
-static void pollRunning() {
-    bool anyFinished = false;
-    for (auto& [id, job] : g_jobs) {
-        if (job.state != "running") continue;
+// Starts job.args with g_exe. Returns 0 on success, otherwise an OS error code.
+static int spawnJob(Job& job) {
+    std::string cmd = quoteArg(g_exe);
+    for (const auto& a : job.args) cmd += ' ' + quoteArg(a);
+    job.cmdLine = cmd;
+
+    std::error_code ec;
+    std::filesystem::create_directories(job.outputPrefix, ec); // log target; STAR reuses it
+    const std::string console = job.outputPrefix + kJobConsole;
+
 #ifdef _WIN32
-        if (job.hProcess == INVALID_HANDLE_VALUE) continue;
-        DWORD rc = WaitForSingleObject(job.hProcess, 0);
-        if (rc == WAIT_OBJECT_0) {
-            DWORD ec = 0;
-            GetExitCodeProcess(job.hProcess, &ec);
-            CloseHandle(job.hProcess);
-            job.hProcess  = INVALID_HANDLE_VALUE;
-            job.exitCode  = (int)ec;
-            job.state     = (ec == 0) ? "succeeded" : "failed";
-            job.endTime   = nowISO();
-            if (ec == 0 && job.generateReport) writeReport(job);
-            persistJob(job);
-            anyFinished = true;
-        }
-#else
-        int status = 0;
-        if (waitpid(job.pid, &status, WNOHANG) == job.pid) {
-            job.exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-            job.state    = (job.exitCode == 0) ? "succeeded" : "failed";
-            job.endTime  = nowISO();
-            if (job.exitCode == 0 && job.generateReport) writeReport(job);
-            persistJob(job);
-            anyFinished = true;
-        }
-#endif
+    SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
+    HANDLE out = CreateFileA(console.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (out == INVALID_HANDLE_VALUE) // e.g. an invalid prefix: still run STAR so it reports the path itself
+        out = CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          &sa, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE in  = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             &sa, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (out == INVALID_HANDLE_VALUE || in == INVALID_HANDLE_VALUE) {
+        DWORD err = GetLastError();
+        if (out != INVALID_HANDLE_VALUE) CloseHandle(out);
+        if (in  != INVALID_HANDLE_VALUE) CloseHandle(in);
+        return err ? (int)err : 1;
     }
-    // Promote a queued job if a slot opened up
-    if (anyFinished) {
-        int running = 0;
-        for (const auto& [id, j] : g_jobs)
-            if (j.state == "running") ++running;
-        if (running == 0) {
-            // Find the oldest queued job (lowest id)
-            int oldestId = -1;
-            for (const auto& [id, j] : g_jobs)
-                if (j.state == "queued" && (oldestId < 0 || id < oldestId))
-                    oldestId = id;
-            if (oldestId >= 0) {
-                Job& qj = g_jobs[oldestId];
-                qj.state     = "running";
-                qj.startTime = nowISO();
-                spawnJob(qj, starExePath());
-                qj.args.clear();
+    // Inherit only the console handles: never the server's listening socket.
+    HANDLE inherit[2] = {in, out};
+    SIZE_T attrSize = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &attrSize);
+    std::vector<char> attrBuf(attrSize);
+    auto* attrs = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attrBuf.data());
+    int rc = 0;
+    if (!InitializeProcThreadAttributeList(attrs, 1, 0, &attrSize)) {
+        rc = (int)GetLastError();
+    } else {
+        if (!UpdateProcThreadAttribute(attrs, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                                       inherit, sizeof(inherit), nullptr, nullptr)) {
+            rc = (int)GetLastError();
+        } else {
+            STARTUPINFOEXA si{};
+            si.StartupInfo.cb = sizeof(si);
+            si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+            si.StartupInfo.hStdInput = in;
+            si.StartupInfo.hStdOutput = out;
+            si.StartupInfo.hStdError = out;
+            si.lpAttributeList = attrs;
+            PROCESS_INFORMATION pi{};
+            std::string buf = cmd;
+            if (CreateProcessA(nullptr, buf.data(), nullptr, nullptr, TRUE,
+                               CREATE_NEW_PROCESS_GROUP | EXTENDED_STARTUPINFO_PRESENT,
+                               nullptr, nullptr, &si.StartupInfo, &pi)) {
+                CloseHandle(pi.hThread);
+                job.hProcess = pi.hProcess;
+            } else {
+                rc = (int)GetLastError();
             }
         }
+        DeleteProcThreadAttributeList(attrs);
     }
+    CloseHandle(out);
+    CloseHandle(in);
+    return rc;
+#else
+    // Prepare everything before fork: the child may only call async-signal-safe functions.
+    std::vector<const char*> argv;
+    argv.push_back(g_exe.c_str());
+    for (const auto& a : job.args) argv.push_back(a.c_str());
+    argv.push_back(nullptr);
+    int out = open(console.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    int in  = open("/dev/null", O_RDONLY | O_CLOEXEC);
+    pid_t pid = fork();
+    if (pid < 0) {
+        int err = errno;
+        if (out >= 0) close(out);
+        if (in >= 0) close(in);
+        return err ? err : 1;
+    }
+    if (pid == 0) {
+        setpgid(0, 0); // own group: cancel also stops readFilesCommand helpers
+        if (in >= 0)  dup2(in, 0);
+        if (out >= 0) { dup2(out, 1); dup2(out, 2); }
+        execv(g_exe.c_str(), const_cast<char* const*>(argv.data()));
+        _exit(127);
+    }
+    setpgid(pid, pid); // also from the parent, so a cancel cannot race the child
+    if (out >= 0) close(out);
+    if (in >= 0) close(in);
+    job.pid = pid;
+    return 0;
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// Queue maintenance (all functions below require g_mu held)
+// ---------------------------------------------------------------------------
+
+static void finishJob(Job& job, int exitCode) {
+    job.exitCode = exitCode;
+    job.state    = (exitCode == 0) ? "succeeded" : "failed";
+    job.endTime  = nowISO();
+    if (exitCode == 0 && job.generateReport) writeReport(job);
+    persistJob(job);
+}
+
+// Start the oldest queued job when nothing is running. A failed spawn is recorded
+// as a failed job and the next queued job is tried, so the queue never stalls.
+static void promoteQueued() {
+    while (true) {
+        for (const auto& [id, j] : g_jobs)
+            if (j.state == "running") return;
+        Job* next = nullptr;
+        for (auto& [id, j] : g_jobs)
+            if (j.state == "queued") { next = &j; break; } // map order: lowest id first
+        if (!next) return;
+        next->state     = "running";
+        next->startTime = nowISO();
+        const int rc = spawnJob(*next);
+        next->args.clear();
+        if (rc == 0) return;
+        finishJob(*next, -1);
+    }
+}
+
+// Collect finished children (including cancelled ones still exiting), then promote.
+static void pollRunning() {
+    for (auto& [id, job] : g_jobs) {
+#ifdef _WIN32
+        if (job.state != "running" || job.hProcess == INVALID_HANDLE_VALUE) continue;
+        if (WaitForSingleObject(job.hProcess, 0) != WAIT_OBJECT_0) continue;
+        DWORD ec = 0;
+        GetExitCodeProcess(job.hProcess, &ec);
+        CloseHandle(job.hProcess);
+        job.hProcess = INVALID_HANDLE_VALUE;
+        finishJob(job, (int)ec);
+#else
+        if (job.pid <= 0) continue; // never waitpid(-1/0): that could reap unrelated children
+        int status = 0;
+        const pid_t r = waitpid(job.pid, &status, WNOHANG);
+        if (r == 0) continue;
+        const bool reaped = (r == job.pid);
+        if (!reaped && !(r < 0 && errno == ECHILD)) continue;
+        job.pid = -1;
+        if (job.state == "running")
+            finishJob(job, reaped && WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+#endif
+    }
+    promoteQueued();
 }
 
 static json jobToJson(const Job& j) {
@@ -255,9 +375,9 @@ static json jobToJson(const Job& j) {
             {"reportPath", j.reportPath}};
 }
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ---------------------------------------------------------------------------
 // Argument builder
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ---------------------------------------------------------------------------
 
 static std::pair<std::vector<std::string>, std::string>
 buildArgs(const json& b, std::string& err) {
@@ -268,6 +388,7 @@ buildArgs(const json& b, std::string& err) {
 
     std::string runMode = str("runMode");
     if (runMode.empty()) { err = "Missing runMode"; return {}; }
+    if (!kRunModes.count(runMode)) { err = "Unsupported runMode"; return {}; }
 
     std::string outPrefix = str("outFileNamePrefix");
     if (outPrefix.empty()) { err = "Missing outFileNamePrefix"; return {}; }
@@ -284,7 +405,8 @@ buildArgs(const json& b, std::string& err) {
     }
     if (b.contains("readFilesIn") && b["readFilesIn"].is_array()) {
         for (const auto& rfi : b["readFilesIn"]) {
-            if (rfi.is_string() && hasPathTraversal(rfi.get<std::string>())) {
+            if (!rfi.is_string()) { err = "readFilesIn entries must be strings"; return {}; }
+            if (hasPathTraversal(rfi.get<std::string>())) {
                 err = "Path traversal rejected"; return {};
             }
         }
@@ -348,12 +470,16 @@ buildArgs(const json& b, std::string& err) {
             const auto& arr = b[k];
             if (!arr.empty()) {
                 add(std::string("--") + k);
-                for (const auto& f : arr) args.push_back(f.get<std::string>());
+                for (const auto& f : arr) {
+                    if (!f.is_string()) { err = std::string(k) + " entries must be strings"; return {}; }
+                    args.push_back(f.get<std::string>());
+                }
             }
         }
     }
 
-    // Extra verbatim args (e.g. --legacy)
+    // Extra verbatim args (e.g. --legacy). These can run commands (--readFilesCommand);
+    // the request guard ensures only the local page or an authenticated client gets here.
     if (b.contains("extraArgs") && b["extraArgs"].is_string()) {
         const std::string extra = b["extraArgs"].get<std::string>();
         std::istringstream iss(extra);
@@ -364,62 +490,116 @@ buildArgs(const json& b, std::string& err) {
     return {args, outPrefix};
 }
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-// Process spawning
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ---------------------------------------------------------------------------
+// Request guard
+// ---------------------------------------------------------------------------
+// Jobs run arbitrary STAR arguments (including commands via --readFilesCommand),
+// so only the server's own page may drive it:
+//  - Host must name this server, defeating DNS rebinding (loopback binds);
+//  - a present Origin must equal this server's origin, defeating cross-site requests;
+//  - POST bodies must be application/json, which browsers cannot send cross-site
+//    without a CORS preflight this server never approves;
+//  - non-loopback binds additionally require a per-launch token (cookie or header).
 
-static int spawnJob(Job& job, const std::string& exe) {
-    std::string cmd = qp(exe);
-    for (const auto& a : job.args) cmd += ' ' + qp(a);
-    job.cmdLine = cmd;
-
-#ifdef _WIN32
-    STARTUPINFOA si{};
-    PROCESS_INFORMATION pi{};
-    si.cb = sizeof(si);
-    std::string buf = cmd;
-    if (!CreateProcessA(nullptr, buf.data(), nullptr, nullptr, FALSE,
-                        CREATE_NEW_PROCESS_GROUP, nullptr, nullptr, &si, &pi))
-        return (int)GetLastError();
-    CloseHandle(pi.hThread);
-    job.hProcess = pi.hProcess;
-    return 0;
-#else
-    pid_t pid = fork();
-    if (pid < 0) return errno;
-    if (pid == 0) {
-        std::vector<const char*> argv;
-        argv.push_back(exe.c_str());
-        for (const auto& a : job.args) argv.push_back(a.c_str());
-        argv.push_back(nullptr);
-        execv(exe.c_str(), const_cast<char* const*>(argv.data()));
-        _exit(127);
-    }
-    job.pid = pid;
-    return 0;
-#endif
+static bool isLoopbackHost(const std::string& h) {
+    return h == "localhost" || h == "::1" || h == "[::1]" || h.rfind("127.", 0) == 0;
 }
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+static std::string randomToken() {
+    std::random_device rd;
+    static const char* hex = "0123456789abcdef";
+    std::string t;
+    for (int i = 0; i < 32; ++i) t += hex[rd() & 15];
+    return t;
+}
+
+static std::string cookieValue(const std::string& cookies, const std::string& name) {
+    std::istringstream ss(cookies);
+    std::string part;
+    while (std::getline(ss, part, ';')) {
+        const auto start = part.find_first_not_of(' ');
+        if (start == std::string::npos) continue;
+        part = part.substr(start);
+        if (part.rfind(name + "=", 0) == 0) return part.substr(name.size() + 1);
+    }
+    return "";
+}
+
+namespace {
+struct RequestGuard {
+    bool loopback = true;
+    std::set<std::string> hosts; // accepted Host header values (loopback binds)
+    std::string token;           // required on non-loopback binds
+
+    RequestGuard(const std::string& bindHost, int port) {
+        loopback = isLoopbackHost(bindHost);
+        const std::string p = std::to_string(port);
+        for (const char* h : {"127.0.0.1", "localhost", "[::1]"}) {
+            hosts.insert(std::string(h) + ":" + p);
+            if (port == 80) hosts.insert(h);
+        }
+        if (loopback) {
+            const std::string b = (bindHost.find(':') != std::string::npos && bindHost[0] != '[')
+                                  ? "[" + bindHost + "]" : bindHost;
+            hosts.insert(b + ":" + p);
+        } else {
+            token = randomToken();
+        }
+    }
+
+    // Returns an HTTP status (0 = allowed) and the reason.
+    int check(const httplib::Request& req, std::string& why) const {
+        const std::string host = req.get_header_value("Host");
+        if (loopback && !hosts.count(host)) { why = "Host not allowed"; return 403; }
+        if (req.has_header("Origin") && req.get_header_value("Origin") != "http://" + host) {
+            why = "Cross-origin request rejected"; return 403;
+        }
+        if (!loopback) {
+            const bool viaPage = req.method == "GET" && req.path == "/"
+                                 && req.get_param_value("token") == token;
+            if (!viaPage && cookieValue(req.get_header_value("Cookie"), "star_webui_token") != token
+                && req.get_header_value("X-STAR-WebUI-Token") != token) {
+                why = "Missing or invalid token"; return 401;
+            }
+        }
+        if (req.method == "POST") {
+            const std::string type = req.get_header_value("Content-Type");
+            if (type.rfind("application/json", 0) != 0) {
+                why = "Content-Type must be application/json"; return 415;
+            }
+        }
+        return 0;
+    }
+};
+} // namespace
+
+// ---------------------------------------------------------------------------
 // Embedded HTML UI  (content in WebUI_html.inc)
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ---------------------------------------------------------------------------
 
 static const char* g_html =
 #include "WebUI_html.inc"
 ;
 
+static void jsonError(httplib::Response& res, int status, const std::string& message) {
+    res.status = status;
+    res.set_content(json{{"error", message}}.dump(), "application/json");
+}
 
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ---------------------------------------------------------------------------
 // WebUI::run
-// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ---------------------------------------------------------------------------
 
 WebUI::WebUI(Parameters& P) : P(P) {}
 
 void WebUI::run() {
     httplib::Server srv;
-    const std::string exe = starExePath();
+    g_exe = starExePath();
+    const std::string host = P.webui.host;
+    const int         port = P.webui.port;
+    const RequestGuard guard(host, port);
 
-    // Phase 4.4: Set up persistence and restore historical jobs
+    // Set up persistence and restore historical jobs
     {
         std::string outDir = P.outFileNamePrefix;
         if (!outDir.empty() && outDir.back() != '/' && outDir.back() != '\\') outDir += '/';
@@ -428,7 +608,22 @@ void WebUI::run() {
         loadPersistedJobs(g_persistPath);
     }
 
-    srv.Get("/",  [](const httplib::Request&, httplib::Response& res) {
+    srv.set_pre_routing_handler([&guard](const httplib::Request& req, httplib::Response& res) {
+        std::string why;
+        const int status = guard.check(req, why);
+        if (status == 0) return httplib::Server::HandlerResponse::Unhandled;
+        jsonError(res, status, why);
+        return httplib::Server::HandlerResponse::Handled;
+    });
+    srv.set_post_routing_handler([](const httplib::Request&, httplib::Response& res) {
+        res.set_header("X-Content-Type-Options", "nosniff");
+        res.set_header("X-Frame-Options", "DENY");
+    });
+
+    srv.Get("/",  [&guard](const httplib::Request& req, httplib::Response& res) {
+        if (!guard.token.empty() && req.get_param_value("token") == guard.token)
+            res.set_header("Set-Cookie", "star_webui_token=" + guard.token
+                                         + "; HttpOnly; SameSite=Strict; Path=/");
         res.set_content(g_html, "text/html; charset=utf-8");
     });
     srv.Get("/health", [](const httplib::Request&, httplib::Response& res) {
@@ -447,7 +642,7 @@ void WebUI::run() {
             {"platform",     "linux"},
 #endif
             {"runModes",     json::array({"alignReads","genomeGenerate","soloCellFiltering","webui"})},
-            {"webuiVersion", 4},
+            {"webuiVersion", 5},
             {"cpuCount",     (int)std::thread::hardware_concurrency()},
             {"outDir",       P.outFileNamePrefix},
         };
@@ -559,65 +754,49 @@ void WebUI::run() {
         res.set_content(results.dump(2), "application/json");
     });
 
-    srv.Post("/jobs", [&exe](const httplib::Request& req, httplib::Response& res) {
+    srv.Post("/jobs", [](const httplib::Request& req, httplib::Response& res) {
         json body;
         try { body = json::parse(req.body); }
-        catch (...) {
-            res.status = 400;
-            res.set_content(json{{"error","Invalid JSON"}}.dump(), "application/json");
-            return;
-        }
+        catch (...) { jsonError(res, 400, "Invalid JSON"); return; }
+        if (!body.is_object()) { jsonError(res, 400, "Invalid JSON"); return; }
         std::string err;
-        auto [args, outPrefix] = buildArgs(body, err);
-        if (!err.empty()) {
-            res.status = 400;
-            res.set_content(json{{"error",err}}.dump(), "application/json");
-            return;
-        }
+        std::vector<std::string> args;
+        std::string outPrefix;
+        try { std::tie(args, outPrefix) = buildArgs(body, err); }
+        catch (const json::exception&) { err = "Invalid parameter type"; }
+        if (!err.empty()) { jsonError(res, 400, err); return; }
+
         Job job;
-        job.id             = g_nextId.fetch_add(1);
-        job.runMode        = body.value("runMode","");
+        job.runMode        = body["runMode"].get<std::string>();
         job.outputPrefix   = outPrefix;
         job.submitTime     = nowISO();
         job.generateReport = body.value("generateReport", true);
         job.args           = std::move(args);
-        {
-            std::lock_guard<std::mutex> lk(g_mu);
-            // Count running and queued jobs
-            int running = 0, queued = 0;
-            for (const auto& [jid, jj] : g_jobs) {
-                if (jj.state == "running") ++running;
-                else if (jj.state == "queued") ++queued;
-            }
-            if (running >= 1 && queued >= MAX_QUEUED) {
-                res.status = 429;
-                res.set_content(json{{"error","Job queue full"}}.dump(), "application/json");
-                return;
-            }
-            if (running >= 1) {
-                // Queue the job instead of spawning immediately
-                job.state = "queued";
-                int jobId = job.id;
-                g_jobs[jobId] = std::move(job);
-                res.status = 201;
-                res.set_content(jobToJson(g_jobs[jobId]).dump(2), "application/json");
-                return;
-            }
-            // Spawn immediately
-            job.state     = "running";
-            job.startTime = job.submitTime;
-            int rc = spawnJob(job, exe);
-            if (rc != 0) {
-                res.status = 500;
-                res.set_content(json{{"error","Failed to spawn process (code "+std::to_string(rc)+")"}}.dump(), "application/json");
-                return;
-            }
-            int jobId = job.id;
-            job.args.clear();  // args consumed by spawnJob; free memory
-            g_jobs[jobId] = std::move(job);
-            res.status = 201;
-            res.set_content(jobToJson(g_jobs[jobId]).dump(2), "application/json");
+
+        std::lock_guard<std::mutex> lk(g_mu);
+        pollRunning();
+        int running = 0, queued = 0;
+        for (const auto& [jid, jj] : g_jobs) {
+            if (jj.state == "running") ++running;
+            else if (jj.state == "queued") ++queued;
         }
+        if (running >= 1 && queued >= MAX_QUEUED) { jsonError(res, 429, "Job queue full"); return; }
+        job.id = g_nextId.fetch_add(1);
+        const int jobId = job.id;
+        job.state = "queued";
+        g_jobs[jobId] = std::move(job);
+        promoteQueued(); // starts it now when idle; a failed spawn is recorded, not lost
+        Job& stored = g_jobs[jobId];
+        if (stored.state == "failed") {
+            // Only a failed spawn ends a just-queued job here; keep the record for the table.
+            res.status = 500;
+            json r = jobToJson(stored);
+            r["error"] = "Failed to spawn process";
+            res.set_content(r.dump(2), "application/json");
+            return;
+        }
+        res.status = 201;
+        res.set_content(jobToJson(stored).dump(2), "application/json");
     });
 
     srv.Get("/jobs", [](const httplib::Request&, httplib::Response& res) {
@@ -628,49 +807,62 @@ void WebUI::run() {
         res.set_content(arr.dump(2), "application/json");
     });
 
-    srv.Get(R"(/jobs/(\d+))", [](const httplib::Request& req, httplib::Response& res) {
+    // Ids are bounded to 9 digits so std::stoi cannot overflow.
+    srv.Get(R"(/jobs/(\d{1,9}))", [](const httplib::Request& req, httplib::Response& res) {
         int id = std::stoi(req.matches[1]);
         std::lock_guard<std::mutex> lk(g_mu);
         pollRunning();
         auto it = g_jobs.find(id);
-        if (it == g_jobs.end()) { res.status=404; res.set_content(json{{"error","Not found"}}.dump(),"application/json"); return; }
+        if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
         res.set_content(jobToJson(it->second).dump(2), "application/json");
     });
 
-    srv.Post(R"(/jobs/(\d+)/cancel)", [](const httplib::Request& req, httplib::Response& res) {
+    srv.Post(R"(/jobs/(\d{1,9})/cancel)", [](const httplib::Request& req, httplib::Response& res) {
         int id = std::stoi(req.matches[1]);
         std::lock_guard<std::mutex> lk(g_mu);
+        pollRunning();
         auto it = g_jobs.find(id);
-        if (it == g_jobs.end()) { res.status=404; res.set_content(json{{"error","Not found"}}.dump(),"application/json"); return; }
+        if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
         Job& j = it->second;
-        if (j.state == "running") {
+        if (j.state == "queued") {
+            j.args.clear();
+            j.state = "cancelled"; j.endTime = nowISO();
+            persistJob(j);
+        } else if (j.state == "running") {
 #ifdef _WIN32
-            if (j.hProcess != INVALID_HANDLE_VALUE) { TerminateProcess(j.hProcess,1); CloseHandle(j.hProcess); j.hProcess=INVALID_HANDLE_VALUE; }
+            if (j.hProcess != INVALID_HANDLE_VALUE) {
+                TerminateProcess(j.hProcess, 1);
+                WaitForSingleObject(j.hProcess, 5000);
+                CloseHandle(j.hProcess);
+                j.hProcess = INVALID_HANDLE_VALUE;
+            }
 #else
-            if (j.pid > 0) kill(j.pid, SIGTERM);
+            // Keep pid: pollRunning reaps the exiting child so no zombie remains.
+            if (j.pid > 0 && kill(-j.pid, SIGTERM) != 0) kill(j.pid, SIGTERM);
 #endif
-            j.state="cancelled"; j.endTime=nowISO();
+            j.state = "cancelled"; j.endTime = nowISO();
             persistJob(j);
         }
+        promoteQueued();
         res.set_content(jobToJson(j).dump(2), "application/json");
     });
 
-    srv.Get(R"(/jobs/(\d+)/logs)", [](const httplib::Request& req, httplib::Response& res) {
+    srv.Get(R"(/jobs/(\d{1,9})/logs)", [](const httplib::Request& req, httplib::Response& res) {
         int id = std::stoi(req.matches[1]);
         std::string prefix;
         { std::lock_guard<std::mutex> lk(g_mu);
           auto it = g_jobs.find(id);
-          if (it == g_jobs.end()) { res.status=404; res.set_content(json{{"error","Not found"}}.dump(),"application/json"); return; }
+          if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
           prefix = it->second.outputPrefix; }
         std::string logs;
-        for (const char* f : {"Log.out","Log.progress.out","Log.final.out"}) {
+        for (const char* f : {"Log.out","Log.progress.out","Log.final.out",kJobConsole}) {
             std::string c = readFileTail(prefix + f);
             if (!c.empty()) { if (!logs.empty()) logs+="\n\n--- "+std::string(f)+" ---\n"; logs+=c; }
         }
         res.set_content(json{{"logs",logs}}.dump(), "application/json");
     });
 
-    srv.Get(R"(/jobs/(\d+)/report)", [](const httplib::Request& req, httplib::Response& res) {
+    srv.Get(R"(/jobs/(\d{1,9})/report)", [](const httplib::Request& req, httplib::Response& res) {
         int id = std::stoi(req.matches[1]);
         std::string rpath;
         { std::lock_guard<std::mutex> lk(g_mu);
@@ -683,13 +875,13 @@ void WebUI::run() {
         res.set_content(html, "text/html; charset=utf-8");
     });
 
-    // Phase 3: artifact discovery endpoint
-    srv.Get(R"(/jobs/(\d+)/artifacts)", [](const httplib::Request& req, httplib::Response& res) {
+    // Artifact discovery endpoint
+    srv.Get(R"(/jobs/(\d{1,9})/artifacts)", [](const httplib::Request& req, httplib::Response& res) {
         int id = std::stoi(req.matches[1]);
         std::string prefix;
         { std::lock_guard<std::mutex> lk(g_mu);
           auto it = g_jobs.find(id);
-          if (it == g_jobs.end()) { res.status=404; res.set_content(json{{"error","Not found"}}.dump(),"application/json"); return; }
+          if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
           prefix = it->second.outputPrefix; }
 
         json arr = json::array();
@@ -714,20 +906,35 @@ void WebUI::run() {
         for (const char* name : {"Aligned.sortedByCoord.out.bam", "Aligned.out.bam",
                                   "Aligned.sortedByCoord.out.cram", "Aligned.out.cram",
                                   "Aligned.out.sam", "SJ.out.tab",
-                                  "Log.final.out", "Log.out", "WebUI_Report.html"}) {
+                                  "Log.final.out", "Log.out", "WebUI_Report.html", kJobConsole}) {
             addFile(name);
         }
 
         res.set_content(arr.dump(2), "application/json");
     });
 
-    std::string host = P.webui.host;
-    int         port = P.webui.port;
-    std::cout << "STAR WebUI listening on http://" << host << ":" << port << "\n"
-              << "Press Ctrl+C to stop.\n" << std::flush;
-    if (!srv.listen(host, port)) {
+    // Advance the queue even when no browser is polling.
+    std::atomic<bool> stopPoller{false};
+    std::thread poller([&stopPoller] {
+        while (!stopPoller.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            std::lock_guard<std::mutex> lk(g_mu);
+            pollRunning();
+        }
+    });
+
+    std::cout << "STAR WebUI listening on http://" << host << ":" << port << "\n";
+    if (!guard.token.empty()) {
+        std::cout << "Non-loopback bind: open http://<this-host>:" << port << "/?token=" << guard.token
+                  << "\n(API clients: send header X-STAR-WebUI-Token). This is not TLS; use a trusted network.\n";
+    }
+    std::cout << "Press Ctrl+C to stop.\n" << std::flush;
+    const bool listened = srv.listen(host, port);
+    stopPoller = true;
+    poller.join();
+    if (!listened) {
         std::cerr << "EXITING: WebUI failed to bind to " << host << ":" << port
-                  << " \xe2\x80\x94 check that the port is not already in use.\n";
+                  << " - check that the port is not already in use.\n";
         exit(1);
     }
 }
