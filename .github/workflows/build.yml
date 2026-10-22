@@ -143,6 +143,9 @@ jobs:
       - name: Unit tests
         run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
 
+      - name: Validation harness failure gates
+        run: python3 -m unittest discover -s scripts -p 'test_*py'
+
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
