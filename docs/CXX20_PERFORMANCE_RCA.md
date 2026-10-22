@@ -65,6 +65,32 @@ exist on macOS, so every job exited 127 (`475ef01`). Hosted CI still uses
 macOS 15 images; Intel macOS and aarch64 Linux remain unexecuted. Logs: ignored
 `data/validation/macos-ci-replay-475ef01/`.
 
+### C++20-only verification, 2026-10-22
+
+After C++17 was retired (`2920c1d`) the Linux x86_64 jobs of `build.yml` were
+replayed again for `66bdd1a` on the Oracle Linux 10 host (GCC 14, Clang): gcc and
+clang lanes, HTSlib patch-queue reconstruction, STARlong and super-transcriptome
+lifecycle, frozen-baseline index/alignment/integer-matrix equivalence and the
+ASan/UBSan job, plus `test_malformed_inputs.py` under ASan/UBSan — 25/25 steps.
+
+Emulated lanes ran on the same host under QEMU user mode (`tonistiigi/binfmt`, as
+`docker/setup-qemu-action` uses), in podman with SELinux labelling disabled for the
+container (with it enabled, every emulated process segfaulted at start):
+
+- s390x (`debian:trixie`, `build_validate_s390x.sh`, as the hosted job): build, 24
+  endian/BAM/seed-search tests, miniature scientific fixture, big-endian
+  `genomeGenerate` and version identity pass.
+- aarch64 (`ubuntu:24.04`, GCC 13, gcc-lane steps): 128/128 CTest, 57 harness
+  self-tests, miniature integration with shared memory and the web UI queue/cancel
+  test pass. Two IPC lifecycle tests first failed because QEMU does not enforce the
+  `RLIMIT_AS` they use to inject an allocation failure; `4da8ef8` probes that the
+  limit is effective and otherwise skips only that sub-check (natively it still
+  runs). The emulated image also needed GNU `time`, which hosted runners provide.
+
+Emulation proves functional and byte-order behaviour only, never speed. Intel macOS
+is the one lane not executed anywhere. Logs: ignored
+`data/validation/linux-ci-replay-66bdd1a/` and `data/validation/emulated-ci-66bdd1a/`.
+
 ## Evidence and attribution
 
 The original five identical-binary A/A pairs failed their [0.98, 1.02] interval
