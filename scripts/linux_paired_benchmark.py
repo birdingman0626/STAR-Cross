@@ -149,7 +149,8 @@ def main():
             signature = artifacts(run_dir)
             if reference is None:
                 reference = signature
-                (args.output_dir / "reference_signature.json").write_text(json.dumps(signature, indent=1))
+                (args.output_dir / "reference_signature.json").write_text(
+                    json.dumps(signature, indent=1, default=lambda raw: raw.hex()))  # BAM header bytes
             identical = signature == reference
             result["runs"].append(dict(label=label, round=number, warmup=number < 0,
                                        binary_sha256=result["binaries"][label]["sha256"],
