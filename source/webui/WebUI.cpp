@@ -36,6 +36,13 @@
 #  else
 #    include <limits.h>
 #  endif
+#  ifdef __APPLE__
+#    include <cstdint>
+#    include <stdlib.h>
+// Public dyld API, declared directly: <mach-o/dyld.h> reaches Mach headers that
+// GCC cannot parse with the macOS 26 SDK (see Parameters_openReadsFiles.cpp).
+extern "C" int _NSGetExecutablePath(char* buf, uint32_t* bufsize);
+#  endif
 #endif
 
 using json = nlohmann::json;
@@ -85,6 +92,14 @@ static std::string starExePath() {
     char buf[MAX_PATH] = {};
     GetModuleFileNameA(nullptr, buf, MAX_PATH);
     return buf;
+#elif defined(__APPLE__)
+    // No /proc on macOS: without this, jobs exec'd the bare name "STAR" and exited 127.
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    std::vector<char> path(size + 1);
+    if (_NSGetExecutablePath(path.data(), &size) != 0) return "STAR";
+    char resolved[PATH_MAX];
+    return realpath(path.data(), resolved) ? std::string(resolved) : std::string(path.data());
 #else
     char buf[PATH_MAX] = {};
     ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
