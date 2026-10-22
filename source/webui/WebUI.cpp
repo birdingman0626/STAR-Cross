@@ -281,9 +281,18 @@ static int spawnJob(Job& job) {
             si.lpAttributeList = attrs;
             PROCESS_INFORMATION pi{};
             std::string buf = cmd;
+            // Start suspended so STAR joins its Job Object before it can spawn helpers
+            // (e.g. --readFilesCommand); cancel then ends the whole tree, as on POSIX.
             if (CreateProcessA(nullptr, buf.data(), nullptr, nullptr, TRUE,
-                               CREATE_NEW_PROCESS_GROUP | EXTENDED_STARTUPINFO_PRESENT,
+                               CREATE_NEW_PROCESS_GROUP | EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED,
                                nullptr, nullptr, &si.StartupInfo, &pi)) {
+                HANDLE group = CreateJobObjectA(nullptr, nullptr);
+                if (group && !AssignProcessToJobObject(group, pi.hProcess)) {
+                    CloseHandle(group); // e.g. a server already inside a restrictive job:
+                    group = nullptr;    // still run STAR; cancel falls back to the process
+                }
+                job.hJob = group;
+                ResumeThread(pi.hThread);
                 CloseHandle(pi.hThread);
                 job.hProcess = pi.hProcess;
             } else {
@@ -366,6 +375,7 @@ static void pollRunning() {
         GetExitCodeProcess(job.hProcess, &ec);
         CloseHandle(job.hProcess);
         job.hProcess = INVALID_HANDLE_VALUE;
+        if (job.hJob) { CloseHandle(job.hJob); job.hJob = nullptr; }
         finishJob(job, (int)ec);
 #else
         if (job.pid <= 0) continue; // never waitpid(-1/0): that could reap unrelated children
@@ -846,11 +856,13 @@ void WebUI::run() {
         } else if (j.state == "running") {
 #ifdef _WIN32
             if (j.hProcess != INVALID_HANDLE_VALUE) {
-                TerminateProcess(j.hProcess, 1);
+                // The Job Object ends STAR and every helper it started.
+                if (!j.hJob || !TerminateJobObject(j.hJob, 1)) TerminateProcess(j.hProcess, 1);
                 WaitForSingleObject(j.hProcess, 5000);
                 CloseHandle(j.hProcess);
                 j.hProcess = INVALID_HANDLE_VALUE;
             }
+            if (j.hJob) { CloseHandle(j.hJob); j.hJob = nullptr; }
 #else
             // Keep pid: pollRunning reaps the exiting child so no zombie remains.
             if (j.pid > 0 && kill(-j.pid, SIGTERM) != 0) kill(j.pid, SIGTERM);

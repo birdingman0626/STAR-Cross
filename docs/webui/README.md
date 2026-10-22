@@ -51,6 +51,6 @@ secure-public-hosting configuration: use it only on trusted networks.
 
 One job runs at a time; up to nine more wait in a queue that advances even when
 no browser is open. Queued and running jobs can be cancelled; cancelling stops
-the whole STAR process group (including read decompression helpers on Linux and
-macOS). Each job's console output is written to `WebUI_console.log` under its
+STAR and every process it started, such as read decompression helpers (a process
+group on Linux and macOS, a Job Object on Windows). Each job's console output is written to `WebUI_console.log` under its
 output prefix and is included in the log view.

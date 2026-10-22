@@ -25,6 +25,7 @@ struct Job {
     std::vector<std::string> args;
 #ifdef _WIN32
     HANDLE hProcess = INVALID_HANDLE_VALUE;
+    HANDLE hJob     = nullptr; // Job Object holding STAR and every process it starts
 #else
     pid_t  pid = -1;
 #endif
