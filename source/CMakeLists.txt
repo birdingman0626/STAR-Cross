@@ -590,6 +590,41 @@ else()
 
     target_link_libraries(STAR PRIVATE pthread)
 
+    # Opt-in whole-program optimization. Defaults stay OFF so release identity and
+    # portable packaging are unchanged; measure before adopting either.
+    option(STAR_LTO "Link-time optimization for the STAR target (GCC/Clang)" OFF)
+    set(STAR_PGO "OFF" CACHE STRING "Profile-guided optimization: OFF, GENERATE or USE")
+    set_property(CACHE STAR_PGO PROPERTY STRINGS OFF GENERATE USE)
+    set(STAR_PGO_PATH "${CMAKE_BINARY_DIR}/pgo" CACHE PATH
+        "GCC: profile directory. Clang: raw-profile directory (GENERATE) or merged .profdata file (USE)")
+    if(STAR_LTO)
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=thin>)
+            target_link_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=thin>)
+        else()
+            target_compile_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=auto>)
+            target_link_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=auto>)
+        endif()
+    endif()
+    if(STAR_PGO STREQUAL "GENERATE")
+        # Atomic counters: OpenMP workers otherwise race on shared profile counters.
+        target_compile_options(STAR PRIVATE -fprofile-generate=${STAR_PGO_PATH} -fprofile-update=atomic)
+        target_link_options(STAR PRIVATE -fprofile-generate=${STAR_PGO_PATH} -fprofile-update=atomic)
+    elseif(STAR_PGO STREQUAL "USE")
+        if(NOT EXISTS "${STAR_PGO_PATH}")
+            message(FATAL_ERROR "STAR_PGO=USE requires an existing profile at STAR_PGO_PATH")
+        endif()
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(STAR PRIVATE -fprofile-use=${STAR_PGO_PATH} -Wno-profile-instr-unprofiled)
+        else()
+            # Unexercised code keeps normal -O3 treatment instead of being optimized for size.
+            target_compile_options(STAR PRIVATE -fprofile-use=${STAR_PGO_PATH}
+                -fprofile-partial-training -Wno-missing-profile)
+        endif()
+    elseif(NOT STAR_PGO STREQUAL "OFF")
+        message(FATAL_ERROR "STAR_PGO must be OFF, GENERATE or USE")
+    endif()
+
 endif()
 
 # ---------- Testing ----------
@@ -628,8 +663,15 @@ if(GIT_FOUND)
     endif()
 endif()
 file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies.lock.json" STAR_DEPENDENCY_LOCK_SHA256)
+if(MSVC)
+    set(STAR_BUILD_INFO_LTO "msvc-release-default")
+    set(STAR_BUILD_INFO_PGO "OFF")
+else()
+    set(STAR_BUILD_INFO_LTO "${STAR_LTO}")
+    set(STAR_BUILD_INFO_PGO "${STAR_PGO}")
+endif()
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json"
-    CONTENT "{\n  \"commit\": \"${GIT_COMMIT_HASH}\",\n  \"source_tree_clean\": ${STAR_SOURCE_TREE_CLEAN},\n  \"dependency_lock_sha256\": \"${STAR_DEPENDENCY_LOCK_SHA256}\",\n  \"configuration\": \"$<CONFIG>\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\n  \"cxx_standard\": ${STAR_CXX_STANDARD},\n  \"avx2\": \"${STAR_USE_AVX2}\",\n  \"asan\": \"${STAR_ASAN}\",\n  \"ubsan\": \"${STAR_UBSAN}\",\n  \"htslib\": \"${STAR_HTSLIB_VERSION}\",\n  \"zlib\": \"${ZLIB_VERSION_STRING}\",\n  \"parasail\": \"2.6.2\",\n  \"httplib\": \"0.60.0\",\n  \"json\": \"3.12.0\"\n}\n")
+    CONTENT "{\n  \"commit\": \"${GIT_COMMIT_HASH}\",\n  \"source_tree_clean\": ${STAR_SOURCE_TREE_CLEAN},\n  \"dependency_lock_sha256\": \"${STAR_DEPENDENCY_LOCK_SHA256}\",\n  \"configuration\": \"$<CONFIG>\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\n  \"cxx_standard\": ${STAR_CXX_STANDARD},\n  \"avx2\": \"${STAR_USE_AVX2}\",\n  \"asan\": \"${STAR_ASAN}\",\n  \"ubsan\": \"${STAR_UBSAN}\",\n  \"lto\": \"${STAR_BUILD_INFO_LTO}\",\n  \"pgo\": \"${STAR_BUILD_INFO_PGO}\",\n  \"htslib\": \"${STAR_HTSLIB_VERSION}\",\n  \"zlib\": \"${ZLIB_VERSION_STRING}\",\n  \"parasail\": \"2.6.2\",\n  \"httplib\": \"0.60.0\",\n  \"json\": \"3.12.0\"\n}\n")
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json" DESTINATION share/STAR-Cross COMPONENT STAR)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE" DESTINATION share/STAR-Cross/licenses RENAME STAR.txt COMPONENT STAR)
 if(NOT USE_SYSTEM_HTSLIB)
