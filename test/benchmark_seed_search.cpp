@@ -187,11 +187,7 @@ int main(int argc,char** argv) try {
     const SeedSearchEngine engine(g);
     auto cpuRun=[&, threads](std::vector<GpuSeedMatch>& out) {
         auto start=Clock::now();
-#if defined(__cpp_lib_span) && __cpp_lib_span >= 202002L
         engine.searchBatch(reads,complement,queries,out,threads);
-#else
-        engine.searchBatch(reads.data(),complement.data(),reads.size(),queries.data(),queries.size(),out.data(),threads);
-#endif
         return elapsed(start);
     };
     const double cpuWarmup=cpuRun(expected);

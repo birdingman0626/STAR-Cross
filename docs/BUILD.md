@@ -5,10 +5,10 @@ compiler, CMake and Git. CMake downloads pinned dependencies, so an initial
 build needs network access. Downloads are verified against archive hashes in
 `dependencies.lock.json`. CUDA is not required for ordinary builds.
 
-C++20 requires working standard-library `std::span` support, checked at configure
-time. C++17 compatibility remains available with `-DSTAR_CXX_STANDARD=17`,
-`make CXX_STANDARD=17`, or the `cxx17` preset. Existing CMake caches retain their
-selected standard: explicitly set 20 or use a fresh directory to migrate them.
+STAR-Cross is C++20-only (GCC 10+, Clang 14+, MSVC 19.29+ or newer). A working
+standard-library `std::span` is checked at configure time. C++17 builds were
+removed: a build directory or command line that still sets
+`STAR_CXX_STANDARD=17` fails at configure time; use a fresh build directory.
 CUDA device language remains independently configured (default 17).
 
 ```sh
@@ -88,7 +88,6 @@ Pass options to the CMake configure command:
 | Option | Default | Use |
 | --- | --- | --- |
 | `STAR_USE_AVX2` | OFF | Optional AVX2-only build; requires an AVX2 CPU |
-| `STAR_CXX_STANDARD` | 20 | Set 17 for the compatibility build |
 | `STAR_LONG_READS` | OFF | Build the long-read variant |
 | `STAR_POSIX_SHARED_MEM` | OFF | Unix-only POSIX shared-memory backend (`make POSIXSHARED`) |
 | `STAR_BUILD_TESTS` | ON | Build the CTest unit suite |
@@ -109,10 +108,10 @@ hostnames and working directories are not embedded as build provenance.
 
 From `source/`, CMake >= 3.21 also supports `cmake --preset release`,
 `cmake --build --preset release`, and `ctest --preset release`. The `debug`,
-`sanitized` (GCC/Unix Clang) and `cxx20` presets use separate build directories.
+`sanitized` (GCC/Unix Clang) presets use separate build directories.
 
 GNU Make is a compatibility frontend to CMake: `make STAR`, `make STARlong`,
-`make gdb`, or `make gdb-long`, with `JOBS`, `CXX_STANDARD` and `CMAKE_ARGS`.
+`make gdb`, or `make gdb-long`, with `JOBS` and `CMAKE_ARGS`.
 It no longer maintains a separate source list. Full-static legacy targets report
 that a separately qualified toolchain is required instead of producing a binary
 with a misleading static name.

@@ -157,7 +157,6 @@ int main() try {
                 "CPU batch changed order or exact search fields");
     }
     engine.searchBatch(nullptr,nullptr,0,nullptr,0,nullptr);
-#if defined(__cpp_lib_span) && __cpp_lib_span >= 202002L
     for (int threads:{1,2}) {
         engine.searchBatch({batchRead.strands[0],6},{batchRead.strands[1],6},batchQueries,output,threads);
         for (size_t i=0;i<expected.size();++i)
@@ -176,19 +175,16 @@ int main() try {
         } catch (const std::invalid_argument&) { mismatched=true; }
         require(mismatched && output.front().length==99,"span extent mismatch partially committed results");
     }
-#endif
     batchQueries.back().offset=7;
     output.assign(output.size(),SeedMatch{99,99,99,99});
     bool rejected=false;
     try { engine.searchBatch(batchRead.strands[0],batchRead.strands[1],6,batchQueries.data(),batchQueries.size(),output.data(),2); }
     catch (const std::invalid_argument&) { rejected=true; }
     require(rejected && output.front().length==99,"invalid tail batch partially committed results");
-#if defined(__cpp_lib_span) && __cpp_lib_span >= 202002L
     rejected=false;
     try { engine.searchBatch({batchRead.strands[0],6},{batchRead.strands[1],6},batchQueries,output,2); }
     catch (const std::invalid_argument&) { rejected=true; }
     require(rejected && output.front().length==99,"invalid span query partially committed results");
-#endif
     const auto inputs=queries();
     const auto singleton=singletonProperties(inputs),multiple=multiRecordProperties(inputs);
     std::cout<<"{\"status\":\"PASS\",\"singleton_checks\":"<<singleton<<",\"sorted_forward_checks\":"<<multiple<<"}\n";

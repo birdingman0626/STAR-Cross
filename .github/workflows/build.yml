@@ -13,29 +13,18 @@ jobs:
     runs-on: ubuntu-latest
     # QEMU compilation was still progressing at 120 minutes on the hosted runner.
     timeout-minutes: 240
-    env:
-      STAR_CXX_STANDARD: '20'
     steps:
       - uses: actions/checkout@v7
-      - name: Test language-pair qualification harness
-        run: python3 scripts/test_qualify_language_pair.py
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: s390x
       - name: Build and validate big-endian target
         run: |
           docker run --rm --platform linux/s390x -v "$PWD":/src -w /src \
-            -e STAR_CXX_STANDARD -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/src \
             debian:trixie bash -c 'bash extras/tests/scripts/build_validate_s390x.sh && ./source/build/STAR --version > s390x-version.txt && cmake --install source/build --config Release --component STAR --prefix /src/release-metadata'
           test "$(cat s390x-version.txt)" = "STAR-Cross $(git rev-parse --short HEAD)"
           tar -czf STAR-linux-s390x.tar.gz -C release-metadata/bin STAR -C "$PWD/release-metadata/share/STAR-Cross" licenses
-      - name: Retain s390x same-source language evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: qualification-s390x-language-pair
-          path: source/build/language-pair-evidence/
-          if-no-files-found: error
       - name: Upload validated s390x package
         uses: actions/upload-artifact@v7
         with:
@@ -52,7 +41,6 @@ jobs:
           - {os: ubuntu-24.04, arch: x86_64}
           - {os: ubuntu-24.04-arm, arch: aarch64}
         compiler: [gcc, clang]
-        standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
 
@@ -77,7 +65,7 @@ jobs:
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             export CC=clang CXX=clang++
           fi
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=${{ matrix.standard }}
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
           cmake --build build
 
       - name: Smoke test
@@ -90,7 +78,7 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_*py'
 
       - name: Reconstruct locked HTSlib patch queue
-        if: matrix.compiler == 'gcc' && matrix.standard == 17 && matrix.platform.arch == 'x86_64'
+        if: matrix.compiler == 'gcc' && matrix.platform.arch == 'x86_64'
         run: |
           mkdir -p data/validation
           readarray -t source_info < <(python3 -c 'import json; d=next(x for x in json.load(open("dependencies.lock.json"))["dependencies"] if x["name"]=="HTSlib"); print(d["source"])')
@@ -101,10 +89,10 @@ jobs:
         run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build/STAR" --shared-memory
 
       - name: STARlong and super-transcriptome lifecycle regression
-        if: matrix.compiler == 'gcc' && matrix.standard == 17 && matrix.platform.arch == 'x86_64'
+        if: matrix.compiler == 'gcc' && matrix.platform.arch == 'x86_64'
         run: |
           cmake -S source -B source/build-long -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DSTAR_CXX_STANDARD=17 \
+            -DCMAKE_BUILD_TYPE=Release \
             -DSTAR_LONG_READS=ON -DSTAR_BUILD_TESTS=OFF \
             -DFETCHCONTENT_SOURCE_DIR_HTTPLIB="$GITHUB_WORKSPACE/source/build/_deps/httplib-src" \
             -DFETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON="$GITHUB_WORKSPACE/source/build/_deps/nlohmann_json-src" \
@@ -115,12 +103,8 @@ jobs:
       - name: Embedded HTTP and JSON integration
         run: python3 scripts/test_webui.py --star-exe source/build/STAR
 
-      - name: Same-source C++17 vs C++20 qualification
-        if: matrix.standard == 20
-        run: python3 scripts/qualify_language_pair.py --build-dir source/build
-
       - name: Upload binary
-        if: matrix.compiler == 'gcc' && matrix.standard == 17
+        if: matrix.compiler == 'gcc'
         uses: actions/upload-artifact@v7
         with:
           name: qualification-STAR-linux-${{ matrix.platform.arch }}
@@ -132,7 +116,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, macos-15-intel]
-        standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
 
@@ -151,7 +134,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER="${GCC_C_BIN}" \
             -DCMAKE_CXX_COMPILER="${GCC_BIN}" \
-            -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=${{ matrix.standard }}
+            -DSTAR_BUILD_TESTS=ON
           cmake --build build
 
       - name: Smoke test
@@ -163,7 +146,7 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
-          name: qualification-STAR-${{ matrix.os }}-cxx${{ matrix.standard }}
+          name: qualification-STAR-${{ matrix.os }}
           path: source/build/STAR
 
       - name: Native analysis and embedded-server integration
@@ -171,16 +154,8 @@ jobs:
           python3 scripts/test_cpu_upstream.py --star-exe source/build/STAR --sa-sparse 3
           python3 scripts/test_webui.py --star-exe source/build/STAR
 
-      - name: Same-source C++17 vs C++20 qualification
-        if: matrix.standard == 20
-        run: python3 scripts/qualify_language_pair.py --build-dir source/build
-
   build-windows:
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
 
@@ -195,7 +170,7 @@ jobs:
       - name: Build
         run: |
           cd source
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=${{ matrix.standard }}
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
           cmake --build build
 
       - name: Smoke test
@@ -207,15 +182,10 @@ jobs:
       - name: Miniature STAR integration
         run: python scripts/test_cpu_upstream.py --star-exe source/build/STAR.exe --sa-sparse 3
 
-      - name: Same-source C++17 vs C++20 qualification
-        if: matrix.standard == 20
-        run: python scripts/qualify_language_pair.py --build-dir source/build
-
       - name: Unit tests
         run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
 
       - name: Upload binary
-        if: matrix.standard == 17
         uses: actions/upload-artifact@v7
         with:
           name: qualification-STAR-windows-x86_64

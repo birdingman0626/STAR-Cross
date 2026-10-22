@@ -2,10 +2,8 @@
 #define STAR_SEED_SEARCH_H
 #include "SeedSearchTypes.h"
 #include "SuffixArrayFuns.h"
-#include <stdexcept>
-#if (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L) || __cplusplus >= 202002L
 #include <span>
-#endif
+#include <stdexcept>
 
 // Synchronous CPU executor. No index ownership, read allocation or RNG state.
 // Only independent requests from one fixed effective index may share a batch.
@@ -33,7 +31,6 @@ public:
             || index.GstrandMask!=((static_cast<uint>(1)<<index.GstrandBit)-1))
             throw std::invalid_argument("invalid effective seed index geometry");
     }
-#if defined(__cpp_lib_span) && __cpp_lib_span >= 202002L
     // Borrowed synchronous views: callers retain storage until this call returns.
     // span itself does not bounds-check accesses; reject unequal extents before writes.
     void searchBatch(std::span<const char> reads, std::span<const char> complement,
@@ -44,7 +41,6 @@ public:
         searchBatch(reads.data(),complement.data(),reads.size(),
                     queries.data(),queries.size(),output.data(),threads);
     }
-#endif
     void searchBatch(const char* reads, const char* complement, size_t bytes,
                      const SeedQuery* queries, size_t count, SeedMatch* output, int threads=1) const {
         if (threads<1 || count>static_cast<size_t>(std::numeric_limits<long long>::max())

@@ -4,25 +4,26 @@ if(POLICY CMP0135)
 endif()
 project(STAR LANGUAGES CXX C)
 
-set(STAR_CXX_STANDARD "20" CACHE STRING "C++ language level for STAR targets (17 or 20)")
-set_property(CACHE STAR_CXX_STANDARD PROPERTY STRINGS 17 20)
-if(NOT STAR_CXX_STANDARD MATCHES "^(17|20)$")
-    message(FATAL_ERROR "STAR_CXX_STANDARD must be 17 or 20")
+# STAR-Cross is C++20-only. Reject caches or command lines still asking for C++17
+# so an old build directory cannot silently produce a different language level.
+if(DEFINED STAR_CXX_STANDARD AND NOT STAR_CXX_STANDARD STREQUAL "20")
+    message(FATAL_ERROR "STAR-Cross requires C++20; C++17 builds were removed. "
+                        "Remove STAR_CXX_STANDARD=${STAR_CXX_STANDARD} or use a fresh build directory.")
 endif()
-set(CMAKE_CXX_STANDARD ${STAR_CXX_STANDARD})
+unset(STAR_CXX_STANDARD CACHE)
+set(STAR_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-if(STAR_CXX_STANDARD STREQUAL "20")
-    include(CheckCXXSourceCompiles)
-    check_cxx_source_compiles("#include <span>
-        #if !defined(__cpp_lib_span) || __cpp_lib_span < 202002L
-        #error C++20 span support is required
-        #endif
-        int main() { int data[1] = {}; return std::span<int>(data).size() != 1; }"
-        STAR_HAS_CXX20_SPAN)
-    if(NOT STAR_HAS_CXX20_SPAN)
-        message(FATAL_ERROR "C++20 migration requires a compiler and standard library with std::span")
-    endif()
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles("#include <span>
+    #if !defined(__cpp_lib_span) || __cpp_lib_span < 202002L
+    #error C++20 span support is required
+    #endif
+    int main() { int data[1] = {}; return std::span<int>(data).size() != 1; }"
+    STAR_HAS_CXX20_SPAN)
+if(NOT STAR_HAS_CXX20_SPAN)
+    message(FATAL_ERROR "STAR-Cross requires a C++20 compiler and standard library with std::span")
 endif()
 
 # Export compile_commands.json for LSP/IDE support (clangd, ccls)

@@ -56,10 +56,10 @@ unexpected skips and timeouts are not passes. Never overwrite previous evidence.
 
 | Lane | Matrix | Trigger and acceptance |
 | --- | --- | --- |
-| Linux x86-64 | GCC and Clang; C++17/20; Release | PR: root CTest, miniature analysis, WebUI; candidate C++20 compared to same-source C++17 |
-| Windows x86-64 | MSVC; C++17/20; Release | PR: same analysis/count contract, HTS BAM/CRAM, WebUI and runtime-DLL smoke test |
-| macOS ARM64 + Intel | GCC/OpenMP; C++17/20; Release | Required for candidate promotion: root CTest, miniature analysis, runtime dependencies; explicit architecture check |
-| Linux s390x | GCC in pinned s390x container; C++17/20 | Candidate promotion: bounded units, tiny index AND mapping/count checks under QEMU; no speed conclusion from emulation |
+| Linux x86-64 + aarch64 | GCC and Clang; C++20; Release | PR: root CTest, miniature analysis, WebUI |
+| Windows x86-64 | MSVC; C++20; Release | PR: same analysis/count contract, HTS BAM/CRAM, WebUI and runtime-DLL smoke test |
+| macOS ARM64 + Intel | GCC/OpenMP; C++20; Release | Required for candidate promotion: root CTest, miniature analysis, runtime dependencies; explicit architecture check |
+| Linux s390x | GCC in pinned s390x container; C++20 | Candidate promotion: bounded units, tiny index AND mapping/count checks under QEMU; no speed conclusion from emulation |
 | Sanitizers | Linux GCC or qualified Clang; Debug and optimized-with-symbols | PR for memory/code changes: units and miniature integration under ASan/UBSan; preserve documented full-CLI leak limitation |
 | Build configuration | Windows Ninja Multi-Config Debug/Release; Linux Ninja Debug/Release | Candidate promotion: verify selected flags, build/test; test portable CPU binary on actual or controlled non-AVX2 execution |
 | Moving versions | Latest hosted compiler/toolkit candidate | Scheduled or manual compatibility signal; does not redefine supported minimums automatically |
@@ -290,9 +290,12 @@ A commit label alone cannot identify the current uncommitted candidate.
 
 ## Non-language-upgrade continuation status
 
-C++17 remains the CPU and optional CUDA default. Continue qualification without
-coupling it to a C++20 promotion or treating every checklist item as a release
-requirement for an unrelated mode. Exact receipts are in the dated execution
+As of 2026-10-22 the CPU build is C++20-only; C++17 builds and the same-source
+C++17/20 language-pair gate were removed after the final paired comparisons passed
+on Linux, Windows and macOS (see `CXX20_PERFORMANCE_RCA.md`). The optional CUDA
+device standard remains independently configured (default 17). Continue
+qualification without treating every checklist item as a release requirement for
+an unrelated mode. Exact receipts are in the dated execution
 record, not inferred from this plan.
 
 | Remaining surface | Required next evidence / disposition |
