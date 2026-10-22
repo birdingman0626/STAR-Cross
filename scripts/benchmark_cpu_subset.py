@@ -252,7 +252,10 @@ def main():
         print(f"Starting {label}", flush=True)
         start = time.monotonic()
         with (run/"console.log").open("w") as console:
-            invocation = command if sys.platform == "win32" else ["/usr/bin/time", "-v", "-o", str(run/"time.txt"), *command]
+            # GNU time -v on Linux; BSD time -l on macOS (no -v there). Both write
+            # wall-clock and peak-RSS evidence to time.txt, parsed below.
+            timer = ["-l"] if sys.platform == "darwin" else ["-v"]
+            invocation = command if sys.platform == "win32" else ["/usr/bin/time", *timer, "-o", str(run/"time.txt"), *command]
             exit_code, memory = measured_run(invocation, console, run, affinity_mask=args.cpu_affinity)
         item = {"label": label, "round": round_number, "warmup": round_number < 0,
                 "run_directory": run.name, "binary_sha256": binary_digest, "exit_code": exit_code, **memory,
@@ -269,18 +272,33 @@ def main():
             item["wall_clock_source"] = "Windows monotonic whole-process elapsed"
             item["peak_rss_status"] = "MEASURED"
             (run/"time.txt").write_text(f"Windows whole-process wall seconds: {item['wall_seconds']}\nPeak RSS bytes: {item['peak_rss_bytes']}\n")
-        elapsed = [line.rsplit(": ", 1)[-1].strip() for line in read_text(run/"time.txt").splitlines()
-                   if "Elapsed (wall clock)" in line]
-        if sys.platform != "win32" and len(elapsed) != 1:
-            reject("GNU time wall-clock evidence missing")
-        try:
-            if sys.platform != "win32":
+        if sys.platform == "darwin":
+            # BSD time -l: "<s> real <s> user <s> sys" and "<bytes>  maximum resident set size".
+            lines = read_text(run/"time.txt").splitlines()
+            elapsed = [line.split()[0] for line in lines if line.split()[1:2] == ["real"]]
+            if len(elapsed) != 1:
+                reject("BSD time wall-clock evidence missing")
+            try:
+                item["wall_seconds"] = float(elapsed[0])
+            except ValueError:
+                reject("Invalid BSD time wall-clock evidence")
+            item["wall_clock_source"] = "BSD time real"
+            rss = [line.split()[0] for line in lines if line.strip().endswith("maximum resident set size")]
+            if len(rss) != 1 or not rss[0].isdigit() or int(rss[0]) <= 0:
+                reject("Peak memory evidence missing")
+            item["peak_rss_bytes"] = int(rss[0])  # macOS reports bytes
+            item["memory_source"] = "BSD time maximum resident set size"
+        elif sys.platform != "win32":
+            elapsed = [line.rsplit(": ", 1)[-1].strip() for line in read_text(run/"time.txt").splitlines()
+                       if "Elapsed (wall clock)" in line]
+            if len(elapsed) != 1:
+                reject("GNU time wall-clock evidence missing")
+            try:
                 item["wall_clock_source"] = "GNU time elapsed wall clock"
                 item["wall_seconds"] = sum(float(part)*60**index
-                                       for index, part in enumerate(reversed(elapsed[0].split(":"))))
-        except ValueError:
-            reject("Invalid GNU time wall-clock evidence")
-        if sys.platform != "win32":
+                                           for index, part in enumerate(reversed(elapsed[0].split(":"))))
+            except ValueError:
+                reject("Invalid GNU time wall-clock evidence")
             rss = [line.rsplit(":", 1)[-1].strip() for line in read_text(run/"time.txt").splitlines()
                    if "Maximum resident set size" in line]
             if len(rss) != 1 or not rss[0].isdigit() or int(rss[0]) <= 0:
