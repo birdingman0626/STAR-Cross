@@ -158,3 +158,30 @@ build-directory coupling. Revisit only with a larger, more varied training set a
 enough pairs to resolve a ~1% effect.
 
 Receipts: `data/validation/pgo-multi-20261023/` (ignored, local only).
+
+## Cross-read seed interleaving — research spike, 2026-10-23
+
+Question: can overlapping independent seed searches (backlog item 2) pay off?
+`star_seed_benchmark ... interleave` runs the production `maxMappableLength` over
+299,898 real searches (150k macaque reads, *M. fascicularis* Ensembl 116 index) with
+a two-stage software pipeline: query i+2K's SA bounds and first probe are
+prefetched, then query i+K's middle SA entry is read and its genome bytes
+prefetched. Results are verified identical every run; K=0 is the same loop
+without prefetching.
+
+| Threads | K=4 | K=8 | K=16 | K=32 |
+| --- | --- | --- | --- | --- |
+| 1 | 0.931 | 0.936 | 0.941 | 0.943 |
+| 8 | 0.927 | 0.934 | 0.948 | 0.920 |
+
+(median pipelined/baseline over 5 alternating pairs.) The search kernel gains
+~6-7%. A `perf` profile of a 100k-pair STARsolo run (index in shared memory)
+attributes ~14-15% of samples to seed search (`compareSeqToGenome` 12.6%,
+`maxMappableLength2strands` 1.5%), so the end-to-end ceiling is ~1% (Amdahl) —
+near the paired benchmark's ~0.5% resolution — while production use would need
+the per-read mapping loop restructured into batched reads.
+
+**Decision: not pursued.** The executor stays in the benchmark for future work;
+revisit only if seed search becomes a larger share (e.g. much longer reads) or the
+mapping loop is batched for another reason. Receipts:
+`data/validation/seed-interleave-20261023/` (ignored, local only).

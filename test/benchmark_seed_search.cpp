@@ -51,13 +51,13 @@ bool same(const GpuSeedMatch& a,const GpuSeedMatch& b) {
 }
 }
 int main(int argc,char** argv) try {
-    if(argc<3 || argc>10) throw std::invalid_argument("usage: star_seed_benchmark genomeDir R2.fastq|captureDir [records=100000] [batch=65536] [repeats=3] [cpuThreads=8] [executor=cpu|cuda|pwl|pla|hint-sweep] [hintK=18] [hintError=64]");
+    if(argc<3 || argc>10) throw std::invalid_argument("usage: star_seed_benchmark genomeDir R2.fastq|captureDir [records=100000] [batch=65536] [repeats=3] [cpuThreads=8] [executor=cpu|cuda|pwl|pla|hint-sweep|interleave] [hintK=18] [hintError=64]");
     const size_t limit=argc>3?std::stoull(argv[3]):100000,batch=argc>4?std::stoull(argv[4]):65536;
     const int repeats=argc>5?std::stoi(argv[5]):3,threads=argc>6?std::stoi(argv[6]):8;
     const std::string executor=argc>7?argv[7]:"cpu";
     const unsigned hintK=argc>8?std::stoul(argv[8]):18;
     const uint64_t hintError=argc>9?std::stoull(argv[9]):64;
-    if(executor!="cpu" && executor!="cuda" && executor!="pwl" && executor!="pla" && executor!="hint-sweep")
+    if(executor!="cpu" && executor!="cuda" && executor!="pwl" && executor!="pla" && executor!="hint-sweep" && executor!="interleave")
         throw std::invalid_argument("unsupported executor");
     if((hintK!=14 && hintK!=18 && hintK!=21) || (hintError!=16 && hintError!=64 && hintError!=256))
         throw std::invalid_argument("hint k/error outside declared screening grid");
@@ -209,6 +209,68 @@ int main(int argc,char** argv) try {
             double seconds=cpuRun(cpu);
             for(size_t i=0;i<cpu.size();++i) if(!same(cpu[i],expected[i])) throw std::runtime_error("CPU nondeterminism");
             output["runs"].push_back({{"order","CPU"},{"cpu_seconds",seconds}});
+        }
+        output["memory"]=peakMemory();std::cout<<output.dump()<<"\n";return 0;
+    }
+    if(executor=="interleave") {
+        // Research spike: cross-query software pipelining for independent seed searches.
+        // Stage 1 prefetches the SA words query i+2K reads first; stage 2 reads the
+        // (now cached) middle SA entry of query i+K and prefetches its genome bytes.
+        // K=0 runs the identical loop without prefetching and is the baseline.
+        auto prefetch=[](const void* address) {
+#if defined(__GNUC__) || defined(__clang__)
+            __builtin_prefetch(address,0,3);
+#else
+            (void)address;
+#endif
+        };
+        auto saWord=[&](uint64 index) { return g.SA.charArray+(index*g.SA.wordLength)/8; };
+        const long long count=static_cast<long long>(queries.size());
+        std::vector<GpuSeedMatch> candidate(queries.size());
+        auto pipelinedRun=[&, threads](long long distance) {
+            auto start=Clock::now();
+            #pragma omp parallel for num_threads(threads) schedule(static)
+            for(long long i=0;i<count;++i) {
+                if(distance>0) {
+                    if(i+2*distance<count) {
+                        const auto& far=queries[i+2*distance];
+                        const uint64 mid=far.lower/2+far.upper/2;
+                        prefetch(saWord(far.lower));prefetch(saWord(far.upper));prefetch(saWord(mid));
+                    }
+                    if(i+distance<count) {
+                        const auto& near=queries[i+distance];
+                        const uint64 value=g.SA[near.lower/2+near.upper/2];
+                        const uint64 position=value&g.GstrandMask;
+                        const bool forward=(value>>g.GstrandBit)==0;
+                        const char* genome=forward?g.G+position:g.G+(g.nGenome-1-position);
+                        prefetch(genome);prefetch(forward?genome+64:genome-64);
+                    }
+                }
+                const auto& q=queries[i];
+                char* s[2]={reads.data()+q.offset,complement.data()+q.offset};
+                uint64 length=q.initialLength,range[2];
+                const uint64 found=maxMappableLength(g,s,q.start,q.length,q.lower,q.upper,q.forward,length,range);
+                candidate[i]={length,range[0],range[1],found};
+            }
+            return elapsed(start);
+        };
+        auto verify=[&]() {
+            for(size_t i=0;i<candidate.size();++i) if(!same(candidate[i],expected[i]))
+                throw std::runtime_error("pipelined search field mismatch at query "+std::to_string(i));
+        };
+        output["experiments"]=Json::array();
+        pipelinedRun(0);verify();
+        for(long long distance:{4LL,8LL,16LL,32LL}) {
+            pipelinedRun(distance);verify();
+            Json item={{"distance",distance},{"runs",Json::array()}};
+            for(int repeat=0;repeat<repeats;++repeat) {
+                double baseline,pipelined;
+                if(repeat%2) {pipelined=pipelinedRun(distance);verify();baseline=pipelinedRun(0);verify();}
+                else {baseline=pipelinedRun(0);verify();pipelined=pipelinedRun(distance);verify();}
+                item["runs"].push_back({{"order",repeat%2?"PIPE-BASE":"BASE-PIPE"},{"baseline_seconds",baseline},
+                                        {"pipelined_seconds",pipelined},{"ratio",pipelined/baseline}});
+            }
+            output["experiments"].push_back(std::move(item));
         }
         output["memory"]=peakMemory();std::cout<<output.dump()<<"\n";return 0;
     }
