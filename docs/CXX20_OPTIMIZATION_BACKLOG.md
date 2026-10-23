@@ -116,7 +116,7 @@ Recommendations:
    reintroduce it without a different access model (e.g. interleaving independent
    reads), not a different prefetch distance.
 2. **LTO: keep opt-in, default OFF.** No speedup; the point estimate is slower.
-3. **PGO: keep opt-in, default OFF.** A ~2% gain is plausible but the interval
+3. **PGO: keep opt-in, default OFF** (multi-workload follow-up below). A ~2% gain is plausible but the interval
    includes 1.0. Before any default: train on several workload types (bulk,
    10x v2/v3, paired/single-end), evaluate on independent libraries, repeat with
    more pairs, and settle how a portable release would ship profiles.
@@ -124,3 +124,37 @@ Recommendations:
    `GENERATE`; profiles are keyed by object path (noted in the CMake option).
 
 Receipts: `data/validation/opt-linux-ab-20261022/` (ignored, local only).
+
+## Multi-workload PGO — 2026-10-23
+
+Same host and harness (Oracle Linux 10, 40 GiB, GCC 14, C++20, `06ba245`, 8 threads,
+index in shared memory, otherwise idle; non-STAR CPU ≤1.6% per run). One
+instrumented build was trained sequentially on two 10x v3 workloads from different
+species, then evaluated on data it never saw:
+
+- Training: macaque `tmj-condyle-1-heldout-700k-800k` (100k pairs, *M. fascicularis*
+  Ensembl 116) and rat GSE298882 `SRR33813674` first 200k pairs (GRCr8 Ensembl 116).
+  166 profiles; the USE build has `.text.hot` sections.
+- Evaluation: macaque `tmj-condyle-1-prefix-1m` (reads disjoint from training) and
+  human GSE159677 `GSM4837524` lane 1, first 1M pairs (GRCh38 Ensembl 116; species
+  and library never used in training).
+
+| Evaluation | A/A (base/base, 5 pairs) | PGO / base (10 ABBA pairs) | Status |
+| --- | --- | --- | --- |
+| Macaque, unseen reads | 0.9985 [0.9931, 1.0216] (inconclusive) | **0.9876** [0.9690, 1.0016] | not established |
+| Human, unseen library | 0.9983 [0.9855, 1.0152] (pass) | **0.9927** [0.9862, 1.0050] | not established |
+
+Every run reproduced the reference BAM multiset/header, SJ.out.tab, all Solo.out
+files and scientific log fields exactly; peak RSS changed by under 3 MiB.
+
+The first macaque A/B was aborted by a watchdog race (a STAR run that had just
+exited was momentarily unreadable and counted as foreign), so it was rerun on the
+idle host with the race fixed; the earlier partial run is not used.
+
+**Decision: PGO stays opt-in and OFF by default.** Across three workloads the point
+estimate is consistently 1–2% faster (0.980, 0.988, 0.993), but no interval excludes
+1.0, and shipping it would add a training step, per-release profiles and
+build-directory coupling. Revisit only with a larger, more varied training set and
+enough pairs to resolve a ~1% effect.
+
+Receipts: `data/validation/pgo-multi-20261023/` (ignored, local only).
