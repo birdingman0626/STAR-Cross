@@ -161,6 +161,7 @@ void BAMoutput::coordBins() {//define genomic starts for bins
         qsort((void*) startPos, binTotalN[0], sizeof(uint64), funCompareUint1);
 
         //determine genomic starts of the bins
+        OptionalMutexLock logLock(g_threadChunks.mutexLogMain, P.runThreadN>1);//Log.out is shared with other workers
         P.inOut->logMain << "BAM sorting: "<<binTotalN[0]<< " mapped reads\n";
         P.inOut->logMain << "BAM sorting bins genomic start loci:\n";
 

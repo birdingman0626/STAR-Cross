@@ -233,13 +233,13 @@ int main(int argc,char** argv) try {
             for(long long i=0;i<count;++i) {
                 if(distance>0) {
                     if(i+2*distance<count) {
-                        const auto& far=queries[i+2*distance];
-                        const uint64 mid=far.lower/2+far.upper/2;
-                        prefetch(saWord(far.lower));prefetch(saWord(far.upper));prefetch(saWord(mid));
+                        const auto& farQuery=queries[i+2*distance];
+                        const uint64 mid=farQuery.lower/2+farQuery.upper/2;
+                        prefetch(saWord(farQuery.lower));prefetch(saWord(farQuery.upper));prefetch(saWord(mid));
                     }
                     if(i+distance<count) {
-                        const auto& near=queries[i+distance];
-                        const uint64 value=g.SA[near.lower/2+near.upper/2];
+                        const auto& nearQuery=queries[i+distance];
+                        const uint64 value=g.SA[nearQuery.lower/2+nearQuery.upper/2];
                         const uint64 position=value&g.GstrandMask;
                         const bool forward=(value>>g.GstrandBit)==0;
                         const char* genome=forward?g.G+position:g.G+(g.nGenome-1-position);

@@ -477,6 +477,16 @@ void Parameters::inputParameters_validate() {
                         , std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
 
     chunkInSizeBytesArray = limitIObufferSize[0]/readNends; //array size
+    {//the array must hold the fill limit plus one maximal read; a smaller buffer made the unsigned limit wrap and the chunk copy overrun the array
+        const uint64 oneReadReserve = 2*(DEF_readSeqLengthMax+1)+2*DEF_readNameLengthMax;
+        if (chunkInSizeBytesArray <= oneReadReserve) {
+            ostringstream errOut;
+            errOut << "EXITING because of FATAL INPUT ERROR: --limitIObufferSize input buffer " << limitIObufferSize[0]
+                   << " is too small for " << readNends << " read end(s)\n"
+                   << "SOLUTION: use --limitIObufferSize with the first value of at least " << readNends*(oneReadReserve+1) << '\n';
+            exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+        };
+    };
     chunkInSizeBytes = chunkInSizeBytesArray-2*(DEF_readSeqLengthMax+1)-2*DEF_readNameLengthMax; //to prevent overflow - array is bigger to allow loading one read
     chunkOutBAMsizeBytes = limitIObufferSize[1];
 

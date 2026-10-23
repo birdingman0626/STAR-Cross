@@ -5,6 +5,7 @@
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
 #include "SoloFeatureTypes.h"
+#include <filesystem>
 
 #ifdef _WIN32
     #include "wincompat.h"
@@ -50,15 +51,9 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
             break;
         };
         case SoloFeatureTypes::SJ :
-            string sjout; //full path to SJ.out.tab with user-defined prefix
-            if (P.outFileNamePrefix[0]=='/') {
-                sjout = P.outFileNamePrefix + "SJ.out.tab";
-            } else {
-                char cwd [4096];
-                getcwd(cwd,4096);
-                sjout.append(cwd);
-                sjout += '/' + P.outFileNamePrefix + "SJ.out.tab";
-            };
+            //full path to SJ.out.tab with user-defined prefix; absolute() keeps the POSIX
+            //cwd+'/'+prefix form and also recognizes Windows drive-letter prefixes
+            const string sjout = std::filesystem::absolute(P.outFileNamePrefix + "SJ.out.tab").string();
 
             remove((outputPrefixMat+pSolo.outFileNames[1]).c_str()); //remove symlink before creating it
             if ( symlink(sjout.c_str(), (outputPrefixMat+pSolo.outFileNames[1]).c_str()) != 0 )

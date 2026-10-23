@@ -29,5 +29,18 @@ public:
     static void* threadRAprocessChunks(void *RAchunk);
 };
 
+// Holds a ThreadControl mutex for one scope; no-op when threading is off (the
+// mutexes are only initialized for --runThreadN > 1).
+class OptionalMutexLock {
+    pthread_mutex_t* mutex;
+public:
+    OptionalMutexLock(pthread_mutex_t& m, bool enabled) : mutex(enabled ? &m : nullptr) {
+        if (mutex) pthread_mutex_lock(mutex);
+    }
+    ~OptionalMutexLock() { if (mutex) pthread_mutex_unlock(mutex); }
+    OptionalMutexLock(const OptionalMutexLock&) = delete;
+    OptionalMutexLock& operator=(const OptionalMutexLock&) = delete;
+};
+
 #endif
 

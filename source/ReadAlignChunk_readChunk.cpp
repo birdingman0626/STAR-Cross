@@ -222,7 +222,8 @@ void ReadAlignChunk::readChunk() {
                         chunkInSizeBytesTotal[imate] ++;
                     };
                 } else if (nextChar==' ' || nextChar=='\n' || !P.inOut->readIn[0].good()) {//end of stream
-                    P.inOut->logMain << "Thread #" <<iThread <<" end of input stream, nextChar="<<int(nextChar) <<endl;
+                    {OptionalMutexLock logLock(g_threadChunks.mutexLogMain, P.runThreadN>1);
+                    P.inOut->logMain << "Thread #" <<iThread <<" end of input stream, nextChar="<<int(nextChar) <<endl;}
                     break;
                 } else {
                     string word1;

@@ -181,6 +181,13 @@ def main():
                   env={**os.environ,'STAR_CHUNK_PIPELINE':'1','STAR_ASYNC_SAM':'1'})
     assert sam_scientific(sync)==sam_scientific(async_out)
     checks.append('ordered SAM across multiple chunks retains the exact record sequence')
+    two_pass_ordered=run('multichunk-ordered-sam-two-pass',options+['--twopassMode','Basic'])
+    def primary_names(out):
+        return [line.split('\t',1)[0] for line in sam_scientific(out)
+                if not line.startswith('@') and not int(line.split('\t',2)[1])&0x100]
+    assert primary_names(sync), 'ordered one-pass SAM has no records'
+    assert primary_names(two_pass_ordered)==primary_names(sync), 'two-pass ordered SAM lost or reordered records'
+    checks.append('two-pass ordered SAM keeps every read in input order (chunk numbering restarts per pass)')
     for mode,extra in (('ordinary',[]),('two-pass',['--twopassMode','Basic']),
                        ('by-junction',['--outFilterType','BySJout'])):
         options=common+['--readFilesIn',str(many_reads),'--limitIObufferSize','1000000','1000000',
@@ -391,6 +398,11 @@ def main():
     oversized_header.write_text("@long " + "A"*50000 + "\n" + "N"*100 + "\n+\n" + "I"*100 + "\n")
     run("oversized-header", common + ["--readFilesIn", str(oversized_header), "--outSAMtype", "None"], valid=False)
     checks.append("oversized preserved FASTQ header rejected before chunk copy")
+    small_buffer = run("small-input-buffer", common + ["--readFilesIn", str(reads), str(reads), "--outSAMtype", "None",
+                                                      "--limitIObufferSize", "150000", "100000"],
+                       valid=False, expected_code=102)
+    assert "--limitIObufferSize input buffer 150000 is too small for 2 read end(s)" in (small_buffer / "console.log").read_text()
+    checks.append("input buffer smaller than one read per end rejected instead of overrunning the chunk")
 
     sam = root / "input.sam"
     sam.write_text("@HD\tVN:1.6\nread\t4\t*\t0\t0\t*\t*\t0\t0\t" + sequence[100:200] +
@@ -437,6 +449,22 @@ def main():
     velocity = default / "Solo.out/Velocyto/raw"
     assert all((velocity / name).is_file() for name in ("spliced.mtx", "unspliced.mtx", "ambiguous.mtx"))
     checks.append("native Velocity always emits all three required raw layers")
+    spliced_cdna = root / "spliced-cdna.fastq"
+    spliced_barcode = root / "spliced-barcode.fastq"
+    junction_read = sequence[350:400] + sequence[700:750]  # exon 1 end + exon 2 start of g1
+    spliced_cdna.write_text("".join(f"@sj{i}\n{junction_read}\n+\n{'I'*100}\n" for i in range(2)))
+    spliced_barcode.write_text("".join(f"@sj{i}\nACGTACGT{umi}\n+\nIIIIIIIIIIII\n" for i, umi in enumerate(("ACGT", "TGCA"))))
+    solo_sj = run("solo-sj", common + ["--readFilesIn", str(spliced_cdna), str(spliced_barcode), "--soloType",
+                                       "CB_UMI_Simple", "--soloCBwhitelist", str(whitelist), "--soloCBlen", "8",
+                                       "--soloUMIstart", "9", "--soloUMIlen", "4", "--soloCellFilter", "None",
+                                       "--outSAMtype", "None", "--soloFeatures", "SJ"])
+    sj_features = (solo_sj / "Solo.out/SJ/raw/features.tsv").read_text().splitlines()
+    sj_rows = [line.split() for line in (solo_sj / "Solo.out/SJ/raw/matrix.mtx").read_text().splitlines()
+               if line and not line.startswith("%")]
+    assert sj_features and int(sj_rows[0][0]) == len(sj_features), (sj_rows[0], len(sj_features))
+    assert sj_rows[1:] and all(1 <= int(row[0]) <= len(sj_features) for row in sj_rows[1:])
+    assert sum(int(row[2]) for row in sj_rows[1:]) == 2
+    checks.append("Solo SJ matrix declares one row per junction feature (count arrays sized after junction load)")
     if args.ref_exe:
         solo_before = run("solo-before", solo, args.ref_exe)
         for feature in solo_features:

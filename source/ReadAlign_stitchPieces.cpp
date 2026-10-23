@@ -7,6 +7,7 @@
 #include "sjAlignSplit.h"
 #include "PackedArray.h"
 #include "GlobalVariables.h"
+#include "ThreadControl.h"
 #include <time.h>
 #include "SeedDiagnostics.h"
 using namespace std;
@@ -295,6 +296,7 @@ std::time(&timeStart);
 
         trAll[iW1]=trArrayPointer+trNtotal;
         if (trNtotal+P.alignTranscriptsPerWindowNmax >= P.alignTranscriptsPerReadNmax) {
+            OptionalMutexLock logLock(g_threadChunks.mutexLogMain, P.runThreadN>1);//Log.out is shared with other workers
             P.inOut->logMain << "WARNING: not enough space allocated for transcript. Did not process all windows for read "<< readName+1 <<endl;
             P.inOut->logMain <<"   SOLUTION: increase alignTranscriptsPerReadNmax and re-run\n" << flush;
             break;
