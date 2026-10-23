@@ -1,17 +1,39 @@
 #include "signalFromBAM.h"
+#include "ErrorWarning.h"
 #include <iostream>
+#include <memory>
 #include <regex>
+#include <vector>
 using namespace std;
-void signalFromBAM(const string bamFileName, const string sigFileName, Parameters P) {
+namespace {
+using BgzfHandle=std::unique_ptr<BGZF, int(*)(BGZF*)>;
+using BamHeader=std::unique_ptr<bam_hdr_t, void(*)(bam_hdr_t*)>;
+// Open the input BAM and read its header, or exit cleanly (a missing file used to crash).
+std::pair<BgzfHandle, BamHeader> openInputBAM(const string &bamFileName, Parameters &P) {
+    BgzfHandle in(bgzf_open(bamFileName.c_str(),"r"), bgzf_close);
+    if (!in)
+        exitWithError("EXITING because of fatal ERROR: could not open --inputBAMfile " + bamFileName +
+                      "\nSOLUTION: check that the file exists and has proper read permissions.\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+    BamHeader header(bam_hdr_read(in.get()), bam_hdr_destroy);
+    if (!header)
+        exitWithError("EXITING because of fatal ERROR: could not read the BAM header of " + bamFileName +
+                      "\nSOLUTION: check that the file is a valid BAM file.\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+    return {std::move(in), std::move(header)};
+}
+}
+void signalFromBAM(const string bamFileName, const string sigFileName, Parameters &P) {
 
-    bam1_t *bamA;
-    bamA=bam_init1();
+    std::unique_ptr<bam1_t, void(*)(bam1_t*)> bamRecord(bam_init1(), bam_destroy1);
+    bam1_t *bamA=bamRecord.get();
 
     double nMult=0, nUniq=0;
 
     if (P.outWigFlags.norm==1) {//count reads in the BAM file
-        BGZF *bamIn=bgzf_open(bamFileName.c_str(),"r");
-        bam_hdr_t *bamHeader=bam_hdr_read(bamIn);
+        auto countInput=openInputBAM(bamFileName, P);
+        BGZF *bamIn=countInput.first.get();
+        bam_hdr_t *bamHeader=countInput.second.get();
         while ( true ) {//until the end of file
             int bamBytes1=bam_read1(bamIn, bamA);
             if (bamBytes1<0) break; //end of file
@@ -29,19 +51,19 @@ void signalFromBAM(const string bamFileName, const string sigFileName, Parameter
                 };
             };
         };
-        bgzf_close(bamIn);
     };
 
-    BGZF *bamIn=bgzf_open(bamFileName.c_str(),"r");
-    bam_hdr_t *bamHeader=bam_hdr_read(bamIn);
+    auto signalInput=openInputBAM(bamFileName, P);
+    BGZF *bamIn=signalInput.first.get();
+    bam_hdr_t *bamHeader=signalInput.second.get();
 
     int sigN=P.outWigFlags.strand ? 4 : 2;
 
-    double *normFactor=new double[sigN];
+    std::vector<double> normFactor(sigN);
 
-    ofstream **sigOutAll=new ofstream* [sigN];
+    std::vector<std::unique_ptr<ofstream>> sigOutAll(sigN);
 
-    string* sigOutFileName=new string[sigN];
+    std::vector<string> sigOutFileName(sigN);
     sigOutFileName[0]=sigFileName+".Unique.str1.out";
     sigOutFileName[1]=sigFileName+".UniqueMultiple.str1.out";
     if (P.outWigFlags.strand) {
@@ -51,7 +73,11 @@ void signalFromBAM(const string bamFileName, const string sigFileName, Parameter
 
     for (int ii=0; ii<sigN; ii++) {
         sigOutFileName[ii]+= (P.outWigFlags.format==0 ? ".bg" : ".wig");
-        sigOutAll[ii]=new ofstream ( sigOutFileName[ii].c_str() );
+        sigOutAll[ii].reset(new ofstream ( sigOutFileName[ii].c_str() ));
+        if (!*sigOutAll[ii])
+            exitWithError("EXITING because of fatal OUTPUT error: could not create signal file " + sigOutFileName[ii] +
+                          "\nSOLUTION: check the output path and write permissions.\n",
+                          std::cerr, P.inOut->logMain, EXIT_CODE_FILE_OPEN, P);
     };
 
     if (P.outWigFlags.norm==0) {//raw counts
@@ -71,7 +97,7 @@ void signalFromBAM(const string bamFileName, const string sigFileName, Parameter
 
 
     int iChr=-999;
-    double *sigAll=NULL;
+    std::vector<double> sigAll; // per-chromosome signal, zeroed for each new chromosome
     uint32_t chrLen=0;
     while ( true ) {//until the end of file
         int bamBytes1=bam_read1(bamIn, bamA);
@@ -114,9 +140,7 @@ void signalFromBAM(const string bamFileName, const string sigFileName, Parameter
             };
 
             chrLen=bamHeader->target_len[iChr]+1;//one extra base at the end which sohuld always be 0
-            delete [] sigAll;
-            sigAll= new double[sigN*chrLen];
-            memset(sigAll, 0, sizeof(*sigAll)*sigN*chrLen);
+            sigAll.assign((size_t)sigN*chrLen, 0.0);
         };
 
 //         uint32_t nCigar =(bamA->core.flag<<16)>>16;
@@ -200,10 +224,12 @@ void signalFromBAM(const string bamFileName, const string sigFileName, Parameter
             sigAll[aG*sigN+1+2*iStrand]+=1.0/aNH;//U+M, normalized by the number of multi-mapping loci
         };
     };
-    delete [] sigAll;
-
-    for (int is=0; is<sigN; is++) {// flush/close all signal files
+    for (int is=0; is<sigN; is++) {// flush/close all signal files; a failed write is fatal, not a truncated file
         sigOutAll[is]->flush();
         sigOutAll[is]->close();
+        if (sigOutAll[is]->fail())
+            exitWithError("EXITING because of fatal OUTPUT error: could not write signal file " + sigOutFileName[is] +
+                          "\nSOLUTION: check free disk space and write permissions.\n",
+                          std::cerr, P.inOut->logMain, EXIT_CODE_FILE_WRITE, P);
     };
 };

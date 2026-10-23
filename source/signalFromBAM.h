@@ -8,6 +8,6 @@
 
 
 
-void signalFromBAM(const std::string bamFileName, const std::string sigFileName, Parameters P);
+void signalFromBAM(const std::string bamFileName, const std::string sigFileName, Parameters &P);
 
 #endif
