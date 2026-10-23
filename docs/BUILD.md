@@ -5,7 +5,9 @@ compiler, CMake and Git. CMake downloads pinned dependencies, so an initial
 build needs network access. Downloads are verified against archive hashes in
 `dependencies.lock.json`. CUDA is not required for ordinary builds.
 
-STAR-Cross is C++20-only (GCC 10+, Clang 14+, MSVC 19.29+ or newer). A working
+STAR-Cross is C++20-only. Tested compilers: GCC 10.5 and newer, Clang 14 and
+newer, MSVC 14.51 (Visual Studio 18) and Homebrew GCC 15 on macOS; older MSVC
+releases may work but are untested. A working
 standard-library `std::span` is checked at configure time. C++17 builds were
 removed: a build directory or command line that still sets
 `STAR_CXX_STANDARD=17` fails at configure time; use a fresh build directory.

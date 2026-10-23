@@ -213,12 +213,18 @@ promotion are independent of the CPU language-default decision.
 
 ## Qualify toolchains before changing the default
 
-- [ ] Record a minimum compiler/standard-library matrix for GCC, Clang, MSVC,
-  macOS GCC/OpenMP, s390x GCC, and the actual CUDA toolkit/host compiler pair.
-- [ ] Run C++17 and C++20 with identical optimization/ISA/dependency settings on
-  every supported promotion platform (local GNU/MSVC miniature checks already pass).
+- [x] Record a minimum compiler/standard-library matrix for GCC, Clang, MSVC,
+  macOS GCC/OpenMP, s390x GCC. Tested floor (2026-10-23, Ubuntu 22.04): GCC 10.5,
+  GCC 11.4 and Clang 14.0 pass build, CTest, miniature integration and web UI.
+  Newest tested: GCC 14/15, Clang 20, MSVC 14.51, macOS 26 GCC 15, s390x/aarch64
+  GCC (QEMU). Still open: the CUDA toolkit/host compiler pair.
+- [x] Run C++17 and C++20 with identical optimization/ISA/dependency settings on
+  every supported promotion platform: same-source language-pair qualification
+  passed on Linux GCC/Clang, Windows MSVC, macOS GCC and s390x before C++17 was
+  retired (`2920c1d`); see CXX20_PERFORMANCE_RCA.md.
 - [ ] Require native GCC/Clang/MSVC unit and integration passes; both macOS
-  architectures and s390x must pass the five-platform release gate.
+  architectures and s390x must pass the five-platform release gate. Done except
+  Intel macOS (no hardware; hosted `macos-15-intel` pending Actions quota).
 - [ ] Compile CUDA experiments with the chosen host setting; CPU and CUDA
   language versions are separate options, so test every shared-header consumer.
 - [ ] Complete toolchain records: current build records contain compiler and key
@@ -228,16 +234,20 @@ promotion are independent of the CPU language-default decision.
 
 - [ ] Introduce `std::span` for bounded non-owning buffers; preserve capacities,
   constness, lifetime and thread-local allocation reuse.
-- [ ] Replace the remaining `uint` macro with a namespaced index type, after
-  auditing POSIX's existing `uint`, overloads, file layouts and all call sites.
-- [ ] Remove `using namespace std` from public headers in bounded migrations;
-  compile all consumers after each migration. Avoid a simultaneous whole-repo rewrite.
-- [ ] Consider `std::endian`/`std::bit_cast` where appropriate. Keep `memcpy` for
-  unaligned byte storage; `bit_cast` does not make pointer dereferences aligned.
+- [x] Replace the remaining `uint` macro: all 2026 STAR uses are now the existing
+  `uint64` alias and the macro is gone (`4658f31`); objects are byte-identical.
+- [x] Remove `using namespace std` from public headers (`6a09a16`): headers use
+  `std::` (534 compiler-located insertions), .cpp files keep the directive; all
+  1123 objects and both binaries byte-identical under GCC 14; Clang/MSVC tested.
+- [x] Consider `std::endian`/`std::bit_cast`: `byteOrder.h` cross-checks its
+  detection against `std::endian` at compile time; unaligned fields keep `memcpy`
+  (`unaligned.h`), now also used by duplicate marking (`88588cb`).
 - [ ] Separate owning storage from borrowed views in `ReadAlign`, `Genome`,
   `BAMoutput` and `PackedArray`. PackedArray and BAM buffers/streams have scoped
-  ownership changes and tests; whole Genome/ReadAlign migration remains pending.
-  See [the ownership inventory](OWNERSHIP_AUDIT.md) for view/copy/fatal-exit limits.
+  ownership changes and tests; Genome, ReadAlign arenas, Transcriptome/Solo and
+  standalone BAM tools now have explicit owners (OWNERSHIP_AUDIT.md). Remaining:
+  shared-memory Genome admission/removal is not atomic against a concurrent new
+  attach (a racing newcomer can fail to attach; no corrupted reads).
 - [ ] Split the large common header only when include analysis shows a useful
   reduction; keep ABI, numeric widths and serialization stable.
 - [ ] Audit global statistics/thread coordination before isolating state. Race
@@ -248,18 +258,24 @@ promotion are independent of the CPU language-default decision.
 ## Scientific and performance acceptance
 
 - [ ] Preserve candidate ordering, tie-breaking, score bounds and RNG behavior.
-- [ ] Compare normalized BAM records, SJ output, Gene/GeneFull and all three
-  Velocity integer matrices/axes against the frozen independent binary.
-- [ ] Compare index bytes across 1/16 threads and low-RAM chunking; retain input
+- [x] Compare normalized BAM records, SJ output, Gene/GeneFull and all three
+  Velocity integer matrices/axes against the frozen independent binary
+  (frozen-baseline job, replayed on `66bdd1a`).
+- [x] Compare index bytes across 1/16 threads and low-RAM chunking; retain input
   and binary hashes, parameters, toolchain and execution receipts.
-- [ ] Check ASan/UBSan and malformed FASTQ/SAM/packed inputs; investigate findings
-  without blanket sanitizer suppression.
-- [ ] Measure elapsed time and peak RSS on representative paired reads with a
+- [x] Check ASan/UBSan and malformed FASTQ/SAM/packed inputs; investigate findings
+  without blanket sanitizer suppression (`test_malformed_inputs.py`; the UBSan
+  misaligned access found in duplicate marking was fixed, not suppressed).
+- [x] Measure elapsed time and peak RSS on representative paired reads with a
   frozen index and repeat/interleave runs. Define tolerances from measured noise
   before accepting or rejecting a change; tiny fixtures cannot establish speed.
-- [ ] Inspect binary ISA and runtime dependencies and test non-AVX2 execution.
-- [ ] Publish the compiler minimum and migration notes, then explicitly change
-  the default to 20 only after all required checks pass.
+  (Linux GCC 14: C++20/C++17 0.989 [0.982, 0.999], A/A-calibrated.)
+- [x] Inspect binary ISA and runtime dependencies and test non-AVX2 execution:
+  a portable GCC 11 build has no AVX outside Parasail's runtime-dispatched AVX2
+  kernels and passes the miniature integration on an emulated Nehalem CPU.
+- [x] Publish the compiler minimum and migration notes, then explicitly change
+  the default to 20 only after all required checks pass (BUILD.md; C++20-only
+  since `2920c1d`).
 
 Do not combine this default change with another alignment algorithm or major
 dependency change. Modules, coroutines and parallel STL have no demonstrated
