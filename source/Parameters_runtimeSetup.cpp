@@ -11,7 +11,7 @@
 //for mkdir
 #include <sys/stat.h>
 #include <cerrno>
-
+using namespace std;
 // Compute runtime variables, create temp directory, open output BAM/SAM files,
 // and dispatch early-exit run modes (inputAlignmentsFromBAM).
 void Parameters::inputParameters_runtimeSetup() {

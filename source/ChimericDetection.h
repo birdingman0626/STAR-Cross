@@ -19,11 +19,11 @@ class ChimericDetection {
         Genome &outGen;
 
     public:
-        vector <ChimericAlign> chimAligns;
+        std::vector <ChimericAlign> chimAligns;
 
-        ChimericDetection(Parameters &Pin, Transcript ***trAll, uint64 *nWinTr, char** Read1in, Genome &genomeIn, fstream *ostreamChimJunctionIn, ReadAlign *RA);
+        ChimericDetection(Parameters &Pin, Transcript ***trAll, uint64 *nWinTr, char** Read1in, Genome &genomeIn, std::fstream *ostreamChimJunctionIn, ReadAlign *RA);
         bool chimericDetectionMult(uint64 nWin, uint64 *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA);
-        fstream *ostreamChimJunction;
+        std::fstream *ostreamChimJunction;
 };
 
 #endif

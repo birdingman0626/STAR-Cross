@@ -1,7 +1,7 @@
 #include "ParametersGenome.h"
 #include "Parameters.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 void ParametersGenome::initialize(Parameters *pPin)
 {
     pP=pPin;

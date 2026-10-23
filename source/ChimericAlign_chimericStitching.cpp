@@ -1,5 +1,5 @@
 #include "ChimericAlign.h"
-
+using namespace std;
 void ChimericAlign::chimericStitching(char *genSeq, char **Read1) {
 
     if (stitchingDone)

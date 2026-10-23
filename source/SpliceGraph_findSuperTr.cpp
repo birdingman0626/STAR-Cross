@@ -1,7 +1,7 @@
 #include "SpliceGraph.h"
 #include "sjAlignSplit.h"
 #include "ReadAlign.h"
-
+using namespace std;
 void SpliceGraph::findSuperTr(const char *readSeq, const char *readSeqRevCompl, const uint32 readLen, const string &readName, Genome &mapGen)
 {//find the candidate superTranscripts: seed-and-rank algorithm implemented
 		

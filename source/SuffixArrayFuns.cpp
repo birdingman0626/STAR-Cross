@@ -1,7 +1,7 @@
 #include "SuffixArrayFuns.h"
 #include "PackedArray.h"
 #include "SeedDiagnostics.h"
-
+using namespace std;
 inline uint64 medianUint2(uint64 a, uint64 b)
 {
     // returns (a+b)/2

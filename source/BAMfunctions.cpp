@@ -3,7 +3,7 @@
 #include "samAux.h"
 #include "bamEndian.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 
 string bam_cigarString (bam1_t *b) {//output CIGAR string
 //    kstring_t strK;

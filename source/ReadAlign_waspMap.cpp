@@ -1,5 +1,5 @@
 #include "ReadAlign.h"
-
+using namespace std;
 void ReadAlign::waspMap() {
 
     if (!P.wasp.yes) {

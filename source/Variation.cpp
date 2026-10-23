@@ -4,7 +4,7 @@
 #include "TimeFunctions.h"
 #include "serviceFuns.cpp"
 #include "ErrorWarning.h"
-
+using namespace std;
 Variation::Variation (Parameters &Pin, vector <uint64> &chrStartIn, map <string,uint64> &chrNameIndexIn, bool yesVar) : P(Pin), chrStart(chrStartIn), chrNameIndex(chrNameIndexIn) {
     if (yesVar) {
         yes=true;

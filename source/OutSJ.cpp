@@ -1,6 +1,6 @@
 #include "OutSJ.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 OutSJ::OutSJ (uint64 nSJmax, Parameters &Pin, Genome &genomeIn) : oneSJ(genomeIn), P(Pin), genOut(genomeIn)  {//do I need P?
 
     //data = new char [oneSJ.dataSize*nSJmax]; //allocate big array of SJ loci and properties

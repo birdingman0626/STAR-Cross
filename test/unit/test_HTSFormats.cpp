@@ -8,7 +8,7 @@
 #include <limits>
 #include <cerrno>
 #include "htslib/htslib/vcf.h"
-
+using namespace std;
 namespace frequency_model {
 #define NSYM 256
 #include "htslib/htscodecs/htscodecs/c_simple_model.h"

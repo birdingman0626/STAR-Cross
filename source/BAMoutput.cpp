@@ -13,7 +13,7 @@
 #include "ThreadControl.h"
 #include "streamFuns.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 void BAMoutput::checkStream(uint32 bin) {
     if (!*binStream[bin])
         exitWithError("EXITING because of fatal BAM temporary-file write/close error: " + bamDir,

@@ -5,7 +5,7 @@
 #include "SequenceFuns.h"
 #include "GlobalVariables.h"
 #include "SeedDiagnostics.h"
-
+using namespace std;
 void ReadAlignChunk::processChunks() {//read-map-write chunks
     #ifdef STAR_CAPTURE_SEEDS
     if(std::getenv("STAR_SEED_TRACE_DIR") && (P.twoPass.yes || P.outFilterBySJoutStage!=0 || P.wasp.yes || P.peOverlap.yes))

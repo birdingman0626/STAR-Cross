@@ -1,7 +1,7 @@
 #include "ReadAlign.h"
 #include "BAMfunctions.h"
 #include "ChimericAlign.h"
-
+using namespace std;
 void ReadAlign::chimericDetectionOldOutput() {
 
     if (!chimRecord) {

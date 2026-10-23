@@ -3,7 +3,7 @@
 #include <filesystem>
 #include "bamEndian.h"
 #include "htslib/htslib/sam.h"
-
+using namespace std;
 static std::vector<char> nativeRecord() {
     std::vector<char> bytes(59, 0);
     const uint32_t core[] = {55, 0, 0x10203, (4681u<<16)|(60u<<8)|3u,

@@ -20,7 +20,7 @@
 // explicitly so posix_spawnp can pass the current environment on every platform.
 extern char **environ;
 #endif
-
+using namespace std;
 // Large read buffer for ifstream to reduce system call overhead
 // Persistent: must outlive the ifstream that uses it
 static char s_readInBuf[MAX_N_MATES][4 * 1024 * 1024]; // 4MB per mate

@@ -1,6 +1,6 @@
 #include "SoloReadBarcode.h"
 #include "streamFuns.h"
-
+using namespace std;
 SoloReadBarcode::SoloReadBarcode(Parameters &P) : P(P), pSolo(P.pSolo)
 {
     if (pSolo.type==0)

@@ -4,7 +4,7 @@
 #include "ReadAlign.h"
 #include "ErrorWarning.h"
 #include <random>
-
+using namespace std;
 void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts of all windows
 
     nTr=0;

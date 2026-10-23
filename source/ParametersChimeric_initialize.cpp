@@ -2,7 +2,7 @@
 #include "Parameters.h"
 #include "ErrorWarning.h"
 #include "GlobalVariables.h"
-
+using namespace std;
 void ParametersChimeric::initialize(Parameters *pPin)
 {
     out.bam=false;

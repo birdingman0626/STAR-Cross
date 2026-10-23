@@ -4,7 +4,7 @@
 
 class SoloReadFeatureStats {
 public:
-    vector<string> names;
+    std::vector<std::string> names;
     enum {      noUnmapped,  noNoFeature,  MultiFeature,  subMultiFeatureMultiGenomic, noTooManyWLmatches,  noMMtoWLwithoutExact,    yesWLmatch,  yessubWLmatchExact, yessubWLmatch_UniqueFeature,  yesCellBarcodes,  yesUMIs, nStats};
     uint64 V[nStats];    
     SoloReadFeatureStats() 

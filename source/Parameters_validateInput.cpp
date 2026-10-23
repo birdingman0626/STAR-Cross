@@ -6,7 +6,7 @@
 
 //for mkdir
 #include <sys/stat.h>
-
+using namespace std;
 // Validate all user-supplied parameter values and compute derived flags.
 // Must be called after inputParameters_runtimeSetup().
 void Parameters::inputParameters_validate() {

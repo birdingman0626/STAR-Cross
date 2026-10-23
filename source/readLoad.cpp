@@ -1,7 +1,7 @@
 #include "readLoad.h"
 #include "ErrorWarning.h"
 #include <cstdlib>
-
+using namespace std;
 int readLoad(istream& readInStream, Parameters& P, uint64& Lread, uint64& LreadOriginal, \
             char* readName, char* Seq, char* SeqNum, char* Qual, vector<ClipMate> &clipOneMate, \
             uint64 &iReadAll, uint32 &readFilesIndex, char &readFilter, string &readNameExtra)

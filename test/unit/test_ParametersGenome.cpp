@@ -3,7 +3,7 @@
 #include <cstring>
 #include <new>
 #include <type_traits>
-
+using namespace std;
 TEST_CASE("Genome transformation output flags default to false on nonzero storage") {
     // Poison storage so this does not accidentally pass because stack bytes are zero.
     std::aligned_storage<sizeof(ParametersGenome), alignof(ParametersGenome)>::type storage;

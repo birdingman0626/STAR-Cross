@@ -1,6 +1,6 @@
 #include "SoloFeature.h"
 #include "streamFuns.h"
-
+using namespace std;
 SoloFeature::SoloFeature(Parameters &Pin, ReadAlignChunk **RAchunk, Transcriptome &inTrans, int32 feTy, SoloReadBarcode *readBarSumIn, SoloFeature **soloFeatAll)
             : P(Pin), RAchunk(RAchunk), Trans(inTrans), soloFeatAll(soloFeatAll), pSolo(P.pSolo), readBarSum(readBarSumIn), featureType(feTy)
 {

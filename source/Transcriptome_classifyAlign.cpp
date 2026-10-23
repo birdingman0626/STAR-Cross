@@ -4,7 +4,7 @@
 #include "AlignVsTranscript.h"
 #include "ReadAnnotations.h"
 #include <bitset>
-
+using namespace std;
 int alignToTranscript(Transcript &aG, uint64 trS1, uint16 exN1, uint32 *exSE1, uint32 *exLenCum1, array<uint32,2> &distTrEnds) 
 {    
     bool alignIntronic      =false;

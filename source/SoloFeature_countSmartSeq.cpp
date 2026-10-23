@@ -4,7 +4,7 @@
 #include "SequenceFuns.h"
 #include "serviceFuns.cpp"
 #include "soloInputFeatureUMI.h"
-
+using namespace std;
 
 void SoloFeature::countSmartSeq()
 {    

@@ -1,7 +1,7 @@
 #include "ReadAlign.h"
 #include "GlobalVariables.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 void ReadAlign::outputAlignments() {
   
     outBAMbytes=0;

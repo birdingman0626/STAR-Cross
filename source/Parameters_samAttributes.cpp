@@ -1,6 +1,6 @@
 #include "Parameters.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 void Parameters::samAttributes(){//everything related to SAM attributes
     //outSAMattributes
     outSAMattrPresent.NH=false;//TODO re-write as class with constructor?

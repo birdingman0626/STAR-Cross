@@ -1,6 +1,6 @@
 #include "SequenceFuns.h"
 #include <assert.h>  
-
+using namespace std;
 void complementSeqNumbers(char* ReadsIn, char* ReadsOut, uint64 Lread) {//complement the numeric sequences
     for (uint64 jj=0;jj<Lread;jj++) {
         switch (int(ReadsIn[jj])){

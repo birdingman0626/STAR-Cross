@@ -1,5 +1,5 @@
 #include "ReadAlign.h"
-
+using namespace std;
 uint64 ReadAlign::alignCIGAR
 samStreamCIGAR.str(std::string());
 

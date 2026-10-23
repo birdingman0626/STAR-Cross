@@ -3,7 +3,7 @@
 #include "Transcript.h"
 #include "serviceFuns.cpp"
 #include <random>
-
+using namespace std;
 uint64 ReadAlign::quantTranscriptome (Transcriptome *Tr, uint64 nAlignG, Transcript **alignG, Transcript *alignT) {
     uint64 nAlignT=0;
     for (uint64 iag=0; iag<nAlignG; iag++) {//transform all alignments

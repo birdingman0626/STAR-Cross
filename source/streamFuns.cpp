@@ -10,7 +10,7 @@
 #include <stdio.h>
 #define fstream_Chunk_Max 2147483647
 #include <cstring>
-
+using namespace std;
 void createDirectory(const string dirPathIn, const mode_t dirPerm, const string dirParameter, Parameters &P)
 {
 	string dirPath = dirPathIn.substr(0,dirPathIn.find_last_of('/')+1);

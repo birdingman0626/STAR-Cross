@@ -13,7 +13,7 @@
 
 //for mkfifo
 #include <sys/stat.h>
-
+using namespace std;
 #define PAR_NAME_PRINT_WIDTH 30
 
 Parameters::Parameters() : inOut(new InOutStreams) {//initialize parameters info

@@ -59,7 +59,7 @@ THE SOFTWARE.
 #include "htslib/htslib/bgzf.h"
 #include "htslib/htslib/sam.h"
 #include <cstring>
-
+using namespace std;
 #define BUF_SIZE 0x10000
 
 #define GZIPID1 31

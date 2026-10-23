@@ -1,7 +1,7 @@
 #include "Chain.h"
 #include "streamFuns.h"
 #include "serviceFuns.cpp"
-
+using namespace std;
 Chain::Chain(Parameters &Pin, string chainFileNameIn) : P(Pin), chainFileName(chainFileNameIn)
 {
     chainLoad();

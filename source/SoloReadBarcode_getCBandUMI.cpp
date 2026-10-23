@@ -5,7 +5,7 @@
 #include "GlobalVariables.h"
 #include <chrono>
 #include <thread>
-
+using namespace std;
 void SoloReadBarcode::matchCBtoWL(string &cbSeq1, string &cbQual1, vector<uint64> &cbWL, int32 &cbMatch1, vector<uint64> &cbMatchInd1, string &cbMatchString1)
 {
     cbMatch1=-1;

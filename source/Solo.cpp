@@ -1,7 +1,7 @@
 #include "Solo.h"
 #include "TimeFunctions.h"
 #include "streamFuns.h"
-
+using namespace std;
 Solo::Solo(ReadAlignChunk **RAchunkIn, Parameters &Pin, Transcriptome &inTrans)
                        :  RAchunk(RAchunkIn), P(Pin), Trans(inTrans), pSolo(P.pSolo)
 {

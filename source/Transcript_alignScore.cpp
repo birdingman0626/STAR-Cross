@@ -1,6 +1,6 @@
 #include <cmath>
 #include "Transcript.h"
-
+using namespace std;
 intScore Transcript::alignScore(char **Read1, char *G, Parameters &P) {//re-calculates score and number of mismatches
     maxScore=0;
     nMM=0;

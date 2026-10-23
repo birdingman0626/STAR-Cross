@@ -4,7 +4,7 @@
 #include "ReadAlign.h"
 #include "BAMfunctions.h"
 #include "blocksOverlap.h"
-
+using namespace std;
 //#include "SequenceFuns.h"
 //#include "stitchWindowAligns.h"
 //#include "sjSplitAlign.cpp"

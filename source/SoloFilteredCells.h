@@ -3,7 +3,7 @@
 
 class SoloFilteredCells {
 public:
-    array<uint64,13> C;
+    std::array<uint64,13> C;
     
     uint64 &nCells              =C[0];
     uint64 &nReadInCells        =C[1];
@@ -19,8 +19,8 @@ public:
     uint64 &nCellsSimple        =C[11];
     uint64 &nReadInCellsUnique  =C[12];
     
-    vector<uint32> nReadPerCellUnique, nGenePerCell;
-    vector<bool> filtVecBool;
+    std::vector<uint32> nReadPerCellUnique, nGenePerCell;
+    std::vector<bool> filtVecBool;
     
     void reset(uint64 nCells) {
         C={0}; 

@@ -6,7 +6,7 @@
 #include "SoloCommon.h"
 #include <bitset>
 #include "UMIgraph.h"
-
+using namespace std;
 #define def_MarkNoColor  (uint32) -1
 
 void collapseUMIwith1MMlowHalf(uint32 *umiArr, uint32 umiArrayStride, uint32 umiMaskLow, uint32 nU0, uint32 &nU1, uint32 &nU2, uint32 &nC, vector<array<uint32,2>> &vC);

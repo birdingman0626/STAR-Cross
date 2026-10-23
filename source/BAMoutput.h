@@ -11,7 +11,7 @@ public:
     BAMoutput(const BAMoutput&) = delete;
     BAMoutput& operator=(const BAMoutput&) = delete;
     //sorted output
-    BAMoutput (int iChunk, string tmpDir, Parameters &Pin);
+    BAMoutput (int iChunk, std::string tmpDir, Parameters &Pin);
     void coordOneAlign (char *bamIn, uint64 bamSize, uint64 iRead);
     void coordBins ();
     void coordFlush ();
@@ -33,10 +33,10 @@ private:
     std::unique_ptr<char*[]> binStart; //borrowed interior pointers, not allocation owners
     std::unique_ptr<uint64[]> binBytes;
     uint64 binBytes1;//number of bytes currently written to each bin
-    std::vector<std::unique_ptr<ofstream>> binStream;
+    std::vector<std::unique_ptr<std::ofstream>> binStream;
     BGZF *bgzfBAM=nullptr; //borrowed from Parameters; never closed by this owner
     Parameters &P;
-    string bamDir;
+    std::string bamDir;
     void checkStream(uint32 bin);
     void writeUnsortedBatch();
 };

@@ -27,7 +27,7 @@ class ReadAlign {
         ReadAlign(const ReadAlign&) = delete;
         ReadAlign& operator=(const ReadAlign&) = delete;
         ~ReadAlign();
-        void borrowChimericJunctionStream(fstream* stream);
+        void borrowChimericJunctionStream(std::fstream* stream);
         int oneRead();
 
         Genome &mapGen, &genOut; //mapped-to-genome structure
@@ -37,25 +37,25 @@ class ReadAlign {
 
         Stats statsRA; //mapping statistics
 
-        istream* readInStream[MAX_N_MATES];
+        std::istream* readInStream[MAX_N_MATES];
         BAMoutput *outBAMcoord, *outBAMunsorted, *outBAMquant;//sorted by coordinate, unsorted, transcriptomic BAM structure
-        fstream chunkOutChimSAM, *chunkOutChimJunction, chunkOutUnmappedReadsStream[MAX_N_MATES], chunkOutFilterBySJoutFiles[MAX_N_MATES];
+        std::fstream chunkOutChimSAM, *chunkOutChimJunction, chunkOutUnmappedReadsStream[MAX_N_MATES], chunkOutFilterBySJoutFiles[MAX_N_MATES];
         OutSJ *chunkOutSJ, *chunkOutSJ1;
 
-        ostream* outSAMstream;
+        std::ostream* outSAMstream;
         uint64 outBAMbytes; //number of bytes output to SAM/BAM with oneRead
         char *outBAMarray;//pointer to the (last+1) position of the SAM/BAM output array
 
         uint64 outFilterMismatchNmaxTotal;
         uint64 Lread, readLength[MAX_N_MATES], readLengthOriginal[MAX_N_MATES], readLengthPair, readLengthPairOriginal;
-        string readBarcodeSeq, readBarcodeQual; //Solo barcode sequence
+        std::string readBarcodeSeq, readBarcodeQual; //Solo barcode sequence
         
         intScore maxScoreMate[MAX_N_MATES];
 
         uint32 readFilesIndex;
         
         //quality histogram
-        array<array<uint64,256>,MAX_N_MATES> qualHist;
+        std::array<std::array<uint64,256>,MAX_N_MATES> qualHist;
         
         //transcripts (aligns)
         uint64 nW;
@@ -91,12 +91,12 @@ class ReadAlign {
         
         SpliceGraph *splGraph;
         
-        vector<vector<ClipMate>> clipMates;
+        std::vector<std::vector<ClipMate>> clipMates;
 
 	//input,output
         char** outBAMoneAlign;
         uint64* outBAMoneAlignNbytes;
-        int alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, vector<int> outSAMattrOrder, char** outBAMarray, uint64* outBAMarrayN);
+        int alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, std::vector<int> outSAMattrOrder, char** outBAMarray, uint64* outBAMarrayN);
 
     private:
         struct Storage;
@@ -115,8 +115,8 @@ class ReadAlign {
 
         //input,output
 
-        ostringstream samStreamCIGAR, samStreamSJmotif, samStreamSJintron;
-        vector <string> matesCIGAR;
+        std::ostringstream samStreamCIGAR, samStreamSJmotif, samStreamSJintron;
+        std::vector <std::string> matesCIGAR;
 
         intScore *scoreSeedToSeed, *scoreSeedBest;
         uint64 *scoreSeedBestInd, *seedChain, *scoreSeedBestMM;
@@ -130,7 +130,7 @@ class ReadAlign {
         bool revertStrand; //what to do with the strand, according to strandType and iMate
         int readFileType; //file type: 1=fasta; 2=fastq
 
-        vector<string>readNameExtra;
+        std::vector<std::string>readNameExtra;
 
         char dummyChar[4096];
         char** Read0;
@@ -197,16 +197,16 @@ class ReadAlign {
         uint64 maxMappableLength2strands(uint64 pieceStart, uint64 pieceLength, uint64 iDir, uint64 iSA1, uint64 iSA2, uint64& maxL, uint64 iFrag);
         void storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, uint64 indStartEnd[2], uint64 iFrag);
 
-        bool outputTranscript(Transcript *trOut, uint64 nTrOut, ofstream *outBED);
+        bool outputTranscript(Transcript *trOut, uint64 nTrOut, std::ofstream *outBED);
 
-        uint64 outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, ostream *outStream);
+        uint64 outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, std::ostream *outStream);
 
-        uint64 outputSpliceGraphSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, ostream *outStream);
+        uint64 outputSpliceGraphSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, std::ostream *outStream);
 
-        void samAttrNM_MD (Transcript const &trOut, uint64 iEx1, uint64 iEx2, uint64 &tagNM, string &tagMD);
+        void samAttrNM_MD (Transcript const &trOut, uint64 iEx1, uint64 iEx2, uint64 &tagNM, std::string &tagMD);
 
         void outputTranscriptSJ(Transcript const &trOut, uint64 nTrOut, OutSJ *outStream, uint64 sjReadStartN );
-        string outputTranscriptCIGARp(Transcript const &trOut);
+        std::string outputTranscriptCIGARp(Transcript const &trOut);
         int createExtendWindowsWithAlign(uint64 a1, uint64 aStr); //extends and windows with one alignment
         void assignAlignToWindow(uint64 a1, uint64 aLength, uint64 aStr, uint64 aNrep, uint64 aFrag, uint64 aRstart,bool aAnchor, uint64 sjA); //assigns one alignment to a window
 

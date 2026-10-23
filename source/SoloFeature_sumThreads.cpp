@@ -4,7 +4,7 @@
 #include "SequenceFuns.h"
 #include "Stats.h"
 #include "GlobalVariables.h"
-
+using namespace std;
 void SoloFeature::sumThreads()
 {   
     //stats

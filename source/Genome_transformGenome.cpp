@@ -5,7 +5,7 @@
 #include "serviceFuns.cpp"
 #include "GTF.h"
 #include "funPrimaryAlignMark.h"
-
+using namespace std;
 template <typename T>
 void appendVector(vector<T> &v1, const vector<T> &v2)
 {

@@ -2,7 +2,7 @@
 #include "Parameters.h"
 #include "ErrorWarning.h"
 #include "streamFuns.h"
-
+using namespace std;
 #define PAR_NAME_PRINT_WIDTH 30
 
 // Load default parameters, parse command-line arguments, open the log file,

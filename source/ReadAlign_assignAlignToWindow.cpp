@@ -2,7 +2,7 @@
 #include "Parameters.h"
 #include "ReadAlign.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 void ReadAlign::assignAlignToWindow(uint64 a1, uint64 aLength, uint64 aStr, uint64 aNrep, uint64 aFrag, uint64 aRstart, bool aAnchor, uint64 sjA) {
 
     uint64 iW=winBin[aStr][a1>>P.winBinNbits];

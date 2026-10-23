@@ -4,7 +4,7 @@
 
 #include "SpliceGraph.h"
 #define macro_CompareScore(score1,scoreMax,dirInd,dirIndMax)	if(score1>scoreMax){dirIndMax=dirInd;scoreMax=score1;}
-
+using namespace std;
 SpliceGraph::typeAlignScore SpliceGraph::swScoreSpliced
                             (const char *readSeq, const uint32 readLen, const SuperTranscript &superTr, vector<array<uint32,2>> &cigar)
 {//Smith-Waterman alignment with splices

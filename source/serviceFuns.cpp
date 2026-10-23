@@ -2,7 +2,7 @@
 #define DEF_serviceFuns
 
 #include "IncludeDefine.h"
-
+using namespace std;
 template <class T>
     T sum1D(T* a, uint64 N) {
         T s=0;

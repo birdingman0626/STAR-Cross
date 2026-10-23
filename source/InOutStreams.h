@@ -9,17 +9,17 @@ class ChunkInputDispatcher;
 
 class InOutStreams {
     public:
-    ostream *logStdOut, *outSAM;
-    ofstream logStdOutFile, outSAMfile;
+    std::ostream *logStdOut, *outSAM;
+    std::ofstream logStdOutFile, outSAMfile;
     BGZF *outBAMfileUnsorted, *outQuantBAMfile;
     std::unique_ptr<AsyncByteWriter> unsortedWriter,quantWriter,samWriter;
     std::unique_ptr<ChunkInputDispatcher> chunkInputDispatcher;
 
-    ofstream outChimSAM, outChimJunction, logMain, logProgress, logFinal, outUnmappedReadsStream[MAX_N_MATES];
-    ifstream readIn[MAX_N_MATES];
+    std::ofstream outChimSAM, outChimJunction, logMain, logProgress, logFinal, outUnmappedReadsStream[MAX_N_MATES];
+    std::ifstream readIn[MAX_N_MATES];
 
     //compilation-optional streams
-    ofstream outLocalChains;
+    std::ofstream outLocalChains;
 
     InOutStreams();
     ~InOutStreams();

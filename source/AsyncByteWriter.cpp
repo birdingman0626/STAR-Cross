@@ -1,7 +1,7 @@
 #include "AsyncByteWriter.h"
 #include <stdexcept>
 #include <utility>
-
+using namespace std;
 AsyncByteWriter::AsyncByteWriter(size_t maximum,std::function<void(char*,size_t)> output)
     :sink(std::move(output)),maximumPacketBytes(maximum) {
     if (!maximum || !sink) throw std::invalid_argument("invalid asynchronous byte writer");

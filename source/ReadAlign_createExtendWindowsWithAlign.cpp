@@ -3,7 +3,7 @@
 //#include "Transcript.h"
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
-
+using namespace std;
 int ReadAlign::createExtendWindowsWithAlign(uint64 a1, uint64 aStr) {
 
 

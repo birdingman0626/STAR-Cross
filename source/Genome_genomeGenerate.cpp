@@ -22,7 +22,7 @@
 #include "serviceFuns.cpp"
 #include "streamFuns.h"
 #include "SequenceFuns.h"
-
+using namespace std;
 
 char* globalG;
 uint64 globalL;

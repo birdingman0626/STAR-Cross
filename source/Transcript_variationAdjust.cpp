@@ -1,6 +1,6 @@
 #include "Transcript.h"
 #include "serviceFuns.cpp"
-
+using namespace std;
 int Transcript::variationAdjust(const Genome &mapGen, char *R)
 {
     Variation &Var=*mapGen.Var;

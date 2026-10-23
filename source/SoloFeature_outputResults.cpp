@@ -11,7 +11,7 @@
 #else
     #include<unistd.h> // for get_current_dir
 #endif
-
+using namespace std;
 
 void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
 {    

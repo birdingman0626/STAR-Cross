@@ -9,7 +9,7 @@
 #include <set>
 #include <map>
 #include <random>
-
+using namespace std;
 double logMultinomialPDFsparse(const vector<double> &ambProfileLogP, const vector<uint32> &countCellGeneUMI, const uint32 stride, const uint32 shift, const int64 start, const uint32 nGenes, const vector<double> &logFactorial);
 void SoloFeature::emptyDrops_CR()
 {

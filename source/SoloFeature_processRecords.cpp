@@ -4,7 +4,7 @@
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
 #include "systemFunctions.h"
-
+using namespace std;
 void SoloFeature::processRecords()
 {
     if (pSolo.type==0)

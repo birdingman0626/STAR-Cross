@@ -1,6 +1,6 @@
 #include "Stats.h"
 #include "TimeFunctions.h"
-
+using namespace std;
 void Stats::resetN() {//zero all counters
     readN = 0; readBases = 0;
     mappedMismatchesN = 0; mappedInsN = 0; mappedDelN = 0; mappedInsL = 0; mappedDelL = 0; mappedBases = 0;  mappedPortion = 0;

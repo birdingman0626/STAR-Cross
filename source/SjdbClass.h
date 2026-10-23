@@ -6,12 +6,12 @@
 
 class SjdbClass {
 public:
-    vector <string> chr;
-    vector <uint64> start,end;
-    vector <char> str;
-    vector <uint8> priority;
+    std::vector <std::string> chr;
+    std::vector <uint64> start,end;
+    std::vector <char> str;
+    std::vector <uint8> priority;
 
-    vector<set<uint64>> gene;
+    std::vector<std::set<uint64>> gene;
 };
 
 #endif

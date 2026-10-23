@@ -3,7 +3,7 @@
 #include "SequenceFuns.h"
 #include "ReadAnnotations.h"
 #include "SoloReadBarcode.h"
-
+using namespace std;
 class ReadSoloFeatures {
 public:
     uint32 gene;

@@ -22,7 +22,7 @@
 #include <vector>
 #include <cstdint>
 #include <algorithm>
-
+using namespace std;
 static const uint32_t BIT_TOP      = 1u << 31;
 static const uint32_t BIT_TOP_MASK = ~BIT_TOP;
 static const uint32_t MARK_NO_COLOR = static_cast<uint32_t>(-1);

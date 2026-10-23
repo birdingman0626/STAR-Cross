@@ -27,13 +27,13 @@ class Stats {
         
         Stats ();
         void resetN();
-        void printShort(ostream*);
+        void printShort(std::ostream*);
         void transcriptStats(Transcript &T, uint64 Lread);
         void addStats(Stats &S);
-        void progressReportHeader(ofstream &progressStream);
-        void progressReport(ofstream &progressStream) ;
-        void reportFinal(ofstream &streamOut);
-        void writeLines(ofstream &streamOut, const vector<int> outType, const string commStr, const string outStr);// write commented lines to text files with stats
+        void progressReportHeader(std::ofstream &progressStream);
+        void progressReport(std::ofstream &progressStream) ;
+        void reportFinal(std::ofstream &streamOut);
+        void writeLines(std::ofstream &streamOut, const std::vector<int> outType, const std::string commStr, const std::string outStr);// write commented lines to text files with stats
         
         void qualHistCalc(const uint64 imate, const char* qual, const uint64 len);
         //void qualHistCalcSolo(const uint64 imate, const char* qual, const vector<uint32> stlen);

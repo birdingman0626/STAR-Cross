@@ -5,7 +5,7 @@
 #include "streamFuns.h"
 #include "SharedMemory.h"
 #include "genomeScanFastaFiles.h"
-
+using namespace std;
 //addresses with respect to shmStart of several genome values
 #define SHM_sizeG 0
 #define SHM_sizeSA 8

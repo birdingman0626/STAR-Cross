@@ -34,7 +34,7 @@ public:
     //output
     struct {
         uint32 nMap, nMM, nI, nD, nSJ;
-        array<SpliceGraph::typeSeqLen, 2> aStart, aEnd;
+        std::array<SpliceGraph::typeSeqLen, 2> aStart, aEnd;
     } alignInfo;
     //vector<array<int32,4>> blockCoord;
     //vector<int32> blockSJ;
@@ -46,9 +46,9 @@ public:
     SpliceGraph(SuperTranscriptome &superTrome, Parameters &P, ReadAlign *RA);
     ~SpliceGraph() = default;
 
-    typeAlignScore swScoreSpliced(const char *readSeq, const uint32 readLen, const SuperTranscript &superTr, vector<array<uint32,2>> &cigar);
+    typeAlignScore swScoreSpliced(const char *readSeq, const uint32 readLen, const SuperTranscript &superTr, std::vector<std::array<uint32,2>> &cigar);
     //void swTraceBack(array<typeSeqLen, 2> &alignEnds, array<typeSeqLen, 2> &alignStarts);
-    void findSuperTr(const char *readSeq, const char *readSeqRevCompl, const uint32 readLen, const string &readName, Genome &mapGen);
+    void findSuperTr(const char *readSeq, const char *readSeqRevCompl, const uint32 readLen, const std::string &readName, Genome &mapGen);
     
 private:
     std::unique_ptr<typeSuperTrSeedCount[]> seedCountStorage;

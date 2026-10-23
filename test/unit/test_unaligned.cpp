@@ -1,7 +1,7 @@
 #include "doctest/doctest.h"
 #include "unaligned.h"
 #include <cstdint>
-
+using namespace std;
 TEST_CASE("Unaligned native fields preserve packed layout and copy values") {
     alignas(8) char bytes[32] = {};
     for (size_t offset=0; offset<8; ++offset) {

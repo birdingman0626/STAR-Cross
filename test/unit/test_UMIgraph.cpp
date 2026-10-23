@@ -1,7 +1,7 @@
 #include "doctest/doctest.h"
 #include "UMIgraph.h"
 // UMIgraph.h uses only <vector>/<array>/<cstdint>/<algorithm> — no STAR headers needed.
-
+using namespace std;
 using u32 = uint32_t;
 using EdgeList = std::vector<std::array<u32, 2>>;
 

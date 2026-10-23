@@ -5,7 +5,7 @@
 #include "GlobalVariables.h"
 #include "outputSJ.h"
 #include "sjdbInsertJunctions.h"
-
+using namespace std;
 void twoPassRunPass1(Parameters &P, Genome &genomeMain, Transcriptome *transcriptomeMain, SjdbClass &sjdbLoci) //2-pass: 1st pass
 {
     if (!P.twoPass.yes)

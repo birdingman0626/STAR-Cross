@@ -7,7 +7,7 @@
 
 #include <stdlib.h>
 #include <cmath>
-
+using namespace std;
 void ParametersSolo::initialize(Parameters *pPin)
 {
     pP=pPin;

@@ -7,7 +7,7 @@
 #include "bamEndian.h"
 #include <cstdlib>
 #include <stdexcept>
-
+using namespace std;
 void mapThreadsSpawn (Parameters &P, ReadAlignChunk** RAchunk) {
     if (const char* enabled=std::getenv("STAR_CHUNK_PIPELINE")) {
         if (std::string(enabled)!="1") exitWithError("STAR_CHUNK_PIPELINE must be 1 or unset",std::cerr,P.inOut->logMain,EXIT_CODE_PARAMETER,P);

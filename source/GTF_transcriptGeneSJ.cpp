@@ -5,7 +5,7 @@
 //#include <ctime>
 #include <map>
 #include <memory>
-
+using namespace std;
 #define GTF_extrLoci_size 6
 #define GTF_extrTrStart(ii) ((ii)*GTF_extrLoci_size)
 #define GTF_extrTrEnd(ii) ((ii)*GTF_extrLoci_size+1)

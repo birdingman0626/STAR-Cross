@@ -4,7 +4,7 @@
 #include <fstream>
 #include <sys/stat.h>
 #include "serviceFuns.cpp"
-
+using namespace std;
 void Parameters::readFilesInit() 
 {//initialize read files - but do not open yet
 

@@ -9,7 +9,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #endif
-
+using namespace std;
 void Parameters::closeReadsFiles() {
     // A manifest can specify fewer ends than the default readFilesIn placeholders.
     for (uint64 imate=0; imate<readFilesNames.size(); imate++) {

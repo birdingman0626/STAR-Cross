@@ -17,20 +17,20 @@ public:
     
     uint32 adapterLength;//length of the adapter
     
-    vector<vector<uintCB>> wl;//whitelists, one for each length
-    vector<vector<uintCB>> wlEd;//edited whitelists (i.e. including mismatches and indels)
-    vector<vector<uint32>> wlEdInd;//index for wlEd in the unedited wl
+    std::vector<std::vector<uintCB>> wl;//whitelists, one for each length
+    std::vector<std::vector<uintCB>> wlEd;//edited whitelists (i.e. including mismatches and indels)
+    std::vector<std::vector<uint32>> wlEdInd;//index for wlEd in the unedited wl
 
     uint64 wlFactor;//factor and modulo for converting each whitelist index into global index
-    vector<uint32> wlAdd;//additive for each length
+    std::vector<uint32> wlAdd;//additive for each length
     uint32 minLen;//minimum length for this barcode
     uint32 totalSize;//total size of all whitelists
     
     uint64 iLen, iCB;//indexes, used in ParametersSolo.cpp
     
-    bool extractBarcode(string &seqIn, string &qualIn, const uint32 aStart, string &bSeq, string &bQual);
+    bool extractBarcode(std::string &seqIn, std::string &qualIn, const uint32 aStart, std::string &bSeq, std::string &bQual);
     void sortWhiteList(ParametersSolo *pSolo);
-    void extractPositionsFromString(string &strIn);
+    void extractPositionsFromString(std::string &strIn);
 
     //SoloBarcode(ParametersSolo *pSolo) : pSolo(pSolo) {};
 };

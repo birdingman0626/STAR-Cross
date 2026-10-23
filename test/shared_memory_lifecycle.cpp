@@ -11,7 +11,7 @@
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
-
+using namespace std;
 static_assert(!std::is_copy_constructible<SharedMemory>::value, "IPC handles must not copy");
 static_assert(!std::is_move_constructible<SharedMemory>::value, "IPC handles must not move implicitly");
 

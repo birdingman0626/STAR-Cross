@@ -3,7 +3,7 @@
 #include "PackedArray.h"
 #include "ErrorWarning.h"
 #include "streamFuns.h"
-
+using namespace std;
 
 void Genome::genomeOutLoad(){//allocate and load *output* Genome
     

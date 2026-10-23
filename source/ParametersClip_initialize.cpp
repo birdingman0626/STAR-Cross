@@ -2,7 +2,7 @@
 #include "Parameters.h"
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 void ParametersClip::initialize(Parameters *pPin)
 {
     pP = pPin;

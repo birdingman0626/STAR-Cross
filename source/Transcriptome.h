@@ -12,9 +12,9 @@
 
 class Transcriptome {
 public:
-    string trInfoDir;
+    std::string trInfoDir;
 
-    vector <string> trID, geID, geName, geBiotype; //transcript/gene IDs
+    std::vector <std::string> trID, geID, geName, geBiotype; //transcript/gene IDs
     uint32 nTr=0, nGe=0; //number of transcript/genes
 
     uint64 *trS=nullptr, *trE=nullptr, *trEmax=nullptr; //transcripts start,end,end-max
@@ -48,7 +48,7 @@ public:
     Transcriptome(const Transcriptome&) = default; // metadata shared; counts still chunk-local
     Transcriptome& operator=(const Transcriptome&) = delete;
     uint32 quantAlign (Transcript &aG, Transcript *aTall);//transform coordinates for all aligns from genomic in RA to transcriptomic in RAtr
-    void geneCountsAddAlign(uint64 nA, Transcript **aAll, vector<int32> &gene1); //add one alignment to gene counts
+    void geneCountsAddAlign(uint64 nA, Transcript **aAll, std::vector<int32> &gene1); //add one alignment to gene counts
     void quantsAllocate(); //allocate quants structure
     void quantsOutput(); //output quantification files
     void geneFullAlignOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat);

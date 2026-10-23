@@ -3,7 +3,7 @@
 #include "GlobalVariables.h"
 #include "ErrorWarning.h"
 #include "serviceFuns.cpp"
-
+using namespace std;
 Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
 
     if (!load || !P.quant.yes)

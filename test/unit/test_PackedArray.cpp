@@ -1,7 +1,7 @@
 #include "doctest/doctest.h"
 #include "PackedArray.h"
 #include <stdexcept>
-
+using namespace std;
 TEST_CASE("PackedArray ownership survives borrowed snapshots and moves") {
     PackedArray owner;
     owner.defineBits(8, 4);

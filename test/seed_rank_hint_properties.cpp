@@ -1,7 +1,7 @@
 #include "SeedRankHint.h"
 #include "SeedTestIndex.h"
 #include <random>
-
+using namespace std;
 namespace {
 void require(bool condition,const char* message) {if(!condition) throw std::runtime_error(message);}
 struct Fixture {

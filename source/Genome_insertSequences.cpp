@@ -5,7 +5,7 @@
 #include "genomeScanFastaFiles.h"
 #include "insertSeqSA.h"
 #include "TimeFunctions.h"
-
+using namespace std;
 void Genome::insertSequences()
 {
 if (pGe.gFastaFiles.at(0)!="-")

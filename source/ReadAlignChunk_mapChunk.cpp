@@ -4,7 +4,7 @@
 #include "ThreadControl.h"
 #include "ErrorWarning.h"
 #include SAMTOOLS_BGZF_H
-
+using namespace std;
 void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be setup in RA->readInStream[ii]
     
     for (uint32 im=0; im<1; im++) {//hardcoded mate 1 5p onyl for now

@@ -2,7 +2,7 @@
 #include "Parameters.h"
 #include "Transcript.h"
 #include "ReadAlign.h"
-
+using namespace std;
 // Allocation bases are distinct from the mutable views used by the mapper.
 // Large arenas remain uninitialized and retain their existing capacities/layout.
 struct ReadAlign::Storage {

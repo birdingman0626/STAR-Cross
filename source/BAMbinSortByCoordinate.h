@@ -7,6 +7,6 @@
 
 #include SAMTOOLS_BGZF_H
 
-void BAMbinSortByCoordinate(uint32 iBin, uint64 binN, uint64 binS, uint64 nThreads, string dirBAMsort, Parameters &P, Genome &mapGen, Solo &solo);
+void BAMbinSortByCoordinate(uint32 iBin, uint64 binN, uint64 binS, uint64 nThreads, std::string dirBAMsort, Parameters &P, Genome &mapGen, Solo &solo);
 
 #endif

@@ -4,7 +4,7 @@
 
 class SoloReadBarcodeStats {
 public:
-    vector<string> names;
+    std::vector<std::string> names;
     enum {      noNoAdapter,  noNoUMI,    noNoCB,   noNinCB,   noNinUMI,   noUMIhomopolymer,  noNoWLmatch,   noTooManyMM,   noTooManyWLmatches,   yesWLmatchExact,   yesOneWLmatchWithMM,   yesMultWLmatchWithMM, nStats};
     uint64 V[nStats];    
     SoloReadBarcodeStats() 

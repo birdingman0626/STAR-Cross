@@ -6,7 +6,7 @@
 #ifdef _WIN32
 #include "wincompat.h"
 #include <psapi.h>
-
+using namespace std;
 std::string linuxProcMemory()
 {
     PROCESS_MEMORY_COUNTERS_EX pmc;

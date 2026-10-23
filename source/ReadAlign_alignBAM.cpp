@@ -5,7 +5,7 @@
 # include "BAMfunctions.h"
 
 #include <type_traits>
-
+using namespace std;
 void ReadAlign::samAttrNM_MD (Transcript const &trOut, uint64 iEx1, uint64 iEx2, uint64 &tagNM, string &tagMD) {
     tagNM=0;
     tagMD="";

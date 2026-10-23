@@ -27,7 +27,7 @@ public:
 
     Junction(Genome &genomeIn);
     void junctionPointer(char* sjPoint, uint64 isj);
-    void outputStream(ostream &outStream);
+    void outputStream(std::ostream &outStream);
     void collapseOneSJ(char* isj1P, char* isjP, Parameters& P);
 
 private:
@@ -39,7 +39,7 @@ class OutSJ {
 public:
     //all junctions
     char* data; //sj array[Njunctions][dataSize]
-    vector<char> dataVec;
+    std::vector<char> dataVec;
     uint64 N, Nstore; //N=number of junctions stored; Nstore=storage size
     Junction oneSJ;
 

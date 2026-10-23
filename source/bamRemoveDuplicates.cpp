@@ -5,7 +5,7 @@
 #include "IncludeDefine.h"
 #include SAMTOOLS_BGZF_H
 #include "ErrorWarning.h"
-
+using namespace std;
 #define compareReturn(a,b) if(a>b) {return 1;} else if (a<b) {return -1;}
 
 uint64 g_bamRemoveDuplicatesMate2basesN;

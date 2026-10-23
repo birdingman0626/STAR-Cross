@@ -1,5 +1,5 @@
 #include "SoloRead.h"
-
+using namespace std;
 void SoloRead::record(uint64 nTr, Transcript **alignOut, uint64 iRead, ReadAnnotations &readAnnot)
 {
     if (pSolo.type==pSolo.SoloTypes::None)

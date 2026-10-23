@@ -9,7 +9,7 @@
 #include "binarySearch2.h"
 #include "ErrorWarning.h"
 #include "SeedDiagnostics.h"
-
+using namespace std;
 void WindowStitcher::stitch (uint64 iW, uint64 iWrec, bool *WAexcl, char *R) {//stitches all seeds in one window: iW
 
     for (uint64 iS1=0;iS1<nWA[iW];iS1++) {

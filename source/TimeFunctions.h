@@ -3,7 +3,7 @@
 #include <string>
 #include <time.h>
 
-string timeMonthDayTime();
-string timeMonthDayTime(time_t &rawTime);
+std::string timeMonthDayTime();
+std::string timeMonthDayTime(time_t &rawTime);
 
 #endif

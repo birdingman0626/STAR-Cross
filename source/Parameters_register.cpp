@@ -1,5 +1,5 @@
 #include "Parameters.h"
-
+using namespace std;
 Parameters::Parameters(InOutStreams& borrowedStreams) : inOut(&borrowedStreams) {
     registerParameters();
 }

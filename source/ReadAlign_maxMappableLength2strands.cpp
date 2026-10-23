@@ -3,7 +3,7 @@
 #include "ErrorWarning.h"
 #include <array>
 #include "SeedTrace.h"
-
+using namespace std;
 uint64 ReadAlign::maxMappableLength2strands(uint64 pieceStartIn, uint64 pieceLengthIn, uint64 iDir, uint64 iSA1, uint64 iSA2, uint64& maxLbest, uint64 iFrag) {
     #ifdef STAR_CAPTURE_SEEDS
     seedTrace::Timer diagnostic(&seedTrace::Worker::seedNs);

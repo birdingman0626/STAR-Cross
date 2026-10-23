@@ -13,7 +13,7 @@
 #include "gpuSjdbRemap.h"
 
 #include "funCompareUintAndSuffixes.h"
-
+using namespace std;
 static uint64 sjdbSortBucket(uint64 key, uint64 keyRange, uint64 bucketN)
 {
     // Monotonic bucket mapping without a 128-bit intermediate (MSVC has no native

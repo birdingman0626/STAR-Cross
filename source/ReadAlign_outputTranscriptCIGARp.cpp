@@ -1,6 +1,6 @@
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
-
+using namespace std;
 string ReadAlign::outputTranscriptCIGARp(Transcript const &trOut) {//generates CIGARp string for the transcript
                                                                    //p is a special CIGAR operation to encode gap between mates. This gap is negative for overlapping mates
 

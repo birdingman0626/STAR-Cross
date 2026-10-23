@@ -3,7 +3,7 @@
 #include "BAMfunctions.h"
 #include "unaligned.h"
 #include "bamEndian.h"
-
+using namespace std;
 void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
 
     BGZF *bgzfBin;

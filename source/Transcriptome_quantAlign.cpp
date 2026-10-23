@@ -1,7 +1,7 @@
 #include "Transcriptome.h"
 #include "ReadAlign.h"
 #include "serviceFuns.cpp"
-
+using namespace std;
 int alignToTranscript(Transcript &aG, uint64 trS1, uint8 trStr1, uint32 *exSE1, uint32 *exLenCum1, uint16 exN1, Transcript &aT) {
 
     //find exon that overlaps beginning of the read

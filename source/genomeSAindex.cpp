@@ -2,7 +2,7 @@
 #include "TimeFunctions.h"
 #include "SuffixArrayFuns.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 struct SAindexEvent {
     uint64 isa;
     uint64 indFull;

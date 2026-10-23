@@ -2,7 +2,7 @@
 #include "sjdbLoadFromStream.h"
 #include "ErrorWarning.h"
 #include "TimeFunctions.h"
-
+using namespace std;
 void sjdbLoadFromFiles(Parameters &P, SjdbClass &sjdbLoci) {
 
     if (P.pGe.sjdbFileChrStartEnd.at(0)!="-") {

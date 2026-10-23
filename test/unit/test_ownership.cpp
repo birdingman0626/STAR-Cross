@@ -5,7 +5,7 @@
 #include "ReadAlign.h"
 #include "Solo.h"
 #include <type_traits>
-
+using namespace std;
 static_assert(!std::is_copy_assignable<Genome>::value, "Genome snapshots cannot replace an owner");
 static_assert(!std::is_copy_constructible<Genome>::value, "Genome borrowing must be explicit");
 static_assert(!std::is_copy_constructible<ReadAlign>::value, "ReadAlign owns thread arenas");

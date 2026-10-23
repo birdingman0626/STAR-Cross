@@ -4,7 +4,7 @@
 #include "extendAlign.h"
 #include "binarySearch2.h"
 // #include "stitchGapIndel.cpp"
-
+using namespace std;
 
 intScore stitchAlignToTranscript(uint64 rAend, uint64 gAend, uint64 rBstart, uint64 gBstart, uint64 L, uint64 iFragB, uint64 sjAB, Parameters& P, char* R, Genome &mapGen, Transcript *trA, const uint64 outFilterMismatchNmaxTotal) {
     //stitch together A and B, extend in the gap, returns max score

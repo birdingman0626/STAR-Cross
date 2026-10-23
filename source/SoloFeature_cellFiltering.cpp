@@ -1,7 +1,7 @@
 #include "SoloFeature.h"
 #include "serviceFuns.cpp"
 #include <math.h>
-
+using namespace std;
 void SoloFeature::cellFiltering()
 {    
 

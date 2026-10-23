@@ -1,7 +1,7 @@
 #include "ClipMate.h"
 #include "Parameters.h"
 #include "SequenceFuns.h"
-
+using namespace std;
 void ClipMate::initialize(uint32 Nin, const string &adSeqIn, uint32 NafterAdin, double adMMpIn)
 {
     N=Nin;

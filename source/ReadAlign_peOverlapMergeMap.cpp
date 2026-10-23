@@ -1,7 +1,7 @@
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
 #include "PairedReadMerger.h"
-
+using namespace std;
 void ReadAlign::peOverlapMergeMap() {
 
     if (!P.peOverlap.yes || P.readNmates!=2 ) {//no peOverlap //not readNends: this is alignment

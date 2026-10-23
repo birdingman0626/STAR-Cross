@@ -1,7 +1,7 @@
 #include "samHeaders.h"
 #include <iostream>
 #include "BAMfunctions.h"
-
+using namespace std;
 void samHeaders(Parameters &P, Genome &genomeOut, Transcriptome &transcriptomeMain) 
 {
     /////////////////////////////////////////////////////////////////////////////////// transcriptome BAM header

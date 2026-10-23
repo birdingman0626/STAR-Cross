@@ -1,5 +1,5 @@
 #include "ChimericSegment.h"
-
+using namespace std;
 ChimericSegment::ChimericSegment(Parameters &Pin, Transcript &alignIn) : P(Pin), pCh(Pin.pCh), align(alignIn)
 {
     if ( (align.intronMotifs[1]==0 && align.intronMotifs[2]==0) || (align.intronMotifs[1]>0 && align.intronMotifs[2]>0)) {//strand is undefined

@@ -7,7 +7,7 @@
 #include "sjdbBuildIndex.h"
 #include "streamFuns.h"
 #include "genomeParametersWrite.h"
-
+using namespace std;
 void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, SjdbClass & sjdbLoci)
 {
     time_t rawtime;

@@ -1,7 +1,7 @@
 #include "ReadAlign.h"
 #include "ErrorWarning.h"
 #include "funPrimaryAlignMark.h"
-
+using namespace std;
 void ReadAlign::transformGenome() 
 {//convert to new genome
     

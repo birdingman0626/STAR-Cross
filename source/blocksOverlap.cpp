@@ -1,5 +1,5 @@
 #include "blocksOverlap.h"
-
+using namespace std;
 uint64 blocksOverlap(Transcript &t1, Transcript &t2) {//calculate overlap between blocks of two transcripts
 
     uint64 i1=0, i2=0, nOverlap=0;

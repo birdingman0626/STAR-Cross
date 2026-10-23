@@ -1,6 +1,6 @@
 #include "doctest/doctest.h"
 #include "binarySearch2.h"  // includes IncludeDefine.h which defines uint64
-
+using namespace std;
 // binarySearch2(x, y, X, Y, N):
 //   binary-search sorted X[] for x, then linear-scan for matching y in Y[].
 //   Returns index if (x,y) found.

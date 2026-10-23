@@ -2,7 +2,7 @@
 #include "GlobalVariables.h"
 #include "ErrorWarning.h"
 #include "OutputAlignmentSelection.h"
-
+using namespace std;
 void ReadAlign::serializeAlignments(AlignmentResultView result)
 {
     uint64 nTrOutSAM=result.count;

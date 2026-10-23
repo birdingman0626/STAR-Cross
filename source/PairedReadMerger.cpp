@@ -1,7 +1,7 @@
 #include "PairedReadMerger.h"
 #include "SequenceFuns.h"
 #include <stdexcept>
-
+using namespace std;
 PairedReadMergeResult mergePairedRead(char* bases, size_t capacity,
                                     uint64 length0, uint64 length1,
                                     uint64 minimumOverlap, double mismatchRatio) {

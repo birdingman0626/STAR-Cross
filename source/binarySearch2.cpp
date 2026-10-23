@@ -1,5 +1,5 @@
 #include "binarySearch2.h"
-
+using namespace std;
 int binarySearch2(uint64 x, uint64 y, uint64 *X, uint64 *Y, int N) {
     //binary search in the sorted list to find the junction
     //check the boundaries first

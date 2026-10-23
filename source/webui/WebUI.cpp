@@ -20,7 +20,7 @@
 #include <thread>
 #include <tuple>
 #include <vector>
-
+using namespace std;
 #ifdef _WIN32
 #  include <windows.h>
 #else

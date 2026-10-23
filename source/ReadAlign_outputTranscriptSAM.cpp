@@ -1,7 +1,7 @@
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 uint64 ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, ostream *outStream) {
 
     if (P.outSAMmode=="None") return 0; //no SAM output

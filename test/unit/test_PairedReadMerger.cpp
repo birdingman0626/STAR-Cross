@@ -3,7 +3,7 @@
 #include "SequenceFuns.h"
 #include <random>
 #include <stdexcept>
-
+using namespace std;
 namespace {
 // Frozen pre-extraction algorithm, independent of the component under test.
 PairedReadMergeResult legacy(std::vector<char>& bases, uint64 l0, uint64 l1, uint64 minimum, double mismatch) {

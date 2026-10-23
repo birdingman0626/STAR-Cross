@@ -1,6 +1,6 @@
 #include "doctest/doctest.h"
 #include "OutputAlignmentSelection.h"
-
+using namespace std;
 namespace {struct Candidate {uint64 Chr; bool primaryFlag;};}
 
 TEST_CASE("Output reference filtering preserves order and primary semantics") {

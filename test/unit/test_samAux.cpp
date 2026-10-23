@@ -2,7 +2,7 @@
 #include "samAux.h"
 #include <cerrno>
 #include <memory>
-
+using namespace std;
 TEST_CASE("SAM auxiliary parser preserves all B subtypes and numeric boundaries") {
     const char *tags[] = {"XA:B:c,-128,127", "XA:B:C,0,255", "XA:B:s,-32768,32767",
         "XA:B:S,0,65535", "XA:B:i,-2147483648,2147483647",

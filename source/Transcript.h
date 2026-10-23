@@ -10,7 +10,7 @@
 class Transcript {
 public:
     uint64 exons[MAX_N_EXONS][EX_SIZE]; //coordinates of all exons: r-start, g-start, length
-    vector <array<uint32,2>> cigar; //new way to record alignments, with CIGAR operations. For now, only used by splice-graph
+    std::vector <std::array<uint32,2>> cigar; //new way to record alignments, with CIGAR operations. For now, only used by splice-graph
     
     uint64 shiftSJ[MAX_N_EXONS][2]; //shift of the SJ coordinates due to genomic micro-repeats
     int canonSJ[MAX_N_EXONS]; //canonicity of each junction
@@ -53,9 +53,9 @@ public:
 
     uint64 nUnique, nAnchor; //number of unique pieces in the alignment, number of anchor pieces in the alignment
 
-    vector <int32> varInd;
-    vector <int32> varGenCoord, varReadCoord ;
-    vector <char> varAllele;
+    std::vector <int32> varInd;
+    std::vector <int32> varGenCoord, varReadCoord ;
+    std::vector <char> varAllele;
     
     //annotations
     std::set <uint32> alignGenes;
@@ -67,9 +67,9 @@ public:
     void add(Transcript*); // add
     intScore alignScore(char **Read1, char *G, Parameters &P);
     int variationAdjust(const Genome &mapGen, char *R);
-    string generateCigarP(); //generates CIGAR
+    std::string generateCigarP(); //generates CIGAR
     void peOverlapSEtoPE(uint64* mSta, const Transcript &t);
-    void extractSpliceJunctions(vector<array<uint64,2>> &sjOut, bool &annotYes);
+    void extractSpliceJunctions(std::vector<std::array<uint64,2>> &sjOut, bool &annotYes);
     
     uint64 chrStartLengthExtended();
     

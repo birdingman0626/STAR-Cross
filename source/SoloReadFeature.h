@@ -18,16 +18,16 @@ public:
 
     uint32 homoPolymer[4];//homopolymer constants
 
-    vector<uint32> cbReadCount;
-    map <uintCB,uint32> cbReadCountMap;
+    std::vector<uint32> cbReadCount;
+    std::map <uintCB,uint32> cbReadCountMap;
     
-    vector<uint32> transcriptDistCount;
+    std::vector<uint32> transcriptDistCount;
     
     bool readInfoYes ,readIndexYes;
 
-    fstream *streamReads=nullptr; //borrowed by Solo until counting/sorting finish
+    std::fstream *streamReads=nullptr; //borrowed by Solo until counting/sorting finish
 
-    string cbSeq, umiSeq, cbQual, umiQual;
+    std::string cbSeq, umiSeq, cbQual, umiQual;
 
     SoloReadFlagClass readFlag;
     
@@ -37,12 +37,12 @@ public:
     void record(SoloReadBarcode &soloBar, uint64 nTr, Transcript **alignOut, uint64 iRead, ReadAnnotations &readAnnot);
     void addCounts(const SoloReadFeature &soloCBin);
     void addStats(const SoloReadFeature &soloCBin);
-    void statsOut(ofstream &streamOut);
-    void inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32> &cbReadCountTotal, vector<readInfoStruct> &readInfo, SoloReadFlagClass &readFlagCounts,
-                      vector<uint32> &nReadPerCBunique1, vector<uint32> &nReadPerCBmulti1);
+    void statsOut(std::ofstream &streamOut);
+    void inputRecords(uint32 **cbP, uint32 cbPstride, std::vector<uint32> &cbReadCountTotal, std::vector<readInfoStruct> &readInfo, SoloReadFlagClass &readFlagCounts,
+                      std::vector<uint32> &nReadPerCBunique1, std::vector<uint32> &nReadPerCBmulti1);
 
 private:
-    std::unique_ptr<fstream> streamStorage;
+    std::unique_ptr<std::fstream> streamStorage;
     const int32 featureType;
 
     Parameters &P;

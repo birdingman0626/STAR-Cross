@@ -38,7 +38,7 @@
 #include "htslib/htslib/sam.h"
 #include "parametersDefault.xxd"
 #include "webui/WebUI.h"
-
+using namespace std;
 void usage(int usageType)
 {
     cout << "Usage: STAR  [options]... --genomeDir /path/to/genome/index/   --readFilesIn R1.fq R2.fq\n";

@@ -25,31 +25,31 @@
 class Parameters {
 
     public:
-        vector <ParameterInfoBase*> parArray, parArrayInitial;
-        vector <string> parameterInputName;
+        std::vector <ParameterInfoBase*> parArray, parArrayInitial;
+        std::vector <std::string> parameterInputName;
 
-        string commandLine, commandLineFull;
+        std::string commandLine, commandLineFull;
 
         //version
-        string versionGenome;
+        std::string versionGenome;
 
         //system parameters
-        string sysShell; //shell for executing system commands
+        std::string sysShell; //shell for executing system commands
 
         // run parameters
-        string runMode;
-        vector<string> runModeIn;
+        std::string runMode;
+        std::vector<std::string> runModeIn;
         int runThreadN;
         mode_t runDirPerm;
-        string runDirPermIn; //permission for directores created at run-time
+        std::string runDirPermIn; //permission for directores created at run-time
         int runRNGseed; //random number generator seed
-        string legacyIn; //legacy algorithm selection
-        string gpuSjdbRemapMode; //experimental packed SA remap, default off
+        std::string legacyIn; //legacy algorithm selection
+        std::string gpuSjdbRemapMode; //experimental packed SA remap, default off
 
         struct {
-            string host;
+            std::string host;
             int    port;
-            string metricsIn; // parsed to metrics in webui mode
+            std::string metricsIn; // parsed to metrics in webui mode
             bool   metrics;
         } webui;
 
@@ -58,10 +58,10 @@ class Parameters {
         } runRestart; //restart options - in development
         
         //parameters
-        vector <string> parametersFiles;
+        std::vector <std::string> parametersFiles;
 
         //input
-        string inputBAMfile;
+        std::string inputBAMfile;
 
         //genome
         char genomeNumToNT[6];
@@ -74,34 +74,34 @@ class Parameters {
         uint64 winReadCoverageBasesMin;
 
         //read parameters
-        vector <string> readFilesType;
+        std::vector <std::string> readFilesType;
         int readFilesTypeN;
-        string readFilesPrefix, readFilesPrefixFinal;
-        vector <string> readFilesIn, readFilesInTmp;
+        std::string readFilesPrefix, readFilesPrefixFinal;
+        std::vector <std::string> readFilesIn, readFilesInTmp;
         uint32 readFilesN;
-        vector <vector <string> > readFilesNames;
-        vector <string> readFilesCommand;
-        vector <string> readFilesManifest;
+        std::vector <std::vector <std::string> > readFilesNames;
+        std::vector <std::string> readFilesCommand;
+        std::vector <std::string> readFilesManifest;
                
-        string readFilesCommandString; //actual command string
+        std::string readFilesCommandString; //actual command string
         int readFilesIndex;
         pid_t readFilesCommandPID[MAX_N_MATES]{};
 
         uint64 readMapNumber;
         uint64 iReadAll;
         uint64 readNmates, readNends;
-        string readMatesLengthsIn;
+        std::string readMatesLengthsIn;
         uint32 readQualityScoreBase;
 
-        vector <string> readNameSeparator;
-        vector <char> readNameSeparatorChar;
+        std::vector <std::string> readNameSeparator;
+        std::vector <char> readNameSeparatorChar;
 
-        string outSAMreadID;
+        std::string outSAMreadID;
         bool outSAMreadIDnumber;
         
         //new: structure for readFiles parameters
         struct {
-            vector<string> samAttrKeepIn; //input vector of SAM tags to keep, if readFilesType=SAMtag
+            std::vector<std::string> samAttrKeepIn; //input vector of SAM tags to keep, if readFilesType=SAMtag
             std::unordered_set<uint16_t> samAttrKeep;
             bool samAttrKeepAll, samAttrKeepNone;
         } readFiles;
@@ -117,7 +117,7 @@ class Parameters {
         uint64 alignIntronMin;//min length to call a gap an intron
         uint64 alignIntronMax;//max length to call
         uint64 alignMatesGapMax;//max gap between the mates (if paired-end)
-        vector <int32> alignSJstitchMismatchNmax;
+        std::vector <int32> alignSJstitchMismatchNmax;
 
         //         struct {
         //             string strandString;
@@ -125,23 +125,23 @@ class Parameters {
         //         } pReads;
 
         struct {
-            string in;
+            std::string in;
             bool yes;
         } alignSoftClipAtReferenceEnds;
 
         struct {
-            string in;
+            std::string in;
             bool ext[2][2];
         } alignEndsType;
 
         struct {
-            vector<string> in;
+            std::vector<std::string> in;
             int nBasesMax;
             bool concordantPair;
         } alignEndsProtrude;
 
         struct {
-            string in;
+            std::string in;
             bool flushRight;
         } alignInsertionFlush;
 
@@ -160,23 +160,23 @@ class Parameters {
         uint64 chunkInSizeBytes,chunkInSizeBytesArray,chunkOutBAMsizeBytes;
 
         //output
-        string outFileNamePrefix, outStd;
-        string outTmpDir, outTmpKeep;
-        string outLogFileName;
+        std::string outFileNamePrefix, outStd;
+        std::string outTmpDir, outTmpKeep;
+        std::string outLogFileName;
 
         //SAM output
-        string outBAMfileCoordName, outBAMfileUnsortedName, outQuantBAMfileName;
-        string outCRAMfileCoordName, outCRAMfileUnsortedName;//referenceless CRAM outputs (--outSAMtype CRAM)
-        string samHeader, samHeaderHD, samHeaderSortedCoord, samHeaderExtra;
-        string outSAMmode,  outSAMorder, outSAMprimaryFlag;
-        vector<string> outSAMattributes, outSAMheaderHD, outSAMheaderPG;
-        vector<string> outSAMattrRGline,outSAMattrRGlineSplit,outSAMattrRG;
+        std::string outBAMfileCoordName, outBAMfileUnsortedName, outQuantBAMfileName;
+        std::string outCRAMfileCoordName, outCRAMfileUnsortedName;//referenceless CRAM outputs (--outSAMtype CRAM)
+        std::string samHeader, samHeaderHD, samHeaderSortedCoord, samHeaderExtra;
+        std::string outSAMmode,  outSAMorder, outSAMprimaryFlag;
+        std::vector<std::string> outSAMattributes, outSAMheaderHD, outSAMheaderPG;
+        std::vector<std::string> outSAMattrRGline,outSAMattrRGlineSplit,outSAMattrRG;
         OutputConfig output;
         uint64 outSAMattrIHstart;
-        string outSAMheaderCommentFile;
+        std::string outSAMheaderCommentFile;
 
         struct {
-            string in;
+            std::string in;
             uint32 type;
         } outSAMstrandField;
 
@@ -184,43 +184,43 @@ class Parameters {
 
         struct {bool NH,HI,AS,NM,MD,nM,jM,jI,RG,XS,rB,vG,vA,vW,ha,ch,MC,CR,CY,UR,UY,CB,UB,GX,GN,gx,gn,sM,sS,sQ,cN,sF;} outSAMattrPresent, outSAMattrPresentQuant;
 
-        vector <int> outSAMattrOrder, outSAMattrOrderQuant;
-        vector <string> outSAMtype;
+        std::vector <int> outSAMattrOrder, outSAMattrOrderQuant;
+        std::vector <std::string> outSAMtype;
         bool outBAMunsorted, outBAMcoord, outSAMbool;
         bool outCRAMbool;//true when --outSAMtype CRAM: produce BAM then transcode to referenceless CRAM
         uint32 outBAMcoordNbins;
         uint32 outBAMsortingBinsN;//user-defined number of bins for sorting
-        string outBAMsortTmpDir;
+        std::string outBAMsortTmpDir;
 
 //         string bamRemoveDuplicatesType;
 //         uint64 bamRemoveDuplicatesMate2basesN;
         struct {
-            string mode;
+            std::string mode;
             bool yes;
             bool markMulti;
             uint64 mate2basesN;
         } removeDuplicates;
 
         int outBAMsortingThreadN, outBAMsortingThreadNactual;
-        vector<uint64> outBAMsortingBinStart; //owned genomic starts for sorting bins
+        std::vector<uint64> outBAMsortingBinStart; //owned genomic starts for sorting bins
         uint16 outSAMflagOR, outSAMflagAND;
 
         struct {
-            vector <string> mode;
+            std::vector <std::string> mode;
             bool yes;
             bool within;//output unmapped reads within SAM/BAM files
             bool keepPairs;//keep mates together
         } outSAMunmapped;
 
         struct {
-            vector <string> mode;
+            std::vector <std::string> mode;
             bool yes;
             bool KeepOnlyAddedReferences;
             bool KeepAllAddedReferences;
         } outSAMfilter;
 
         struct {
-            string mode;
+            std::string mode;
             bool random;
         } outMultimapperOrder;
 
@@ -230,32 +230,32 @@ class Parameters {
             double MMp;
         } peOverlap;
 
-        string outReadsUnmapped;
+        std::string outReadsUnmapped;
         int outQSconversionAdd;
-        string outFileTmp;
+        std::string outFileTmp;
 
         //output filtering
         AlignFilterConfig alignFilter;
 
-        string outFilterIntronMotifs,outFilterIntronStrands;
-        string outFilterType; //type of filtering
+        std::string outFilterIntronMotifs,outFilterIntronStrands;
+        std::string outFilterType; //type of filtering
         int outFilterBySJoutStage; //indicates the stage of filtering by SJout
 
         struct {
-            vector<string> type;
+            std::vector<std::string> type;
             bool yes;
         } outSJ;
         
         //output filtering SJs
-        string outSJfilterReads;
-        vector <int32> outSJfilterCountUniqueMin, outSJfilterCountTotalMin;
-        vector <int32> outSJfilterOverhangMin;
-        vector <int32> outSJfilterDistToOtherSJmin; //min allowed distance to other SJ's donor/acceptor
-        vector <int32> outSJfilterIntronMaxVsReadN;
+        std::string outSJfilterReads;
+        std::vector <int32> outSJfilterCountUniqueMin, outSJfilterCountTotalMin;
+        std::vector <int32> outSJfilterOverhangMin;
+        std::vector <int32> outSJfilterDistToOtherSJmin; //min allowed distance to other SJ's donor/acceptor
+        std::vector <int32> outSJfilterIntronMaxVsReadN;
 
         //wiggle output
-        vector <string> outWigType, outWigStrand, outWigNorm;
-        string outWigReferencesPrefix;
+        std::vector <std::string> outWigType, outWigStrand, outWigNorm;
+        std::string outWigReferencesPrefix;
         struct {
             bool yes;
             bool strand;
@@ -272,9 +272,9 @@ class Parameters {
             bool pass2; //true if now running the 2nd pass
             uint64 pass1readsN;
             int pass1readsN_par;
-            string dir;
-            string pass1sjFile;
-            string mode;
+            std::string dir;
+            std::string pass1sjFile;
+            std::string mode;
         } twoPass;
 
         //inserting junctions on the fly
@@ -282,12 +282,12 @@ class Parameters {
             bool yes; //insert?
             bool pass1;//insert on the 1st pass?
             bool pass2;//insert on the 2nd pass?
-            string outDir;
+            std::string outDir;
         } sjdbInsert;
 
         //storage limits
         uint64 limitGenomeGenerateRAM;
-        vector<uint64> limitIObufferSize; //max size of the in/out buffer, bytes
+        std::vector<uint64> limitIObufferSize; //max size of the in/out buffer, bytes
         uint64 limitOutSAMoneReadBytes;
         uint64 limitOutSJoneRead, limitOutSJcollapsed;
         uint64 limitBAMsortRAM;
@@ -304,7 +304,7 @@ class Parameters {
 
         struct {
           bool yes=false; //if any quantification is done
-          vector <string> mode; //quantification mode input string
+          std::vector <std::string> mode; //quantification mode input string
 
             struct {
                 bool yes=false;
@@ -313,12 +313,12 @@ class Parameters {
                 bool softClip;
                 bool singleEnd;
                 int bamCompression;
-                string output;
+                std::string output;
             } trSAM;
 
             struct {
                 bool yes=false;
-                string outFile;
+                std::string outFile;
             } geCount;
 
             struct {
@@ -343,13 +343,13 @@ class Parameters {
         struct {
             bool yes=false;
             bool heteroOnly=false;
-            string vcfFile;
+            std::string vcfFile;
         } var;
 
         struct {
             bool yes=false;
             bool SAMtag;
-            string outputMode;
+            std::string outputMode;
         } wasp;
 
         //solo
@@ -362,7 +362,7 @@ class Parameters {
         uint64 maxNsplit;
 
         //not really parameters, but global variables:
-        array<vector<uint64>,2> sjAll;
+        std::array<std::vector<uint64>,2> sjAll;
         uint64 sjNovelN, *sjNovelStart, *sjNovelEnd; //novel junctions collapased and filtered
         // Pass copies borrow the arrays and share their actual lifetime.
         std::shared_ptr<uint64[]> sjNovelStartStorage,sjNovelEndStorage;
@@ -374,17 +374,17 @@ class Parameters {
 
     Parameters();
     explicit Parameters(InOutStreams& borrowedStreams);
-    int readParsFromFile(ifstream*, ofstream*, int); //read parameters from one file
+    int readParsFromFile(std::ifstream*, std::ofstream*, int); //read parameters from one file
     int readPars(); // read parameters from all files
-    int scanOneLine (string &lineIn, int inputLevel, int inputLevelRequested);
-    void scanAllLines (istream &streamIn, int inputLevel, int inputLevelRequested);
+    int scanOneLine (std::string &lineIn, int inputLevel, int inputLevelRequested);
+    void scanAllLines (std::istream &streamIn, int inputLevel, int inputLevelRequested);
     void inputParameters (int argInN, char* argIn[]); //input parameters: default, from files, from command line
     void openReadsFiles();
     void readFilesInit();
     void closeReadsFiles();
-    void readSAMheader(const string readFilesCommandString, const vector<string> readFilesNames);
+    void readSAMheader(const std::string readFilesCommandString, const std::vector<std::string> readFilesNames);
     void samAttributes();
-    void samAttrRequiresBAM(bool attrYes, string attrTag);
+    void samAttrRequiresBAM(bool attrYes, std::string attrTag);
 
 private:
     // Pass 1 copies still borrow registered value addresses. Share registration

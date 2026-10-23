@@ -43,7 +43,7 @@
 #define SAMTOOLS_BGZF_H "htslib/htslib/bgzf.h"
 #define SAMTOOLS_SAM_H  "htslib/htslib/sam.h"
 
-using namespace std;
+
 
 #if defined(COMPILE_FOR_MAC) || defined(__APPLE__)
   // macOS: SHM_NORESERVE is Linux-specific; define as 0 (no-op)

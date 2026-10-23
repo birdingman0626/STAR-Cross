@@ -1,7 +1,7 @@
 #include "Transcriptome.h"
 #include "serviceFuns.cpp"
 #include "ReadAnnotations.h"
-
+using namespace std;
 void Transcriptome::geneFullAlignOverlap_ExonOverIntron(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat, ReadAnnotFeature &annFeatGeneConcordant)
 {
     // annFeat.ovType = 0;

@@ -8,21 +8,21 @@ class Parameters;
 
 class ParametersGenome {//"constant" genome parameters - user input
 public:
-    string gDir;
-    string gLoad;
+    std::string gDir;
+    std::string gLoad;
     
     uint32 gType;//type code
-    string gTypeString;
+    std::string gTypeString;
     
-    vector <string> gFastaFiles;
-    vector <string> gChainFiles;
+    std::vector <std::string> gFastaFiles;
+    std::vector <std::string> gChainFiles;
     //string gConsensusFile; DEPRECATED
 
     struct {
         int32 type;
-        string typeString;
-        string vcfFile;
-        vector<string> output; //which output to transform
+        std::string typeString;
+        std::string vcfFile;
+        std::vector<std::string> output; //which output to transform
         bool outYes=false, outSAM=false, outSJ=false, outQuant=false;
     } transform;
     
@@ -30,26 +30,26 @@ public:
     uint64 gChrBinNbits;
     uint64 gSAsparseD;//SA sparsity
     uint64 gSuffixLengthMax;//maximum length of the suffixes, has to be longer than read length
-    vector <uint64> gFileSizes;//size of the genome files
+    std::vector <uint64> gFileSizes;//size of the genome files
 
-    vector <string> sjdbFileChrStartEnd;
-    string sjdbGTFfile;
-    string sjdbGTFchrPrefix;
+    std::vector <std::string> sjdbFileChrStartEnd;
+    std::string sjdbGTFfile;
+    std::string sjdbGTFchrPrefix;
     
-    string sjdbGTFfeatureExon;
-    string sjdbGTFtagExonParentTranscript;
-    string sjdbGTFtagExonParentGene;
-    vector<string> sjdbGTFtagExonParentGeneName;
-    vector<string> sjdbGTFtagExonParentGeneType;
+    std::string sjdbGTFfeatureExon;
+    std::string sjdbGTFtagExonParentTranscript;
+    std::string sjdbGTFtagExonParentGene;
+    std::vector<std::string> sjdbGTFtagExonParentGeneName;
+    std::vector<std::string> sjdbGTFtagExonParentGeneType;
     
-    string sjdbInsertSave;
+    std::string sjdbInsertSave;
     uint64 sjdbOverhang;
     int sjdbOverhang_par;
     int sjdbScore;
 
     struct {
-        vector<string> mitoStrings;
-        unordered_set<uint64> mito;
+        std::vector<std::string> mitoStrings;
+        std::unordered_set<uint64> mito;
     } chrSet;
 
     

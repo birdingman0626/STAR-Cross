@@ -7,7 +7,7 @@
 #include "IncludeDefine.h"
 #include "SoloCommon.h"
 
-bool soloInputFeatureUMI(fstream *strIn, int32 featureType, bool readInfoYes, array<vector<uint64>,2> &sjAll, uint64 &iread, 
-                            int32 &cbmatch, uint32 &feature, uint64 &umi, vector<uint32> &featVecU32, SoloReadFlagClass &readFlagCounts);
+bool soloInputFeatureUMI(std::fstream *strIn, int32 featureType, bool readInfoYes, std::array<std::vector<uint64>,2> &sjAll, uint64 &iread, 
+                            int32 &cbmatch, uint32 &feature, uint64 &umi, std::vector<uint32> &featVecU32, SoloReadFlagClass &readFlagCounts);
 
 #endif

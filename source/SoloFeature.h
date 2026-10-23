@@ -19,7 +19,7 @@ class SoloFeature {
 private:
     std::unique_ptr<SoloReadFeature> summaryStorage;
     std::unique_ptr<SoloReadFeature*[]> threadFeatureViews;
-    std::vector<std::unique_ptr<fstream>> redistributionStorage;
+    std::vector<std::unique_ptr<std::fstream>> redistributionStorage;
     Parameters &P;
     ReadAlignChunk **RAchunk;    
     Transcriptome &Trans;
@@ -46,41 +46,41 @@ public:
     uint32 *rCBn=nullptr;//number of reads for detected CBs in the whitelist
     uint32 **rCBp=nullptr;//array of pointers to each CB sub-array; temporary borrow
 
-    vector<uint32> indCB;//index of detected CBs in the whitelist
-    vector<uint32> indCBwl; //reverse of indCB: index of WL CBs in detected CB list
-    vector<uint32> nUMIperCB, nUMIperCBsorted;//number of UMIs per CB, and the same sorted (descendant)
-    vector<uint32> nGenePerCB, nGenePerCBmulti;//number of genes (with >0 UMIs) per CB
-    vector<uint32> nReadPerCB;//number of reads per CB. With multimappers: all aligns per CB
-    vector<uint32> nReadPerCBunique, nReadPerCBtotal; //number of unique and multiple reads per CB
+    std::vector<uint32> indCB;//index of detected CBs in the whitelist
+    std::vector<uint32> indCBwl; //reverse of indCB: index of WL CBs in detected CB list
+    std::vector<uint32> nUMIperCB, nUMIperCBsorted;//number of UMIs per CB, and the same sorted (descendant)
+    std::vector<uint32> nGenePerCB, nGenePerCBmulti;//number of genes (with >0 UMIs) per CB
+    std::vector<uint32> nReadPerCB;//number of reads per CB. With multimappers: all aligns per CB
+    std::vector<uint32> nReadPerCBunique, nReadPerCBtotal; //number of unique and multiple reads per CB
     uint32 nReadPerCBmax;
 
-    vector<double> nUMIperCBmulti;
+    std::vector<double> nUMIperCBmulti;
 
-    vector<uint32> countCellGeneUMI;//sparsified matrix for the counts, each entry is: geneID count1 count2 ... countNcounts
-    vector<uint32> countCellGeneUMIindex;//index of CBs in the count matrix
+    std::vector<uint32> countCellGeneUMI;//sparsified matrix for the counts, each entry is: geneID count1 count2 ... countNcounts
+    std::vector<uint32> countCellGeneUMIindex;//index of CBs in the count matrix
     uint32 countMatStride; //number of counts per entry in the count matrix
     
     struct {
-        vector<double> m;
-        vector<uint32> i;
+        std::vector<double> m;
+        std::vector<uint32> i;
         uint32 s;
     } countMatMult;
     
-    vector<unordered_map<uint32, unordered_set<uint64>>> cbFeatureUMImap; //for SmartSeq counting
+    std::vector<std::unordered_map<uint32, std::unordered_set<uint64>>> cbFeatureUMImap; //for SmartSeq counting
        
-    string outputPrefix, outputPrefixFiltered;
+    std::string outputPrefix, outputPrefixFiltered;
     
     SoloFilteredCells filteredCells;
     
-    array<vector<uint64>,2> sjAll;
+    std::array<std::vector<uint64>,2> sjAll;
     
-    vector<readInfoStruct> readInfo; //corrected CB/UMI information for each read
+    std::vector<readInfoStruct> readInfo; //corrected CB/UMI information for each read
     SoloReadFlagClass readFlagCounts;
 
     
-    vector<uint32> redistrFilesCBindex, redistrFilesCBfirst; //redistr file for each CB, CB boundaries in redistributed files
-    vector<uint64> redistrFilesNreads; //number of reads in each file
-    vector <fstream*> redistrFilesStreams;
+    std::vector<uint32> redistrFilesCBindex, redistrFilesCBfirst; //redistr file for each CB, CB boundaries in redistributed files
+    std::vector<uint64> redistrFilesNreads; //number of reads in each file
+    std::vector <std::fstream*> redistrFilesStreams;
 
     SoloFeature(Parameters &Pin, ReadAlignChunk **RAchunk, Transcriptome &inTrans, int32 feTy, SoloReadBarcode *readBarSumIn, SoloFeature **soloFeatAll);
     SoloFeature(const SoloFeature&) = delete;
@@ -96,13 +96,13 @@ public:
     void collapseUMI(uint32 iCB, uint32 *umiArray);
     void collapseUMI_CR(uint32 iCB, uint32 *umiArray);
     void collapseUMIall();
-    void collapseUMIperCB(uint32 iCB, vector<uint32> &umiArray, vector<uint32> &gID,  vector<uint32> &gReadS);
+    void collapseUMIperCB(uint32 iCB, std::vector<uint32> &umiArray, std::vector<uint32> &gID,  std::vector<uint32> &gReadS);
 
-    uint32 umiArrayCorrect_CR         (const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, unordered_map <uintUMI,uintUMI> &umiCorr);
-    uint32 umiArrayCorrect_Directional(const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, unordered_map <uintUMI,uintUMI> &umiCorr, const int32 dirCountAdd);
-    uint32 umiArrayCorrect_Graph      (const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, unordered_map <uintUMI,uintUMI> &umiCorr);
+    uint32 umiArrayCorrect_CR         (const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, std::unordered_map <uintUMI,uintUMI> &umiCorr);
+    uint32 umiArrayCorrect_Directional(const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, std::unordered_map <uintUMI,uintUMI> &umiCorr, const int32 dirCountAdd);
+    uint32 umiArrayCorrect_Graph      (const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, std::unordered_map <uintUMI,uintUMI> &umiCorr);
 
-    void outputResults(bool cellFilterYes, string outputPrefixMat);
+    void outputResults(bool cellFilterYes, std::string outputPrefixMat);
     void addBAMtags(char *&bam0, uint32 &size0, char* bam1);
     void statsOutput();
     void redistributeReadsByCB();

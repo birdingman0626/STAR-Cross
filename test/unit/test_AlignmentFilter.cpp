@@ -1,6 +1,6 @@
 #include "doctest/doctest.h"
 #include "AlignmentFilter.h"
-
+using namespace std;
 TEST_CASE("Alignment filter preserves threshold edges and reason precedence") {
     AlignFilterConfig config{2,10,3,0.1,0.1,0.5,0.5,10,1};
     AlignmentFilterInput read{1,10,1,20,20,3,2,10};

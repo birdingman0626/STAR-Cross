@@ -5,7 +5,7 @@
 #include "unaligned.h"
 #include "bamEndian.h"
 #include "SequenceFuns.h"
-
+using namespace std;
 void BAMbinSortByCoordinate(uint32 iBin, uint64 binN, uint64 binS, uint64 nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
 
     if (binS==0) return; //nothing to do for empty bins

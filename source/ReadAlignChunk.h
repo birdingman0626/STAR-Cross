@@ -18,7 +18,7 @@ public:
     Transcriptome *chunkTr;
 
     char **chunkIn; //space for the chunk of input reads
-    array<uint64, MAX_N_MATES> chunkInSizeBytesTotal;    
+    std::array<uint64, MAX_N_MATES> chunkInSizeBytesTotal;    
     
     char *chunkOutBAM, *chunkOutBAM1;//space for the chunk of output SAM
     OutSJ *chunkOutSJ, *chunkOutSJ1;
@@ -27,8 +27,8 @@ public:
     
     FixedIStream** readInStream;
     FixedOStream*  chunkOutBAMstream;
-    ofstream chunkOutBAMfile;
-    string chunkOutBAMfileName;
+    std::ofstream chunkOutBAMfile;
+    std::string chunkOutBAMfileName;
 
     bool noReadsLeft;
     uint64 iChunkIn; //current chunk # as read from .fastq
@@ -40,9 +40,9 @@ public:
     void processChunks();
     void readChunk();
     void mapChunk();
-    void chunkFstreamOpen(string filePrefix, int iChunk, fstream &fstreamOut);
-    void chunkFstreamCat (fstream &chunkOut, ofstream &allOut, bool mutexFlag, pthread_mutex_t &mutexVal);
-    void chunkFilesCat(ostream *allOut, string filePrefix, uint64 &iC);
+    void chunkFstreamOpen(std::string filePrefix, int iChunk, std::fstream &fstreamOut);
+    void chunkFstreamCat (std::fstream &chunkOut, std::ofstream &allOut, bool mutexFlag, pthread_mutex_t &mutexVal);
+    void chunkFilesCat(std::ostream *allOut, std::string filePrefix, uint64 &iC);
 
     Genome &mapGen;
 private:

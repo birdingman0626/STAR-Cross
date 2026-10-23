@@ -6,7 +6,7 @@
 #include "Transcript.h"
 #include "ReadAlign.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, uint64 indStartEnd[2], uint64 iFrag) {//fill in alignment data
 
     #ifdef OFF_BEFORE_STORE

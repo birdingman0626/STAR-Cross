@@ -1,6 +1,6 @@
 #include "ReadAlign.h"
 #include "OutSJ.h"
-
+using namespace std;
 void ReadAlign::outputTranscriptSJ(Transcript const &trOut, uint64 nTrOut, OutSJ *chunkOutSJ, uint64 sjReadStartN ) {//record junctions in chunkOutSJ array
 
     //TODO: make sure that a junction is recorded onyl once from one read.

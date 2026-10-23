@@ -1,6 +1,6 @@
 #include "SuperTranscriptome.h"
 #include "streamFuns.h"
-
+using namespace std;
 void SuperTranscriptome::sjCollapse()
 {//sort junctions by superTranscript, and then by the end coordinate, and then by the start coordinate
     sort(sj.begin(), sj.end(),

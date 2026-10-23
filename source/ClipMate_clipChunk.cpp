@@ -1,7 +1,7 @@
 #include "ParametersClip.h"
 #include "Parameters.h"
 #include "SequenceFuns.h"
-
+using namespace std;
 inline char* findChar(char *arr, char c);
 
 void ClipMate::clipChunk(char *chArr, uint64 chSize)

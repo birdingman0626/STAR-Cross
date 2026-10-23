@@ -3,7 +3,7 @@
 #include "Transcript.h"
 #include "ReadAlign.h"
 #include "blocksOverlap.h"
-
+using namespace std;
 bool ReadAlign::chimericDetectionOld() {
 
     //////////////////// chimeras

@@ -3,7 +3,7 @@
 #include "Stats.h"
 #include "serviceFuns.cpp"
 #include "SeedDiagnostics.h"
-
+using namespace std;
 int ReadAlign::mapOneRead() {
     #ifdef STAR_CAPTURE_SEEDS
     seedTrace::beginRead(iReadAll);

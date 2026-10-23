@@ -9,8 +9,8 @@ class OneChain
 {
     public:
         uint64 bN;
-        string chr1,chr2;//1/2 (old/new) chr names
-        vector <uint64> bStart1, bStart2, bLen; //blocks starts in 1/2, lengths
+        std::string chr1,chr2;//1/2 (old/new) chr names
+        std::vector <uint64> bStart1, bStart2, bLen; //blocks starts in 1/2, lengths
 };
 
 class Chain {
@@ -18,13 +18,13 @@ class Chain {
 // //         uint64 bN;//number of blocks
 // //         vector <uint64> bStart1, bStart2, bLen; //blocks starts in 1/2, lengths
 
-        Chain(Parameters &Pin, string chainFileNameIn);
-        void liftOverGTF(string gtfFileName, string outFileName);
+        Chain(Parameters &Pin, std::string chainFileNameIn);
+        void liftOverGTF(std::string gtfFileName, std::string outFileName);
     private:
         Parameters &P;
-        string chainFileName;
+        std::string chainFileName;
         void chainLoad();
-        std::map <string,OneChain> chrChains;
+        std::map <std::string,OneChain> chrChains;
 };
 
 #endif

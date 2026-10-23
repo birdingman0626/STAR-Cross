@@ -7,7 +7,7 @@
 #include <bitset>
 
 #include "systemFunctions.h"
-
+using namespace std;
 
 void SoloFeature::countVelocyto()
 {//velocyto counting gets info from Gene counting

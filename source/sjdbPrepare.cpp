@@ -1,7 +1,7 @@
 #include "sjdbPrepare.h"
 #include "ErrorWarning.h"
 #include "serviceFuns.cpp"
-
+using namespace std;
 void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string outDir, Genome &mapGen, char *Gsj) {
 
     char *G=mapGen.G;

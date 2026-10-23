@@ -1,6 +1,6 @@
 #include "ChimericAlign.h"
 #include "ReadAlign.h"
-
+using namespace std;
 void ChimericAlign::chimericJunctionOutput(fstream &outStream, uint64 chimN, int maxNonChimAlignScore, bool PEmerged_flag, int chimScoreBest, int maxPossibleAlignScore)
 {
     outStream << mapGen.chrName[al1->Chr] <<"\t"<< chimJ1 - mapGen.chrStart[al1->Chr]+1 <<"\t"<< (al1->Str==0 ? "+":"-") \

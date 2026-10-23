@@ -3,7 +3,7 @@
 #include "OutSJ.h"
 #include <limits.h>
 #include "ErrorWarning.h"
-
+using namespace std;
 int compareUint(const void* i1, const void* i2) {//compare uint64 arrays
     uint64 s1=loadUnaligned<uint64>(i1);
     uint64 s2=loadUnaligned<uint64>(i2);

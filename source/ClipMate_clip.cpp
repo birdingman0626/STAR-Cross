@@ -1,7 +1,7 @@
 #include "ParametersClip.h"
 #include "Parameters.h"
 #include "SequenceFuns.h"
-
+using namespace std;
 uint32 ClipMate::clip(uint64 &Lread, char *seqNum)
 {
 	clippedN=0;

@@ -1,7 +1,7 @@
 #include "signalFromBAM.h"
 #include <iostream>
 #include <regex>
-
+using namespace std;
 void signalFromBAM(const string bamFileName, const string sigFileName, Parameters P) {
 
     bam1_t *bamA;

@@ -1,7 +1,7 @@
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, ostream *outStream) 
 {
 

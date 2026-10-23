@@ -4,7 +4,7 @@
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
 #include "GlobalVariables.h"
-
+using namespace std;
 int ReadAlign::oneRead() {//process one read: load, map, write
 
     //load read name, sequence, quality from the streams into internal arrays

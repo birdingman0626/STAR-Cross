@@ -4,7 +4,7 @@
 #include "SequenceFuns.h"
 #include "GlobalVariables.h"
 #include "SeedDiagnostics.h"
-
+using namespace std;
 inline uint64 fastqReadOneLine(ifstream&,char*);
 inline void removeStringEndControl(string&);
 

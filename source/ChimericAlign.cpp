@@ -1,5 +1,5 @@
 #include "ChimericAlign.h"
-
+using namespace std;
 ChimericAlign::ChimericAlign(ChimericSegment &seg1in, ChimericSegment &seg2in, int chimScoreIn, Genome &genomeIn, ReadAlign *RAin)
                               : seg1(seg1in), seg2(seg2in),chimScore(chimScoreIn), RA(RAin), P(seg1in.P), pCh(P.pCh), mapGen(genomeIn) {
     stitchingDone=false;

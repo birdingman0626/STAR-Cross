@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cmath>
-
+using namespace std;
 // Replicated from SoloFeature_emptyDrops_CR.cpp.
 // sorted: simulation log-probabilities sorted ascending.
 // obsLogProb: observed log-probability for one candidate cell.

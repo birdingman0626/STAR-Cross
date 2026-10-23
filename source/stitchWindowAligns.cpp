@@ -5,7 +5,7 @@
 #include <cmath>
 #include <ctime>
 #include "SeedDiagnostics.h"
-
+using namespace std;
 void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 tR2, uint64 tG2, Transcript trA, \
                         uint64 Lread, uiWA* WA, char* R, Genome &mapGen, \
                         Parameters& P, Transcript** wTr, uint64* nWinTr, const WindowAlignmentContext& context) {

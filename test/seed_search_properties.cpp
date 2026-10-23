@@ -3,7 +3,7 @@
 #include "SeedSearch.h"
 #include <random>
 #include <stdexcept>
-
+using namespace std;
 namespace {
 void require(bool condition,const char* message) {
     if(!condition) throw std::runtime_error(message);

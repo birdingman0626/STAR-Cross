@@ -1,5 +1,5 @@
 #include "ReadAlign.h"
-
+using namespace std;
 void ReadAlign::calcCIGAR(Transcript const &trOut, uint64 nMates, uint64 iExMate, uint64 leftMate) {
     matesCIGAR.clear();
     for (uint64 imate=0;imate<nMates;imate++) {

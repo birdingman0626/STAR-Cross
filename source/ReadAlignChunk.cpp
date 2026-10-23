@@ -6,7 +6,7 @@
     #include <pthread.h>
 #endif
 #include "ErrorWarning.h"
-
+using namespace std;
 ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, int iChunk) : P(Pin), mapGen(genomeIn) {//initialize chunk
 
     iThread=iChunk;

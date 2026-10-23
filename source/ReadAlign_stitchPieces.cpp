@@ -9,7 +9,7 @@
 #include "GlobalVariables.h"
 #include <time.h>
 #include "SeedDiagnostics.h"
-
+using namespace std;
 void ReadAlign::stitchPieces(char **R, uint64 Lread) {
     #ifdef STAR_CAPTURE_SEEDS
     seedTrace::Timer diagnostic(&seedTrace::Worker::stitchNs);

@@ -3,7 +3,7 @@
 #include "BAMfunctions.h"
 
 #include <vector>
-
+using namespace std;
 void ChimericAlign::chimericBAMoutput(Transcript *al1, Transcript *al2, ReadAlign *RA, const uint64 iTr, const uint64 chimN, const bool isBestChimAlign, const Parameters& P)
 {
     vector<Transcript*> trChim(2);

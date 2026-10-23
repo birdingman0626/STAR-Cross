@@ -4,7 +4,7 @@
 #include "SoloFeature.h"
 #include "soloInputFeatureUMI.h"
 #include "serviceFuns.cpp"
-
+using namespace std;
 void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32> &cbReadCountTotal, vector<readInfoStruct> &readInfo, SoloReadFlagClass &readFlagCounts,
                                    vector<uint32> &nReadPerCBunique1, vector<uint32> &nReadPerCBmulti1)
 {   

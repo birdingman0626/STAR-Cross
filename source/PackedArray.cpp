@@ -1,6 +1,6 @@
 # include "PackedArray.h"
 #include <stdexcept>
-
+using namespace std;
 PackedArray::PackedArray() {
     charArray=NULL;
     bitRecMask=wordCompLength=wordLength=length=lengthByte=0;

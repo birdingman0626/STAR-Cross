@@ -1,5 +1,5 @@
 #include "stringSubstituteAll.h"
-
+using namespace std;
 void stringSubstituteAll(std::string& str, const std::string& from, const std::string& to) {
     if(from.empty()) return;
     size_t start_pos = 0;

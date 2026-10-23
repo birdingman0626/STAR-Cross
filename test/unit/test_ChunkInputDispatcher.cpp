@@ -2,7 +2,7 @@
 #include "ChunkInputDispatcher.h"
 #include <atomic>
 #include <vector>
-
+using namespace std;
 TEST_CASE("Input dispatcher serializes concurrent requests and delivers errors") {
     ChunkInputDispatcher dispatcher(2);
     std::atomic<int> active{0},maximum{0},count{0};

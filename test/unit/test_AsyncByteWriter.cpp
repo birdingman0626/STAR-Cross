@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <array>
 #include <algorithm>
-
+using namespace std;
 TEST_CASE("Async batches own bytes and preserve submission order through finish") {
     std::vector<char> output;
     AsyncByteWriter writer(10,[&](const char* data,size_t size){output.insert(output.end(),data,data+size);});

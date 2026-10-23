@@ -4,7 +4,7 @@
 #include "BAMbinSortUnmapped.h"
 #include "ErrorWarning.h"
 #include "bam_cat.h"
-
+using namespace std;
 void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genome, Solo &solo) {
     if (P.outBAMcoord) {//sort BAM if needed
         *P.inOut->logStdOut << timeMonthDayTime() << " ..... started sorting BAM\n" <<flush;

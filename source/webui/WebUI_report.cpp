@@ -13,7 +13,7 @@
 #  include <dirent.h>
 #  include <sys/stat.h>
 #endif
-
+using namespace std;
 // Recursively list files under dir with matching extensions (relative paths from dir),
 // up to maxEntries. Used for Solo.out artifact discovery.
 void listDirRecursive(const std::string& base, const std::string& rel,

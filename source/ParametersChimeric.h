@@ -16,17 +16,17 @@ class ParametersChimeric
         uint64 multimapScoreRange, multimapNmax, nonchimScoreDropMin;
         bool legacyScoring; //use upstream 2.7.11b chimeric overlap/exon-selection algorithm
 
-        vector<int> outJunctionFormat;
+        std::vector<int> outJunctionFormat;
 
         struct
         {
-            vector <string> stringIn;
+            std::vector <std::string> stringIn;
             bool genomicN;
         } filter;
 
         struct
         {
-            vector <string> type;
+            std::vector <std::string> type;
             bool bam;
             bool bamHardClip;
             bool samOld;

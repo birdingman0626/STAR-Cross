@@ -15,7 +15,7 @@ class Genome {
 private:
     key_t shmKey;
     char *shmStart;
-    uint64 OpenStream(string name, ifstream & stream, uint64 size);
+    uint64 OpenStream(std::string name, std::ifstream & stream, uint64 size);
     void HandleSharedMemoryException(const SharedMemoryException & exc, uint64 shmSize);
     std::unique_ptr<char[]> sequenceStorage;
     std::unique_ptr<SharedMemory> sharedMemoryStorage;
@@ -50,10 +50,10 @@ public:
 
 
     //chr parameters
-    vector <uint64> chrStart, chrLength, chrLengthAll;
+    std::vector <uint64> chrStart, chrLength, chrLengthAll;
     uint64 genomeChrBinNbases=0, chrBinN=0, *chrBin=nullptr;
-    vector <string> chrName, chrNameAll;
-    map <string,uint64> chrNameIndex;
+    std::vector <std::string> chrName, chrNameAll;
+    std::map <std::string,uint64> chrNameIndex;
 
     uint64 *genomeSAindexStart=nullptr;//starts of the L-mer indices in the SAindex, 1<=L<=pGe.gSAindexNbases
 
@@ -98,37 +98,37 @@ public:
     void allocateJunctionCoordinates(uint64 count); // after annotations, same junction set
     void chrInfoLoad();
     void genomeSequenceAllocate(uint64 nGenomeIn, uint64 &nG1allocOut, char*& Gout, char*& G1out);
-    void loadSJDB(string &genDir);
+    void loadSJDB(std::string &genDir);
 
     void insertSequences();
 
     //void consensusSequence(); DEPRECATED
     
     void genomeGenerate();
-    void writeChrInfo(const string dirOut);
-    void concatenateChromosomes(const vector<vector<uint8>> &vecSeq, const vector<string> &vecName, const uint64 padBin);
-    void writeGenomeSequence(const string dirOut);
+    void writeChrInfo(const std::string dirOut);
+    void concatenateChromosomes(const std::vector<std::vector<uint8>> &vecSeq, const std::vector<std::string> &vecName, const uint64 padBin);
+    void writeGenomeSequence(const std::string dirOut);
     
     //transform genome coordinates
     struct {
         bool convYes;
         bool gapsAreJunctions;
         Genome *g;
-        string convFile;
-        vector<array<uint64,3>> convBlocks;
+        std::string convFile;
+        std::vector<std::array<uint64,3>> convBlocks;
         uint64 nMinusStrandOffset;//offset for the (-) strand, typically=nGenomeReal
     } genomeOut{};
     
     typedef struct {
         uint64 pos;
         int32 len;//0: SNV, <0: deletion; >0: insertion
-        array<string,2> seq;//sequence for SNV and insertions, empty for deletions
+        std::array<std::string,2> seq;//sequence for SNV and insertions, empty for deletions
     } VariantInfo;
     
     void transformGenome(GTF *gtf) ;
-    void transformChrLenStart(map<string,vector<VariantInfo>> &vcfVariants, vector<uint64> &chrStart1, vector<uint64> &chrLength1);
-    void transformGandBlocks(map<string,vector<VariantInfo>> &vcfVariants, vector<uint64> &chrStart1, vector<uint64> &chrLength1, vector<array<uint64,3>> &transformBlocks, char *Gnew);
-    void transformBlocksWrite(vector<array<uint64,3>> &transformBlocks);
-    void transformExonLoci(vector<array<uint64,exL>> &exonLoci, vector<array<uint64,3>> &transformBlocks);
+    void transformChrLenStart(std::map<std::string,std::vector<VariantInfo>> &vcfVariants, std::vector<uint64> &chrStart1, std::vector<uint64> &chrLength1);
+    void transformGandBlocks(std::map<std::string,std::vector<VariantInfo>> &vcfVariants, std::vector<uint64> &chrStart1, std::vector<uint64> &chrLength1, std::vector<std::array<uint64,3>> &transformBlocks, char *Gnew);
+    void transformBlocksWrite(std::vector<std::array<uint64,3>> &transformBlocks);
+    void transformExonLoci(std::vector<std::array<uint64,exL>> &exonLoci, std::vector<std::array<uint64,3>> &transformBlocks);
 };
 #endif

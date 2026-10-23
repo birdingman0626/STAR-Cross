@@ -1,7 +1,7 @@
 #include "genomeScanFastaFiles.h"
 #include "ErrorWarning.h"
 #include "SequenceFuns.h"
-
+using namespace std;
 uint64 genomeScanFastaFiles (Parameters &P, char* G, bool flagRun, Genome &mapGen) {//scans fasta files. flagRun=false: check and find full size, flaRun=true: collect all the data
 
     uint64 N=0;//total number of bases in the genome, including chr "spacers"

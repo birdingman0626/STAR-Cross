@@ -1,6 +1,6 @@
 #include "Transcriptome.h"
 #include "serviceFuns.cpp"
-
+using namespace std;
 void Transcriptome::geneCountsAddAlign(uint64 nA, Transcript **aAll, vector<int32> &gene1) {
 
     gene1.assign(quants->geneCounts.nType,-1);

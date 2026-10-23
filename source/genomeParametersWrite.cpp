@@ -1,6 +1,6 @@
 #include "genomeParametersWrite.h"
 #include "streamFuns.h"
-
+using namespace std;
 void genomeParametersWrite(string fileName, Parameters& P, string errorOut, Genome &mapGen)
 {//write the genome information into the genomePar stream
     ofstream genomePar = ofstrOpenOwned(fileName, errorOut, P);

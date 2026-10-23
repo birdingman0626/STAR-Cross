@@ -15,7 +15,7 @@
     #include <unistd.h>
 #endif
 #include <sys/stat.h>
-
+using namespace std;
 Genome::Genome (Parameters &P, ParametersGenome &pGe): shmStart(NULL), P(P), pGe(pGe), sharedMemory(NULL)
 {
 #ifdef _WIN32

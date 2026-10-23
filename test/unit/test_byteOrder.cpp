@@ -1,7 +1,7 @@
 #include "doctest/doctest.h"
 #include "byteOrder.h"
 #include <cstring>
-
+using namespace std;
 // Reference little-endian interpretation, independent of host byte order.
 static uint64 refLoadLE(const unsigned char *p) {
     uint64 v = 0;

@@ -4,7 +4,7 @@
 #include "AlignVsTranscript.h"
 #include "ReadAnnotations.h"
 #include <bitset>
-
+using namespace std;
 int32 alignBlocksOverlapExons(Transcript &aG, uint16 exN1, uint32 *exSE1, uint64 trStart1, bool &sjConcord);
 
 void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat)

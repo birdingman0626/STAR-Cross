@@ -5,7 +5,7 @@
 #include "GTF.h"
 #include "streamFuns.h"
 #include "genomeParametersWrite.h"
-
+using namespace std;
 void GTF::superTranscript() {
     if (P.pGe.gTypeString!="Transcriptome" && P.pGe.gTypeString!="SuperTranscriptome") {
         return;
