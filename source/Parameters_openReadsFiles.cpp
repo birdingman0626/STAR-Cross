@@ -28,7 +28,7 @@ static char s_readInBuf[MAX_N_MATES][4 * 1024 * 1024]; // 4MB per mate
 void Parameters::openReadsFiles()
 {
     if (readFilesCommandString=="") {//read from file
-        for (uint ii=0;ii<readFilesIn.size();ii++) {//open readIn files
+        for (uint64 ii=0;ii<readFilesIn.size();ii++) {//open readIn files
             readFilesCommandPID[ii]=0;//no command process IDs
             if ( inOut->readIn[ii].is_open() ) inOut->readIn[ii].close();
 
@@ -46,7 +46,7 @@ void Parameters::openReadsFiles()
 
          vector<string> readsCommandFileName;
 
-         for (uint imate=0;imate<readFilesNames.size();imate++) {//open readIn files
+         for (uint64 imate=0;imate<readFilesNames.size();imate++) {//open readIn files
 
 #ifdef _WIN32
             // Windows: use temp files + system() instead of FIFO + vfork/exec

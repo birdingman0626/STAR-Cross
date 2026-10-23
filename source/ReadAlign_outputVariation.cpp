@@ -1,6 +1,6 @@
 #include "ReadAlign.h"
 
-void ReadAlign::outputVariation(Variation &Var, Transcript Tr, uint iTr, uint nTr)
+void ReadAlign::outputVariation(Variation &Var, Transcript Tr, uint64 iTr, uint64 nTr)
 {
     if (!Var.yes)
     {

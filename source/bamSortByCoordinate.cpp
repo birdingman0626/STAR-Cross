@@ -12,9 +12,9 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
         uint32 nBins=P.outBAMcoordNbins;
 
         //check max size needed for sorting
-        uint maxMem=0;
+        uint64 maxMem=0;
         for (uint32 ibin=0; ibin<nBins-1; ibin++) {//check all bins
-            uint binS=0;
+            uint64 binS=0;
             for (int it=0; it<P.runThreadN; it++) {//collect sizes from threads
                 binS += RAchunk[it]->chunkOutBAMcoord->binTotalBytes[ibin]+24*RAchunk[it]->chunkOutBAMcoord->binTotalN[ibin];
             };
@@ -44,13 +44,13 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
             outBAMwriteHeader(bgzfOut,P.samHeaderSortedCoord,genome.chrNameAll,genome.chrLengthAll);
             bgzf_close(bgzfOut);
         } else {//sort
-            uint totalMem=0;
+            uint64 totalMem=0;
             #pragma omp parallel num_threads(P.outBAMsortingThreadNactual)
             #pragma omp for schedule (dynamic,1)
             for (int ibin1=0; ibin1<(int)nBins; ibin1++) {
                 uint32 ibin=nBins-1-ibin1;//reverse order to start with the last bin - unmapped reads
 
-                uint binN=0, binS=0;
+                uint64 binN=0, binS=0;
                 for (int it=0; it<P.runThreadN; it++) {//collect sizes from threads
                     binN += RAchunk[it]->chunkOutBAMcoord->binTotalN[ibin];
                     binS += RAchunk[it]->chunkOutBAMcoord->binTotalBytes[ibin];
@@ -61,7 +61,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
                 if (ibin == nBins-1) {//last bin for unmapped reads
                     BAMbinSortUnmapped(ibin,P.runThreadN,P.outBAMsortTmpDir, P, genome, solo);
                 } else {
-                    uint newMem=binS+binN*24;
+                    uint64 newMem=binS+binN*24;
                     bool boolWait=true;
                     while (boolWait) {
                         #pragma omp critical
@@ -83,7 +83,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
             vector <string> bamBinNamesV;
             for (uint32 ibin=0; ibin<nBins; ibin++) {
 
-                bamBinNamesV.push_back(P.outBAMsortTmpDir+"/b"+std::to_string((uint) ibin));
+                bamBinNamesV.push_back(P.outBAMsortTmpDir+"/b"+std::to_string((uint64) ibin));
                 struct stat buffer;
                 if (stat (bamBinNamesV.back().c_str(), &buffer) != 0) {//check if file exists
                     bamBinNamesV.pop_back();

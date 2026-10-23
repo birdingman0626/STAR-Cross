@@ -116,7 +116,7 @@ try
     }
     else if (P.runMode == "liftOver")
     {
-        for (uint ii = 0; ii < P.pGe.gChainFiles.size(); ii++)
+        for (uint64 ii = 0; ii < P.pGe.gChainFiles.size(); ii++)
         {
             Chain chain(P, P.pGe.gChainFiles.at(ii));
             chain.liftOverGTF(P.pGe.sjdbGTFfile, P.outFileNamePrefix + "GTFliftOver_" + to_string(ii + 1) + ".gtf");

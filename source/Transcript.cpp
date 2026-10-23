@@ -8,7 +8,7 @@ Transcript::Transcript()
 void Transcript::reset() {
     extendL=0;
 
-//     for (uint ii=0;ii<4;ii++) {
+//     for (uint64 ii=0;ii<4;ii++) {
 //         polyXlength[ii]=0;
 //         polyXnMM[ii]=0;
 //     };

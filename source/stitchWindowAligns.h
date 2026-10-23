@@ -6,14 +6,14 @@
 #include "extendAlign.h"
 #include "stitchAlignToTranscript.h"
 struct WindowAlignmentContext {
-    uint mismatchLimit;
-    const uint* readLength;
+    uint64 mismatchLimit;
+    const uint64* readLength;
     intScore* maxScoreMate;
 };
 
-void stitchWindowAligns(uint iA, uint nA, int Score, bool WAincl[], uint tR2, uint tG2, Transcript trA, \
-                        uint Lread, uiWA* WA, char* R, Genome &mapGen, \
-                        Parameters& P, Transcript** wTr, uint* nWinTr, const WindowAlignmentContext& context);
+void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 tR2, uint64 tG2, Transcript trA, \
+                        uint64 Lread, uiWA* WA, char* R, Genome &mapGen, \
+                        Parameters& P, Transcript** wTr, uint64* nWinTr, const WindowAlignmentContext& context);
     //recursively stitch aligns for one gene
     //*nWinTr - number of transcripts for the current window
 #endif

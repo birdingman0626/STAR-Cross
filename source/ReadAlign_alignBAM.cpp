@@ -6,14 +6,14 @@
 
 #include <type_traits>
 
-void ReadAlign::samAttrNM_MD (Transcript const &trOut, uint iEx1, uint iEx2, uint &tagNM, string &tagMD) {
+void ReadAlign::samAttrNM_MD (Transcript const &trOut, uint64 iEx1, uint64 iEx2, uint64 &tagNM, string &tagMD) {
     tagNM=0;
     tagMD="";
     char* R=Read1[trOut.roStr==0 ? 0:2];
-    uint matchN=0;
+    uint64 matchN=0;
     uint32 nMM=0, nI=0, nD=0;
-    for (uint iex=iEx1;iex<=iEx2;iex++) {
-        for (uint ii=0;ii<trOut.exons[iex][EX_L];ii++) {
+    for (uint64 iex=iEx1;iex<=iEx2;iex++) {
+        for (uint64 ii=0;ii<trOut.exons[iex][EX_L];ii++) {
             char r1=R[ii+trOut.exons[iex][EX_R]];
             char g1=genOut.G[ii+trOut.exons[iex][EX_G]];
             if ( r1!=g1 || r1==4 || g1==4) {
@@ -32,7 +32,7 @@ void ReadAlign::samAttrNM_MD (Transcript const &trOut, uint iEx1, uint iEx2, uin
             nI+=trOut.exons[iex+1][EX_R]-trOut.exons[iex][EX_R]-trOut.exons[iex][EX_L];//insertion
             if (trOut.canonSJ[iex]==-1) {//deletion. TODO: This does not work if there is both deletion and insertion!!!
                 tagMD+=to_string(matchN) + "^";
-                for (uint ii=trOut.exons[iex][EX_G]+trOut.exons[iex][EX_L];ii<trOut.exons[iex+1][EX_G];ii++) {
+                for (uint64 ii=trOut.exons[iex][EX_G]+trOut.exons[iex][EX_L];ii<trOut.exons[iex+1][EX_G];ii++) {
                     tagMD+=P.genomeNumToNT[(uint8) genOut.G[ii]];
                 };
                 matchN=0;
@@ -44,7 +44,7 @@ void ReadAlign::samAttrNM_MD (Transcript const &trOut, uint iEx1, uint iEx2, uin
     tagNM=nMM+nI+nD;
 };
 
-int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint trChrStart, uint mateChr, uint mateStart, char mateStrand, int alignType, bool *mateMap, vector<int> outSAMattrOrder, char** outBAMarray, uint* outBAMarrayN) {
+int ReadAlign::alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int alignType, bool *mateMap, vector<int> outSAMattrOrder, char** outBAMarray, uint64* outBAMarrayN) {
     //return: number of lines (mates)
 
     //alignType>=0: unmapped reads
@@ -62,14 +62,14 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
     outBAMarrayN[1]=0;
 
     //for SAM output need to split mates
-    uint iExMate=0; //last exon of the first mate
+    uint64 iExMate=0; //last exon of the first mate
 
     uint16 samFLAG=0;
 
 
     bool flagPaired = P.readNmates==2; //not readNends: this is about alignments
 
-    uint nMates=1;
+    uint64 nMates=1;
     if (alignType<0) {//mapped reads: SAM
         for (iExMate=0;iExMate<trOut.nExons-1;iExMate++) {
             if (trOut.canonSJ[iExMate]==-3){
@@ -81,13 +81,13 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
         nMates=0;
     };
 
-    uint tLen=0,leftMostMate=0;
+    uint64 tLen=0,leftMostMate=0;
     if (nMates>1 && P.outSAMtlen==2) {
         tLen=max(trOut.exons[trOut.nExons-1][EX_G]+trOut.exons[trOut.nExons-1][EX_L],trOut.exons[iExMate][EX_G]+trOut.exons[iExMate][EX_L])-min(trOut.exons[0][EX_G],trOut.exons[iExMate+1][EX_G]);
         leftMostMate=(trOut.exons[0][EX_G]<=trOut.exons[iExMate+1][EX_G] ? 0 : 1);
     };
 
-    uint leftMate=0; //the mate (0 or 1) which is on the left
+    uint64 leftMate=0; //the mate (0 or 1) which is on the left
     if (flagPaired) {
         leftMate=trOut.Str;
     };
@@ -105,18 +105,18 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
         };
     };
 
-    for (uint imate=0;imate < (alignType<0 ? nMates:P.readNmates);imate++) { //not readNends: this is about alignments
+    for (uint64 imate=0;imate < (alignType<0 ? nMates:P.readNmates);imate++) { //not readNends: this is about alignments
 
-        uint iEx1=0;
-        uint iEx2=0;
-        uint Mate=0;
-        uint Str=0;
+        uint64 iEx1=0;
+        uint64 iEx2=0;
+        uint64 Mate=0;
+        uint64 Str=0;
         uint32 packedCIGAR[BAM_CIGAR_MaxSize];
         uint32 nCIGAR=0; //number of CIGAR operations
         int MAPQ=0;
         uint32 attrN=0;
         char attrOutArray[BAM_ATTR_MaxSize];
-        uint trimL1=0, trimR1=0;
+        uint64 trimL1=0, trimR1=0;
 
         if (alignType>=0) {//this mate is unmapped
             if (mateMap!=NULL && mateMap[imate]) continue; //this mate was mapped, do not record it as unmapped
@@ -158,7 +158,7 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
             attrN+=bamAttrArrayWriteInt(0,"HI",attrOutArray+attrN,P);
             attrN+=bamAttrArrayWriteInt(trOut.maxScore,"AS",attrOutArray+attrN,P);
             attrN+=bamAttrArrayWriteInt(trOut.nMM,"nM",attrOutArray+attrN,P);
-            attrN+=bamAttrArrayWrite((to_string((uint) alignType)).at(0), "uT",attrOutArray+attrN); //cast to uint is only necessary for old compilers
+            attrN+=bamAttrArrayWrite((to_string((uint64) alignType)).at(0), "uT",attrOutArray+attrN); //cast to uint64 is only necessary for old compilers
 
             if (P.outSAMattrPresent.RG)
                 attrN+=bamAttrArrayWrite(P.outSAMattrRG.at(readFilesIndex),"RG",attrOutArray+attrN);
@@ -219,7 +219,7 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
             };
 
 
-            uint trimL;
+            uint64 trimL;
             if (Str==0 && Mate==0) {
                 trimL=clipMates[Mate][0].clippedN;
             } else if (Str==0 && Mate==1) {
@@ -240,10 +240,10 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
             vector<int32> SJintron;
             vector<char> SJmotif;
 
-            for (uint ii=iEx1;ii<=iEx2;ii++) {
+            for (uint64 ii=iEx1;ii<=iEx2;ii++) {
                 if (ii>iEx1) {//record gaps
-                    uint gapG=trOut.exons[ii][EX_G]-(trOut.exons[ii-1][EX_G]+trOut.exons[ii-1][EX_L]);
-                    uint gapR=trOut.exons[ii][EX_R]-trOut.exons[ii-1][EX_R]-trOut.exons[ii-1][EX_L];
+                    uint64 gapG=trOut.exons[ii][EX_G]-(trOut.exons[ii-1][EX_G]+trOut.exons[ii-1][EX_L]);
+                    uint64 gapR=trOut.exons[ii][EX_R]-trOut.exons[ii-1][EX_R]-trOut.exons[ii-1][EX_L];
                     //it's possible to have a D or N and I at the same time
                     if (gapR>0){
                         packedCIGAR[nCIGAR++]=gapR<<BAM_CIGAR_OperationShift | BAM_CIGAR_I;
@@ -283,11 +283,11 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
             };
 
             //attribute string
-            uint tagNM=(uint) -1;
+            uint64 tagNM=(uint64) -1;
             string tagMD("");
 
             attrN=0;
-            for (uint ii=0;ii<outSAMattrOrder.size();ii++) {
+            for (uint64 ii=0;ii<outSAMattrOrder.size();ii++) {
                 switch (outSAMattrOrder[ii]) {
                     case ATTR_NH:
                         attrN+=bamAttrArrayWriteInt(nTrOut,"NH",attrOutArray+attrN,P);
@@ -322,7 +322,7 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
                             break;
                         };
                     case ATTR_NM:
-                        if ( tagNM == (uint) -1 ) samAttrNM_MD (trOut, iEx1, iEx2, tagNM, tagMD);
+                        if ( tagNM == (uint64) -1 ) samAttrNM_MD (trOut, iEx1, iEx2, tagNM, tagMD);
                         attrN+=bamAttrArrayWriteInt(tagNM,"NM",attrOutArray+attrN,P);
                         break;
                     case ATTR_MD:
@@ -335,7 +335,7 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
                     case ATTR_rB:
                         {
                             vector <int32> rb;
-                            for (uint ii=iEx1;ii<=iEx2;ii++) {
+                            for (uint64 ii=iEx1;ii<=iEx2;ii++) {
                                 rb.push_back( (int32) trOut.exons[ii][EX_R]+1 );
                                 rb.push_back( (int32) trOut.exons[ii][EX_R]+trOut.exons[ii][EX_L]);
                                 rb.push_back( (int32) (trOut.exons[ii][EX_G]-genOut.chrStart[trOut.Chr]+1) );
@@ -496,13 +496,13 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
         } else {
             revComplementNucleotides(Read0[Mate], seqMate, readLengthOriginal[Mate]);
             seqMate[readLengthOriginal[Mate]]=0;
-            for (uint ii=0;ii<readLengthOriginal[Mate]; ii++) qualMate[ii]=Qual0[Mate][readLengthOriginal[Mate]-1-ii];
+            for (uint64 ii=0;ii<readLengthOriginal[Mate]; ii++) qualMate[ii]=Qual0[Mate][readLengthOriginal[Mate]-1-ii];
             qualMate[readLengthOriginal[Mate]]=0;
             seqOut=&seqMate[0];
             qualOut=&qualMate[0];
         };
 
-        uint seqMateLength=readLengthOriginal[Mate];
+        uint64 seqMateLength=readLengthOriginal[Mate];
         if (alignType==-11) {//hard-clip on the left
             seqMateLength-=trimL1;
             seqOut+=trimL1;
@@ -610,7 +610,7 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint 
         //total size of the record
         pBAM[0]=recSize-sizeof(uint32);//record size excluding the size entry itself
         outBAMarrayN[imate]=recSize;
-    };//for (uint imate=0;imate<nMates;imate++)
+    };//for (uint64 imate=0;imate<nMates;imate++)
 
     return ( outBAMarrayN[1]==0 ? 1 : 2);
 };

@@ -148,7 +148,7 @@ void Genome::transformGenome(GTF *gtf)
         chrName = concatenateVectors( appendString(chrName, "_h1"), appendString(chrName, "_h2") );
         nChrReal=chrName.size();
         
-        for (uint ii=0;ii<nChrReal;ii++) {
+        for (uint64 ii=0;ii<nChrReal;ii++) {
             chrNameIndex[chrName[ii]]=ii;
         };
         

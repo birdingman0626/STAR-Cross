@@ -17,7 +17,7 @@ public:
 uint32 outputReadCB(fstream *streamOut, const uint64 iRead, const int32 featureType, SoloReadBarcode &soloBar, 
                     const ReadSoloFeatures &reFe, const ReadAnnotations &readAnnot, const SoloReadFlagClass &readFlag);
 
-void SoloReadFeature::record(SoloReadBarcode &soloBar, uint nTr, Transcript **alignOut, uint64 iRead, ReadAnnotations &readAnnot)
+void SoloReadFeature::record(SoloReadBarcode &soloBar, uint64 nTr, Transcript **alignOut, uint64 iRead, ReadAnnotations &readAnnot)
 {
     if (pSolo.type==0)
         return;

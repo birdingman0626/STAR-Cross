@@ -12,19 +12,19 @@ public:
     BAMoutput& operator=(const BAMoutput&) = delete;
     //sorted output
     BAMoutput (int iChunk, string tmpDir, Parameters &Pin);
-    void coordOneAlign (char *bamIn, uint bamSize, uint iRead);
+    void coordOneAlign (char *bamIn, uint64 bamSize, uint64 iRead);
     void coordBins ();
     void coordFlush ();
     //unsorted output
     BAMoutput (BGZF *bgzfBAMin, Parameters &Pin);
-    void unsortedOneAlign (char *bamIn, uint bamSize, uint bamSize2);
+    void unsortedOneAlign (char *bamIn, uint64 bamSize, uint64 bamSize2);
     void unsortedFlush ();
     void coordUnmappedPrepareBySJout();
     void finalize(); //checked close for owned streams; never close borrowed BGZF
 
     uint32 nBins; //number of bins to split genome into
-    std::unique_ptr<uint[]> binTotalN; //total number of aligns in each bin
-    std::unique_ptr<uint[]> binTotalBytes;//total size of aligns in each bin
+    std::unique_ptr<uint64[]> binTotalN; //total number of aligns in each bin
+    std::unique_ptr<uint64[]> binTotalBytes;//total size of aligns in each bin
 private:
     uint64 bamArraySize; //this size will be allocated
     std::unique_ptr<char[]> bamArray; //uninitialized storage; no extra full-buffer zero fill

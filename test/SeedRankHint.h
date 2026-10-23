@@ -77,7 +77,7 @@ public:
     size_t modelBytes() const {return points.capacity()*sizeof(Point)+bins.capacity()*sizeof(double)+segments.capacity()*sizeof(Segment);}
     size_t uniqueKeys() const {return points.size();}
     size_t pieces() const {return bins.empty()?segments.size():bins.size()-1;}
-    bool probe(const GpuSeedQuery& query,char* const reads[2],uint& rank) const {
+    bool probe(const GpuSeedQuery& query,char* const reads[2],uint64& rank) const {
         if(query.length<k) return false;
         uint64_t key=0;
         for(unsigned j=0;j<k;++j) {

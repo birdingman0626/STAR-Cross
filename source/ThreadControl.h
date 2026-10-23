@@ -20,7 +20,7 @@ public:
     pthread_mutex_t mutexInRead, mutexOutSAM, mutexOutBAM1, mutexOutChimSAM, mutexOutChimJunction, mutexOutUnmappedFastx, mutexOutFilterBySJout;
     pthread_mutex_t mutexStats, mutexLogMain, mutexBAMsortBins, mutexError;
 
-    uint chunkInN,chunkOutN;
+    uint64 chunkInN,chunkOutN;
     std::mutex failureMutex;
     std::exception_ptr mappingFailure;
 

@@ -31,10 +31,10 @@ public:
     string chunkOutBAMfileName;
 
     bool noReadsLeft;
-    uint iChunkIn; //current chunk # as read from .fastq
-    uint iChunkOutSAM; //current chunk # writtedn to Aligned.out.sam
+    uint64 iChunkIn; //current chunk # as read from .fastq
+    uint64 iChunkOutSAM; //current chunk # writtedn to Aligned.out.sam
     int iThread; //current thread
-    uint chunkOutBAMtotal; //total number of bytes in the write buffer
+    uint64 chunkOutBAMtotal; //total number of bytes in the write buffer
 
     ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, int iChunk);
     void processChunks();
@@ -42,7 +42,7 @@ public:
     void mapChunk();
     void chunkFstreamOpen(string filePrefix, int iChunk, fstream &fstreamOut);
     void chunkFstreamCat (fstream &chunkOut, ofstream &allOut, bool mutexFlag, pthread_mutex_t &mutexVal);
-    void chunkFilesCat(ostream *allOut, string filePrefix, uint &iC);
+    void chunkFilesCat(ostream *allOut, string filePrefix, uint64 &iC);
 
     Genome &mapGen;
 private:

@@ -9,19 +9,19 @@ int chimericAlignScore (ChimericSegment & seg1, ChimericSegment & seg2)
     // Compute read-space overlap between the two chimeric segments.
     // Legacy (--legacy ChimericScoring): scalar min/max on segment endpoints — matches upstream 2.7.11b.
     // Default: sorted exon-block interval sweep, correct for multi-exon/multi-mate layouts.
-    uint chimOverlap;
+    uint64 chimOverlap;
     if (seg1.P.pCh.legacyScoring) {
         chimOverlap = seg2.roS>seg1.roS ? (seg2.roS>seg1.roE ? 0 : seg1.roE-seg2.roS+1) : (seg2.roE<seg1.roS ? 0 : seg2.roE-seg1.roS+1);
     } else {
-        chimOverlap = [&seg1, &seg2]() -> uint {
-            auto exonROBlocks = [](const ChimericSegment &seg) -> vector<pair<uint,uint>> {
-                vector<pair<uint,uint>> blocks;
+        chimOverlap = [&seg1, &seg2]() -> uint64 {
+            auto exonROBlocks = [](const ChimericSegment &seg) -> vector<pair<uint64,uint64>> {
+                vector<pair<uint64,uint64>> blocks;
                 blocks.reserve(seg.align.nExons);
-                for (uint iex = 0; iex < seg.align.nExons; ++iex) {
-                    uint roS = seg.align.Str == 0
+                for (uint64 iex = 0; iex < seg.align.nExons; ++iex) {
+                    uint64 roS = seg.align.Str == 0
                         ? seg.align.exons[iex][EX_R]
                         : seg.align.Lread - seg.align.exons[iex][EX_R] - seg.align.exons[iex][EX_L];
-                    uint roE = seg.align.Str == 0
+                    uint64 roE = seg.align.Str == 0
                         ? seg.align.exons[iex][EX_R] + seg.align.exons[iex][EX_L] - 1
                         : seg.align.Lread - seg.align.exons[iex][EX_R] - 1;
                     // Shift paired-end coords past the inter-mate gap byte
@@ -33,18 +33,18 @@ int chimericAlignScore (ChimericSegment & seg1, ChimericSegment & seg2)
                 return blocks;
             };
 
-            vector<pair<uint,uint>> blocks1 = exonROBlocks(seg1);
-            vector<pair<uint,uint>> blocks2 = exonROBlocks(seg2);
+            vector<pair<uint64,uint64>> blocks1 = exonROBlocks(seg1);
+            vector<pair<uint64,uint64>> blocks2 = exonROBlocks(seg2);
 
-            uint overlap = 0;
-            uint i1 = 0, i2 = 0;
+            uint64 overlap = 0;
+            uint64 i1 = 0, i2 = 0;
             while (i1 < blocks1.size() && i2 < blocks2.size()) {
-                uint s = max(blocks1[i1].first,  blocks2[i2].first);
-                uint e = min(blocks1[i1].second, blocks2[i2].second);
+                uint64 s = max(blocks1[i1].first,  blocks2[i2].first);
+                uint64 e = min(blocks1[i1].second, blocks2[i2].second);
                 if (s <= e)
                     overlap += e - s + 1;
-                uint e1 = blocks1[i1].second;
-                uint e2 = blocks2[i2].second;
+                uint64 e1 = blocks1[i1].second;
+                uint64 e2 = blocks2[i2].second;
                 if (e1 <= e2) ++i1;
                 if (e2 <= e1) ++i2;
             }
@@ -64,9 +64,9 @@ int chimericAlignScore (ChimericSegment & seg1, ChimericSegment & seg2)
 };
 
 /////////////////////////////////////////////////////////////
-bool ChimericDetection::chimericDetectionMult(uint nW, uint *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA) {
+bool ChimericDetection::chimericDetectionMult(uint64 nW, uint64 *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA) {
 
-//     for (uint ii=0;ii<chimAligns.size();ii++) {//deallocate aligns
+//     for (uint64 ii=0;ii<chimAligns.size();ii++) {//deallocate aligns
 //         if (chimAligns.at(ii).stitchingDone) {//al1,al2 were allocated
 //             delete chimAligns.at(ii).al1;
 //             delete chimAligns.at(ii).al2;
@@ -91,16 +91,16 @@ bool ChimericDetection::chimericDetectionMult(uint nW, uint *readLength, int max
     if ((maxPossibleAlignScore - P.pCh.scoreDropMax) > minScoreToConsider)
         minScoreToConsider = maxPossibleAlignScore - P.pCh.scoreDropMax;
 
-    for (uint iW1=0; iW1<nW; iW1++) {//cycle windows
-        for (uint iA1=0; iA1<nWinTr[iW1]; iA1++) {//cycle aligns in the window
+    for (uint64 iW1=0; iW1<nW; iW1++) {//cycle windows
+        for (uint64 iA1=0; iA1<nWinTr[iW1]; iA1++) {//cycle aligns in the window
 
             ChimericSegment seg1(P,*trAll[iW1][iA1]);
 
             if (!seg1.segmentCheck())
                 continue; //seg1 is bad - skip
 
-            for (uint iW2=iW1; iW2<nW; iW2++) {//check all windows for chimeras
-                for (uint iA2=(iW1!=iW2 ? 0 : iA1+1); iA2<nWinTr[iW2]; iA2++) {//cycle over aligns in the window
+            for (uint64 iW2=iW1; iW2<nW; iW2++) {//check all windows for chimeras
+                for (uint64 iA2=(iW1!=iW2 ? 0 : iA1+1); iA2<nWinTr[iW2]; iA2++) {//cycle over aligns in the window
                     //for the same window, start iA2 at iA1+1 to avoid duplicating
 
                     ChimericSegment seg2(P,*trAll[iW2][iA2]);
@@ -148,7 +148,7 @@ bool ChimericDetection::chimericDetectionMult(uint nW, uint *readLength, int max
     if (chimScoreBest==0)
         return false;
 
-    uint chimN=0;
+    uint64 chimN=0;
     for (auto cAit=chimAligns.begin(); cAit<chimAligns.end(); cAit++) {
         //scan all chimeras, find the number within score range
         if (cAit->chimScore >= minScoreToConsider)
@@ -158,7 +158,7 @@ bool ChimericDetection::chimericDetectionMult(uint nW, uint *readLength, int max
     if (chimN > P.pCh.multimapNmax) //too many loci
         return false;
 
-    uint iTr = 0; //keep track of "HI" SAM attribute
+    uint64 iTr = 0; //keep track of "HI" SAM attribute
     for (std::size_t i = 0; i < chimAligns.size(); i++) {//output chimeras within score range
         if (chimAligns[i].chimScore >= minScoreToConsider) {
 

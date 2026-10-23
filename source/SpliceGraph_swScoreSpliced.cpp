@@ -47,7 +47,7 @@ SpliceGraph::typeAlignScore SpliceGraph::swScoreSpliced
         };
         
         scoreColumn[0] = 0; //initialize top row
-        for(uint row = 1; row <= readLen; row++) {//rows are counte from 1, 0th row is filled with 0
+        for(uint64 row = 1; row <= readLen; row++) {//rows are counte from 1, 0th row is filled with 0
 			
 			uint8 dirIndMax = 0 ; //direction index
 			typeAlignScore scoreMax = 0; //max score for this cell

@@ -120,7 +120,7 @@ void GTF::superTranscript() {
     };
     
     superTrome.trStartEnd.resize(transcriptID.size());
-    for(uint i = 0; i < transcriptStartEnd.size(); i++) {
+    for(uint64 i = 0; i < transcriptStartEnd.size(); i++) {
         superTrome.trStartEnd[i][0] = transcriptStartEnd[i][0] - superTrStartEnd[superTrome.trIndex[i]][0];
         superTrome.trStartEnd[i][1] = transcriptStartEnd[i][1] - superTrStartEnd[superTrome.trIndex[i]][0];
     };
@@ -250,7 +250,7 @@ void Genome::concatenateChromosomes(const vector<vector<uint8>> &vecSeq, const v
         memcpy(G+chrStart[ii],vecSeq[ii].data(),vecSeq[ii].size());
     };
     
-    for (uint ii=0;ii<nGenome;ii++) {//- strand
+    for (uint64 ii=0;ii<nGenome;ii++) {//- strand
         G[2*nGenome-1-ii]=G[ii]<4 ? 3-G[ii] : G[ii];
     };    
 };

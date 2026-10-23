@@ -4,20 +4,20 @@
 
 struct OutputAlignmentSelection {
     bool enabled, onlyAddedReferences, allAddedReferences;
-    uint firstAddedReference;
+    uint64 firstAddedReference;
 };
 
 // Allocation-free, stable compaction of borrowed candidates. The alignment
 // type only needs Chr/primaryFlag; no parser, index owner or output stream.
 template<class Alignment>
-uint selectOutputAlignments(OutputAlignmentSelection policy, Alignment** candidates, uint count) {
+uint64 selectOutputAlignments(OutputAlignmentSelection policy, Alignment** candidates, uint64 count) {
     if (!policy.enabled) return count;
     if (policy.onlyAddedReferences) {
-        for (uint i=0;i<count;++i)
+        for (uint64 i=0;i<count;++i)
             if (candidates[i]->Chr<policy.firstAddedReference) return 0;
     } else if (policy.allAddedReferences) {
-        uint retained=0;
-        for (uint i=0;i<count;++i) {
+        uint64 retained=0;
+        for (uint64 i=0;i<count;++i) {
             if (candidates[i]->Chr>=policy.firstAddedReference) {
                 candidates[retained]=candidates[i];
                 candidates[retained++]->primaryFlag=false;

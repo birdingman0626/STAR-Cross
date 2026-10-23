@@ -19,10 +19,10 @@ void ChimericAlign::chimericStitching(char *genSeq, char **Read1) {
         // Trim each transcript to the exons on the junction-relevant side only.
         // Exons on the wrong side inflate the alignment score and prevent the
         // stitching scan from finding the correct breakpoint.
-        auto shiftExonsLeft = [](Transcript &a, uint toRemove) {
-            uint remaining = a.nExons - toRemove;
-            for (uint iex = 0; iex < remaining; iex++) {
-                for (uint k = 0; k < EX_SIZE; k++)
+        auto shiftExonsLeft = [](Transcript &a, uint64 toRemove) {
+            uint64 remaining = a.nExons - toRemove;
+            for (uint64 iex = 0; iex < remaining; iex++) {
+                for (uint64 k = 0; k < EX_SIZE; k++)
                     a.exons[iex][k] = a.exons[iex + toRemove][k];
                 if (iex + 1 < remaining) {
                     a.canonSJ[iex]       = a.canonSJ[iex + toRemove];
@@ -68,13 +68,13 @@ void ChimericAlign::chimericStitching(char *genSeq, char **Read1) {
             chimJ2=a2.exons[ex2][EX_G]+a2.exons[ex2][EX_L];
         };
     } else {//chimeric junctions is within one of the mates, check and shift chimeric junction if necessary
-        uint roStart0 = a1.Str==0 ? a1.exons[ex1][EX_R] : a1.Lread - a1.exons[ex1][EX_R] - a1.exons[ex1][EX_L];
+        uint64 roStart0 = a1.Str==0 ? a1.exons[ex1][EX_R] : a1.Lread - a1.exons[ex1][EX_R] - a1.exons[ex1][EX_L];
         // Legacy bug: used a1.Lread instead of a2.Lread for the a2 negative-strand case.
-        uint roStart1 = a2.Str==0 ? a2.exons[ex2][EX_R] : (P.pCh.legacyScoring ? a1.Lread : a2.Lread) - a2.exons[ex2][EX_R] - a2.exons[ex2][EX_L];
+        uint64 roStart1 = a2.Str==0 ? a2.exons[ex2][EX_R] : (P.pCh.legacyScoring ? a1.Lread : a2.Lread) - a2.exons[ex2][EX_R] - a2.exons[ex2][EX_L];
 
-        uint jR, jRbest=0;
+        uint64 jR, jRbest=0;
         int jScore=0,jMotif=0,jScoreBest=-999999,jScoreJ=0;
-        uint jRmax = roStart1+a2.exons[ex2][EX_L];
+        uint64 jRmax = roStart1+a2.exons[ex2][EX_L];
         jRmax = jRmax>roStart0 ? jRmax-roStart0-1 : 0;
         if (!P.pCh.legacyScoring && jRmax == 0) { // no overlap between junction exons — cannot stitch
             chimScore = 0;

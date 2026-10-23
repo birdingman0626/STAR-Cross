@@ -20,7 +20,7 @@ void SpliceGraph::findSuperTr(const char *readSeq, const char *readSeqRevCompl, 
         //calculate index
         uint64 ind1=0;
         for (uint32 ii=iseed; ii<iseed+seedLen; ii++) {
-            uint b=(uint64) readSeq[ii];
+            uint64 b=(uint64) readSeq[ii];
             if (b>3) {//N
                 continue; //no mapping for seeds with Ns
             } else {

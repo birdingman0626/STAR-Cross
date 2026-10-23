@@ -28,10 +28,10 @@ void ReadAlign::chimericDetection() {
     #ifdef OUTPUT_localChains
     {
         P.inOut->outLocalChains << readName <<"\t"<< Read0[0] <<"\t"<< Read0[1] << "\n";
-        for (uint iw=0; iw<nW; iw++) {
-            for (uint itr=0;itr<nWinTr[iw];itr++) {
+        for (uint64 iw=0; iw<nW; iw++) {
+            for (uint64 itr=0;itr<nWinTr[iw];itr++) {
                 P.inOut->outLocalChains << trAll[iw][itr]->maxScore<<"\t"<< trAll[iw][itr]->Chr<<"\t"<<trAll[iw][itr]->Str<<"\t"<<trAll[iw][itr]->nExons;
-                for (uint ib=0;ib<trAll[iw][itr]->nExons;ib++) {
+                for (uint64 ib=0;ib<trAll[iw][itr]->nExons;ib++) {
                     P.inOut->outLocalChains <<"\t"<< trAll[iw][itr]->exons[ib][EX_G]-mapGen.chrStart[trAll[iw][itr]->Chr] \
                                              <<"\t"<< trAll[iw][itr]->exons[ib][EX_R] <<"\t"<< trAll[iw][itr]->exons[ib][EX_L];
                 };

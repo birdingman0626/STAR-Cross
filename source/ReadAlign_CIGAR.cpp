@@ -1,9 +1,9 @@
 #include "ReadAlign.h"
 
-uint ReadAlign::alignCIGAR
+uint64 ReadAlign::alignCIGAR
 samStreamCIGAR.str(std::string());
 
-        uint trimL;
+        uint64 trimL;
         if (Str==0 && Mate==0) {
             trimL=clipMates[Mate][0].clippedN;
         } else if (Str==0 && Mate==1) {
@@ -14,15 +14,15 @@ samStreamCIGAR.str(std::string());
             trimL=clipMates[Mate][0].clippedN;
         };
 
-        uint trimL1 = trimL + trOut.exons[iEx1][EX_R] - (trOut.exons[iEx1][EX_R]<readLength[leftMate] ? 0 : readLength[leftMate]+1);
+        uint64 trimL1 = trimL + trOut.exons[iEx1][EX_R] - (trOut.exons[iEx1][EX_R]<readLength[leftMate] ? 0 : readLength[leftMate]+1);
         if (trimL1>0) {
             samStreamCIGAR << trimL1 << "S"; //initial trimming
         };
 
-        for (uint ii=iEx1;ii<=iEx2;ii++) {
+        for (uint64 ii=iEx1;ii<=iEx2;ii++) {
             if (ii>iEx1) {//record gaps
-                uint gapG=trOut.exons[ii][EX_G]-(trOut.exons[ii-1][EX_G]+trOut.exons[ii-1][EX_L]);
-                uint gapR=trOut.exons[ii][EX_R]-trOut.exons[ii-1][EX_R]-trOut.exons[ii-1][EX_L];
+                uint64 gapG=trOut.exons[ii][EX_G]-(trOut.exons[ii-1][EX_G]+trOut.exons[ii-1][EX_L]);
+                uint64 gapR=trOut.exons[ii][EX_R]-trOut.exons[ii-1][EX_R]-trOut.exons[ii-1][EX_L];
                 //it's possible to have a D or N and I at the same time
                 if (gapR>0){
                     samStreamCIGAR << gapR;
@@ -53,7 +53,7 @@ samStreamCIGAR.str(std::string());
 //             SJannot=",-1";
         };
 
-        uint trimR1=(trOut.exons[iEx1][EX_R]<readLength[leftMate] ? \
+        uint64 trimR1=(trOut.exons[iEx1][EX_R]<readLength[leftMate] ? \
             readLengthOriginal[leftMate] : readLength[leftMate]+1+readLengthOriginal[Mate]) \
             - trOut.exons[iEx2][EX_R]-trOut.exons[iEx2][EX_L] - trimL;
         if ( trimR1 > 0 ) {

@@ -4,9 +4,9 @@
 #include <limits.h>
 #include "ErrorWarning.h"
 
-int compareUint(const void* i1, const void* i2) {//compare uint arrays
-    uint s1=loadUnaligned<uint>(i1);
-    uint s2=loadUnaligned<uint>(i2);
+int compareUint(const void* i1, const void* i2) {//compare uint64 arrays
+    uint64 s1=loadUnaligned<uint64>(i1);
+    uint64 s2=loadUnaligned<uint64>(i2);
 
     if (s1>s2) {
         return 1;
@@ -39,7 +39,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
     while (true) {
         int icOut=-1;//chunk from which the junction is output
         for (int ic=0;ic<P.runThreadN;ic++) {//scan through all chunks, find the "smallest" junction
-            if ( loadUnaligned<uint>(sjChunks[ic])<ULONG_MAX && (icOut==-1 ||compareSJ((void*) sjChunks[ic], (void*) sjChunks[icOut])<0 ) ) {
+            if ( loadUnaligned<uint64>(sjChunks[ic])<ULONG_MAX && (icOut==-1 ||compareSJ((void*) sjChunks[ic], (void*) sjChunks[icOut])<0 ) ) {
                     icOut=ic;
                 };
         };
@@ -58,11 +58,11 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
         //filter the junction
         bool sjFilter;
         sjFilter=*oneSJ.annot>0 \
-                || ( ( *oneSJ.countUnique>=(uint) P.outSJfilterCountUniqueMin[(*oneSJ.motif+1)/2] \
-                    || (*oneSJ.countMultiple+*oneSJ.countUnique)>=(uint) P.outSJfilterCountTotalMin[(*oneSJ.motif+1)/2] )\
-                && *oneSJ.overhangLeft >= (uint) P.outSJfilterOverhangMin[(*oneSJ.motif+1)/2] \
-                && *oneSJ.overhangRight >= (uint) P.outSJfilterOverhangMin[(*oneSJ.motif+1)/2] \
-                && ( (*oneSJ.countMultiple+*oneSJ.countUnique)>P.outSJfilterIntronMaxVsReadN.size() || *oneSJ.gap<=(uint) P.outSJfilterIntronMaxVsReadN[*oneSJ.countMultiple+*oneSJ.countUnique-1]) );
+                || ( ( *oneSJ.countUnique>=(uint64) P.outSJfilterCountUniqueMin[(*oneSJ.motif+1)/2] \
+                    || (*oneSJ.countMultiple+*oneSJ.countUnique)>=(uint64) P.outSJfilterCountTotalMin[(*oneSJ.motif+1)/2] )\
+                && *oneSJ.overhangLeft >= (uint64) P.outSJfilterOverhangMin[(*oneSJ.motif+1)/2] \
+                && *oneSJ.overhangRight >= (uint64) P.outSJfilterOverhangMin[(*oneSJ.motif+1)/2] \
+                && ( (*oneSJ.countMultiple+*oneSJ.countUnique)>P.outSJfilterIntronMaxVsReadN.size() || *oneSJ.gap<=(uint64) P.outSJfilterIntronMaxVsReadN[*oneSJ.countMultiple+*oneSJ.countUnique-1]) );
 
         if (sjFilter) {//record the junction in all SJ
             memcpy(allSJ.data+allSJ.N*oneSJ.dataSize,sjChunks[icOut],oneSJ.dataSize);
@@ -85,17 +85,17 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
     std::unique_ptr<bool[]> sjFilter(new bool[allSJ.N]);
     if (P.outFilterBySJoutStage!=2) {
         //filter non-canonical junctions that are close to canonical
-        uint* sjA = new uint [allSJ.N*3];
-        for (uint ii=0;ii<allSJ.N;ii++) {//scan through all junctions, filter by the donor ditance to a nearest donor, fill acceptor array
+        uint64* sjA = new uint64 [allSJ.N*3];
+        for (uint64 ii=0;ii<allSJ.N;ii++) {//scan through all junctions, filter by the donor ditance to a nearest donor, fill acceptor array
             oneSJ.junctionPointer(allSJ.data,ii);
 
             sjFilter[ii]=false;
-            uint x1=0, x2=-1;
-            if (ii>0)         x1=loadUnaligned<uint>(allSJ.data+(ii-1)*oneSJ.dataSize); //previous junction donor
-            if (ii+1<allSJ.N) x2=loadUnaligned<uint>(allSJ.data+(ii+1)*oneSJ.dataSize); //next junction donor
-            uint minDist=min(*oneSJ.start-x1, x2-*oneSJ.start);
-            sjFilter[ii]= minDist >= (uint) P.outSJfilterDistToOtherSJmin[(*oneSJ.motif+1)/2];
-            sjA[ii*3]=*oneSJ.start+(uint)*oneSJ.gap;//acceptor
+            uint64 x1=0, x2=-1;
+            if (ii>0)         x1=loadUnaligned<uint64>(allSJ.data+(ii-1)*oneSJ.dataSize); //previous junction donor
+            if (ii+1<allSJ.N) x2=loadUnaligned<uint64>(allSJ.data+(ii+1)*oneSJ.dataSize); //next junction donor
+            uint64 minDist=min(*oneSJ.start-x1, x2-*oneSJ.start);
+            sjFilter[ii]= minDist >= (uint64) P.outSJfilterDistToOtherSJmin[(*oneSJ.motif+1)/2];
+            sjA[ii*3]=*oneSJ.start+(uint64)*oneSJ.gap;//acceptor
             sjA[ii*3+1]=ii;
 
             if (*oneSJ.annot==0) {
@@ -105,16 +105,16 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
             };
 
         };
-        qsort((void*) sjA, allSJ.N, sizeof(uint)*3, compareUint);
-        for (uint ii=0;ii<allSJ.N;ii++) {//
+        qsort((void*) sjA, allSJ.N, sizeof(uint64)*3, compareUint);
+        for (uint64 ii=0;ii<allSJ.N;ii++) {//
             if (sjA[ii*3+2]==SJ_MOTIF_SIZE+1) {//no filtering for annotated junctions
                 sjFilter[sjA[ii*3+1]]=true;
             } else {
-                uint x1=0, x2=-1;
+                uint64 x1=0, x2=-1;
                 if (ii>0)         x1=sjA[ii*3-3]; //previous junction donor
                 if (ii+1<allSJ.N) x2=sjA[ii*3+3]; //next junction donor
-                uint minDist=min(sjA[ii*3]-x1, x2-sjA[ii*3]);
-                sjFilter[sjA[ii*3+1]] = sjFilter[sjA[ii*3+1]] && ( minDist >= (uint) P.outSJfilterDistToOtherSJmin[(sjA[ii*3+2]+1)/2] );
+                uint64 minDist=min(sjA[ii*3]-x1, x2-sjA[ii*3]);
+                sjFilter[sjA[ii*3+1]] = sjFilter[sjA[ii*3+1]] && ( minDist >= (uint64) P.outSJfilterDistToOtherSJmin[(sjA[ii*3+2]+1)/2] );
             };
         };
         delete[] sjA; // fix memory leak (upstream PR #2676)
@@ -127,7 +127,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
     if (P.outFilterBySJoutStage!=1) {//output file
         ofstream outSJfileStream((P.outFileNamePrefix+"SJ.out.tab").c_str());
         ofstream outSJtmpStream((P.outFileTmp+"SJ.start_gap.tsv").c_str());
-        for (uint ii=0;ii<allSJ.N;ii++) {//write to file
+        for (uint64 ii=0;ii<allSJ.N;ii++) {//write to file
             if ( P.outFilterBySJoutStage==2 || sjFilter[ii]  ) {
                 oneSJ.junctionPointer(allSJ.data,ii);
                 oneSJ.outputStream(outSJfileStream);//write to file
@@ -137,25 +137,25 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
         outSJfileStream.close();
     } else {//make sjNovel array in P
         P.sjNovelN=0;
-        for (uint ii=0;ii<allSJ.N;ii++) {//count novel junctions
+        for (uint64 ii=0;ii<allSJ.N;ii++) {//count novel junctions
             if (sjFilter[ii]) {//only those passing filter
                 oneSJ.junctionPointer(allSJ.data,ii);
                 if (*oneSJ.annot==0) P.sjNovelN++;
             };
         };
-        P.sjNovelStartStorage.reset(new uint [P.sjNovelN]);
-        P.sjNovelEndStorage.reset(new uint [P.sjNovelN]);
+        P.sjNovelStartStorage.reset(new uint64 [P.sjNovelN]);
+        P.sjNovelEndStorage.reset(new uint64 [P.sjNovelN]);
         P.sjNovelStart = P.sjNovelStartStorage.get();
         P.sjNovelEnd = P.sjNovelEndStorage.get();
         P.inOut->logMain <<"Detected " <<P.sjNovelN<<" novel junctions that passed filtering, will proceed to filter reads that contained unannotated junctions"<<endl;
 
-        uint isj=0;
-        for (uint ii=0;ii<allSJ.N;ii++) {//write to file
+        uint64 isj=0;
+        for (uint64 ii=0;ii<allSJ.N;ii++) {//write to file
             if (sjFilter[ii]) {
                 oneSJ.junctionPointer(allSJ.data,ii);
                 if (*oneSJ.annot==0) {//unnnotated only
                     P.sjNovelStart[isj]=*oneSJ.start;
-                    P.sjNovelEnd[isj]=*oneSJ.start+(uint)(*oneSJ.gap)-1;
+                    P.sjNovelEnd[isj]=*oneSJ.start+(uint64)(*oneSJ.gap)-1;
                     isj++;
                 };
             };

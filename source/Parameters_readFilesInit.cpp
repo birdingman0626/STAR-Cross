@@ -64,7 +64,7 @@ void Parameters::readFilesInit()
         //read groups
         if (outSAMattrRGline.at(0)!="-") {
             string linefull;
-            for (uint ii=0;ii<outSAMattrRGline.size(); ii++) {//concatenate into one line
+            for (uint64 ii=0;ii<outSAMattrRGline.size(); ii++) {//concatenate into one line
                 if (ii==0 || outSAMattrRGline.at(ii)==",") {//start new entry
                     if (ii>0) ++ii;//skip comma
                     outSAMattrRGlineSplit.push_back(outSAMattrRGline.at(ii)); //start new RG line with the first field which must be ID:xxx
@@ -145,7 +145,7 @@ void Parameters::readFilesInit()
         if (readFilesN>1)
             readFilesCommandString="cat   ";//concatenate multiple files
     } else {
-        for (uint ii=0; ii<readFilesCommand.size(); ii++) 
+        for (uint64 ii=0; ii<readFilesCommand.size(); ii++) 
             readFilesCommandString+=readFilesCommand.at(ii)+"   "; //concatenate into one string
     };    
     

@@ -12,7 +12,7 @@
 void Parameters::inputParameters_validate() {
 
     //versions
-    for (uint ii=0;ii<1;ii++) {
+    for (uint64 ii=0;ii<1;ii++) {
         if (parArray[ii]->inputLevel>0) {
             ostringstream errOut;
             errOut <<"EXITING because of fatal input ERROR: the version parameter "<< parArray[ii]->nameString << " cannot be re-defined by the user\n";
@@ -159,7 +159,7 @@ void Parameters::inputParameters_validate() {
         };
 
         if ( runMode=="alignReads" && outReadsUnmapped=="Fastx" ) {//open unmapped reads file
-            for (uint imate=0;imate<readNends;imate++) {
+            for (uint64 imate=0;imate<readNends;imate++) {
                 ostringstream ff;
                 ff << outFileNamePrefix << "Unmapped.out.mate" << imate+1;
                 inOut->outUnmappedReadsStream[imate].open(ff.str().c_str());
@@ -363,7 +363,7 @@ void Parameters::inputParameters_validate() {
         inOut->logMain<<"WARNING: --limitBAMsortRAM=0, will use genome size as RAM limit for BAM sorting\n";
     };
 
-    for (uint ii=0; ii<readNameSeparator.size(); ii++) {
+    for (uint64 ii=0; ii<readNameSeparator.size(); ii++) {
         if (readNameSeparator.at(ii)=="space") {
             readNameSeparatorChar.push_back(' ');
         } else if (readNameSeparator.at(ii)=="none") {
@@ -395,7 +395,7 @@ void Parameters::inputParameters_validate() {
     } else {
         ostringstream errOut;
         errOut << "EXITING because of fatal PARAMETERS error: unrecognized option for --outSAMunmapped=";
-        for (uint ii=0; ii<outSAMunmapped.mode.size(); ii++) errOut <<" "<< outSAMunmapped.mode.at(ii);
+        for (uint64 ii=0; ii<outSAMunmapped.mode.size(); ii++) errOut <<" "<< outSAMunmapped.mode.at(ii);
         errOut << "\nSOLUTION: use allowed options: None OR Within OR Within KeepPairs";
         exitWithError(errOut.str(),std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
@@ -466,8 +466,8 @@ void Parameters::inputParameters_validate() {
         errOut <<"SOLUTION: re-run STAR with larger --limitIObufferSize or smaller --limitOutSJcollapsed\n";
         exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
-    chunkInSizeBytesArray=(uint) int((limitIObufferSize-limitOutSJcollapsed*Junction::dataSize)*BUFFER_InSizeFraction)/2;
-    chunkOutBAMsizeBytes= (uint) int((1.0/BUFFER_InSizeFraction-1.0)*chunkInSizeBytesArray*2.0);
+    chunkInSizeBytesArray=(uint64) int((limitIObufferSize-limitOutSJcollapsed*Junction::dataSize)*BUFFER_InSizeFraction)/2;
+    chunkOutBAMsizeBytes= (uint64) int((1.0/BUFFER_InSizeFraction-1.0)*chunkInSizeBytesArray*2.0);
     chunkInSizeBytes=chunkInSizeBytesArray-2*(DEF_readSeqLengthMax+1)-2*DEF_readNameLengthMax;//to prevent overflow
     */
 

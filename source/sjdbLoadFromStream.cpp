@@ -2,7 +2,7 @@
 void sjdbLoadFromStream(ifstream &sjdbStreamIn, SjdbClass &sjdbLoci) {
     while (sjdbStreamIn.good()) {
         string oneLine,chr1;
-        uint u1,u2;
+        uint64 u1,u2;
         char str1;
         getline(sjdbStreamIn,oneLine);
         istringstream oneLineStream (oneLine);

@@ -71,7 +71,7 @@ genomeChainFiles            -
     string: chain files for genomic liftover. Only used with --runMode liftOver .
 
 genomeFileSizes             0
-    uint(s)>0: genome files exact sizes in bytes. Typically, this should not be defined by the user.
+    uint64(s)>0: genome files exact sizes in bytes. Typically, this should not be defined by the user.
     
 genomeTransformOutput       None
     string(s):              which output to transform back to original genome

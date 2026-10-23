@@ -6,18 +6,18 @@
 // Allocation bases are distinct from the mutable views used by the mapper.
 // Large arenas remain uninitialized and retain their existing capacities/layout.
 struct ReadAlign::Storage {
-    std::unique_ptr<uint*[]> splitR;
-    std::array<std::unique_ptr<uint[]>,3> split;
+    std::unique_ptr<uint64*[]> splitR;
+    std::array<std::unique_ptr<uint64[]>,3> split;
     std::unique_ptr<uiPC[]> PC;
     std::unique_ptr<uiWC[]> WC;
-    std::unique_ptr<uint[]> nWA, nWAP, WALrec, WlastAnchor;
+    std::unique_ptr<uint64[]> nWA, nWAP, WALrec, WlastAnchor;
     std::unique_ptr<uiWA*[]> WA;
     std::vector<std::unique_ptr<uiWA[]>> windows;
     std::unique_ptr<bool[]> WAincl;
-    std::unique_ptr<uint[]> swWinCov, scoreSeedBestInd, scoreSeedBestMM, seedChain;
+    std::unique_ptr<uint64[]> swWinCov, scoreSeedBestInd, scoreSeedBestMM, seedChain;
     std::unique_ptr<intScore[]> scoreSeedToSeed, scoreSeedBest;
     std::unique_ptr<Transcript**[]> trAll;
-    std::unique_ptr<uint[]> nWinTr;
+    std::unique_ptr<uint64[]> nWinTr;
     std::unique_ptr<Transcript[]> trArray, alignTrAll;
     std::unique_ptr<Transcript*[]> trArrayPointer, outputTranscripts;
     std::vector<std::unique_ptr<Transcript>> transformed;
@@ -25,7 +25,7 @@ struct ReadAlign::Storage {
     std::unique_ptr<char*[]> Read0, Qual0, readNameMates, Read1, outBAMoneAlign;
     std::vector<std::unique_ptr<char[]>> reads, quals, names, bam;
     std::array<std::unique_ptr<char[]>,3> normalizedReads;
-    std::unique_ptr<uint[]> outBAMoneAlignNbytes;
+    std::unique_ptr<uint64[]> outBAMoneAlignNbytes;
     std::unique_ptr<fstream> junction;
     std::unique_ptr<ChimericDetection> chimDet;
     std::unique_ptr<SoloRead> soloRead;
@@ -61,44 +61,44 @@ ReadAlign::ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, in
         winBin[0].resize(P.winBinN, uintWinBinMax);
         winBin[1].resize(P.winBinN, uintWinBinMax);
         //split
-        storage->splitR.reset(new uint*[3]);
+        storage->splitR.reset(new uint64*[3]);
         splitR=storage->splitR.get();
         for (size_t i=0; i<3; ++i) {
-            storage->split[i].reset(new uint[P.maxNsplit]);
+            storage->split[i].reset(new uint64[P.maxNsplit]);
             splitR[i]=storage->split[i].get();
         }
         //alignments
         storage->PC.reset(new uiPC[P.seedPerReadNmax]); PC=storage->PC.get();
         storage->WC.reset(new uiWC[P.alignWindowsPerReadNmax]); WC=storage->WC.get();
-        storage->nWA.reset(new uint[P.alignWindowsPerReadNmax]); nWA=storage->nWA.get();
-        storage->nWAP.reset(new uint[P.alignWindowsPerReadNmax]); nWAP=storage->nWAP.get();
-        storage->WALrec.reset(new uint[P.alignWindowsPerReadNmax]); WALrec=storage->WALrec.get();
-        storage->WlastAnchor.reset(new uint[P.alignWindowsPerReadNmax]); WlastAnchor=storage->WlastAnchor.get();
+        storage->nWA.reset(new uint64[P.alignWindowsPerReadNmax]); nWA=storage->nWA.get();
+        storage->nWAP.reset(new uint64[P.alignWindowsPerReadNmax]); nWAP=storage->nWAP.get();
+        storage->WALrec.reset(new uint64[P.alignWindowsPerReadNmax]); WALrec=storage->WALrec.get();
+        storage->WlastAnchor.reset(new uint64[P.alignWindowsPerReadNmax]); WlastAnchor=storage->WlastAnchor.get();
     
         storage->WA.reset(new uiWA*[P.alignWindowsPerReadNmax]); WA=storage->WA.get();
         storage->windows.resize(P.alignWindowsPerReadNmax);
-        for (uint ii=0;ii<P.alignWindowsPerReadNmax;ii++) {
+        for (uint64 ii=0;ii<P.alignWindowsPerReadNmax;ii++) {
             storage->windows[ii].reset(new uiWA[P.seedPerWindowNmax]);
             WA[ii]=storage->windows[ii].get();
         }
         storage->WAincl.reset(new bool [P.seedPerWindowNmax]); WAincl=storage->WAincl.get();
 
         #ifdef COMPILE_FOR_LONG_READS
-        storage->swWinCov.reset(new uint[P.alignWindowsPerReadNmax]); swWinCov=storage->swWinCov.get();
+        storage->swWinCov.reset(new uint64[P.alignWindowsPerReadNmax]); swWinCov=storage->swWinCov.get();
         storage->scoreSeedToSeed.reset(new intScore [P.seedPerWindowNmax*(P.seedPerWindowNmax+1)/2]); scoreSeedToSeed=storage->scoreSeedToSeed.get();
         storage->scoreSeedBest.reset(new intScore [P.seedPerWindowNmax]); scoreSeedBest=storage->scoreSeedBest.get();
-        storage->scoreSeedBestInd.reset(new uint [P.seedPerWindowNmax]); scoreSeedBestInd=storage->scoreSeedBestInd.get();
-        storage->scoreSeedBestMM.reset(new uint [P.seedPerWindowNmax]); scoreSeedBestMM=storage->scoreSeedBestMM.get();
-        storage->seedChain.reset(new uint [P.seedPerWindowNmax]); seedChain=storage->seedChain.get();
+        storage->scoreSeedBestInd.reset(new uint64 [P.seedPerWindowNmax]); scoreSeedBestInd=storage->scoreSeedBestInd.get();
+        storage->scoreSeedBestMM.reset(new uint64 [P.seedPerWindowNmax]); scoreSeedBestMM=storage->scoreSeedBestMM.get();
+        storage->seedChain.reset(new uint64 [P.seedPerWindowNmax]); seedChain=storage->seedChain.get();
         #endif
     };
 
     //aligns a.k.a. transcripts
     storage->trAll.reset(new Transcript**[P.alignWindowsPerReadNmax+1]); trAll=storage->trAll.get();
-    storage->nWinTr.reset(new uint[P.alignWindowsPerReadNmax]); nWinTr=storage->nWinTr.get();
+    storage->nWinTr.reset(new uint64[P.alignWindowsPerReadNmax]); nWinTr=storage->nWinTr.get();
     storage->trArray.reset(new Transcript[P.alignTranscriptsPerReadNmax]); trArray=storage->trArray.get();
     storage->trArrayPointer.reset(new Transcript*[P.alignTranscriptsPerReadNmax]); trArrayPointer=storage->trArrayPointer.get();
-    for (uint ii=0;ii<P.alignTranscriptsPerReadNmax;ii++)
+    for (uint64 ii=0;ii<P.alignTranscriptsPerReadNmax;ii++)
         trArrayPointer[ii]= &(trArray[ii]);
     storage->trInit.reset(new Transcript); trInit=storage->trInit.get();
     
@@ -135,10 +135,10 @@ ReadAlign::ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, in
         q.fill(0);
     
     //outBAM
-    storage->outBAMoneAlignNbytes.reset(new uint [P.readNmates+2]); outBAMoneAlignNbytes=storage->outBAMoneAlignNbytes.get();
+    storage->outBAMoneAlignNbytes.reset(new uint64 [P.readNmates+2]); outBAMoneAlignNbytes=storage->outBAMoneAlignNbytes.get();
     storage->outBAMoneAlign.reset(new char* [P.readNmates+2]); outBAMoneAlign=storage->outBAMoneAlign.get();
     storage->bam.resize(P.readNmates+2);
-    for (uint ii=0; ii<P.readNmates+2; ii++) {//not readNends: this is alignment
+    for (uint64 ii=0; ii<P.readNmates+2; ii++) {//not readNends: this is alignment
         storage->bam[ii].reset(new char [BAMoutput_oneAlignMaxBytes]); outBAMoneAlign[ii]=storage->bam[ii].get();
     };
     resetN();
@@ -170,7 +170,7 @@ void ReadAlign::resetN () {//reset resets the counters to 0 for a new read
     storedLmin=0; uniqLmax=0; uniqLmaxInd=0; multLmax=0; multLmaxN=0; multNminL=0; multNmin=0; multNmax=0; multNmaxL=0;
     chimN=0;
 
-    for (uint ii=0; ii<P.readNmates; ii++) {//not readNends: this is alignment
+    for (uint64 ii=0; ii<P.readNmates; ii++) {//not readNends: this is alignment
         maxScoreMate[ii]=0;
     };
 };

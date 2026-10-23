@@ -47,7 +47,7 @@ int Parameters::scanOneLine (string &lineIn, int inputLevel, int inputLevelReque
     lineInStream >> parIn;
     if (parIn=="" || parIn.substr(0,2)=="//" || parIn.substr(0,1)=="#") return 0; //this is a comment
 
-    uint iPar;
+    uint64 iPar;
     for (iPar=0; iPar<parArray.size(); iPar++) {
         if (parIn==parArray[iPar]->nameString) {//
             if (inputLevelRequested < 0 || inputLevelRequested == parArray[iPar]->inputLevelAllowed) {

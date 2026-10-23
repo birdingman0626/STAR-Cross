@@ -37,27 +37,27 @@ PackedArray& PackedArray::operator=(PackedArray&& other) noexcept {
     return *this;
 }
 
-void PackedArray::defineBits(uint Nbits, uint lengthIn){
+void PackedArray::defineBits(uint64 Nbits, uint64 lengthIn){
     // A word must fit in the 64-bit load at every possible record offset.
-    if (Nbits == 0 || Nbits > 64 || Nbits + 8-std::gcd(Nbits, static_cast<uint>(8)) > 64)
+    if (Nbits == 0 || Nbits > 64 || Nbits + 8-std::gcd(Nbits, static_cast<uint64>(8)) > 64)
         throw std::invalid_argument("PackedArray word crosses its 64-bit storage window");
-    if (lengthIn > 0 && lengthIn-1 > (std::numeric_limits<uint>::max()-8*sizeof(uint))/Nbits)
+    if (lengthIn > 0 && lengthIn-1 > (std::numeric_limits<uint64>::max()-8*sizeof(uint64))/Nbits)
         throw std::length_error("PackedArray storage size overflow");
     wordLength=Nbits;
-    wordCompLength=sizeof(uint)*8LLU-wordLength;
+    wordCompLength=sizeof(uint64)*8LLU-wordLength;
     bitRecMask=(~0LLU)>>wordCompLength;
     length=lengthIn;
-    lengthByte=length == 0 ? sizeof(uint) : (length-1)*wordLength/8LLU+sizeof(uint);
-//     lengthByte=((lengthByte+sizeof(uint)-1LLU)/sizeof(uint))*sizeof(uint);
+    lengthByte=length == 0 ? sizeof(uint64) : (length-1)*wordLength/8LLU+sizeof(uint64);
+//     lengthByte=((lengthByte+sizeof(uint64)-1LLU)/sizeof(uint64))*sizeof(uint64);
 };
 
-void PackedArray::writePacked( uint jj, uint x) {
-   uint b=jj*wordLength;
-   uint B=b/8LLU;
-   uint S=b%8LLU;
+void PackedArray::writePacked( uint64 jj, uint64 x) {
+   uint64 b=jj*wordLength;
+   uint64 B=b/8LLU;
+   uint64 S=b%8LLU;
 
    x = x << S;
-   uint a1 = loadUintLE(charArray+B); // little-endian byte stream (native load on LE)
+   uint64 a1 = loadUintLE(charArray+B); // little-endian byte stream (native load on LE)
    a1 = ( a1 & ~(bitRecMask<<S) ) | x;
    storeUintLE(charArray+B, a1);
 };
@@ -73,7 +73,7 @@ void PackedArray::allocateArray() {
         throw std::logic_error("PackedArray already owns storage");
     storage.reset(new char[lengthByte]);
     charArray=storage.get();
-    memset(charArray+lengthByte-sizeof(uint),0,sizeof(uint));//set the last 8 bytes to zero, since some of them may lnever be written
+    memset(charArray+lengthByte-sizeof(uint64),0,sizeof(uint64));//set the last 8 bytes to zero, since some of them may lnever be written
 };
 
 void PackedArray::deallocateArray() {

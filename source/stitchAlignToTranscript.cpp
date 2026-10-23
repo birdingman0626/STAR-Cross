@@ -6,7 +6,7 @@
 // #include "stitchGapIndel.cpp"
 
 
-intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBstart, uint L, uint iFragB, uint sjAB, Parameters& P, char* R, Genome &mapGen, Transcript *trA, const uint outFilterMismatchNmaxTotal) {
+intScore stitchAlignToTranscript(uint64 rAend, uint64 gAend, uint64 rBstart, uint64 gBstart, uint64 L, uint64 iFragB, uint64 sjAB, Parameters& P, char* R, Genome &mapGen, Transcript *trA, const uint64 outFilterMismatchNmaxTotal) {
     //stitch together A and B, extend in the gap, returns max score
 
     if (trA->nExons>=MAX_N_EXONS)
@@ -15,7 +15,7 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
     char *G=mapGen.G;
     int Score=0;
 
-    if (sjAB!=((uint) -1) && trA->exons[trA->nExons-1][EX_sjA]==sjAB \
+    if (sjAB!=((uint64) -1) && trA->exons[trA->nExons-1][EX_sjA]==sjAB \
             && trA->exons[trA->nExons-1][EX_iFrag]==iFragB && rBstart==rAend+1 && gAend+1<gBstart ) {//simple stitching if junction belongs to a database
         if (mapGen.sjdbMotif[sjAB]==0 && (L<=mapGen.sjdbShiftRight[sjAB] || trA->exons[trA->nExons-1][EX_L]<=mapGen.sjdbShiftLeft[sjAB]) ) {
             return -1000006; //too large repeats around non-canonical junction
@@ -30,18 +30,18 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
         trA->sjStr[trA->nExons-1]=mapGen.sjdbStrand[sjAB];;
         trA->nExons++;
         trA->nMatch+=L;
-        for (uint ii=rBstart;ii<rBstart+L;ii++) Score+=scoreMatch; //add QS for mapped portions
+        for (uint64 ii=rBstart;ii<rBstart+L;ii++) Score+=scoreMatch; //add QS for mapped portions
         Score+=P.pGe.sjdbScore;
     } else {//general stitching
         trA->sjAnnot[trA->nExons-1]=0;
         trA->sjStr[trA->nExons-1]=0;
 
         if (trA->exons[trA->nExons-1][EX_iFrag]==iFragB) {//stitch aligns on the same fragment
-            uint gBend=gBstart+L-1;
-            uint rBend=rBstart+L-1;
+            uint64 gBend=gBstart+L-1;
+            uint64 rBend=rBstart+L-1;
 
 //             {//debug
-//                 if (sjAB!=((uint) -1) && trA->exons[trA->nExons-1][EX_sjA]!=((uint) -1) && rBend<=rAend) {//
+//                 if (sjAB!=((uint64) -1) && trA->exons[trA->nExons-1][EX_sjA]!=((uint64) -1) && rBend<=rAend) {//
 //                     Score -= rAend-rBstart+1;
 //                     gAend -= rAend-rBstart+1;
 //                     rAend = rBstart-1;
@@ -60,18 +60,18 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
                 L=rBend-rBstart+1;
             };
 
-            for (uint ii=rBstart;ii<=rBend;ii++) Score+=scoreMatch; //add QS for mapped portions
+            for (uint64 ii=rBstart;ii<=rBend;ii++) Score+=scoreMatch; //add QS for mapped portions
 
             int gGap=gBstart-gAend-1; //could be < 0 for insertions
             int rGap=rBstart-rAend-1;//>0 always since we removed overlap
 
-            uint nMatch=L;
-            uint nMM=0;
-            uint Del=0, Ins=0;
-            uint nIns=0, nDel=0;
+            uint64 nMatch=L;
+            uint64 nMM=0;
+            uint64 Del=0, Ins=0;
+            uint64 nIns=0, nDel=0;
             int jR=0; //junction location in R-space
             int jCan=999; //canonical junction type
-            uint gBstart1=gBstart-rGap-1;//the last base of the intron if all read gap belongs to acceptor, i.e. jR=0
+            uint64 gBstart1=gBstart-rGap-1;//the last base of the intron if all read gap belongs to acceptor, i.e. jR=0
 
 
             // check all the different combinations of gGap and rGap
@@ -156,7 +156,7 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
                 } while ( jR1 < int(rBend) - int(rAend) );// - int(P.alignSJoverhangMin) );//TODO: do not need to search the full B-transcript, can stop as soon as Score goes down by more than
 
                 //repeat length: go back and forth around jR to find repeat length
-                uint jjL=0,jjR=0;
+                uint64 jjL=0,jjR=0;
                 while ( gAend+jR>=jjL && G[gAend-jjL+jR]==G[gBstart1-jjL+jR] && G[gAend-jjL+jR]<4 && jjL<=MAX_SJ_REPEAT_SEARCH) {//go back
                     jjL++;
                 };
@@ -175,7 +175,7 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
                 //TODO check here if the internal exon length < minDa, if so exit w/o stitiching
 
                 for (int ii=min(1,jR+1);ii<=max(rGap,jR);ii++) {//score donor and acceptor
-                    uint g1=(ii<=jR) ? (gAend+ii):(gBstart1+ii);
+                    uint64 g1=(ii<=jR) ? (gAend+ii):(gBstart1+ii);
                     if (G[g1]<4 && R[rAend+ii]<4) {//only penalize non-N bases
                         if ( R[rAend+ii]==G[g1] ) {
                             if (ii>=1 && ii <=rGap) {//only add +score and matches within the gap
@@ -196,7 +196,7 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
 
                 //score the gap
                 if (mapGen.sjdbN>0) {//check if the junction is annotated
-                        uint jS=gAend+jR+1, jE=gBstart1+jR;//intron start/end
+                        uint64 jS=gAend+jR+1, jE=gBstart1+jR;//intron start/end
                         int sjdbInd=binarySearch2(jS,jE,mapGen.sjdbStart,mapGen.sjdbEnd,mapGen.sjdbN);
                         if (sjdbInd<0) {
                             if (Del>=P.alignIntronMin) {
@@ -277,7 +277,7 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
                         };
                     };
                     for (int ii=1;ii<=gGap;ii++) {//score donor and acceptor
-                        uint r1=rAend+ii+(ii<=jR ? 0:Ins);
+                        uint64 r1=rAend+ii+(ii<=jR ? 0:Ins);
                         if (G[gAend+ii]<4 && R[r1]<4) {
                             if ( R[r1]==G[gAend+ii] ) {
                                 Score+=scoreMatch;
@@ -312,7 +312,7 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
 
         #else
             if ( (trA->nMM + nMM)<=outFilterMismatchNmaxTotal  \
-                         && ( jCan<0 || (jCan<7 && nMM<= (uint) P.alignSJstitchMismatchNmax[(jCan+1)/2]) ) )
+                         && ( jCan<0 || (jCan<7 && nMM<= (uint64) P.alignSJstitchMismatchNmax[(jCan+1)/2]) ) )
         #endif
             {//stitching worked only if there no mis-matches for non-GT/AG junctions
                 trA->nMM += nMM;
@@ -357,7 +357,7 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
             //extend the fragments inside
             //note, that this always works, i.e. Score>0
 
-            for (uint ii=rBstart;ii<rBstart+L;ii++) Score+=scoreMatch; //add QS for mapped portions
+            for (uint64 ii=rBstart;ii<rBstart+L;ii++) Score+=scoreMatch; //add QS for mapped portions
 
             Transcript trExtend;
 
@@ -387,7 +387,7 @@ intScore stitchAlignToTranscript(uint rAend, uint gAend, uint rBstart, uint gBst
 
             trExtend.reset();
             //if end extension needs to be forced, use large length. Otherwise, only extend until the beginning of the transcript
-            uint extlen=P.alignEndsType.ext[iFragB][1] ? DEF_readSeqLengthMax : gBstart-trA->exons[0][EX_G]+trA->exons[0][EX_R];
+            uint64 extlen=P.alignEndsType.ext[iFragB][1] ? DEF_readSeqLengthMax : gBstart-trA->exons[0][EX_G]+trA->exons[0][EX_R];
             if ( extendAlign(R, G, rBstart-1, gBstart-1, -1, -1, extlen, trA->nMatch, trA->nMM, outFilterMismatchNmaxTotal, P.alignFilter.mismatchOverLengthMax, \
                              P.alignEndsType.ext[iFragB][1], &trExtend) ) {
 

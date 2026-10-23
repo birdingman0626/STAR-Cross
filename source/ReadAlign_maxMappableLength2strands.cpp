@@ -4,19 +4,19 @@
 #include <array>
 #include "SeedTrace.h"
 
-uint ReadAlign::maxMappableLength2strands(uint pieceStartIn, uint pieceLengthIn, uint iDir, uint iSA1, uint iSA2, uint& maxLbest, uint iFrag) {
+uint64 ReadAlign::maxMappableLength2strands(uint64 pieceStartIn, uint64 pieceLengthIn, uint64 iDir, uint64 iSA1, uint64 iSA2, uint64& maxLbest, uint64 iFrag) {
     #ifdef STAR_CAPTURE_SEEDS
     seedTrace::Timer diagnostic(&seedTrace::Worker::seedNs);
     #endif
     //returns number of mappings, maxMappedLength=mapped length
-    uint Nrep=0, indStartEnd[2], maxL;
+    uint64 Nrep=0, indStartEnd[2], maxL;
 
     // Dense indexes have only one result: commit it directly without allocating
     // three temporary vectors for every seed. Sparse indexes retain competition.
-    const uint distances=min(pieceLengthIn,P.pGe.gSAsparseD);
-    const uint buffered=distances>1 ? distances : 0;
-    std::vector<uint> NrepAll(buffered), maxLall(buffered);
-    std::vector<std::array<uint,2>> indStartEndAll(buffered);
+    const uint64 distances=min(pieceLengthIn,P.pGe.gSAsparseD);
+    const uint64 buffered=distances>1 ? distances : 0;
+    std::vector<uint64> NrepAll(buffered), maxLall(buffered);
+    std::vector<std::array<uint64,2>> indStartEndAll(buffered);
     maxLbest=0;
 
     bool dirR = iDir==0;
@@ -25,29 +25,29 @@ uint ReadAlign::maxMappableLength2strands(uint pieceStartIn, uint pieceLengthIn,
     // gSAsparseD = 1
     // gSAindexNbases = 14
 
-    for (uint iDist=0; iDist<distances; iDist++) {//cycle through different distances
-        uint pieceStart;
-        uint pieceLength=pieceLengthIn-iDist;
+    for (uint64 iDist=0; iDist<distances; iDist++) {//cycle through different distances
+        uint64 pieceStart;
+        uint64 pieceLength=pieceLengthIn-iDist;
 
         //calculate full index
-        uint Lmax=min(P.pGe.gSAindexNbases,pieceLength);
-        uint ind1=0;
+        uint64 Lmax=min(P.pGe.gSAindexNbases,pieceLength);
+        uint64 ind1=0;
         if (dirR) {//forward search
             pieceStart=pieceStartIn+iDist;
-            for (uint ii=0;ii<Lmax;ii++) {//calculate index TODO: make the index calculation once for the whole read and store it
+            for (uint64 ii=0;ii<Lmax;ii++) {//calculate index TODO: make the index calculation once for the whole read and store it
                 ind1 <<=2LLU;
-                ind1 += ((uint) Read1[0][pieceStart+ii]);
+                ind1 += ((uint64) Read1[0][pieceStart+ii]);
             };
         } else {//reverse search
             pieceStart=pieceStartIn-iDist;
-            for (uint ii=0;ii<Lmax;ii++) {//calculate index TODO: make the index calculation once for the whole read and store it
+            for (uint64 ii=0;ii<Lmax;ii++) {//calculate index TODO: make the index calculation once for the whole read and store it
                 ind1 <<=2LLU;
-                ind1 += ( 3-((uint) Read1[0][pieceStart-ii]) );
+                ind1 += ( 3-((uint64) Read1[0][pieceStart-ii]) );
             };
         };
 
         //find SA boundaries
-        uint Lind=Lmax;
+        uint64 Lind=Lmax;
         while (Lind>0) {//check the presence of the prefix for Lind
             iSA1=mapGen.SAi[mapGen.genomeSAindexStart[Lind-1]+ind1]; // starting point for suffix array search.
             if ((iSA1 & mapGen.SAiMarkAbsentMaskC) == 0) {//prefix exists
@@ -99,7 +99,7 @@ uint ReadAlign::maxMappableLength2strands(uint pieceStartIn, uint pieceLengthIn,
                 maxL=0;
             };        
             #ifdef STAR_CAPTURE_SEEDS
-            const uint initialLength=maxL;
+            const uint64 initialLength=maxL;
             #endif
             Nrep = maxMappableLength(mapGen, Read1, pieceStart, pieceLength, iSA1 & mapGen.SAiMarkNmask, iSA2, dirR, maxL, indStartEnd);
             #ifdef STAR_CAPTURE_SEEDS
@@ -123,7 +123,7 @@ uint ReadAlign::maxMappableLength2strands(uint pieceStartIn, uint pieceLengthIn,
         maxLall[iDist]=maxL;
     };
 
-    for (uint iDist=0; iDist<distances; iDist++) {//cycle through different distances, store the ones with largest maxL
+    for (uint64 iDist=0; iDist<distances; iDist++) {//cycle through different distances, store the ones with largest maxL
         if ( (maxLall[iDist]+iDist) == maxLbest) {
             storeAligns(iDir, (dirR ? pieceStartIn+iDist : pieceStartIn-iDist), NrepAll[iDist], maxLall[iDist], indStartEndAll[iDist].data(), iFrag);
         };

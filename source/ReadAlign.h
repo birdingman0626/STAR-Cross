@@ -43,11 +43,11 @@ class ReadAlign {
         OutSJ *chunkOutSJ, *chunkOutSJ1;
 
         ostream* outSAMstream;
-        uint outBAMbytes; //number of bytes output to SAM/BAM with oneRead
+        uint64 outBAMbytes; //number of bytes output to SAM/BAM with oneRead
         char *outBAMarray;//pointer to the (last+1) position of the SAM/BAM output array
 
-        uint outFilterMismatchNmaxTotal;
-        uint Lread, readLength[MAX_N_MATES], readLengthOriginal[MAX_N_MATES], readLengthPair, readLengthPairOriginal;
+        uint64 outFilterMismatchNmaxTotal;
+        uint64 Lread, readLength[MAX_N_MATES], readLengthOriginal[MAX_N_MATES], readLengthPair, readLengthPairOriginal;
         string readBarcodeSeq, readBarcodeQual; //Solo barcode sequence
         
         intScore maxScoreMate[MAX_N_MATES];
@@ -58,8 +58,8 @@ class ReadAlign {
         array<array<uint64,256>,MAX_N_MATES> qualHist;
         
         //transcripts (aligns)
-        uint nW;
-        uint *nWinTr; //number of recorded transcripts per window
+        uint64 nW;
+        uint64 *nWinTr; //number of recorded transcripts per window
         Transcript trA, trA1, *trInit; //transcript, best tr, next best tr, initialized tr
         Transcript ***trAll; //all transcripts for all windows
         Transcript *trArray; //linear array of transcripts to store all of them from all windows
@@ -95,8 +95,8 @@ class ReadAlign {
 
 	//input,output
         char** outBAMoneAlign;
-        uint* outBAMoneAlignNbytes;
-        int alignBAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint trChrStart, uint mateChr, uint mateStart, char mateStrand, int unmapType, bool *mateMap, vector<int> outSAMattrOrder, char** outBAMarray, uint* outBAMarrayN);
+        uint64* outBAMoneAlignNbytes;
+        int alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, vector<int> outSAMattrOrder, char** outBAMarray, uint64* outBAMarrayN);
 
     private:
         struct Storage;
@@ -119,7 +119,7 @@ class ReadAlign {
         vector <string> matesCIGAR;
 
         intScore *scoreSeedToSeed, *scoreSeedBest;
-        uint *scoreSeedBestInd, *seedChain, *scoreSeedBestMM;
+        uint64 *scoreSeedBestInd, *seedChain, *scoreSeedBestMM;
 
         bool outFilterBySJoutPass; //true if alignment passed all filters and is output
         bool outSAMfilterPass; //true if alignment passed SAM filter
@@ -138,12 +138,12 @@ class ReadAlign {
         char** readNameMates;
         char* readName;
 
-        uint readNmates;
+        uint64 readNmates;
         //split
-        uint** splitR;
-        uint Nsplit;
+        uint64** splitR;
+        uint64 Nsplit;
 
-//         uint fragLength[MAX_N_FRAG], fragStart[MAX_N_FRAG]; //fragment Lengths and Starts in read space
+//         uint64 fragLength[MAX_N_FRAG], fragStart[MAX_N_FRAG]; //fragment Lengths and Starts in read space
 
         //binned alignments
         FastResetVector<uintWinBin> winBin[2]; //binned genome: window ID (number) per bin
@@ -155,31 +155,31 @@ class ReadAlign {
 
         int unmapType; //marker for why a read is unmapped
 
-        uint mapMarker; //alignment marker (typically, if there is something wrong)
-        uint nA, nP, nWall, nUM[2]; //number of all alignments,  pieces, windows, U/M,
-        uint *nWA, *nWAP, *WALrec, *WlastAnchor; //number of alignments per window, per window per piece, min recordable length per window
+        uint64 mapMarker; //alignment marker (typically, if there is something wrong)
+        uint64 nA, nP, nWall, nUM[2]; //number of all alignments,  pieces, windows, U/M,
+        uint64 *nWA, *nWAP, *WALrec, *WlastAnchor; //number of alignments per window, per window per piece, min recordable length per window
         bool *WAincl; //alginment inclusion mask
 
-        uint *swWinCov, *swWinGleft, *swWinGright, *swWinRleft, *swWinRright; //read coverage per window
+        uint64 *swWinCov, *swWinGleft, *swWinGright, *swWinRleft, *swWinRright; //read coverage per window
         char *swT;
 
-        uint storedLmin, uniqLmax, uniqLmaxInd, multLmax, multLmaxN, multNmin, multNminL, multNmax, multNmaxL;
+        uint64 storedLmin, uniqLmax, uniqLmaxInd, multLmax, multLmaxN, multNmin, multNminL, multNmax, multNmaxL;
         intScore maxScore;//maximum alignment score
         bool mateMapped[2];
         
         //old chimeric detection
-        uint chimN, chimRepeat, chimStr;
+        uint64 chimN, chimRepeat, chimStr;
         int chimMotif;
-        uint chimRepeat0, chimRepeat1, chimJ0, chimJ1;
+        uint64 chimRepeat0, chimRepeat1, chimJ0, chimJ1;
         Transcript trChim[MAX_N_CHIMERAS];
         //new chimeric detection
         bool chimRecord; //true if chimeric aligment was detected
 
         struct {
             bool yes;
-            uint nOv;//number of overlapping bases
-            uint ovS;//first read base of the overlap
-            uint mateStart[2];//mates starts in the merged read
+            uint64 nOv;//number of overlapping bases
+            uint64 ovS;//first read base of the overlap
+            uint64 mateStart[2];//mates starts in the merged read
         } peOv;//PE  mates overlap/merge/remap structure
         
         //read annotations
@@ -194,21 +194,21 @@ class ReadAlign {
         void multMapSelect();
         int mapOneRead();
         void mapOneReadSpliceGraph();
-        uint maxMappableLength2strands(uint pieceStart, uint pieceLength, uint iDir, uint iSA1, uint iSA2, uint& maxL, uint iFrag);
-        void storeAligns (uint iDir, uint Shift, uint Nrep, uint L, uint indStartEnd[2], uint iFrag);
+        uint64 maxMappableLength2strands(uint64 pieceStart, uint64 pieceLength, uint64 iDir, uint64 iSA1, uint64 iSA2, uint64& maxL, uint64 iFrag);
+        void storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, uint64 indStartEnd[2], uint64 iFrag);
 
-        bool outputTranscript(Transcript *trOut, uint nTrOut, ofstream *outBED);
+        bool outputTranscript(Transcript *trOut, uint64 nTrOut, ofstream *outBED);
 
-        uint64 outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint mateChr, uint mateStart, char mateStrand, int unmapType, bool *mateMap, ostream *outStream);
+        uint64 outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, ostream *outStream);
 
-        uint64 outputSpliceGraphSAM(Transcript const &trOut, uint nTrOut, uint iTrOut, ostream *outStream);
+        uint64 outputSpliceGraphSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, ostream *outStream);
 
-        void samAttrNM_MD (Transcript const &trOut, uint iEx1, uint iEx2, uint &tagNM, string &tagMD);
+        void samAttrNM_MD (Transcript const &trOut, uint64 iEx1, uint64 iEx2, uint64 &tagNM, string &tagMD);
 
-        void outputTranscriptSJ(Transcript const &trOut, uint nTrOut, OutSJ *outStream, uint sjReadStartN );
+        void outputTranscriptSJ(Transcript const &trOut, uint64 nTrOut, OutSJ *outStream, uint64 sjReadStartN );
         string outputTranscriptCIGARp(Transcript const &trOut);
-        int createExtendWindowsWithAlign(uint a1, uint aStr); //extends and windows with one alignment
-        void assignAlignToWindow(uint a1, uint aLength, uint aStr, uint aNrep, uint aFrag, uint aRstart,bool aAnchor, uint sjA); //assigns one alignment to a window
+        int createExtendWindowsWithAlign(uint64 a1, uint64 aStr); //extends and windows with one alignment
+        void assignAlignToWindow(uint64 a1, uint64 aLength, uint64 aStr, uint64 aNrep, uint64 aFrag, uint64 aRstart,bool aAnchor, uint64 sjA); //assigns one alignment to a window
 
         void mappedFilter();
         void chimericDetection();
@@ -219,12 +219,12 @@ class ReadAlign {
 
         void transformGenome();
         void outputAlignments();
-        void calcCIGAR(Transcript const &trOut, uint nMates, uint iExMate, uint leftMate);
+        void calcCIGAR(Transcript const &trOut, uint64 nMates, uint64 iExMate, uint64 leftMate);
 
-        void stitchWindowSeeds (uint iW, uint iWrec, bool *WAexcl, char *R);//stitches all seeds in one window: iW
-        void stitchPieces(char **R, uint Lread);
+        void stitchWindowSeeds (uint64 iW, uint64 iWrec, bool *WAexcl, char *R);//stitches all seeds in one window: iW
+        void stitchPieces(char **R, uint64 Lread);
 
-        uint quantTranscriptome (Transcriptome *Tr, uint nAlignG, Transcript **alignG, Transcript *alignT);
+        uint64 quantTranscriptome (Transcriptome *Tr, uint64 nAlignG, Transcript **alignG, Transcript *alignT);
 
         void copyRead(ReadAlign&);
         void waspMap();

@@ -29,26 +29,26 @@
                   "STAR_BIG_ENDIAN detection disagrees with std::endian::native");
 #endif
 
-// Portable byte-wise implementations: interpret/produce sizeof(uint) (==8) bytes
+// Portable byte-wise implementations: interpret/produce sizeof(uint64) (==8) bytes
 // in little-endian order regardless of host byte order. Exposed by name so they
 // can be unit-tested directly even on a little-endian machine.
-inline uint loadUintLE_bytewise(const char *p) {
-    uint v=0;
-    for (uint ib=0; ib<sizeof(uint); ib++)
-        v |= ((uint)(uchar)p[ib]) << (8*ib);
+inline uint64 loadUintLE_bytewise(const char *p) {
+    uint64 v=0;
+    for (uint64 ib=0; ib<sizeof(uint64); ib++)
+        v |= ((uint64)(uchar)p[ib]) << (8*ib);
     return v;
 }
-inline void storeUintLE_bytewise(char *p, uint v) {
-    for (uint ib=0; ib<sizeof(uint); ib++)
+inline void storeUintLE_bytewise(char *p, uint64 v) {
+    for (uint64 ib=0; ib<sizeof(uint64); ib++)
         p[ib] = (char)((v >> (8*ib)) & 0xffLLU);
 }
 
-// Load sizeof(uint) (==8) bytes as a little-endian unsigned integer.
-inline uint loadUintLE(const char *p) {
+// Load sizeof(uint64) (==8) bytes as a little-endian unsigned integer.
+inline uint64 loadUintLE(const char *p) {
 #if STAR_BIG_ENDIAN
     return loadUintLE_bytewise(p);
 #else
-    uint value;
+    uint64 value;
     // memcpy permits unaligned byte storage and avoids strict-aliasing UB.
     // Optimizing compilers lower this fixed-size copy to a native load.
     std::memcpy(&value, p, sizeof(value));
@@ -56,8 +56,8 @@ inline uint loadUintLE(const char *p) {
 #endif
 }
 
-// Store an unsigned integer as sizeof(uint) (==8) little-endian bytes.
-inline void storeUintLE(char *p, uint v) {
+// Store an unsigned integer as sizeof(uint64) (==8) little-endian bytes.
+inline void storeUintLE(char *p, uint64 v) {
 #if STAR_BIG_ENDIAN
     storeUintLE_bytewise(p, v);
 #else

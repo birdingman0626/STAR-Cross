@@ -27,7 +27,7 @@ public:
     std::unique_ptr<ClipCR4> cr4; //owned CR4 clipping structure
 
     void initialize(uint32 Nin, const string &adSeqIn, uint32 afterAdNin, double adMMpIn);
-    uint32 clip(uint &Lread, char *SeqNum);
+    uint32 clip(uint64 &Lread, char *SeqNum);
     void clipChunk(char *chArr, uint64 chSize);
 
 };

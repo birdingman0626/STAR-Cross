@@ -7,26 +7,26 @@
 
 class Junction {//one junction
 public:
-    const static uint startP=0;
-    const static uint gapP=startP+sizeof(uint);
-    const static uint strandP=gapP+sizeof(uint32);
-    const static uint motifP=strandP+sizeof(char);
-    const static uint annotP=motifP+sizeof(char);
-    const static uint countUniqueP=annotP+sizeof(char);
-    const static uint countMultipleP=countUniqueP+sizeof(uint32);
-    const static uint overhangLeftP=countMultipleP+sizeof(uint32);
-    const static uint overhangRightP=overhangLeftP+sizeof(uint16);
+    const static uint64 startP=0;
+    const static uint64 gapP=startP+sizeof(uint64);
+    const static uint64 strandP=gapP+sizeof(uint32);
+    const static uint64 motifP=strandP+sizeof(char);
+    const static uint64 annotP=motifP+sizeof(char);
+    const static uint64 countUniqueP=annotP+sizeof(char);
+    const static uint64 countMultipleP=countUniqueP+sizeof(uint32);
+    const static uint64 overhangLeftP=countMultipleP+sizeof(uint32);
+    const static uint64 overhangRightP=overhangLeftP+sizeof(uint16);
 
-    UnalignedPointer<uint> start;
+    UnalignedPointer<uint64> start;
     UnalignedPointer<uint32> gap;
     char *strand, *motif, *annot;
     UnalignedPointer<uint32> countUnique, countMultiple;
     UnalignedPointer<uint16> overhangLeft, overhangRight;
 
-    const static uint dataSize=overhangRightP+sizeof(uint16);
+    const static uint64 dataSize=overhangRightP+sizeof(uint16);
 
     Junction(Genome &genomeIn);
-    void junctionPointer(char* sjPoint, uint isj);
+    void junctionPointer(char* sjPoint, uint64 isj);
     void outputStream(ostream &outStream);
     void collapseOneSJ(char* isj1P, char* isjP, Parameters& P);
 

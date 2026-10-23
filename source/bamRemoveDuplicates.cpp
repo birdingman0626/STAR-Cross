@@ -8,7 +8,7 @@
 
 #define compareReturn(a,b) if(a>b) {return 1;} else if (a<b) {return -1;}
 
-uint g_bamRemoveDuplicatesMate2basesN;
+uint64 g_bamRemoveDuplicatesMate2basesN;
 
 int funCompareNames(const void *a, const void *b) {//compare read names
     uint32* pa=(uint32*) *(uint32**) a;
@@ -90,7 +90,7 @@ int funCompareCoordFlagCigarSeq(const void *a, const void *b) {
     uint8_t* sa=((uint8_t*) pa2)+9*4+((pa2[3]<<24)>>24)+((pa2[4]<<16)>>16)*4;
     uint8_t* sb=((uint8_t*) pb2)+9*4+((pb2[3]<<24)>>24)+((pb2[4]<<16)>>16)*4;
     if (((pa2[4]>>16) & 0x10) == 0) {//not reverse complemented
-        uint ii=1;
+        uint64 ii=1;
         for (; ii<g_bamRemoveDuplicatesMate2basesN; ii+=2) {
             compareReturn(sa[ii/2],sb[ii/2]);
         };
@@ -129,17 +129,17 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
     bgzfOut=bgzf_open(bamFileNameOut.c_str(),("w"+to_string((long long) P.output.bamCompression)).c_str());
     bam_hdr_write(bgzfOut, bamHeader);
 
-    uint bamLengthMax=P.limitBAMsortRAM; //max length to load
+    uint64 bamLengthMax=P.limitBAMsortRAM; //max length to load
     if (bamLengthMax==0) bamLengthMax=16000000000;
-    uint grNmax=1000000;//max number of alignments
+    uint64 grNmax=1000000;//max number of alignments
 
     char *bamRaw=new char[bamLengthMax];
-    uint *aD=new uint[grNmax*2];
+    uint64 *aD=new uint64[grNmax*2];
 
-    uint bamLength=0;
-    uint bamS=0, bamE=0, bamE1=1; //start/end/next-end position for read group search
+    uint64 bamLength=0;
+    uint64 bamS=0, bamE=0, bamE1=1; //start/end/next-end position for read group search
     uint32 rightMax=0;
-    uint grN=0;//number of reads in group
+    uint64 grN=0;//number of reads in group
     bool bamFileEnd=false;//when the last alignment of rhe file was reached
     while (true) {
         if (bamE1>bamLength) {//reached end of loaded BAM block, add BAM data
@@ -203,11 +203,11 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
         };
 
         if ( chrE !=chrS ||  (rightMax>0 && leftE>rightMax) || bamFileEnd ) {//found new group of reads to be processed, start collapsing procedure
-            qsort((void*) aD, grN, sizeof(uint), funCompareNames);
-            qsort((void*) aD, grN/2, 2*sizeof(uint), funCompareCoordFlagCigarSeq);
+            qsort((void*) aD, grN, sizeof(uint64), funCompareNames);
+            qsort((void*) aD, grN/2, 2*sizeof(uint64), funCompareCoordFlagCigarSeq);
             //go through the list and select non-duplicates
             int bScore=-999, bP=0;
-            for (uint pp=0; pp<grN/2; pp++) {
+            for (uint64 pp=0; pp<grN/2; pp++) {
                 uint32* bamP1=(uint32*) aD[pp*2];//pointer to the 1st mate of the pair
                 bamA->data=((uint8_t*) bamP1)+9*4+((bamP1[3]<<24)>>24)+((bamP1[4]<<16)>>16)*4+(bamP1[5]+1)/2+bamP1[5];//add length for: core, name, cigar, seq, qual
                 bamA->l_data=((uint8_t*) bamP1)+bamP1[0]+1-bamA->data;
@@ -247,13 +247,13 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
         if (nMult==1) {//record this alignment in the current group, unique mappers only. Multi-mappers will not be considered for collapsing, and will remain marked as duplicates
             if (grN>=grNmax) {//reallocate
                 grNmax=grN*2;
-                uint *aD1=new uint[grNmax];
-                memcpy((char*) aD1, (char*) aD, grN*sizeof(uint));
+                uint64 *aD1=new uint64[grNmax];
+                memcpy((char*) aD1, (char*) aD, grN*sizeof(uint64));
                 delete [] aD;
                 aD=aD1;
                 cerr << "reallocated array "<<grNmax<<endl;
             };
-            aD[grN]=(uint) bamRaw+bamE;
+            aD[grN]=(uint64) bamRaw+bamE;
             ++grN;
             if (rightE>leftE) {//left mate, record coordinate of its right mate
                 rightMax=max(rightMax, rightE);

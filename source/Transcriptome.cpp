@@ -23,7 +23,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
     geName.resize(nGe);
     geBiotype.resize(nGe);
     geStream.ignore(999,'\n');
-    for (uint ii=0;ii<nGe;ii++) {
+    for (uint64 ii=0;ii<nGe;ii++) {
         string line1;
         getline(geStream,line1);
         istringstream stream1(line1);
@@ -36,9 +36,9 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
         ifstream & trinfo = ifstrOpen(trInfoDir+"/transcriptInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotantions.gtf option at the genome generation step or mapping step",P);
         std::unique_ptr<ifstream> transcriptStreamStorage(&trinfo);
         trinfo >> nTr;
-        metadataStorage->trS.reset(new uint[nTr]); trS=metadataStorage->trS.get();
-        metadataStorage->trE.reset(new uint[nTr]); trE=metadataStorage->trE.get();
-        metadataStorage->trEmax.reset(new uint[nTr]); trEmax=metadataStorage->trEmax.get();
+        metadataStorage->trS.reset(new uint64[nTr]); trS=metadataStorage->trS.get();
+        metadataStorage->trE.reset(new uint64[nTr]); trE=metadataStorage->trE.get();
+        metadataStorage->trEmax.reset(new uint64[nTr]); trEmax=metadataStorage->trEmax.get();
         metadataStorage->trExI.reset(new uint32[nTr]); trExI=metadataStorage->trExI.get();
         metadataStorage->trExN.reset(new uint16[nTr]); trExN=metadataStorage->trExN.get();
         metadataStorage->trStr.reset(new uint8[nTr]); trStr=metadataStorage->trStr.get();
@@ -89,7 +89,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
         metadataStorage->exonStrand.reset(new uint8[exG.nEx]); exG.str=metadataStorage->exonStrand.get();
         metadataStorage->exonGene.reset(new uint32[exG.nEx]); exG.g=metadataStorage->exonGene.get();
         metadataStorage->exonTranscript.reset(new uint32[exG.nEx]); exG.t=metadataStorage->exonTranscript.get();
-        for (uint ii=0;ii<exG.nEx;ii++) {
+        for (uint64 ii=0;ii<exG.nEx;ii++) {
             int str1;
             exinfo >> exG.s[ii] >> exG.e[ii] >> str1 >> exG.g[ii] >> exG.t[ii];
             exG.str[ii] = (uint8) str1;
@@ -97,7 +97,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
         exinfo.close();
         //calculate eMax
         exG.eMax[0]=exG.e[0];
-        for (uint iex=1;iex<exG.nEx;iex++) {
+        for (uint64 iex=1;iex<exG.nEx;iex++) {
             exG.eMax[iex]=max(exG.eMax[iex-1],exG.e[iex]);
         };
     };
@@ -113,12 +113,12 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
         metadataStorage->geneIndex.reset(new uint32[nGe]); geneFull.g=metadataStorage->geneIndex.get();
         metadataStorage->geneStrand.reset(new uint8[nGe]); geneFull.str=metadataStorage->geneStrand.get();
 
-        for (uint ig=0;ig<nGe;ig++) {
+        for (uint64 ig=0;ig<nGe;ig++) {
             geneFull.s[ig]=-1;//largest uint64
             geneFull.e[ig]=0;
         };
 
-        for (uint ii=0;ii<exG.nEx;ii++) {
+        for (uint64 ii=0;ii<exG.nEx;ii++) {
             uint64 s1,e1,str1,g1,t1;
             exinfo >> s1 >> e1 >> str1 >> g1 >> t1;
             geneFull.s[g1]=min(geneFull.s[g1],s1);
@@ -128,7 +128,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
         exinfo.close();
 
         uint64 *gF=new uint64 [4*nGe];
-        for (uint ii=0;ii<nGe;ii++) {
+        for (uint64 ii=0;ii<nGe;ii++) {
             gF[4*ii]   = geneFull.s[ii];
             gF[4*ii+1] = geneFull.e[ii];
             gF[4*ii+2] = geneFull.str[ii];
@@ -137,7 +137,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
 
         qsort((void*) gF, nGe, sizeof(uint64)*4, funCompareArrays<uint64,2>);
 
-        for (uint ii=0;ii<nGe;ii++) {
+        for (uint64 ii=0;ii<nGe;ii++) {
             geneFull.s[ii]   = gF[4*ii];
             geneFull.e[ii]   = gF[4*ii+1];
             geneFull.str[ii] = gF[4*ii+2];
@@ -148,7 +148,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
 
         //calculate eMax
         geneFull.eMax[0]=geneFull.e[0];
-        for (uint iex=1;iex<nGe;iex++) {
+        for (uint64 iex=1;iex<nGe;iex++) {
             geneFull.eMax[iex]=max(geneFull.eMax[iex-1],geneFull.e[iex]);
         };
     };

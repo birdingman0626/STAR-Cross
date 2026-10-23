@@ -1,7 +1,7 @@
 #include "doctest/doctest.h"
 #include "OutputAlignmentSelection.h"
 
-namespace {struct Candidate {uint Chr; bool primaryFlag;};}
+namespace {struct Candidate {uint64 Chr; bool primaryFlag;};}
 
 TEST_CASE("Output reference filtering preserves order and primary semantics") {
     Candidate a{1,true}, b{5,false}, c{7,true};

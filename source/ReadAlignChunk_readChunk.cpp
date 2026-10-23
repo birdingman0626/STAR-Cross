@@ -58,8 +58,8 @@ void ReadAlignChunk::readChunk() {
 
                         uint64 flag1;
                         P.inOut->readIn[0] >> flag1;
-                        uint imate1=0;
-                        for (uint imate=0;imate<P.readNmates;imate++) {//not readNends: this is SAM input
+                        uint64 imate1=0;
+                        for (uint64 imate=0;imate<P.readNmates;imate++) {//not readNends: this is SAM input
                             if (imate>0) {
                                 string str2;
                                 uint64 flag2;
@@ -137,7 +137,7 @@ void ReadAlignChunk::readChunk() {
                         // bookkeeping fields (including Illumina sample indexes).
                         getline(P.inOut->readIn[0], headerExtra[0]);
                         removeStringEndControl(headerExtra[0]);
-                        for (uint imate=1; imate<P.readNends; imate++) {
+                        for (uint64 imate=1; imate<P.readNends; imate++) {
                             getline(P.inOut->readIn[imate], headerExtra[imate]);
                             removeStringEndControl(headerExtra[imate]);
                             const size_t comment = headerExtra[imate].find_first_of(" \t");
@@ -156,7 +156,7 @@ void ReadAlignChunk::readChunk() {
                         readID += ' '+ to_string(P.iReadAll)+' '+passFilterIllumina+' '+to_string(P.readFilesIndex);
 
                         //copy the same readID to both mates
-                        for (uint imate=0; imate<P.readNends; imate++) {
+                        for (uint64 imate=0; imate<P.readNends; imate++) {
                             if (readID.size() + headerExtra[imate].size() >= DEF_readNameLengthMax)
                                 exitWithError("EXITING: FASTQ header including comment is too long\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
                             chunkInSizeBytesTotal[imate] += readID.copy(chunkIn[imate] + chunkInSizeBytesTotal[imate], readID.size(),0);
@@ -166,7 +166,7 @@ void ReadAlignChunk::readChunk() {
                         };
                     };
                     //copy 3 (4 for stage 2) lines: sequence, dummy, quality
-                    for (uint imate=0; imate<P.readNends; imate++) {
+                    for (uint64 imate=0; imate<P.readNends; imate++) {
                         // read 1st line for 2nd stage only
                         if (P.outFilterBySJoutStage == 2)
                             chunkInSizeBytesTotal[imate] += fastqReadOneLine(P.inOut->readIn[imate], chunkIn[imate] + chunkInSizeBytesTotal[imate]);
@@ -183,7 +183,7 @@ void ReadAlignChunk::readChunk() {
                     };
                 } else if (nextChar=='>') {//fasta, can be multiline, which is converted to single line
                     P.iReadAll++; //increment read number
-                    for (uint imate=0; imate<P.readNends; imate++) {
+                    for (uint64 imate=0; imate<P.readNends; imate++) {
                         if (P.outFilterBySJoutStage!=2) {//not the 2nd stage of the 2-stage mapping
 
                             if (P.outSAMreadID=="Number") {
@@ -244,7 +244,7 @@ void ReadAlignChunk::readChunk() {
                         P.inOut->readIn[0] >> P.readFilesIndex;
                         pthread_mutex_lock(&g_threadChunks.mutexLogMain);
                         P.inOut->logMain << "Starting to map file # " << P.readFilesIndex<<"\n";
-                        for (uint imate=0; imate<P.readFilesNames.size(); imate++) {
+                        for (uint64 imate=0; imate<P.readFilesNames.size(); imate++) {
                             P.inOut->logMain << "mate " <<imate+1 <<":   "<<P.readFilesNames.at(imate).at(P.readFilesIndex) <<"\n";
                             P.inOut->readIn[imate].ignore(numeric_limits<streamsize>::max(),'\n');
                         };
@@ -264,7 +264,7 @@ void ReadAlignChunk::readChunk() {
                 g_threadChunks.chunkInN++;
             };
 
-            for (uint imate=0; imate<P.readNends; imate++)
+            for (uint64 imate=0; imate<P.readNends; imate++)
                 chunkIn[imate][chunkInSizeBytesTotal[imate]]='\n';//extra empty line at the end of the chunks
 
             #ifdef STAR_CAPTURE_SEEDS
@@ -274,7 +274,7 @@ void ReadAlignChunk::readChunk() {
 
         } else {//read from one file per thread
             noReadsLeft=true;
-            for (uint imate=0; imate<P.readNends; imate++) {
+            for (uint64 imate=0; imate<P.readNends; imate++) {
                 RA->chunkOutFilterBySJoutFiles[imate].flush();
                 RA->chunkOutFilterBySJoutFiles[imate].seekg(0,ios::beg);
                 RA->readInStream[imate]=& RA->chunkOutFilterBySJoutFiles[imate];

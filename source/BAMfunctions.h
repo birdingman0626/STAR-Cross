@@ -8,7 +8,7 @@
 #include "htslib/htslib/hts_endian.h"
 
 
-void outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint> &chrl);
+void outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint64> &chrl);
 int bam_read1_fromArray(char *bamChar, bam1_t *b);
 string bam_cigarString (bam1_t *b);
         

@@ -8,15 +8,15 @@
 class OneChain
 {
     public:
-        uint bN;
+        uint64 bN;
         string chr1,chr2;//1/2 (old/new) chr names
-        vector <uint> bStart1, bStart2, bLen; //blocks starts in 1/2, lengths
+        vector <uint64> bStart1, bStart2, bLen; //blocks starts in 1/2, lengths
 };
 
 class Chain {
     public:
-// //         uint bN;//number of blocks
-// //         vector <uint> bStart1, bStart2, bLen; //blocks starts in 1/2, lengths
+// //         uint64 bN;//number of blocks
+// //         vector <uint64> bStart1, bStart2, bLen; //blocks starts in 1/2, lengths
 
         Chain(Parameters &Pin, string chainFileNameIn);
         void liftOverGTF(string gtfFileName, string outFileName);

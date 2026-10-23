@@ -29,7 +29,7 @@ ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome 
     inputStreamPointers.reset(new FixedIStream* [P.readNends]); readInStream=inputStreamPointers.get();
     inputStorage.resize(P.readNends); inputStreams.resize(P.readNends);
 
-    for (uint ii=0;ii<P.readNends;ii++) {
+    for (uint64 ii=0;ii<P.readNends;ii++) {
        inputStorage[ii].reset(new char[P.chunkInSizeBytesArray]); chunkIn[ii]=inputStorage[ii].get();
        memset(chunkIn[ii],'\n',P.chunkInSizeBytesArray);
        inputStreams[ii].reset(new FixedIStream); readInStream[ii]=inputStreams[ii].get();
@@ -152,14 +152,14 @@ void ReadAlignChunk::chunkFstreamCat (fstream &chunkOut, ofstream &allOut, bool 
 };
 
 
-void ReadAlignChunk::chunkFilesCat(ostream *allOut, string filePrefix, uint &iC) {//concatenates a file into main output
+void ReadAlignChunk::chunkFilesCat(ostream *allOut, string filePrefix, uint64 &iC) {//concatenates a file into main output
             while (true) {
                 ostringstream name1("");
                 name1 << filePrefix <<iC;
                 ifstream fileChunkIn(name1.str().c_str());
                 if (fileChunkIn.good()) {
                     if (P.inOut->samWriter && allOut==P.inOut->outSAM) {
-                        const auto bytes=min<uint>(65536,P.chunkOutBAMsizeBytes);
+                        const auto bytes=min<uint64>(65536,P.chunkOutBAMsizeBytes);
                         while(fileChunkIn.read(chunkOutBAM,bytes) || fileChunkIn.gcount())
                             P.inOut->samWriter->submit(chunkOutBAM,fileChunkIn.gcount());
                         if (!fileChunkIn.eof()) throw std::runtime_error("ordered SAM chunk read failed");

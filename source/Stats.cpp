@@ -8,7 +8,7 @@ void Stats::resetN() {//zero all counters
     unmappedOther = 0; unmappedShort = 0; unmappedMismatch = 0; unmappedMulti = 0; unmappedAll = 0;
     chimericAll = 0;
     splicesNsjdb=0;
-    for (uint ii=0; ii<SJ_MOTIF_SIZE; ii++) {
+    for (uint64 ii=0; ii<SJ_MOTIF_SIZE; ii++) {
         splicesN[ii]=0;
     };
 };
@@ -27,12 +27,12 @@ void Stats::addStats(Stats &S) {//add S to Stats
     chimericAll += S.chimericAll;
 
     splicesNsjdb += S.splicesNsjdb;
-    for (uint ii=0; ii<SJ_MOTIF_SIZE; ii++) {
+    for (uint64 ii=0; ii<SJ_MOTIF_SIZE; ii++) {
         splicesN[ii] +=S.splicesN[ii];
     };
 };
 
-void Stats::transcriptStats(Transcript &T, uint Lread) {
+void Stats::transcriptStats(Transcript &T, uint64 Lread) {
     mappedMismatchesN += T.nMM;
     mappedInsN += T.nIns;
     mappedDelN += T.nDel;
@@ -42,11 +42,11 @@ void Stats::transcriptStats(Transcript &T, uint Lread) {
     if (T.nExons==0)
         return;
     
-    uint mappedL=0;
-    for (uint ii=0; ii<T.nExons; ii++) {
+    uint64 mappedL=0;
+    for (uint64 ii=0; ii<T.nExons; ii++) {
         mappedL += T.exons[ii][EX_L];
     };
-    for (uint ii=0; ii<T.nExons-1; ii++) {
+    for (uint64 ii=0; ii<T.nExons-1; ii++) {
         if (T.canonSJ[ii]>=0) splicesN[T.canonSJ[ii]]++;
         if (T.sjAnnot[ii]==1) splicesNsjdb++;
     };

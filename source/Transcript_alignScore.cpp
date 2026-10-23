@@ -10,8 +10,8 @@ intScore Transcript::alignScore(char **Read1, char *G, Parameters &P) {//re-calc
         return maxScore;
     
     char* R=Read1[roStr==0 ? 0:2];
-    for (uint iex=0;iex<nExons;iex++) {
-        for (uint ii=0;ii<exons[iex][EX_L];ii++) {
+    for (uint64 iex=0;iex<nExons;iex++) {
+        for (uint64 ii=0;ii<exons[iex][EX_L];ii++) {
             char r1=R[ii+exons[iex][EX_R]];
             char g1=G[ii+exons[iex][EX_G]];
             if (r1>3 || g1>3) {//nothing to do
@@ -24,7 +24,7 @@ intScore Transcript::alignScore(char **Read1, char *G, Parameters &P) {//re-calc
             };
         };
     };
-    for (uint iex=0;iex<nExons-1;iex++) {//score junctions
+    for (uint64 iex=0;iex<nExons-1;iex++) {//score junctions
         if (sjAnnot[iex]==1) {
             maxScore += P.pGe.sjdbScore;
         } else {

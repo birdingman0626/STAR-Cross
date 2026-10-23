@@ -2,7 +2,7 @@
 #include "ReadAlign.h"
 #include "serviceFuns.cpp"
 
-int alignToTranscript(Transcript &aG, uint trS1, uint8 trStr1, uint32 *exSE1, uint32 *exLenCum1, uint16 exN1, Transcript &aT) {
+int alignToTranscript(Transcript &aG, uint64 trS1, uint8 trStr1, uint32 *exSE1, uint32 *exLenCum1, uint16 exN1, Transcript &aT) {
 
     //find exon that overlaps beginning of the read
     uint32 g1=aG.exons[0][EX_G]-trS1;//start of the align
@@ -92,10 +92,10 @@ uint32 Transcriptome::quantAlign (Transcript &aG, Transcript *aTall) {
     uint32 nAtr=0; //number of alignments to the transcriptome
 
     //binary search through transcript starts
-    uint32 tr1=binarySearch1a<uint>(aG.exons[0][EX_G], trS, nTr);//tr1 has the maximum transcript start such that it is still <= align start
+    uint32 tr1=binarySearch1a<uint64>(aG.exons[0][EX_G], trS, nTr);//tr1 has the maximum transcript start such that it is still <= align start
     if (tr1==(uint32) -1) return 0; //alignment outside of range of all transcripts
 
-    uint aGend=aG.exons[aG.nExons-1][EX_G];
+    uint64 aGend=aG.exons[aG.nExons-1][EX_G];
 
     ++tr1;
     do {//cycle back through all the transcripts

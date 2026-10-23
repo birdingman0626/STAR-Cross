@@ -11,9 +11,9 @@
 
 // Diagnostic build only. Dump the actual augmented index once, then bounded
 // per-worker requests after clipping/prefix selection; never part of timed builds.
-inline void captureSeed(Genome& g,char** reads,uint bytes,uint readId,uint start,uint length,
-                        bool forward,uint lower,uint upper,uint initial,uint resultLength,
-                        uint* range,uint count) {
+inline void captureSeed(Genome& g,char** reads,uint64 bytes,uint64 readId,uint64 start,uint64 length,
+                        bool forward,uint64 lower,uint64 upper,uint64 initial,uint64 resultLength,
+                        uint64* range,uint64 count) {
     auto* worker=seedTrace::worker();
     if(!worker) return;
     seedTrace::IoTimer diagnostic(worker);
@@ -21,12 +21,12 @@ inline void captureSeed(Genome& g,char** reads,uint bytes,uint readId,uint start
     if(g.P.twoPass.yes)
         throw std::runtime_error("diagnostic seed capture supports one-pass indexes only");
     const std::filesystem::path folder(destination);
-    static uint capturedGenomeBytes=0,capturedSaRecords=0,capturedSaBytes=0;
+    static uint64 capturedGenomeBytes=0,capturedSaRecords=0,capturedSaBytes=0;
     static const char* capturedGenome=nullptr;
     static const char* capturedSa=nullptr;
     static std::once_flag indexOnce;
     std::call_once(indexOnce,[&] {
-        auto dump=[&](const char* name,const char* data,uint size) {
+        auto dump=[&](const char* name,const char* data,uint64 size) {
             std::ofstream out(folder/name,std::ios::binary);
             out.write(data,size);if(!out) throw std::runtime_error("seed capture index write failed");
         };
@@ -35,7 +35,7 @@ inline void captureSeed(Genome& g,char** reads,uint bytes,uint readId,uint start
         metadata<<"### GstrandBit "<<unsigned(g.GstrandBit)<<"\n### nSA "<<g.nSA<<"\n";
         const uint16_t endian=1;
         std::ofstream abi(folder/"capture_metadata.json");
-        abi<<"{\"format\":1,\"native_uint_bytes\":"<<sizeof(uint)
+        abi<<"{\"format\":1,\"native_uint_bytes\":"<<sizeof(uint64)
            <<",\"query_bytes\":"<<sizeof(GpuSeedQuery)<<",\"match_bytes\":"<<sizeof(GpuSeedMatch)
            <<",\"byte_order\":\""<<(*reinterpret_cast<const char*>(&endian)?"little":"big")
            <<"\",\"sampling\":\"splitmix64(read_id)%modulus==0\",\"sample_modulus\":"<<seedTrace::modulus()

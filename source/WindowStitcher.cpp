@@ -10,15 +10,15 @@
 #include "ErrorWarning.h"
 #include "SeedDiagnostics.h"
 
-void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stitches all seeds in one window: iW
+void WindowStitcher::stitch (uint64 iW, uint64 iWrec, bool *WAexcl, char *R) {//stitches all seeds in one window: iW
 
-    for (uint iS1=0;iS1<nWA[iW];iS1++) {
+    for (uint64 iS1=0;iS1<nWA[iW];iS1++) {
         scoreSeedBest[iS1]=0;
         scoreSeedBestMM[iS1]=0;
         scoreSeedBestInd[iS1]=-1;
         if (WAexcl!=NULL && WAexcl[iS1]) continue; //do not include this seed
         intScore score2=0;
-        for (uint iS2=0;iS2<=iS1;iS2++) {
+        for (uint64 iS2=0;iS2<=iS1;iS2++) {
             if (WAexcl!=NULL && WAexcl[iS1]) continue; //do not include this seed
             trA1=*trInit;//initialize trA1
             if (iS2<iS1) {
@@ -39,11 +39,11 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
 
                 if (P.outFilterBySJoutStage==2 && trA1.nExons>1)
                 {//junctions have to be present in the filtered set P.sjnovel
-                    uint iex=0;
+                    uint64 iex=0;
                     if (trA1.canonSJ[iex]>=0 && trA1.sjAnnot[iex]==0)
                     {
-                        uint jS=trA1.exons[iex][EX_G]+trA1.exons[iex][EX_L];
-                        uint jE=trA1.exons[iex+1][EX_G]-1;
+                        uint64 jS=trA1.exons[iex][EX_G]+trA1.exons[iex][EX_L];
+                        uint64 jE=trA1.exons[iex+1][EX_G]-1;
                         if ( binarySearch2(jS,jE,P.sjNovelStart,P.sjNovelEnd,P.sjNovelN) < 0 ) return;
                     };
                 };
@@ -76,13 +76,13 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
     };
 
     intScore scoreBest=0;
-    uint scoreBestInd=0;
+    uint64 scoreBestInd=0;
 
 
-    for (uint iS1=0;iS1<nWA[iW];iS1++) {//find the best alignment
+    for (uint64 iS1=0;iS1<nWA[iW];iS1++) {//find the best alignment
         trA1=*trInit;//initialize trA1
-        uint tR2=WA[iW][iS1][WA_rStart]+WA[iW][iS1][WA_Length];
-        uint tG2=WA[iW][iS1][WA_gStart]+WA[iW][iS1][WA_Length];
+        uint64 tR2=WA[iW][iS1][WA_rStart]+WA[iW][iS1][WA_Length];
+        uint64 tG2=WA[iW][iS1][WA_gStart]+WA[iW][iS1][WA_Length];
         if ( tR2 < Lread-1 \
             && extendAlign(R, mapGen.G, tR2, tG2, +1, +1, Lread-tR2, 100000, scoreSeedBestMM[iS1], outFilterMismatchNmaxTotal, P.alignFilter.mismatchOverLengthMax, \
                            P.alignEndsType.ext[WA[iW][iS1][WA_iFrag]][1-trA.Str], &trA1) )
@@ -98,7 +98,7 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
         };
     };
 
-    uint seedN=0;
+    uint64 seedN=0;
     while (true) {//construct the sequence of seeds
         seedChain[seedN++]=scoreBestInd;
         WAincl[scoreBestInd]=true;
@@ -113,7 +113,7 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
     {//build final transcript form seedChain
         {//initiate transcript
 
-            uint iS1=seedChain[seedN-1];
+            uint64 iS1=seedChain[seedN-1];
             Score= WA[iW][iS1][WA_Length];
             trA.maxScore = Score;
             trA.nMatch = WA[iW][iS1][WA_Length]; //# of matches
@@ -129,8 +129,8 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
 
         };
 
-        for (uint iSc=seedN-1; iSc>0; iSc--) {//stitch seeds from the chain
-            uint iS1=seedChain[iSc], iS2=seedChain[iSc-1];
+        for (uint64 iSc=seedN-1; iSc>0; iSc--) {//stitch seeds from the chain
+            uint64 iS1=seedChain[iSc], iS2=seedChain[iSc-1];
             int scoreStitch= stitchAlignToTranscript(WA[iW][iS1][WA_rStart]+WA[iW][iS1][WA_Length]-1, WA[iW][iS1][WA_gStart]+WA[iW][iS1][WA_Length]-1,\
                                         WA[iW][iS2][WA_rStart], WA[iW][iS2][WA_gStart], WA[iW][iS2][WA_Length], WA[iW][iS2][WA_iFrag],  WA[iW][iS2][WA_sjA], \
                                         P, R, mapGen, &trA, outFilterMismatchNmaxTotal);
@@ -161,10 +161,10 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
         };
 
         {//extend to the right
-            uint iS1=seedChain[0];
+            uint64 iS1=seedChain[0];
             trA1=*trInit;//initialize trA1
-            uint tR2=WA[iW][iS1][WA_rStart]+WA[iW][iS1][WA_Length];
-            uint tG2=WA[iW][iS1][WA_gStart]+WA[iW][iS1][WA_Length];
+            uint64 tR2=WA[iW][iS1][WA_rStart]+WA[iW][iS1][WA_Length];
+            uint64 tG2=WA[iW][iS1][WA_gStart]+WA[iW][iS1][WA_Length];
             if ( tR2 < Lread \
                 && extendAlign(R, mapGen.G, tR2, tG2, +1, +1, Lread-tR2, 100000, scoreSeedBestMM[iS1], outFilterMismatchNmaxTotal, P.alignFilter.mismatchOverLengthMax, \
                     P.alignEndsType.ext[trA.exons[trA.nExons-1][EX_iFrag]][1-trA.Str], &trA1) ) {//if could extend
@@ -177,9 +177,9 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
 
     //debug: recalculate the number of MM
 //     {
-//         uint nMM1=0;
-//         for (uint iex=0;iex<trA.nExons;iex++) {
-//             for (uint ii=0;ii<trA.exons[iex][EX_L];ii++) {
+//         uint64 nMM1=0;
+//         for (uint64 iex=0;iex<trA.nExons;iex++) {
+//             for (uint64 ii=0;ii<trA.exons[iex][EX_L];ii++) {
 //                 if ( R[ii+trA.exons[iex][EX_R]]!=G[ii+trA.exons[iex][EX_G]] && mapGen.G[ii+trA.exons[iex][EX_G]]<4 && R[ii+trA.exons[iex][EX_R]]<4) {
 //                     nMM1++;
 //                 };
@@ -192,7 +192,7 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
 
     {//calculate some final values for the transcript
         trA.rLength = 0;
-        for (uint isj=0;isj<trA.nExons;isj++) {
+        for (uint64 isj=0;isj<trA.nExons;isj++) {
             trA.rLength += trA.exons[isj][EX_L];
         };
         trA.gLength = trA.exons[trA.nExons-1][EX_G]+1-trA.gStart;
@@ -214,9 +214,9 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
         };
 
         //filter strand consistency
-        uint sjN=0;
+        uint64 sjN=0;
         trA.intronMotifs[0]=0;trA.intronMotifs[1]=0;trA.intronMotifs[2]=0;
-        for (uint iex=0;iex<trA.nExons-1;iex++) {
+        for (uint64 iex=0;iex<trA.nExons-1;iex++) {
             if (trA.canonSJ[iex]>=0)
             {//junctions - others are indels
                 sjN++;
@@ -241,11 +241,11 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
         if (P.outFilterIntronMotifs=="None") {//no filtering
 
         } else if (P.outFilterIntronMotifs=="RemoveNoncanonical") {
-            for (uint iex=0;iex<trA.nExons-1;iex++) {
+            for (uint64 iex=0;iex<trA.nExons-1;iex++) {
                 if (trA.canonSJ[iex]==0) return;
             };
         } else if (P.outFilterIntronMotifs=="RemoveNoncanonicalUnannotated") {
-            for (uint iex=0;iex<trA.nExons-1;iex++) {
+            for (uint64 iex=0;iex<trA.nExons-1;iex++) {
                 if (trA.canonSJ[iex]==0 && trA.sjAnnot[iex]==0) return;
             };
         } else {
@@ -261,7 +261,7 @@ void WindowStitcher::stitch (uint iW, uint iWrec, bool *WAexcl, char *R) {//stit
 
 
         //check exons lengths including repeats, do not report a transcript with short exons
-//        for (uint isj=0;isj<trA.nExons-1;isj++) {//check exons for min length, if they precede a junction
+//        for (uint64 isj=0;isj<trA.nExons-1;isj++) {//check exons for min length, if they precede a junction
 //            if ( trA.canonSJ[isj]>=0 &&
 //               ( trA.exons[isj][EX_L] < P.alignSJoverhangMin + trA.shiftSJ[isj][0]
 //              || trA.exons[isj+1][EX_L] < P.alignSJoverhangMin + trA.shiftSJ[isj][1]) ) {

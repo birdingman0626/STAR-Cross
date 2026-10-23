@@ -43,22 +43,22 @@ int ReadAlign::mapOneRead() {
 
     trBest=trInit;
 
-    uint seedSearchStartLmax=min(P.seedSearchStartLmax, // 50
-                                  (uint) (P.seedSearchStartLmaxOverLread*(Lread-1))); // read length
+    uint64 seedSearchStartLmax=min(P.seedSearchStartLmax, // 50
+                                  (uint64) (P.seedSearchStartLmaxOverLread*(Lread-1))); // read length
     // align all good pieces
-    for (uint ip=0; ip<Nsplit; ip++) {
+    for (uint64 ip=0; ip<Nsplit; ip++) {
 
 
         // if the good piece is long, then try multiple times to map it
-        uint Nstart = P.seedSearchStartLmax>0 && seedSearchStartLmax<splitR[1][ip] ? splitR[1][ip]/seedSearchStartLmax+1 : 1;
-        uint Lstart = splitR[1][ip]/Nstart;  // length of segment to map.
+        uint64 Nstart = P.seedSearchStartLmax>0 && seedSearchStartLmax<splitR[1][ip] ? splitR[1][ip]/seedSearchStartLmax+1 : 1;
+        uint64 Lstart = splitR[1][ip]/Nstart;  // length of segment to map.
         bool flagDirMap=true;
 
-        for (uint iDir=0; iDir<2; iDir++) {//loop over two directions (leftToRight and RightToLeft)
+        for (uint64 iDir=0; iDir<2; iDir++) {//loop over two directions (leftToRight and RightToLeft)
 
-            uint Lmapped, L;
+            uint64 Lmapped, L;
 
-            for (uint istart=0; istart<Nstart; istart++) {  // each try to map a segment.
+            for (uint64 istart=0; istart<Nstart; istart++) {  // each try to map a segment.
 
 //               #ifdef COMPILE_FOR_LONG_READS
 //
@@ -70,11 +70,11 @@ int ReadAlign::mapOneRead() {
                     while ( istart*Lstart + Lmapped + P.seedMapMin < splitR[1][ip] ) {//map until unmapped portion is <=minLmap (default: 5)
 
                         // Shift is the position in the read to begin mapping from.
-                        uint Shift = iDir==0 ? ( splitR[0][ip] + istart*Lstart + Lmapped ) : \
+                        uint64 Shift = iDir==0 ? ( splitR[0][ip] + istart*Lstart + Lmapped ) : \
                                    ( splitR[0][ip] + splitR[1][ip] - istart*Lstart-1-Lmapped); //choose Shift for forward or reverse
 
-                        //uint seedLength=min(splitR[1][ip] - Lmapped - istart*Lstart, P.seedSearchLmax);
-                        uint seedLength=splitR[1][ip] - Lmapped - istart*Lstart; // what's left of the read to align.
+                        //uint64 seedLength=min(splitR[1][ip] - Lmapped - istart*Lstart, P.seedSearchLmax);
+                        uint64 seedLength=splitR[1][ip] - Lmapped - istart*Lstart; // what's left of the read to align.
                         maxMappableLength2strands(Shift, seedLength, iDir, 0, mapGen.nSA-1, L, splitR[2][ip]);//L=max mappable length, unique or multiple
                         if (iDir==0 && istart==0 && Lmapped==0 && Shift+L == splitR[1][ip] ) {//this piece maps full length and does not need to be mapped from the opposite direction
                             flagDirMap=false;
@@ -85,15 +85,15 @@ int ReadAlign::mapOneRead() {
 
                 if (P.seedSearchLmax>0) {//search fixed length. Not very efficient, need to improve
                     // off by default.
-                    uint Shift = iDir==0 ? ( splitR[0][ip] + istart*Lstart ) : \
+                    uint64 Shift = iDir==0 ? ( splitR[0][ip] + istart*Lstart ) : \
                                    ( splitR[0][ip] + splitR[1][ip] - istart*Lstart-1); //choose Shift for forward or reverse
-                    uint seedLength = min(P.seedSearchLmax, iDir==0 ? (splitR[0][ip] + splitR[1][ip]-Shift):(Shift+1) );
+                    uint64 seedLength = min(P.seedSearchLmax, iDir==0 ? (splitR[0][ip] + splitR[1][ip]-Shift):(Shift+1) );
                     maxMappableLength2strands(Shift, seedLength, iDir, 0, mapGen.nSA-1, L, splitR[2][ip]);//L=max mappable length, unique or multiple
                 };
 
 
 //               #endif
-            };//for (uint istart=0; istart<Nstart; istart++)
+            };//for (uint64 istart=0; istart<Nstart; istart++)
         };
     };
 
@@ -119,7 +119,7 @@ int ReadAlign::mapOneRead() {
         trBest->rLength=multNminL;
         nW=0;
     } else if (Nsplit>0 && nA>0) {//otherwise there are no good pieces, or all pieces map too many times: read cannot be mapped
-//         qsort((void*) PC, nP, sizeof(uint)*PC_SIZE, funCompareUint2);//sort PC by rStart and length
+//         qsort((void*) PC, nP, sizeof(uint64)*PC_SIZE, funCompareUint2);//sort PC by rStart and length
         stitchPieces(Read1, Lread);
     };
 

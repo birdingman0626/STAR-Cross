@@ -68,10 +68,10 @@ class Parameters {
         ParametersGenome pGe, pGeOut;
 
         //binning,windows,anchors
-        uint winBinChrNbits, winBinNbits, winAnchorDistNbins, winFlankNbins, winBinN;
-        uint winAnchorMultimapNmax; //max number of alignments for anchors
+        uint64 winBinChrNbits, winBinNbits, winAnchorDistNbins, winFlankNbins, winBinN;
+        uint64 winAnchorMultimapNmax; //max number of alignments for anchors
         double winReadCoverageRelativeMin;
-        uint winReadCoverageBasesMin;
+        uint64 winReadCoverageBasesMin;
 
         //read parameters
         vector <string> readFilesType;
@@ -87,9 +87,9 @@ class Parameters {
         int readFilesIndex;
         pid_t readFilesCommandPID[MAX_N_MATES]{};
 
-        uint readMapNumber;
-        uint iReadAll;
-        uint readNmates, readNends;
+        uint64 readMapNumber;
+        uint64 iReadAll;
+        uint64 readNmates, readNends;
         string readMatesLengthsIn;
         uint32 readQualityScoreBase;
 
@@ -109,14 +109,14 @@ class Parameters {
         ParametersClip pClip;
 
         //align parameters
-        uint alignSJoverhangMin,alignSJDBoverhangMin,alignSplicedMateMapLmin; //min SJ donor/acceptor length
+        uint64 alignSJoverhangMin,alignSJDBoverhangMin,alignSplicedMateMapLmin; //min SJ donor/acceptor length
         double alignSplicedMateMapLminOverLmate;
-        uint alignWindowsPerReadNmax; //max number of alignment windows per read
-        uint alignTranscriptsPerWindowNmax; //maximum number of transcripts recorded per window
-        uint alignTranscriptsPerReadNmax;   //max number of alignments per read
-        uint alignIntronMin;//min length to call a gap an intron
-        uint alignIntronMax;//max length to call
-        uint alignMatesGapMax;//max gap between the mates (if paired-end)
+        uint64 alignWindowsPerReadNmax; //max number of alignment windows per read
+        uint64 alignTranscriptsPerWindowNmax; //maximum number of transcripts recorded per window
+        uint64 alignTranscriptsPerReadNmax;   //max number of alignments per read
+        uint64 alignIntronMin;//min length to call a gap an intron
+        uint64 alignIntronMax;//max length to call
+        uint64 alignMatesGapMax;//max gap between the mates (if paired-end)
         vector <int32> alignSJstitchMismatchNmax;
 
         //         struct {
@@ -147,17 +147,17 @@ class Parameters {
 
 
         //seed parameters
-        uint seedMultimapNmax; //max number of multiple alignments per piece
-        uint seedSearchLmax; //max length of the seed
-        uint seedPerReadNmax; //max number of pieces per Read
-        uint seedPerWindowNmax; //max number of aligns per window
-        uint seedNoneLociPerWindow; //max number of aligns from one piece per window
-        uint seedSearchStartLmax;
+        uint64 seedMultimapNmax; //max number of multiple alignments per piece
+        uint64 seedSearchLmax; //max length of the seed
+        uint64 seedPerReadNmax; //max number of pieces per Read
+        uint64 seedPerWindowNmax; //max number of aligns per window
+        uint64 seedNoneLociPerWindow; //max number of aligns from one piece per window
+        uint64 seedSearchStartLmax;
         double seedSearchStartLmaxOverLread; //length of split start points
         uint64 seedSplitMin, seedMapMin;
 
         //chunk parameters
-        uint chunkInSizeBytes,chunkInSizeBytesArray,chunkOutBAMsizeBytes;
+        uint64 chunkInSizeBytes,chunkInSizeBytesArray,chunkOutBAMsizeBytes;
 
         //output
         string outFileNamePrefix, outStd;
@@ -172,7 +172,7 @@ class Parameters {
         vector<string> outSAMattributes, outSAMheaderHD, outSAMheaderPG;
         vector<string> outSAMattrRGline,outSAMattrRGlineSplit,outSAMattrRG;
         OutputConfig output;
-        uint outSAMattrIHstart;
+        uint64 outSAMattrIHstart;
         string outSAMheaderCommentFile;
 
         struct {
@@ -193,12 +193,12 @@ class Parameters {
         string outBAMsortTmpDir;
 
 //         string bamRemoveDuplicatesType;
-//         uint bamRemoveDuplicatesMate2basesN;
+//         uint64 bamRemoveDuplicatesMate2basesN;
         struct {
             string mode;
             bool yes;
             bool markMulti;
-            uint mate2basesN;
+            uint64 mate2basesN;
         } removeDuplicates;
 
         int outBAMsortingThreadN, outBAMsortingThreadNactual;
@@ -226,7 +226,7 @@ class Parameters {
 
         struct {
             bool yes;
-            uint NbasesMin;
+            uint64 NbasesMin;
             double MMp;
         } peOverlap;
 
@@ -265,12 +265,12 @@ class Parameters {
         } outWigFlags;
 
         //2-pass
-//         uint twoPass.pass1readsN, twoPass.sjLimit;
+//         uint64 twoPass.pass1readsN, twoPass.sjLimit;
 //         string twoPass.dir,twopassSJpass1file;
         struct {
             bool yes; //true in 2-pass mode
             bool pass2; //true if now running the 2nd pass
-            uint pass1readsN;
+            uint64 pass1readsN;
             int pass1readsN_par;
             string dir;
             string pass1sjFile;
@@ -359,7 +359,7 @@ class Parameters {
         ParametersChimeric pCh;
 
         //splitting
-        uint maxNsplit;
+        uint64 maxNsplit;
 
         //not really parameters, but global variables:
         array<vector<uint64>,2> sjAll;
@@ -370,7 +370,7 @@ class Parameters {
     ////////////////////// CLEAN-UP needed
     InOutStreams *inOut; //main input output streams
 
-    uint Lread;
+    uint64 Lread;
 
     Parameters();
     explicit Parameters(InOutStreams& borrowedStreams);

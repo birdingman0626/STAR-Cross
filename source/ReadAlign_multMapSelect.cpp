@@ -13,7 +13,7 @@ void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts 
     };
 
     maxScore=-10*Lread;
-    for (uint iW=0; iW<nW; iW++) {//scan windows
+    for (uint64 iW=0; iW<nW; iW++) {//scan windows
         if (maxScore < trAll[iW][0]->maxScore) maxScore = trAll[iW][0]->maxScore;
     };
 
@@ -23,8 +23,8 @@ void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts 
         exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
     };
 
-    for (uint iW=0; iW<nW; iW++) {//scan windows
-        for (uint iTr=0; iTr<nWinTr[iW]; iTr++) {//scan transcripts
+    for (uint64 iW=0; iW<nW; iW++) {//scan windows
+        for (uint64 iTr=0; iTr<nWinTr[iW]; iTr++) {//scan transcripts
             if ( (trAll[iW][iTr]->maxScore + P.alignFilter.multimapScoreRange) >= maxScore  ) {//record this alignment
                 // if paired-end, record alignments from ALL windows
                 if (nTr==MAX_N_MULTMAP) {//too many alignments for this read, do not record it
@@ -48,7 +48,7 @@ void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts 
         return;
     };
 
-    for (uint iTr=0; iTr<nTr; iTr++) {
+    for (uint64 iTr=0; iTr<nTr; iTr++) {
         trMult[iTr]->roStart = trMult[iTr]->roStr==0 ? trMult[iTr]->rStart : Lread - trMult[iTr]->rStart - trMult[iTr]->rLength;
         trMult[iTr]->cStart=trMult[iTr]->gStart - mapGen.chrStart[trMult[iTr]->Chr];
     };
@@ -59,8 +59,8 @@ void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts 
         trMult[0]->primaryFlag=true;
     } else {//multimappers
         int nbest=0;
-        if (P.outMultimapperOrder.random || P.output.maxAlignments != (uint) -1 ) {//bring the best alignment to the top of the list. TODO sort alignments by the score?
-            for (uint itr=0; itr<nTr; itr++) {//move the best aligns to the top of the list
+        if (P.outMultimapperOrder.random || P.output.maxAlignments != (uint64) -1 ) {//bring the best alignment to the top of the list. TODO sort alignments by the score?
+            for (uint64 itr=0; itr<nTr; itr++) {//move the best aligns to the top of the list
                 if ( trMult[itr]->maxScore == maxScore ) {
                     swap(trMult[itr],trMult[nbest]);
                     ++nbest;
@@ -80,11 +80,11 @@ void ReadAlign::multMapSelect() {//select multiple mappers from all transcripts 
         };
 
         if ( P.outSAMprimaryFlag=="AllBestScore" ) {
-            for (uint itr=0; itr<nTr; itr++)
+            for (uint64 itr=0; itr<nTr; itr++)
             {//mark all best score aligns as primary
                 if ( trMult[itr]->maxScore == maxScore ) trMult[itr]->primaryFlag=true;
             };
-        } else if (P.outMultimapperOrder.random || P.output.maxAlignments != (uint) -1) {
+        } else if (P.outMultimapperOrder.random || P.output.maxAlignments != (uint64) -1) {
             trMult[0]->primaryFlag=true;//mark as primary the first one in the random ordered list: best scoring aligns are already in front of the list
         } else {//old way
             trBest->primaryFlag=true;

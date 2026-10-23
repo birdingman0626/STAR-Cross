@@ -18,8 +18,8 @@ class SeedSearchEngine {
     }
     SeedMatch execute(const char* reads, const char* complement, const SeedQuery& q) const {
         const char* strands[2]={reads+q.offset,complement+q.offset};
-        uint length=q.initialLength, range[2];
-        const uint count=maxMappableLength(index,strands,q.start,q.length,q.lower,q.upper,
+        uint64 length=q.initialLength, range[2];
+        const uint64 count=maxMappableLength(index,strands,q.start,q.length,q.lower,q.upper,
                                           q.forward,length,range);
         return {length,range[0],range[1],count};
     }
@@ -28,7 +28,7 @@ public:
         if (!index.G || !index.SA.charArray || !index.nGenome || !index.nSA
             || index.nSA!=index.SA.length || index.GstrandBit>55 || index.GstrandBit<8
             || index.SA.wordLength!=index.GstrandBit+1
-            || index.GstrandMask!=((static_cast<uint>(1)<<index.GstrandBit)-1))
+            || index.GstrandMask!=((static_cast<uint64>(1)<<index.GstrandBit)-1))
             throw std::invalid_argument("invalid effective seed index geometry");
     }
     // Borrowed synchronous views: callers retain storage until this call returns.

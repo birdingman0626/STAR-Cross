@@ -8,27 +8,27 @@
 
 class Stats {
     public:
-        uint readN;//number of reads from the file
-        uint readBases;//number of input bases
-//         uint mateLmax[2], mateLmin[2];//mates' max and min length
+        uint64 readN;//number of reads from the file
+        uint64 readBases;//number of input bases
+//         uint64 mateLmax[2], mateLmin[2];//mates' max and min length
 
-        uint mappedReadsU, mappedReadsM;
-        uint mappedBases, mappedMismatchesN, mappedInsN, mappedDelN, mappedInsL, mappedDelL;
+        uint64 mappedReadsU, mappedReadsM;
+        uint64 mappedBases, mappedMismatchesN, mappedInsN, mappedDelN, mappedInsL, mappedDelL;
         double mappedPortion; //portion of the read length that has been mapped
 
-        uint splicesN[SJ_MOTIF_SIZE];//non-can,3*can,annotated
-        uint splicesNsjdb;
+        uint64 splicesN[SJ_MOTIF_SIZE];//non-can,3*can,annotated
+        uint64 splicesNsjdb;
 
-        uint unmappedOther, unmappedShort, unmappedMismatch, unmappedMulti, unmappedAll;
+        uint64 unmappedOther, unmappedShort, unmappedMismatch, unmappedMulti, unmappedAll;
 
-        uint chimericAll;
+        uint64 chimericAll;
 
         time_t timeStart, timeStartMap, timeFinishMap, timeLastReport, timeFinish;
         
         Stats ();
         void resetN();
         void printShort(ostream*);
-        void transcriptStats(Transcript &T, uint Lread);
+        void transcriptStats(Transcript &T, uint64 Lread);
         void addStats(Stats &S);
         void progressReportHeader(ofstream &progressStream);
         void progressReport(ofstream &progressStream) ;

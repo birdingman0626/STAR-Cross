@@ -2,14 +2,14 @@
 #include "Parameters.h"
 #include "SequenceFuns.h"
 
-uint32 ClipMate::clip(uint &Lread, char *seqNum)
+uint32 ClipMate::clip(uint64 &Lread, char *seqNum)
 {
 	clippedN=0;
 
 	if (type<0)
 		return 0; //no clip for this mate
 
-	uint LreadOld=Lread;
+	uint64 LreadOld=Lread;
 
 	if (N>0) {//clip N bases
 		if (Lread>N) {

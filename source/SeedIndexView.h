@@ -7,9 +7,9 @@
 struct SeedIndexView {
     const char* G;
     const PackedArray& SA;
-    uint nGenome;
+    uint64 nGenome;
     unsigned char GstrandBit;
-    uint GstrandMask;
-    uint nSA;
+    uint64 GstrandMask;
+    uint64 nSA;
 };
 #endif

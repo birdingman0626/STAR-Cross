@@ -3,7 +3,7 @@
 #include "IncludeDefine.h"
 // Serialization policy; streams, headers and output counters are runtime state.
 struct OutputConfig {
-    uint maxAlignments;
+    uint64 maxAlignments;
     int uniqueMapq, bamCompression;
 };
 #endif

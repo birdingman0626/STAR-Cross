@@ -5,7 +5,7 @@
 struct SeedTestIndex {
     const char* G=nullptr;
     PackedArray SA;
-    uint nGenome=0, GstrandMask=0, nSA=0;
+    uint64 nGenome=0, GstrandMask=0, nSA=0;
     unsigned char GstrandBit=0;
     operator SeedIndexView() const { return {G,SA,nGenome,GstrandBit,GstrandMask,nSA}; }
 };

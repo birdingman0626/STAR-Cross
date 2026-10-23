@@ -14,15 +14,15 @@ class ChimericDetection {
         Parameters &P;
         ReadAlign *RA;
         Transcript ***trAll;
-        uint nW, *nWinTr;
+        uint64 nW, *nWinTr;
         char** Read1;
         Genome &outGen;
 
     public:
         vector <ChimericAlign> chimAligns;
 
-        ChimericDetection(Parameters &Pin, Transcript ***trAll, uint *nWinTr, char** Read1in, Genome &genomeIn, fstream *ostreamChimJunctionIn, ReadAlign *RA);
-        bool chimericDetectionMult(uint nWin, uint *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA);
+        ChimericDetection(Parameters &Pin, Transcript ***trAll, uint64 *nWinTr, char** Read1in, Genome &genomeIn, fstream *ostreamChimJunctionIn, ReadAlign *RA);
+        bool chimericDetectionMult(uint64 nWin, uint64 *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA);
         fstream *ostreamChimJunction;
 };
 

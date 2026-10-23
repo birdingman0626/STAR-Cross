@@ -4,13 +4,13 @@
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
 
-int ReadAlign::createExtendWindowsWithAlign(uint a1, uint aStr) {
+int ReadAlign::createExtendWindowsWithAlign(uint64 a1, uint64 aStr) {
 
 
-    uint aBin = (a1 >> P.winBinNbits); //align's bin
-    uint iBinLeft=aBin, iBinRight=aBin;
+    uint64 aBin = (a1 >> P.winBinNbits); //align's bin
+    uint64 iBinLeft=aBin, iBinRight=aBin;
     auto &wB=winBin[aStr];
-    uint iBin=-1, iWin=-1, iWinRight=-1;
+    uint64 iBin=-1, iWin=-1, iWinRight=-1;
 
 
     if (wB[aBin]==uintWinBinMax) {//proceed if there is no window at this bin
@@ -29,7 +29,7 @@ int ReadAlign::createExtendWindowsWithAlign(uint a1, uint aStr) {
             if (flagMergeLeft) {//this align can be merged into the existing window
                 iWin=wB[iBin];
                 iBinLeft=WC[iWin][WC_gStart];
-                for (uint ii=iBin+1; ii<=aBin; ii++) {//mark al bins with the existing windows ID
+                for (uint64 ii=iBin+1; ii<=aBin; ii++) {//mark al bins with the existing windows ID
                     wB.set(ii, iWin);
                 };
             };
@@ -54,7 +54,7 @@ int ReadAlign::createExtendWindowsWithAlign(uint a1, uint aStr) {
 //                     exit(0);
 //                 };
                 if (!flagMergeLeft) iWin=wB[iBin];//left window overwrites right
-                for (uint ii=aBin; ii<=iBin; ii++) {//mark al bins with the existing windows ID
+                for (uint64 ii=aBin; ii<=iBin; ii++) {//mark al bins with the existing windows ID
                     wB.set(ii, iWin);
                 };
             };

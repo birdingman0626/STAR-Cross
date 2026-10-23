@@ -4,7 +4,7 @@
 
 #include <vector>
 
-void ChimericAlign::chimericBAMoutput(Transcript *al1, Transcript *al2, ReadAlign *RA, const uint iTr, const uint chimN, const bool isBestChimAlign, const Parameters& P)
+void ChimericAlign::chimericBAMoutput(Transcript *al1, Transcript *al2, ReadAlign *RA, const uint64 iTr, const uint64 chimN, const bool isBestChimAlign, const Parameters& P)
 {
     vector<Transcript*> trChim(2);
     trChim[0] = al1;
@@ -26,10 +26,10 @@ void ChimericAlign::chimericBAMoutput(Transcript *al1, Transcript *al2, ReadAlig
     };
 
     int alignType, bamN=0, bamIsuppl=-1, bamIrepr=-1;
-    uint bamBytesTotal=0;//estimate of the total size of all bam records, for output buffering
-    uint mateChr,mateStart;
+    uint64 bamBytesTotal=0;//estimate of the total size of all bam records, for output buffering
+    uint64 mateChr,mateStart;
     uint8_t mateStrand;
-    for (uint itr=0;itr<trChim.size();itr++) {//generate bam for all chimeric pieces
+    for (uint64 itr=0;itr<trChim.size();itr++) {//generate bam for all chimeric pieces
         trChim[itr]->primaryFlag=isBestChimAlign;
         if (chimType==2) {//PE, encompassing
             mateChr=trChim[1-itr]->Chr;
@@ -55,7 +55,7 @@ void ChimericAlign::chimericBAMoutput(Transcript *al1, Transcript *al2, ReadAlig
                 alignType=P.pCh.out.bamHardClip ? ( ( itr%2==trChim[itr]->Str ) ? -12 : -11) : -13 ; //right:left chimeric junction
                 bamIsuppl=bamN;
                 if (chimType==1) {//PE alignment, need mate info for the suppl
-                    uint iex=0;
+                    uint64 iex=0;
                     for (;iex<trChim[chimRepresent]->nExons-1;iex++) {
                         if (trChim[chimRepresent]->exons[iex][EX_iFrag]!=trChim[itr]->exons[0][EX_iFrag]) {
                             break;
@@ -89,8 +89,8 @@ void ChimericAlign::chimericBAMoutput(Transcript *al1, Transcript *al2, ReadAlig
             bam_read1_fromArray(RA->outBAMoneAlign[tagI], b);
             uint8_t* auxp=bam_aux_get(b,"NM");
             uint32_t auxv=bam_aux2i(auxp);
-            string tagSA1="SAZ"+RA->mapGen.chrName[b->core.tid]+','+to_string((uint)b->core.pos+1) +',' + ( (b->core.flag&0x10)==0 ? '+':'-') + \
-                    ',' + bam_cigarString(b) + ',' + to_string((uint)b->core.qual) + ',' + to_string((uint)auxv) + ';' ;
+            string tagSA1="SAZ"+RA->mapGen.chrName[b->core.tid]+','+to_string((uint64)b->core.pos+1) +',' + ( (b->core.flag&0x10)==0 ? '+':'-') + \
+                    ',' + bam_cigarString(b) + ',' + to_string((uint64)b->core.qual) + ',' + to_string((uint64)auxv) + ';' ;
 
             memcpy( (void*) (RA->outBAMoneAlign[ii]+RA->outBAMoneAlignNbytes[ii]), tagSA1.c_str(), tagSA1.size()+1);//copy string including \0 at the end
             RA->outBAMoneAlignNbytes[ii]+=tagSA1.size()+1;

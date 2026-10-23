@@ -8,12 +8,12 @@ class Parameters;
 class ParametersChimeric
 {//
     public:
-        uint segmentMin, junctionOverhangMin; //min chimeric donor/acceptor length
-        uint segmentReadGapMax; //max read gap for stitching chimeric windows
+        uint64 segmentMin, junctionOverhangMin; //min chimeric donor/acceptor length
+        uint64 segmentReadGapMax; //max read gap for stitching chimeric windows
         int scoreMin,scoreDropMax,scoreSeparation, scoreJunctionNonGTAG; //min chimeric score
-        uint mainSegmentMultNmax;
+        uint64 mainSegmentMultNmax;
 
-        uint multimapScoreRange, multimapNmax, nonchimScoreDropMin;
+        uint64 multimapScoreRange, multimapNmax, nonchimScoreDropMin;
         bool legacyScoring; //use upstream 2.7.11b chimeric overlap/exon-selection algorithm
 
         vector<int> outJunctionFormat;

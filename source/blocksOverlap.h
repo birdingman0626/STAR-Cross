@@ -4,7 +4,7 @@
 #include "IncludeDefine.h"
 #include "Transcript.h"
 
-uint blocksOverlap(Transcript &t1, Transcript &t2);
+uint64 blocksOverlap(Transcript &t1, Transcript &t2);
 
 
 #endif

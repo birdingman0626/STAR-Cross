@@ -26,11 +26,11 @@ public:
         bool outYes=false, outSAM=false, outSJ=false, outQuant=false;
     } transform;
     
-    uint gSAindexNbases;//length of the SA pre-index strings
-    uint gChrBinNbits;
-    uint gSAsparseD;//SA sparsity
-    uint gSuffixLengthMax;//maximum length of the suffixes, has to be longer than read length
-    vector <uint> gFileSizes;//size of the genome files
+    uint64 gSAindexNbases;//length of the SA pre-index strings
+    uint64 gChrBinNbits;
+    uint64 gSAsparseD;//SA sparsity
+    uint64 gSuffixLengthMax;//maximum length of the suffixes, has to be longer than read length
+    vector <uint64> gFileSizes;//size of the genome files
 
     vector <string> sjdbFileChrStartEnd;
     string sjdbGTFfile;
@@ -43,7 +43,7 @@ public:
     vector<string> sjdbGTFtagExonParentGeneType;
     
     string sjdbInsertSave;
-    uint sjdbOverhang;
+    uint64 sjdbOverhang;
     int sjdbOverhang_par;
     int sjdbScore;
 

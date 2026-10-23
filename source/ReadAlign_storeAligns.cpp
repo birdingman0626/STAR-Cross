@@ -7,7 +7,7 @@
 #include "ReadAlign.h"
 #include "ErrorWarning.h"
 
-void ReadAlign::storeAligns (uint iDir, uint Shift, uint Nrep, uint L, uint indStartEnd[2], uint iFrag) {//fill in alignment data
+void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, uint64 indStartEnd[2], uint64 iFrag) {//fill in alignment data
 
     #ifdef OFF_BEFORE_STORE
         #warning OFF_BEFORE_STORE
@@ -22,7 +22,7 @@ void ReadAlign::storeAligns (uint iDir, uint Shift, uint Nrep, uint L, uint indS
     nUM[ Nrep==1 ? 0:1] += Nrep;        //add numbers of U/M aligns
     nA += Nrep;
 
-    uint rStart=iDir==0 ? Shift : Shift+1-L;//alignment read-start
+    uint64 rStart=iDir==0 ? Shift : Shift+1-L;//alignment read-start
 
   #define OPTIM_STOREaligns_SIMPLE
   #ifdef OPTIM_STOREaligns_SIMPLE

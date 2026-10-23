@@ -2,13 +2,13 @@
 #include "ErrorWarning.h"
 #include "serviceFuns.cpp"
 
-void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string outDir, Genome &mapGen, char *Gsj) {
+void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string outDir, Genome &mapGen, char *Gsj) {
 
     char *G=mapGen.G;
 
-    std::unique_ptr<uint[]> startStorage(new uint[sjdbLoci.chr.size()]);
-    std::unique_ptr<uint[]> endStorage(new uint[sjdbLoci.chr.size()]);
-    uint *sjdbS=startStorage.get(), *sjdbE=endStorage.get();
+    std::unique_ptr<uint64[]> startStorage(new uint64[sjdbLoci.chr.size()]);
+    std::unique_ptr<uint64[]> endStorage(new uint64[sjdbLoci.chr.size()]);
+    uint64 *sjdbS=startStorage.get(), *sjdbE=endStorage.get();
 
     std::unique_ptr<uint8[]> motifStorage(new uint8[sjdbLoci.chr.size()]);
     std::unique_ptr<uint8[]> leftStorage(new uint8[sjdbLoci.chr.size()]);
@@ -17,8 +17,8 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
 
 
     string chrOld="";
-    uint iChr=0;
-    for (uint ii=0;ii<sjdbLoci.chr.size();ii++) {
+    uint64 iChr=0;
+    for (uint64 ii=0;ii<sjdbLoci.chr.size();ii++) {
         if (chrOld!=sjdbLoci.chr.at(ii)) {//find numeric value of the chr
             for (iChr=0;iChr<mapGen.nChrReal;iChr++) {
                 if (sjdbLoci.chr.at(ii)==mapGen.chrName[iChr]) break;
@@ -52,7 +52,7 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
             sjdbMotif[ii]=0;
         };
         //repeat length: go back and forth around jR to find repeat length
-        uint jjL=0,jjR=0;
+        uint64 jjL=0,jjR=0;
         while ( jjL <= sjdbS[ii]-1 && G[sjdbS[ii]-1-jjL]==G[sjdbE[ii]-jjL] && G[sjdbS[ii]-1-jjL]<4 && jjL<255) {//go back
             jjL++;
         };
@@ -75,10 +75,10 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
     };
 
     //sort sjdb
-    std::unique_ptr<uint[]> sortStorage(new uint[sjdbLoci.chr.size()*3]);
-    uint *sjdbSort=sortStorage.get();
-    for (uint ii=0;ii<sjdbLoci.chr.size();ii++) {
-        uint shift1=0;
+    std::unique_ptr<uint64[]> sortStorage(new uint64[sjdbLoci.chr.size()*3]);
+    uint64 *sjdbSort=sortStorage.get();
+    for (uint64 ii=0;ii<sjdbLoci.chr.size();ii++) {
+        uint64 shift1=0;
         switch (sjdbLoci.str.at(ii)) {
             case '+':
                 shift1=0;
@@ -94,15 +94,15 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
         sjdbSort[ii*3+2]=ii;
     };
 
-    qsort((void *) sjdbSort, sjdbLoci.chr.size(), sizeof(uint)*3, funCompareUint2);
+    qsort((void *) sjdbSort, sjdbLoci.chr.size(), sizeof(uint64)*3, funCompareUint2);
 
-    std::unique_ptr<uint[]> indexStorage(new uint[sjdbLoci.chr.size()]);
-    uint *I=indexStorage.get();
-    uint nsj=0;
-    for (uint ii=0;ii<sjdbLoci.chr.size();ii++) {
-        uint isj=sjdbSort[ii*3+2];//index of the next sorted junction
+    std::unique_ptr<uint64[]> indexStorage(new uint64[sjdbLoci.chr.size()]);
+    uint64 *I=indexStorage.get();
+    uint64 nsj=0;
+    for (uint64 ii=0;ii<sjdbLoci.chr.size();ii++) {
+        uint64 isj=sjdbSort[ii*3+2];//index of the next sorted junction
 
-        uint isj0;
+        uint64 isj0;
         if (nsj>0)
         {
             isj0=I[nsj-1]; //index of the last recorded junctions
@@ -127,22 +127,22 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
     };
 
     //sort again, after returning canonical junctions back to original loci:
-    for (uint ii=0;ii<nsj;ii++) {
+    for (uint64 ii=0;ii<nsj;ii++) {
         sjdbSort[ii*3]  =sjdbS[I[ii]] + (sjdbMotif[I[ii]]==0 ? 0 : sjdbShiftLeft[I[ii]]);
         sjdbSort[ii*3+1]=sjdbE[I[ii]] + (sjdbMotif[I[ii]]==0 ? 0 : sjdbShiftLeft[I[ii]]);
         sjdbSort[ii*3+2]=I[ii];
     };
 
-    qsort((void *) sjdbSort, nsj, sizeof(uint)*3, funCompareUint2);
+    qsort((void *) sjdbSort, nsj, sizeof(uint64)*3, funCompareUint2);
 
     mapGen.allocateJunctionAnnotations(nsj);
 
-    uint nsj1=0;
-    for (uint ii=0;ii<nsj;ii++) {
-        uint isj=sjdbSort[ii*3+2];
+    uint64 nsj1=0;
+    for (uint64 ii=0;ii<nsj;ii++) {
+        uint64 isj=sjdbSort[ii*3+2];
 
         if ( nsj1>0 && mapGen.sjdbStart[nsj1-1]==sjdbSort[ii*3] && mapGen.sjdbEnd[nsj1-1]==sjdbSort[ii*3+1] ) {//same loci on opposite strands
-            uint isj0=sjdbSort[(ii-1)*3+2];
+            uint64 isj0=sjdbSort[(ii-1)*3+2];
 
             if (sjdbLoci.priority.at(isj)<sjdbLoci.priority.at(isj0))
             {//new junction has lower priority
@@ -196,9 +196,9 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
     char strandChar[3]={'.','+','-'};
     //first line is some general useful information
     sjdbInfo << mapGen.sjdbN <<"\t"<< mapGen.sjdbOverhang <<"\n";
-    uint sjGstart=0;
+    uint64 sjGstart=0;
 
-    for (uint ii=0;ii<mapGen.sjdbN;ii++)
+    for (uint64 ii=0;ii<mapGen.sjdbN;ii++)
     {//add sjdb sequence to genome
         mapGen.sjDstart[ii]   = mapGen.sjdbStart[ii]  - mapGen.sjdbOverhang;
         mapGen.sjAstart[ii]   = mapGen.sjdbEnd[ii] + 1;
@@ -211,7 +211,7 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint nGenomeReal, string o
         sjGstart += mapGen.sjdbLength;
         Gsj[sjGstart-1]=GENOME_spacingChar;//spacing char between the sjdb seqs
         sjdbInfo << mapGen.sjdbStart[ii] <<"\t"<< mapGen.sjdbEnd[ii] <<"\t"<<(int) mapGen.sjdbMotif[ii] <<"\t"<<(int) mapGen.sjdbShiftLeft[ii] <<"\t"<<(int) mapGen.sjdbShiftRight[ii]<<"\t"<<(int) mapGen.sjdbStrand[ii] <<"\n";
-        uint chr1=mapGen.chrBin[ mapGen.sjdbStart[ii] >> P.pGe.gChrBinNbits];
+        uint64 chr1=mapGen.chrBin[ mapGen.sjdbStart[ii] >> P.pGe.gChrBinNbits];
         sjdbList << mapGen.chrName[chr1]<< "\t" << mapGen.sjdbStart[ii]-mapGen.chrStart[chr1] + 1 + (mapGen.sjdbMotif[ii]>0 ? 0:mapGen.sjdbShiftLeft[ii]) \
                                     << "\t"<<  mapGen.sjdbEnd[ii]-mapGen.chrStart[chr1] + 1 + (mapGen.sjdbMotif[ii]>0 ? 0:mapGen.sjdbShiftLeft[ii]) \
                                     << "\t"<< strandChar[mapGen.sjdbStrand[ii]]<<"\n";

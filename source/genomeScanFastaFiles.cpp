@@ -2,9 +2,9 @@
 #include "ErrorWarning.h"
 #include "SequenceFuns.h"
 
-uint genomeScanFastaFiles (Parameters &P, char* G, bool flagRun, Genome &mapGen) {//scans fasta files. flagRun=false: check and find full size, flaRun=true: collect all the data
+uint64 genomeScanFastaFiles (Parameters &P, char* G, bool flagRun, Genome &mapGen) {//scans fasta files. flagRun=false: check and find full size, flaRun=true: collect all the data
 
-    uint N=0;//total number of bases in the genome, including chr "spacers"
+    uint64 N=0;//total number of bases in the genome, including chr "spacers"
     if (!flagRun && mapGen.chrLength.size()>0) {//previous chr records exist
        mapGen.chrStart.pop_back();//remove last record, it will be recorded again
        N =  mapGen.chrStart.back()+mapGen.chrLength.back();
@@ -12,7 +12,7 @@ uint genomeScanFastaFiles (Parameters &P, char* G, bool flagRun, Genome &mapGen)
     };
 
     ifstream fileIn;
-    for (uint ii=0;ii<mapGen.pGe.gFastaFiles.size();ii++) {//all the input files
+    for (uint64 ii=0;ii<mapGen.pGe.gFastaFiles.size();ii++) {//all the input files
         fileIn.open(mapGen.pGe.gFastaFiles.at(ii).c_str());
         if ( !fileIn.good() ) {//
             ostringstream errOut;
@@ -61,7 +61,7 @@ uint genomeScanFastaFiles (Parameters &P, char* G, bool flagRun, Genome &mapGen)
                 if (flagRun) {
                     N += convertNucleotidesToNumbersRemoveControls(lineIn.c_str(),G+N,lineIn.size());
                 } else {
-                    for (uint ii=0; ii<lineIn.size();ii++) {
+                    for (uint64 ii=0; ii<lineIn.size();ii++) {
                         if (int(lineIn.at(ii))>=32)
                             ++N;
                     };
@@ -81,7 +81,7 @@ uint genomeScanFastaFiles (Parameters &P, char* G, bool flagRun, Genome &mapGen)
         mapGen.nChrReal=mapGen.chrStart.size();
         mapGen.chrStart.push_back(N); //last chromosome end+1
         P.inOut->logMain << "Chromosome sequence lengths: \n";
-        for (uint ii=0;ii<mapGen.nChrReal;ii++) {
+        for (uint64 ii=0;ii<mapGen.nChrReal;ii++) {
             mapGen.chrNameIndex[mapGen.chrName[ii]]=ii;
             P.inOut->logMain <<  mapGen.chrName[ii] <<"\t"<< mapGen.chrLength[ii] << "\n";
         };

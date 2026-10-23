@@ -7,7 +7,7 @@ void samHeaders(Parameters &P, Genome &genomeOut, Transcriptome &transcriptomeMa
     /////////////////////////////////////////////////////////////////////////////////// transcriptome BAM header
     if ( P.quant.trSAM.bamYes ) {//header for transcriptome BAM
         ostringstream samHeaderStream;
-        vector <uint> trlength;
+        vector <uint64> trlength;
         for (uint32 ii=0;ii<transcriptomeMain.trID.size();ii++) {
             uint32 iex1=transcriptomeMain.trExI[ii]+transcriptomeMain.trExN[ii]-1; //last exon of the transcript
             trlength.push_back(transcriptomeMain.exLenCum[iex1]+transcriptomeMain.exSE[2*iex1+1]-transcriptomeMain.exSE[2*iex1]+1);
@@ -26,7 +26,7 @@ void samHeaders(Parameters &P, Genome &genomeOut, Transcriptome &transcriptomeMa
     
     ostringstream samHeaderStream;
     
-    for (uint ii=0;ii<genomeOut.nChrReal;ii++) {
+    for (uint64 ii=0;ii<genomeOut.nChrReal;ii++) {
         samHeaderStream << "@SQ\tSN:"<< genomeOut.chrName.at(ii) <<"\tLN:"<<genomeOut.chrLength[ii]<<"\n";
     };
 
@@ -47,7 +47,7 @@ void samHeaders(Parameters &P, Genome &genomeOut, Transcriptome &transcriptomeMa
                 stream1 >> field1;
                 genomeOut.chrNameAll.push_back(field1.substr(3));
                 stream1 >> field1;
-                genomeOut.chrLengthAll.push_back((uint) stoll(field1.substr(3)));
+                genomeOut.chrLengthAll.push_back((uint64) stoll(field1.substr(3)));
             };
         };
         extrastream.close();
@@ -55,7 +55,7 @@ void samHeaders(Parameters &P, Genome &genomeOut, Transcriptome &transcriptomeMa
 
     if (P.outSAMheaderPG.at(0)!="-") {
         samHeaderStream << P.outSAMheaderPG.at(0);
-        for (uint ii=1;ii<P.outSAMheaderPG.size(); ii++) {
+        for (uint64 ii=1;ii<P.outSAMheaderPG.size(); ii++) {
             samHeaderStream << "\t" << P.outSAMheaderPG.at(ii);
         };
         samHeaderStream << "\n";
@@ -87,7 +87,7 @@ void samHeaders(Parameters &P, Genome &genomeOut, Transcriptome &transcriptomeMa
 
     if (P.outSAMheaderHD.at(0)!="-") {
         P.samHeaderHD = P.outSAMheaderHD.at(0);
-        for (uint ii=1;ii<P.outSAMheaderHD.size(); ii++) {
+        for (uint64 ii=1;ii<P.outSAMheaderHD.size(); ii++) {
             P.samHeaderHD +="\t" + P.outSAMheaderHD.at(ii);
         };
     } else {

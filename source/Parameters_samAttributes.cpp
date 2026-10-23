@@ -56,7 +56,7 @@ void Parameters::samAttributes(){//everything related to SAM attributes
         vAttr1=outSAMattributes;
     };
 
-    for (uint ii=0;ii<vAttr1.size();ii++) {
+    for (uint64 ii=0;ii<vAttr1.size();ii++) {
         if        (vAttr1.at(ii)== "NH") {
             outSAMattrOrder.push_back(ATTR_NH);
             outSAMattrPresent.NH=true;

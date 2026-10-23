@@ -13,7 +13,7 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
     
     RA->statsRA.resetN();
 
-    for (uint ii=0;ii<P.readNends;ii++) {//update buffer size and rewind the input streams
+    for (uint64 ii=0;ii<P.readNends;ii++) {//update buffer size and rewind the input streams
         readInStream[ii]->setBuffer(chunkIn[ii], chunkInSizeBytesTotal[ii]);
     };
     
@@ -33,9 +33,9 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
 
         if (readStatus==0) {//there was a read processed
             RA->iRead++;
-//         chunkOutBAMtotal=(uint) RA->outSAMstream->tellp();
+//         chunkOutBAMtotal=(uint64) RA->outSAMstream->tellp();
             chunkOutBAMtotal+=RA->outBAMbytes;
-//             uint ddd=(uint) RA->outSAMstream->tellp();
+//             uint64 ddd=(uint64) RA->outSAMstream->tellp();
         };
 
         //write SAM aligns to chunk buffer

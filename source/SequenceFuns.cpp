@@ -1,8 +1,8 @@
 #include "SequenceFuns.h"
 #include <assert.h>  
 
-void complementSeqNumbers(char* ReadsIn, char* ReadsOut, uint Lread) {//complement the numeric sequences
-    for (uint jj=0;jj<Lread;jj++) {
+void complementSeqNumbers(char* ReadsIn, char* ReadsOut, uint64 Lread) {//complement the numeric sequences
+    for (uint64 jj=0;jj<Lread;jj++) {
         switch (int(ReadsIn[jj])){
             case (3): ReadsOut[jj]=char(0);break;
             case (2): ReadsOut[jj]=char(1);break;
@@ -13,8 +13,8 @@ void complementSeqNumbers(char* ReadsIn, char* ReadsOut, uint Lread) {//compleme
     };
 };
 
-void revComplementNucleotides(char* ReadsIn, char* ReadsOut, uint Lread) {//complement the numeric sequences
-    for (uint jj=0;jj<Lread;jj++) {
+void revComplementNucleotides(char* ReadsIn, char* ReadsOut, uint64 Lread) {//complement the numeric sequences
+    for (uint64 jj=0;jj<Lread;jj++) {
         switch (ReadsIn[Lread-1-jj]){
             case ('A'): ReadsOut[jj]='T';break;
             case ('C'): ReadsOut[jj]='G';break;
@@ -55,7 +55,7 @@ void revComplementNucleotides(char* ReadsIn, char* ReadsOut, uint Lread) {//comp
 
 void revComplementNucleotides(string &seq) {//complement the numeric sequences
     string seq1(seq);
-    for (uint jj=0;jj<seq.size();jj++) {
+    for (uint64 jj=0;jj<seq.size();jj++) {
         switch (seq1[seq.size()-1-jj]){
             case ('A'): seq[jj]='T';break;
             case ('C'): seq[jj]='G';break;
@@ -119,8 +119,8 @@ char  nuclToNumBAM(char cc){
     return cc;
 };
 
-void nuclPackBAM(char* ReadsIn, char* ReadsOut, uint Lread) {//pack nucleotides for BAM
-    for (uint jj=0;jj<Lread/2;jj++) {
+void nuclPackBAM(char* ReadsIn, char* ReadsOut, uint64 Lread) {//pack nucleotides for BAM
+    for (uint64 jj=0;jj<Lread/2;jj++) {
         ReadsOut[jj]=nuclToNumBAM(ReadsIn[2*jj])<<4 | nuclToNumBAM(ReadsIn[2*jj+1]);
     };
     if (Lread%2==1) {
@@ -128,8 +128,8 @@ void nuclPackBAM(char* ReadsIn, char* ReadsOut, uint Lread) {//pack nucleotides 
     };
 };
 
-void convertNucleotidesToNumbers(const char* R0, char* R1, const uint Lread) {//transform sequence  from ACGT into 0-1-2-3 code
-    for (uint jj=0;jj<Lread;jj++) {
+void convertNucleotidesToNumbers(const char* R0, char* R1, const uint64 Lread) {//transform sequence  from ACGT into 0-1-2-3 code
+    for (uint64 jj=0;jj<Lread;jj++) {
                     switch (int(R0[jj])){
                         case (65): case(97):
                             R1[jj]=char(0);break;//A
@@ -167,9 +167,9 @@ void convertCapitalBasesToNum(uint8_t *rS, uint64_t N)
     };
 };
 
-uint convertNucleotidesToNumbersRemoveControls(const char* R0, char* R1, const uint Lread) {//transform sequence  from ACGT into 0-1-2-3 code
-    uint iR1=0;
-    for (uint jj=0;jj<Lread;jj++) {
+uint64 convertNucleotidesToNumbersRemoveControls(const char* R0, char* R1, const uint64 Lread) {//transform sequence  from ACGT into 0-1-2-3 code
+    uint64 iR1=0;
+    for (uint64 jj=0;jj<Lread;jj++) {
         switch (int(R0[jj])){
             case (65): case(97):
                 R1[jj]=char(0);break;//A
@@ -277,8 +277,8 @@ string convertNuclInt64toString(uint64 nuclNum, const uint32 L) {
 };
 
 
-uint chrFind(uint Start, uint i2, uint* chrStart) {// find chromosome from global locus
-    uint i1=0, i3;
+uint64 chrFind(uint64 Start, uint64 i2, uint64* chrStart) {// find chromosome from global locus
+    uint64 i1=0, i3;
     while (i1+1<i2) {
         i3=(i1+i2)/2;
         if ( chrStart[i3] > Start ) {
@@ -290,13 +290,13 @@ uint chrFind(uint Start, uint i2, uint* chrStart) {// find chromosome from globa
     return i1;
 };
 
-uint localSearch(const char *x, uint nx, const char *y, uint ny, double pMM){
+uint64 localSearch(const char *x, uint64 nx, const char *y, uint64 ny, double pMM){
     //find the best alignment of two short sequences x and y
     //pMM is the maximum percentage of mismatches
-    uint nMatch=0, nMM=0, nMatchBest=0, nMMbest=0, ixBest=nx;
-    for (uint ix=0;ix<nx;ix++) {
+    uint64 nMatch=0, nMM=0, nMatchBest=0, nMMbest=0, ixBest=nx;
+    for (uint64 ix=0;ix<nx;ix++) {
         nMatch=0; nMM=0;
-        for (uint iy=0;iy<min(ny,nx-ix);iy++) {
+        for (uint64 iy=0;iy<min(ny,nx-ix);iy++) {
             if (x[ix+iy]>3) continue;
             if (x[ix+iy]==y[iy]) {
                 nMatch++;
@@ -314,14 +314,14 @@ uint localSearch(const char *x, uint nx, const char *y, uint ny, double pMM){
     return ixBest;
 };
 
-uint localSearchNisMM(const char *x, uint nx, const char *y, uint ny, double pMM){
+uint64 localSearchNisMM(const char *x, uint64 nx, const char *y, uint64 ny, double pMM){
     //find the best alignment of two short sequences x and y
     //pMM is the maximum percentage of mismatches
     //Ns in x OR y are considered mismatches
-    uint nMatch=0, nMM=0, nMatchBest=0, nMMbest=0, ixBest=nx;
-    for (uint ix=0;ix<nx;ix++) {
+    uint64 nMatch=0, nMM=0, nMatchBest=0, nMMbest=0, ixBest=nx;
+    for (uint64 ix=0;ix<nx;ix++) {
         nMatch=0; nMM=0;
-        for (uint iy=0;iy<min(ny,nx-ix);iy++) {
+        for (uint64 iy=0;iy<min(ny,nx-ix);iy++) {
             if (x[ix+iy]==y[iy] && y[iy]<4) {
                 nMatch++;
             } else {
@@ -408,10 +408,10 @@ uint32 localSearchGeneral(const char *text, const uint32 textLen, const vector<c
 };
 */
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-uint qualitySplit(char* r,uint L, uint maxNsplit, uint  minLsplit, uint** splitR) {
+uint64 qualitySplit(char* r,uint64 L, uint64 maxNsplit, uint64  minLsplit, uint64** splitR) {
     //splits the read r[L] by quality scores q[L], outputs in splitR - split coordinate/length - per base
     //returns number of good split regions
-    uint iR=0,iS=0,iR1,LgoodMin=0, iFrag=0;
+    uint64 iR=0,iS=0,iR1,LgoodMin=0, iFrag=0;
     while ( (iR<L) & (iS<maxNsplit) ) { //main cycle
         //find next good base
         while ( iR<L && r[iR]>3 ) {

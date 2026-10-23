@@ -17,31 +17,31 @@ ChimericAlign::ChimericAlign(ChimericSegment &seg1in, ChimericSegment &seg2in, i
     } else {
         // Find the exon pair that overlaps in read space but maps to different chromosomes.
         // This identifies where the chimeric junction lives within multi-exon layouts.
-        auto chrIdx = [this](uint gPos) -> uint {
-            uint lo = 0, hi = mapGen.nChrReal;
+        auto chrIdx = [this](uint64 gPos) -> uint64 {
+            uint64 lo = 0, hi = mapGen.nChrReal;
             while (lo + 1 < hi) {
-                uint mid = (lo + hi) / 2;
+                uint64 mid = (lo + hi) / 2;
                 if (mapGen.chrStart[mid] <= gPos) lo = mid; else hi = mid;
             }
             return lo;
         };
 
         int bestEx1 = -1, bestEx2 = -1;
-        uint bestOverlap = 0;
-        for (uint i1 = 0; i1 < al1->nExons; i1++) {
-            uint rs1 = al1->exons[i1][EX_R];
-            uint re1 = rs1 + al1->exons[i1][EX_L];
-            uint gs1 = al1->exons[i1][EX_G];
-            for (uint i2 = 0; i2 < al2->nExons; i2++) {
-                uint rs2 = al2->exons[i2][EX_R];
-                uint re2 = rs2 + al2->exons[i2][EX_L];
-                uint gs2 = al2->exons[i2][EX_G];
-                uint s = max(rs1, rs2);
-                uint e = min(re1, re2);
+        uint64 bestOverlap = 0;
+        for (uint64 i1 = 0; i1 < al1->nExons; i1++) {
+            uint64 rs1 = al1->exons[i1][EX_R];
+            uint64 re1 = rs1 + al1->exons[i1][EX_L];
+            uint64 gs1 = al1->exons[i1][EX_G];
+            for (uint64 i2 = 0; i2 < al2->nExons; i2++) {
+                uint64 rs2 = al2->exons[i2][EX_R];
+                uint64 re2 = rs2 + al2->exons[i2][EX_L];
+                uint64 gs2 = al2->exons[i2][EX_G];
+                uint64 s = max(rs1, rs2);
+                uint64 e = min(re1, re2);
                 if (s >= e) continue; // no read-space overlap
                 if (gs1 - rs1 == gs2 - rs2) continue; // same genomic mapping, not a junction
                 if (chrIdx(gs1) == chrIdx(gs2)) continue; // same chromosome — splice, not chimeric
-                uint overlap = e - s;
+                uint64 overlap = e - s;
                 if (overlap > bestOverlap) {
                     bestOverlap = overlap;
                     bestEx1 = i1;

@@ -3,7 +3,7 @@
 #include "Transcript.h"
 #include "extendAlign.h"
 
-bool extendAlign( char* R, char* G, uint rStart, uint gStart, int dR, int dG, uint L, uint Lprev, uint nMMprev, uint nMMmax, double pMMmax, bool extendToEnd, Transcript* trA ) {
+bool extendAlign( char* R, char* G, uint64 rStart, uint64 gStart, int dR, int dG, uint64 L, uint64 Lprev, uint64 nMMprev, uint64 nMMmax, double pMMmax, bool extendToEnd, Transcript* trA ) {
 
 // find the maximum score
 
@@ -22,7 +22,7 @@ if (extendToEnd) {//end to end extension
         iS=dR*iExt;
         iG=dG*iExt;
 
-        if ((gStart+iG)==(uint)(-1) || G[iG]==5) {//prohibit extension through chr boundary
+        if ((gStart+iG)==(uint64)(-1) || G[iG]==5) {//prohibit extension through chr boundary
             trA->extendL=0;
             trA->maxScore=-999999999;
             trA->nMatch=0;
@@ -60,7 +60,7 @@ for (int i=0;i<(int) L;i++) {
     iS=dR*i;
     iG=dG*i;
 
-    if ((gStart+iG)==(uint)(-1) || G[iG]==5 || R[iS]==MARK_FRAG_SPACER_BASE) break; //no extension through chr boundary, or through the spacer between fragments
+    if ((gStart+iG)==(uint64)(-1) || G[iG]==5 || R[iS]==MARK_FRAG_SPACER_BASE) break; //no extension through chr boundary, or through the spacer between fragments
     if (R[iS]>3 || G[iG]>3) continue;//no penalties for Ns in reads or genome
 
     if (G[iG]==R[iS]) {//Match

@@ -68,7 +68,7 @@ int main(int argc,char** argv) try {
     std::filesystem::path root(argv[1]);auto genome=load(root/"Genome",200),sa=load(root/"SA");
     SeedTestIndex g;g.G=genome.data()+200;g.nGenome=genome.size()-400;
     std::ifstream parameters(root/"genomeParameters.txt");std::string line;
-    uint capturedRecords=0;
+    uint64 capturedRecords=0;
     while(std::getline(parameters,line)) {
         if(line.rfind("### GstrandBit ",0)==0) g.GstrandBit=std::stoi(line.substr(15));
         if(line.rfind("### nSA ",0)==0) capturedRecords=std::stoull(line.substr(8));
@@ -80,7 +80,7 @@ int main(int argc,char** argv) try {
     if(g.SA.lengthByte!=sa.size()) throw std::runtime_error("packed SA geometry mismatch");
     std::vector<char> reads,complement;std::vector<GpuSeedQuery> queries;
     std::vector<GpuSeedMatch> captured;
-    std::vector<uint> readIds;
+    std::vector<uint64> readIds;
     std::vector<std::string> captureSources;
     std::string captureAbi="NOT_APPLICABLE";
     size_t observed=0,skipped=0,availableCaptureRecords=0;
@@ -91,7 +91,7 @@ int main(int argc,char** argv) try {
             std::ifstream metadataFile(metadataPath);Json metadata;metadataFile>>metadata;
             const uint16_t endian=1;
             const std::string byteOrder=*reinterpret_cast<const unsigned char*>(&endian)?"little":"big";
-            if(metadata.at("format")!=1 || metadata.at("native_uint_bytes")!=sizeof(uint)
+            if(metadata.at("format")!=1 || metadata.at("native_uint_bytes")!=sizeof(uint64)
                || metadata.at("query_bytes")!=sizeof(GpuSeedQuery) || metadata.at("match_bytes")!=sizeof(GpuSeedMatch)
                || metadata.at("byte_order")!=byteOrder) throw std::runtime_error("capture native ABI mismatch");
             captureAbi="VERIFIED_NATIVE_ABI";
@@ -102,10 +102,10 @@ int main(int argc,char** argv) try {
                 files.push_back(entry.path());
         std::sort(files.begin(),files.end());
         for(const auto& path:files) {
-            std::ifstream input(path,std::ios::binary);uint readId;
+            std::ifstream input(path,std::ios::binary);uint64 readId;
             char magic[8];input.read(magic,8);
             if(!input || std::string(magic,8)!="STARSD01") throw std::runtime_error("unknown capture format");
-            uint fileRecords=0;
+            uint64 fileRecords=0;
             for(;;) {
                 input.read(reinterpret_cast<char*>(&readId),sizeof(readId));
                 if(input.gcount()==0 && input.eof()) break;
@@ -138,12 +138,12 @@ int main(int argc,char** argv) try {
         for(char code:reads) complement.push_back(code<4?3-code:code);
     } else {
     // Use the actual frozen prefix index to capture production-like search bounds.
-    std::ifstream prefix(root/"SAindex",std::ios::binary);uint nbases=0;
+    std::ifstream prefix(root/"SAindex",std::ios::binary);uint64 nbases=0;
     prefix.read(reinterpret_cast<char*>(&nbases),8);if(nbases<1 || nbases>16) throw std::runtime_error("invalid prefix width");
-    std::vector<uint> starts(nbases+1);prefix.read(reinterpret_cast<char*>(starts.data()),starts.size()*8);
+    std::vector<uint64> starts(nbases+1);prefix.read(reinterpret_cast<char*>(starts.data()),starts.size()*8);
     PackedArray sai;sai.defineBits(g.GstrandBit+3,starts.back());std::vector<char> prefixBytes(sai.lengthByte);
     prefix.read(prefixBytes.data(),prefixBytes.size());if(!prefix) throw std::runtime_error("incomplete prefix index");sai.pointArray(prefixBytes.data());
-    const uint nmark=1ULL<<(g.GstrandBit+1),absent=1ULL<<(g.GstrandBit+2);
+    const uint64 nmark=1ULL<<(g.GstrandBit+1),absent=1ULL<<(g.GstrandBit+2);
     std::ifstream fastq(argv[2]);if(!fastq) throw std::runtime_error("cannot open FASTQ");
     std::string name,sequence,plus,quality;
     while(observed<limit && std::getline(fastq,name)) {
@@ -151,23 +151,23 @@ int main(int argc,char** argv) try {
         for(auto* s:{&name,&sequence,&plus,&quality}) if(!s->empty() && s->back()=='\r') s->pop_back();
         if(name.empty() || name[0]!='@' || plus.empty() || plus[0]!='+' || sequence.size()!=quality.size()) throw std::runtime_error("invalid FASTQ");
         if(reads.size()+sequence.size()>16*1024*1024) throw std::runtime_error("read pool exceeds 16 MiB; reduce read count");
-        const uint offset=reads.size();++observed;
+        const uint64 offset=reads.size();++observed;
         for(char base:sequence) {
             char code=base=='A'?0:base=='C'?1:base=='G'?2:base=='T'?3:4;
             reads.push_back(code);complement.push_back(code<4?3-code:code);
         }
-        for(uint begin=0;begin<sequence.size();) {
+        for(uint64 begin=0;begin<sequence.size();) {
             while(begin<sequence.size() && reads[offset+begin]>3) ++begin;
-            uint end=begin;while(end<sequence.size() && reads[offset+end]<4) ++end;
-            if(end-begin>=6) for(uint forward:{1ULL,0ULL}) {
-                uint start=forward?begin:end-1,length=end-begin,lmax=std::min<uint>(nbases,length),key=0;
-                for(uint i=0;i<lmax;++i) key=(key<<2)+(forward?reads[offset+start+i]:complement[offset+start-i]);
-                uint lind=lmax,lo=0,hi=g.nSA-1;
+            uint64 end=begin;while(end<sequence.size() && reads[offset+end]<4) ++end;
+            if(end-begin>=6) for(uint64 forward:{1ULL,0ULL}) {
+                uint64 start=forward?begin:end-1,length=end-begin,lmax=std::min<uint64>(nbases,length),key=0;
+                for(uint64 i=0;i<lmax;++i) key=(key<<2)+(forward?reads[offset+start+i]:complement[offset+start-i]);
+                uint64 lind=lmax,lo=0,hi=g.nSA-1;
                 while(lind>0) {lo=sai[starts[lind-1]+key];if(!(lo&absent)) break;--lind;key>>=2;}
                 if(!lind) {++skipped;continue;} // do not emulate the caller's Lind==0 boundary.
                 bool upperGood=false;
                 if(starts[lind-1]+key+1<starts[lind]) {
-                    uint next=sai[starts[lind-1]+key+1];if(!(next&absent)) {hi=(next&~nmark)-1;upperGood=true;}
+                    uint64 next=sai[starts[lind-1]+key+1];if(!(next&absent)) {hi=(next&~nmark)-1;upperGood=true;}
                 }
                 bool noN=!(lo&nmark);
                 if(lind<nbases && noN && upperGood) {++skipped;continue;} // actual CPU caller's prefix-only shortcut.
@@ -225,9 +225,9 @@ int main(int argc,char** argv) try {
                 #pragma omp parallel for num_threads(threads) reduction(+:used)
                 for(long long i=0;i<static_cast<long long>(queries.size());++i) {
                     const auto& q=queries[i];char* s[2]={reads.data()+q.offset,complement.data()+q.offset};
-                    uint length=q.initialLength,range[2],probe=0;
+                    uint64 length=q.initialLength,range[2],probe=0;
                     const bool supported=model.probe(q,s,probe);
-                    const uint count=supported?maxMappableLengthHint(g,s,q.start,q.length,q.lower,q.upper,q.forward,length,range,probe)
+                    const uint64 count=supported?maxMappableLengthHint(g,s,q.start,q.length,q.lower,q.upper,q.forward,length,range,probe)
                                               :maxMappableLength(g,s,q.start,q.length,q.lower,q.upper,q.forward,length,range);
                     if(supported) ++used;
                     candidate[i]={length,range[0],range[1],count};

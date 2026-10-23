@@ -3,10 +3,10 @@
 #include <cstring>
 
 // Reference little-endian interpretation, independent of host byte order.
-static uint refLoadLE(const unsigned char *p) {
-    uint v = 0;
-    for (uint i = 0; i < sizeof(uint); i++)
-        v |= ((uint)p[i]) << (8 * i);
+static uint64 refLoadLE(const unsigned char *p) {
+    uint64 v = 0;
+    for (uint64 i = 0; i < sizeof(uint64); i++)
+        v |= ((uint64)p[i]) << (8 * i);
     return v;
 }
 
@@ -30,9 +30,9 @@ TEST_CASE("byteOrder - native loadUintLE agrees with portable byte-wise path") {
     // On little-endian hosts the native single-instruction load must give the
     // same value as the portable byte-wise path; this is the invariant that lets
     // the LE fast path and the BE portable path be used interchangeably.
-    const uint vals[] = {0ULL, 1ULL, 0xFFULL, 0x100ULL, 0x1FFFFFULL,
+    const uint64 vals[] = {0ULL, 1ULL, 0xFFULL, 0x100ULL, 0x1FFFFFULL,
                          12345678901234ULL, ~0ULL, 0xDEADBEEFCAFEBABEULL};
-    for (uint v : vals) {
+    for (uint64 v : vals) {
         char buf[8];
         storeUintLE_bytewise(buf, v);
         CHECK(loadUintLE((const char*)buf) == loadUintLE_bytewise((const char*)buf));
@@ -41,8 +41,8 @@ TEST_CASE("byteOrder - native loadUintLE agrees with portable byte-wise path") {
 }
 
 TEST_CASE("byteOrder - store/load round-trip (both paths)") {
-    const uint vals[] = {0ULL, 42ULL, 0x7FFFFFFFFFFFFFFFULL, ~0ULL, 0xA5A5A5A5A5A5A5A5ULL};
-    for (uint v : vals) {
+    const uint64 vals[] = {0ULL, 42ULL, 0x7FFFFFFFFFFFFFFFULL, ~0ULL, 0xA5A5A5A5A5A5A5A5ULL};
+    for (uint64 v : vals) {
         char nbuf[8], bbuf[8];
         storeUintLE(nbuf, v);            // native (LE) or portable (BE), per build
         storeUintLE_bytewise(bbuf, v);   // always portable

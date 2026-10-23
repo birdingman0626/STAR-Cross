@@ -2,13 +2,13 @@
 #include "PackedArray.h"
 #include "SeedDiagnostics.h"
 
-inline uint medianUint2(uint a, uint b)
+inline uint64 medianUint2(uint64 a, uint64 b)
 {
     // returns (a+b)/2
     return a/2 + b/2 + (a%2 + b%2)/2;
 };
 
-uint compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, uint S, uint N, uint L, uint iSA, bool dirR, bool& compRes)
+uint64 compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, uint64 S, uint64 N, uint64 L, uint64 iSA, bool dirR, bool& compRes)
 {
     /* compare s to g, find the maximum identity length
      * s2[0] read sequence; s2[1] complementary sequence
@@ -21,7 +21,7 @@ uint compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, uint
     seedTrace::Comparison diagnostic(ii,N-L);
     #endif
 
-    uint SAstr=mapGen.SA[iSA];
+    uint64 SAstr=mapGen.SA[iSA];
     bool dirG = (SAstr>>mapGen.GstrandBit) == 0; //forward or reverse strand of the genome
     SAstr &= mapGen.GstrandMask;
 
@@ -30,7 +30,7 @@ uint compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, uint
     if (dirR && dirG) {//forward on read, forward on genome
         const char* s  = s2[0] + S + L;
         g += SAstr + L;
-        for (ii=0;(uint) ii < N-L; ii++)
+        for (ii=0;(uint64) ii < N-L; ii++)
         {
             if (s[ii]!=g[ii])
             {
@@ -50,7 +50,7 @@ uint compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, uint
     } else if (dirR && !dirG) {
         const char* s  = s2[1] + S + L;
         g += mapGen.nGenome-1-SAstr - L;
-        for (ii=0; (uint) ii < N-L; ii++)
+        for (ii=0; (uint64) ii < N-L; ii++)
         {
             if (s[ii]!=g[-ii])
             {
@@ -69,7 +69,7 @@ uint compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, uint
     } else if (!dirR && dirG) {
         const char* s  = s2[1] + S - L;
         g += SAstr + L;
-        for (ii=0; (uint) ii < N-L; ii++)
+        for (ii=0; (uint64) ii < N-L; ii++)
         {
             if (s[-ii]!=g[ii])
             {
@@ -88,7 +88,7 @@ uint compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, uint
     } else {//if (!dirR && !dirG)
         const char* s  = s2[0] + S - L;
         g += mapGen.nGenome-1-SAstr - L;
-        for (ii=0; (uint) ii < N-L; ii++)
+        for (ii=0; (uint64) ii < N-L; ii++)
         {
             if (s[-ii]!=g[-ii])
             {
@@ -107,7 +107,7 @@ uint compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, uint
     };
 };
 
-uint findMultRange(const SeedIndexView &mapGen, uint i3, uint L3, uint i1, uint L1, uint i1a, uint L1a, uint i1b, uint L1b, const char* const* s, bool dirR, uint S)
+uint64 findMultRange(const SeedIndexView &mapGen, uint64 i3, uint64 L3, uint64 i1, uint64 L1, uint64 i1a, uint64 L1a, uint64 i1b, uint64 L1b, const char* const* s, bool dirR, uint64 S)
 {    // given SA index i3 and identity length L3, return the index of the farthest element with the same length, starting from i1,L1 or i1a,L1a, or i1b,L1b
     #ifdef STAR_CAPTURE_SEEDS
     if(auto* w=seedTrace::worker()) ++w->ranges;
@@ -124,9 +124,9 @@ uint findMultRange(const SeedIndexView &mapGen, uint i3, uint L3, uint i1, uint 
         };
     };
     while ( (i1b+1<i1a)|(i1b>i1a+1) ) { //L1a is the target length, i1a...i1b is the initial range, i1c,L1c is the value in the middle
-        uint i1c=medianUint2(i1a,i1b);
-        //uint L1c=identityLength(&g[mapGen.SA[i3]+L1b],&g[mapGen.SA[i1c]+L1b],L3-L1b)+L1b;
-        uint L1c=compareSeqToGenome(mapGen,s,S,L3,L1b,i1c,dirR,compRes);
+        uint64 i1c=medianUint2(i1a,i1b);
+        //uint64 L1c=identityLength(&g[mapGen.SA[i3]+L1b],&g[mapGen.SA[i1c]+L1b],L3-L1b)+L1b;
+        uint64 L1c=compareSeqToGenome(mapGen,s,S,L3,L1b,i1c,dirR,compRes);
         if (L1c==L3) {
             i1a=i1c;
         }
@@ -139,10 +139,10 @@ uint findMultRange(const SeedIndexView &mapGen, uint i3, uint L3, uint i1, uint 
 
 #ifdef STAR_SEED_HINT_REPLAY
 template<bool UseHint>
-uint maxMappableLengthCore(const SeedIndexView &mapGen, const char* const* s, uint S, uint N, uint i1, uint i2,
-                           bool dirR, uint& L, uint* indStartEnd, uint preferredProbe)
+uint64 maxMappableLengthCore(const SeedIndexView &mapGen, const char* const* s, uint64 S, uint64 N, uint64 i1, uint64 i2,
+                           bool dirR, uint64& L, uint64* indStartEnd, uint64 preferredProbe)
 #else
-uint maxMappableLength(const SeedIndexView &mapGen, const char* const* s, uint S, uint N, uint i1, uint i2, bool dirR, uint& L, uint* indStartEnd)
+uint64 maxMappableLength(const SeedIndexView &mapGen, const char* const* s, uint64 S, uint64 N, uint64 i1, uint64 i2, bool dirR, uint64& L, uint64* indStartEnd)
 #endif
 {
     #ifdef STAR_CAPTURE_SEEDS
@@ -155,7 +155,7 @@ uint maxMappableLength(const SeedIndexView &mapGen, const char* const* s, uint S
 
     bool compRes;
 
-    uint L1,L2,i3,L3,L1a,L1b,L2a,L2b,i1a,i1b,i2a,i2b;
+    uint64 L1,L2,i3,L3,L1a,L1b,L2a,L2b,i1a,i1b,i2a,i2b;
 
     L1=compareSeqToGenome(mapGen,s,S,N,L,i1,dirR,compRes);
     L2=compareSeqToGenome(mapGen,s,S,N,L,i2,dirR,compRes);
@@ -232,12 +232,12 @@ uint maxMappableLength(const SeedIndexView &mapGen, const char* const* s, uint S
 
 
 #ifdef STAR_SEED_HINT_REPLAY
-uint maxMappableLength(const SeedIndexView &mapGen, const char* const* s, uint S, uint N, uint i1, uint i2,
-                      bool dirR, uint& L, uint* indStartEnd) {
+uint64 maxMappableLength(const SeedIndexView &mapGen, const char* const* s, uint64 S, uint64 N, uint64 i1, uint64 i2,
+                      bool dirR, uint64& L, uint64* indStartEnd) {
     return maxMappableLengthCore<false>(mapGen,s,S,N,i1,i2,dirR,L,indStartEnd,~0ULL);
 }
-uint maxMappableLengthHint(const SeedIndexView &mapGen, const char* const* s, uint S, uint N, uint i1, uint i2,
-                          bool dirR, uint& L, uint* indStartEnd,uint preferredProbe) {
+uint64 maxMappableLengthHint(const SeedIndexView &mapGen, const char* const* s, uint64 S, uint64 N, uint64 i1, uint64 i2,
+                          bool dirR, uint64& L, uint64* indStartEnd,uint64 preferredProbe) {
     return maxMappableLengthCore<true>(mapGen,s,S,N,i1,i2,dirR,L,indStartEnd,preferredProbe);
 }
 #endif
@@ -253,7 +253,7 @@ int compareRefEnds (const SeedIndexView &mapGen, uint64 SAstr, uint64 gInsert, b
     };
 };
 
-uint compareSeqToGenome1(const SeedIndexView &mapGen, const char* const* s2, uint S, uint N, uint L, uint iSA, bool dirR, uint64 gInsert, int & compRes)
+uint64 compareSeqToGenome1(const SeedIndexView &mapGen, const char* const* s2, uint64 S, uint64 N, uint64 L, uint64 iSA, bool dirR, uint64 gInsert, int & compRes)
 {
     /* compare s to g, find the maximum identity length
      * s2[0] read sequence; s2[1] complementary sequence
@@ -268,7 +268,7 @@ uint compareSeqToGenome1(const SeedIndexView &mapGen, const char* const* s2, uin
 
     int64 ii;
 
-    uint SAstr=mapGen.SA[iSA];
+    uint64 SAstr=mapGen.SA[iSA];
     bool dirG = (SAstr>>mapGen.GstrandBit) == 0; //forward or reverse strand of the genome
     SAstr &= mapGen.GstrandMask;
     const char *g=mapGen.G;
@@ -276,7 +276,7 @@ uint compareSeqToGenome1(const SeedIndexView &mapGen, const char* const* s2, uin
     if (dirG) {//forward on read, forward on genome
         const char* s  = s2[0] + S + L;
         g += SAstr + L;
-        for (ii=0;(uint) ii < N-L; ii++)
+        for (ii=0;(uint64) ii < N-L; ii++)
         {
             if (s[ii]!=g[ii])
             {
@@ -302,7 +302,7 @@ uint compareSeqToGenome1(const SeedIndexView &mapGen, const char* const* s2, uin
     {
         const char* s  = s2[1] + S + L;
         g += mapGen.nGenome-1-SAstr - L;
-        for (ii=0; (uint) ii < N-L; ii++)
+        for (ii=0; (uint64) ii < N-L; ii++)
         {
             if (s[ii]!=g[-ii])
             {
@@ -329,7 +329,7 @@ uint compareSeqToGenome1(const SeedIndexView &mapGen, const char* const* s2, uin
 };
 
 
-uint suffixArraySearch1(const SeedIndexView &mapGen, const char* const* s, uint S, uint N, uint64 gInsert, bool strR, uint i1, uint i2, uint L)
+uint64 suffixArraySearch1(const SeedIndexView &mapGen, const char* const* s, uint64 S, uint64 N, uint64 gInsert, bool strR, uint64 i1, uint64 i2, uint64 L)
 {
     /* binary search in SA space
      * s[0],s[1] - query sequence, complementary sequence
@@ -346,14 +346,14 @@ uint suffixArraySearch1(const SeedIndexView &mapGen, const char* const* s, uint 
 
     int compRes;
 
-    uint L1=compareSeqToGenome1(mapGen,s,S,N,L,i1,strR,gInsert,compRes);
+    uint64 L1=compareSeqToGenome1(mapGen,s,S,N,L,i1,strR,gInsert,compRes);
     if (compRes<0)
     {// the sequence is smaller than the first index of the SA, cannot proceed
         L=L1;
         return 0;
     };
 
-    uint L2=compareSeqToGenome1(mapGen, s,S,N,L,i2,strR,gInsert,compRes);
+    uint64 L2=compareSeqToGenome1(mapGen, s,S,N,L,i2,strR,gInsert,compRes);
     if (compRes>0)
     {//the sequence is bigger than the last SA index, return a huge number
         L=L2;
@@ -362,7 +362,7 @@ uint suffixArraySearch1(const SeedIndexView &mapGen, const char* const* s, uint 
 
     L=min(L1,L2);
 
-    uint i3=i1,L3=L1; //in case i1+1>=i2 an not iteration of the loope below is ever made
+    uint64 i3=i1,L3=L1; //in case i1+1>=i2 an not iteration of the loope below is ever made
     while (i1+1<i2) {//main binary search loop
         i3=medianUint2(i1,i2);
         L3=compareSeqToGenome1(mapGen,s,S,N,L,i3,strR,gInsert,compRes);//cannot do this because these sj sequences contains spacers=5
@@ -385,13 +385,13 @@ uint suffixArraySearch1(const SeedIndexView &mapGen, const char* const* s, uint 
     return i2; //index at i2 is always bigger than the sequence
 };
 
-uint funCalcSAiFromSA(char* gSeq, PackedArray& gSA, const SeedIndexView &mapGen, uint iSA, int L, int & iL4)
+uint64 funCalcSAiFromSA(char* gSeq, PackedArray& gSA, const SeedIndexView &mapGen, uint64 iSA, int L, int & iL4)
 {
-    uint SAstr=gSA[iSA];
+    uint64 SAstr=gSA[iSA];
     bool dirG = (SAstr>>mapGen.GstrandBit) == 0; //forward or reverse strand of the genome
     SAstr &= mapGen.GstrandMask;
     iL4=-1;
-    uint saind=0;
+    uint64 saind=0;
     if (dirG)
     {
 #if defined(STAR_UINT128_STRUCT) || STAR_BIG_ENDIAN
@@ -449,11 +449,11 @@ uint funCalcSAiFromSA(char* gSeq, PackedArray& gSA, const SeedIndexView &mapGen,
 
 };
 
-int64 funCalcSAi(char *G, uint iL)
+int64 funCalcSAi(char *G, uint64 iL)
 {
     int64 ind1=0;
-    for (uint iL1=0;iL1<=iL;iL1++) {
-        uint g=(uint) G[iL1];
+    for (uint64 iL1=0;iL1<=iL;iL1++) {
+        uint64 g=(uint64) G[iL1];
         if (g>3) {
             return -ind1;
         } else {

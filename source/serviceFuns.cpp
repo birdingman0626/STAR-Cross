@@ -4,9 +4,9 @@
 #include "IncludeDefine.h"
 
 template <class T>
-    T sum1D(T* a, uint N) {
+    T sum1D(T* a, uint64 N) {
         T s=0;
-        for (uint ii=0;ii<N;ii++) s+=a[ii];
+        for (uint64 ii=0;ii<N;ii++) s+=a[ii];
         return s;
     };
 
@@ -51,8 +51,8 @@ template <class numT, int Shift> int funCompareNumbersReverseShift (const void *
 
 
 inline int funCompareUint1 (const void *a, const void *b) {
-    uint va= *((uint*) a);
-    uint vb= *((uint*) b);
+    uint64 va= *((uint64*) a);
+    uint64 vb= *((uint64*) b);
 
     if (va>vb) {
 		return 1;
@@ -64,10 +64,10 @@ inline int funCompareUint1 (const void *a, const void *b) {
 };
 
 inline int funCompareUint2 (const void *a, const void *b) {
-    uint va= *((uint*) a);
-    uint vb= *((uint*) b);
-    uint va1=*(((uint*) a)+1);
-    uint vb1=*(((uint*) b)+1);
+    uint64 va= *((uint64*) a);
+    uint64 vb= *((uint64*) b);
+    uint64 va1=*(((uint64*) a)+1);
+    uint64 vb1=*(((uint64*) b)+1);
 
     if (va>vb) {
 		return 1;

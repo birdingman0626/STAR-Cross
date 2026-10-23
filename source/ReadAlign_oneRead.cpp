@@ -48,7 +48,7 @@ int ReadAlign::oneRead() {//process one read: load, map, write
         
         //copy 2nd mate into Read1[0] & reverse-complement
         complementSeqNumbers(Read1[1],Read1[0]+readLength[0]+1,readLength[1]);//complement. Here Read1[1] is still the 2nd mate's numeric-sequence. Later Read1[1] will be reverse complement of the combined read.
-        for (uint ii=0;ii<readLength[1]/2;ii++) {
+        for (uint64 ii=0;ii<readLength[1]/2;ii++) {
             swap(Read1[0][Lread-ii-1],Read1[0][ii+readLength[0]+1]); //reverse
         };
 
@@ -67,7 +67,7 @@ int ReadAlign::oneRead() {//process one read: load, map, write
     readFileType=readStatus[0];
 
     complementSeqNumbers(Read1[0],Read1[1],Lread); //returns complement of Reads[ii]
-    for (uint ii=0;ii<Lread;ii++) {//reverse
+    for (uint64 ii=0;ii<Lread;ii++) {//reverse
         Read1[2][Lread-ii-1]=Read1[1][ii];
     };
 
@@ -75,7 +75,7 @@ int ReadAlign::oneRead() {//process one read: load, map, write
     statsRA.readBases += readLength[0]+readLength[1];
 
     //max number of mismatches allowed for this read
-    outFilterMismatchNmaxTotal=min(P.alignFilter.mismatchMax, (uint) (P.alignFilter.mismatchOverReadLengthMax*(readLength[0]+readLength[1])));
+    outFilterMismatchNmaxTotal=min(P.alignFilter.mismatchMax, (uint64) (P.alignFilter.mismatchOverReadLengthMax*(readLength[0]+readLength[1])));
 
     //map the read
     if (P.pGe.gType==101) {//SpliceGraph

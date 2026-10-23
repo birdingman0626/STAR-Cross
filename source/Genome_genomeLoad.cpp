@@ -21,10 +21,10 @@ void Genome::genomeLoad(){//allocate and load Genome
     time ( &rawtime );
     *(P.inOut->logStdOut) << timeMonthDayTime(rawtime) << " ..... loading genome\n" <<flush;
 
-    uint *shmNG=NULL, *shmNSA=NULL;   //pointers to shm stored values , *shmSG, *shmSSA
+    uint64 *shmNG=NULL, *shmNSA=NULL;   //pointers to shm stored values , *shmSG, *shmSSA
     uint64 shmSize=0;//, shmStartG=0; shmStartSA=0;
 
-    uint L=200,K=6;
+    uint64 L=200,K=6;
 
     Parameters P1(*P.inOut);
 
@@ -42,10 +42,10 @@ void Genome::genomeLoad(){//allocate and load Genome
             if (word1=="###") {
                 parFile >> word1;
                 if (word1=="GstrandBit") {
-                    uint gsb1=0;
+                    uint64 gsb1=0;
                     parFile >> gsb1;
                     GstrandBit=(uint8) gsb1;
-                    P.inOut->logMain << "### GstrandBit=" << (uint) GstrandBit <<"\n";
+                    P.inOut->logMain << "### GstrandBit=" << (uint64) GstrandBit <<"\n";
                 } else {
                     P.inOut->logMain << "### " <<word1;
                     getline(parFile,word1);
@@ -145,7 +145,7 @@ void Genome::genomeLoad(){//allocate and load Genome
     nSAbyte = OpenStream("SA",SAin,pGe.gFileSizes.at(1));
     OpenStream("SAindex",SAiIn,1); //we do not need SAiIn siz, using a dummy value here to prevent from reading its size from the disk
 
-    uint SAiInBytes=0;
+    uint64 SAiInBytes=0;
     SAiInBytes += fstreamReadBig(SAiIn,(char*) &pGe.gSAindexNbases, sizeof(pGe.gSAindexNbases));
     allocateSAindexStarts(pGe.gSAindexNbases+1);
     SAiInBytes += fstreamReadBig(SAiIn,(char*) genomeSAindexStart, sizeof(genomeSAindexStart[0])*(pGe.gSAindexNbases+1));
@@ -154,7 +154,7 @@ void Genome::genomeLoad(){//allocate and load Genome
 
     /////////////////////////////////// at this point all array sizes should be known: calculate packed array lengths
     if (GstrandBit==0) {//not defined before
-        GstrandBit = (uint) floor(log(nGenome)/log(2))+1;
+        GstrandBit = (uint64) floor(log(nGenome)/log(2))+1;
         if (GstrandBit<32) 
             GstrandBit=32; //TODO: use simple access function for SA
     };
@@ -214,14 +214,14 @@ void Genome::genomeLoad(){//allocate and load Genome
         };
 
         shmStart = (char*) sharedMemory->GetMapped();
-        shmNG= (uint*) (shmStart+SHM_sizeG);
-        shmNSA= (uint*) (shmStart+SHM_sizeSA);
+        shmNG= (uint64*) (shmStart+SHM_sizeG);
+        shmNSA= (uint64*) (shmStart+SHM_sizeSA);
 
         if (!sharedMemory->IsAllocator()) {
             // genome is in shared memory or being loaded
             // wait for the process that will populate it
             // and record the sizes
-            uint iwait=0;
+            uint64 iwait=0;
             while (*shmNG != nGenome) {
                 iwait++;
                 P.inOut->logMain <<"Another job is still loading the genome, sleeping for 1 min\n" <<flush;
@@ -251,7 +251,7 @@ void Genome::genomeLoad(){//allocate and load Genome
         genomeInsertL=0;
         genomeInsertChrIndFirst=nChrReal;
         if (pGe.gFastaFiles.at(0)!="-") {//will insert sequences in the genome, now estimate the extra size
-           uint oldlen=chrStart.back();//record the old length
+           uint64 oldlen=chrStart.back();//record the old length
            genomeInsertL=genomeScanFastaFiles(P, G, false, *this)-oldlen;
         };
 
@@ -326,7 +326,7 @@ void Genome::genomeLoad(){//allocate and load Genome
                          <<" eof="<<GenomeIn.eof()<<" fail="<<GenomeIn.fail()<<" bad="<<GenomeIn.bad()<<"; loaded "<<genomeReadBytesN<<" bytes\n" << flush;
         GenomeIn.close();
 
-        for (uint ii=0;ii<L;ii++) {// attach a tail with the largest symbol
+        for (uint64 ii=0;ii<L;ii++) {// attach a tail with the largest symbol
             G1[ii]=K-1;
             G[nGenome+ii]=K-1;
         };
@@ -361,20 +361,20 @@ void Genome::genomeLoad(){//allocate and load Genome
 
     #ifdef COMPILE_FOR_MAC
     {
-        uint sum1=0;
-        for (uint ii=0;ii<nGenome; ii++) sum1 +=  (uint) (unsigned char) G[ii];
+        uint64 sum1=0;
+        for (uint64 ii=0;ii<nGenome; ii++) sum1 +=  (uint64) (unsigned char) G[ii];
         P.inOut->logMain << "Sum of all Genome bytes: " <<sum1 <<"\n"<<flush;
         sum1=0;
-        for (uint ii=0;ii<SA.lengthByte; ii++) sum1 +=  (uint) (unsigned char) SA.charArray[ii];
+        for (uint64 ii=0;ii<SA.lengthByte; ii++) sum1 +=  (uint64) (unsigned char) SA.charArray[ii];
         P.inOut->logMain << "Sum of all SA bytes: " <<sum1 <<"\n"<<flush;
         sum1=0;
-        for (uint ii=0;ii<SAi.lengthByte; ii++) sum1 +=  (uint) (unsigned char) SAi.charArray[ii];
+        for (uint64 ii=0;ii<SAi.lengthByte; ii++) sum1 +=  (uint64) (unsigned char) SAi.charArray[ii];
         P.inOut->logMain << "Sum of all SAi bytes: " <<sum1 <<"\n"<<flush;
     };
     #endif
 
     if (pGe.gLoad=="LoadAndExit") {
-	for (uint ii=0;ii<shmSize;ii++) (void)shmStart[ii]; // touch shared memory to verify accessibility
+	for (uint64 ii=0;ii<shmSize;ii++) (void)shmStart[ii]; // touch shared memory to verify accessibility
         P.inOut->logMain << "pGe.gLoad=LoadAndExit: completed, the genome is loaded and kept in RAM, EXITING now.\n"<<flush;
         return;
     };
@@ -392,8 +392,8 @@ void Genome::genomeLoad(){//allocate and load Genome
                 << (1LLU<<P.winBinNbits)*P.winAnchorDistNbins <<endl;
     } else {
         //redefine winBinNbits
-        P.winBinNbits = (uint) floor( log2( max( max(4LLU,P.alignIntronMax), (P.alignMatesGapMax==0 ? 1000LLU : P.alignMatesGapMax) ) /4 ) + 0.5);
-        P.winBinNbits = max( P.winBinNbits, (uint) floor(log2(nGenome/40000+1)+0.5) );
+        P.winBinNbits = (uint64) floor( log2( max( max(4LLU,P.alignIntronMax), (P.alignMatesGapMax==0 ? 1000LLU : P.alignMatesGapMax) ) /4 ) + 0.5);
+        P.winBinNbits = max( P.winBinNbits, (uint64) floor(log2(nGenome/40000+1)+0.5) );
         //ISSUE - to be fixed in STAR3: if alignIntronMax>0 but alignMatesGapMax==0, winBinNbits will be defined by alignIntronMax
         P.inOut->logMain << "To accommodate alignIntronMax="<<P.alignIntronMax<<" redefined winBinNbits="<< P.winBinNbits <<endl;
     };
@@ -505,7 +505,7 @@ void Genome::loadSJDB(string &genDir)
         allocateJunctionAnnotations(sjdbN);
         allocateJunctionCoordinates(sjdbN);
 
-        for (uint ii=0;ii<sjdbN;ii++) {//get the info about junctions from sjdbInfo.txt
+        for (uint64 ii=0;ii<sjdbN;ii++) {//get the info about junctions from sjdbInfo.txt
             {
                 uint16 d1,d2,d3,d4;
                 sjdbInfo >> sjdbStart[ii] >> sjdbEnd[ii] >> d1 >> d2 >> d3 >> d4;

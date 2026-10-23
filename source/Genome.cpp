@@ -78,7 +78,7 @@ void Genome::freeMemory(){//free big chunks of memory used by genome and suffix 
     };
 };
 
-uint Genome::OpenStream(string name, ifstream & stream, uint size)
+uint64 Genome::OpenStream(string name, ifstream & stream, uint64 size)
 {
     stream.open((pGe.gDir+ "/" +name).c_str(), ios::binary);
     if (!stream.good()) {
@@ -101,7 +101,7 @@ uint Genome::OpenStream(string name, ifstream & stream, uint size)
             errOut << "SOLUTION: re-generate the genome index\n";
             exitWithError(errOut.str(),std::cerr, P.inOut->logMain, 1, P);
         };
-        size=(uint) size1;
+        size=(uint64) size1;
         stream.clear();
         stream.seekg (0, ios::beg);
         P.inOut->logMain << "file size: "<< size <<" bytes; state: good=" <<stream.good()\
@@ -204,7 +204,7 @@ void Genome::chrInfoLoad() {//find chrStart,Length,nChr from Genome G
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
     };
 
-    for  (uint ii=0;ii<nChrReal;ii++) {
+    for  (uint64 ii=0;ii<nChrReal;ii++) {
         chrStreamIn >> chrLength[ii];
     };
     chrStreamIn.close();
@@ -218,13 +218,13 @@ void Genome::chrInfoLoad() {//find chrStart,Length,nChr from Genome G
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
     };
 
-    for  (uint ii=0;ii<=nChrReal;ii++) {
+    for  (uint64 ii=0;ii<=nChrReal;ii++) {
         chrStreamIn >> chrStart[ii];
     };
     chrStreamIn.close();
 
     //log
-    for (uint ii=0; ii<nChrReal;ii++) {
+    for (uint64 ii=0; ii<nChrReal;ii++) {
         P.inOut->logMain << ii+1 <<"\t"<< chrName[ii] <<"\t"<<chrLength[ii]<<"\t"<<chrStart[ii]<<"\n"<<flush;
         chrNameIndex[chrName[ii]]=ii;
     };
@@ -240,9 +240,9 @@ void Genome::chrInfoLoad() {//find chrStart,Length,nChr from Genome G
 //////////////////////////////////////////////////////////
 void Genome::chrBinFill() {
     chrBinN = chrStart[nChrReal]/genomeChrBinNbases+1;
-    chromosomeBinStorage.emplace_back(new uint [chrBinN]);
+    chromosomeBinStorage.emplace_back(new uint64 [chrBinN]);
     chrBin = chromosomeBinStorage.back().get();
-    for (uint ii=0, ichr=1; ii<chrBinN; ++ii) {
+    for (uint64 ii=0, ichr=1; ii<chrBinN; ++ii) {
         if (ii*genomeChrBinNbases>=chrStart[ichr]) ichr++;
         chrBin[ii]=ichr-1;
     };
@@ -254,16 +254,16 @@ void Genome::initializeVariation(bool enabled) {
     Var = variationStorage.get();
 }
 
-void Genome::allocateSAindexStarts(uint count) {
-    suffixIndexStartStorage.emplace_back(new uint[count]);
+void Genome::allocateSAindexStarts(uint64 count) {
+    suffixIndexStartStorage.emplace_back(new uint64[count]);
     genomeSAindexStart = suffixIndexStartStorage.back().get();
 }
 
-void Genome::allocateJunctionAnnotations(uint count) {
+void Genome::allocateJunctionAnnotations(uint64 count) {
     // Retain prior tables while insertion-time snapshots still borrow them.
     auto storage = std::make_unique<JunctionStorage>();
-    storage->start.reset(new uint[count]);
-    storage->end.reset(new uint[count]);
+    storage->start.reset(new uint64[count]);
+    storage->end.reset(new uint64[count]);
     storage->motif.reset(new uint8[count]);
     storage->shiftLeft.reset(new uint8[count]);
     storage->shiftRight.reset(new uint8[count]);
@@ -275,9 +275,9 @@ void Genome::allocateJunctionAnnotations(uint count) {
     sjdbShiftRight=current.shiftRight.get(); sjdbStrand=current.strand.get();
 }
 
-void Genome::allocateJunctionCoordinates(uint count) {
+void Genome::allocateJunctionCoordinates(uint64 count) {
     auto& current = *junctionStorage.back();
-    current.donor.reset(new uint[count]); current.acceptor.reset(new uint[count]);
+    current.donor.reset(new uint64[count]); current.acceptor.reset(new uint64[count]);
     sjDstart=current.donor.get(); sjAstart=current.acceptor.get();
 }
 
