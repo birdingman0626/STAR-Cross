@@ -300,7 +300,7 @@ record, not inferred from this plan.
 
 | Remaining surface | Required next evidence / disposition |
 | --- | --- |
-| Standalone filtering, SmartSeq SE/PE, Transcript3p, EmptyDrops | Bounded independent count oracles, malformed-input rejection and targeted normal-teardown leak checks implemented; real/ambiguous Transcript3p accuracy and positive EmptyDrops rescue sensitivity still need independent validation |
+| Standalone filtering, SmartSeq SE/PE, Transcript3p, EmptyDrops | Bounded independent count oracles, malformed-input rejection and targeted normal-teardown leak checks implemented; simulated-truth validation added 2026-10-23 (below); real-data Transcript3p accuracy against an orthogonal assay remains open |
 | Optional CUDA | Refresh host17/device17 builds, actual remap/seed execution and device memcheck; seed remains an isolated experiment, not whole-mapper GPU acceleration |
 | Real data | Frozen-prefix full scientific contract first; full-library/cell-representative validation remains separate |
 | CPU time and memory | Prior A/A failed the 2% noise gate; no performance acceptance until independent calibration passes and paired A/B evidence is collected without concurrent builds |
@@ -320,3 +320,25 @@ toolkit. Save URL/version/retrieval date with the execution manifest.
 - [NVIDIA CUDA 13.3 Windows compiler support](https://docs.nvidia.com/cuda/archive/13.3.0/cuda-installation-guide-microsoft-windows/index.html)
 - [NVIDIA Compute Sanitizer tools and their coverage](https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html)
 - [GitHub secure Actions and self-hosted runner guidance](https://docs.github.com/en/actions/reference/security/secure-use)
+
+## Simulated-truth validation, 2026-10-23
+
+Two seeded simulations with known truth now run in Linux CI:
+
+- `scripts/test_emptydrops_sensitivity.py`: 150 above-knee cells, 100 below-knee
+  cells from four marker-defined cell types, 6000 ambient empty droplets and 100
+  ambient-composition droplets with cell-like totals (scaled EmptyDrops_CR
+  parameters). Across 8 seeds: all large cells and 100% of small real cells
+  called, no empty droplet called, 0-2 ambient-composition droplets called
+  (bound <= 5, consistent with 1% FDR over ~250 calls). With weak markers (2x)
+  and 100-200 UMIs recall falls to 0, so the bound is informative.
+- `scripts/test_transcript3p_accuracy.py`: four genes with alternative
+  polyadenylation isoforms (long = short + 400 bp, so most reads are compatible
+  with both), four single-isoform genes for the distance model, two clusters with
+  gene-specific short-isoform fractions 0.2-0.9. Across 5 seeds the estimated short
+  fraction is within 0.044-0.067 of truth (tolerance 0.10), with a consistent
+  +0.02-0.04 bias toward the short isoform that is recorded, not corrected.
+
+These validate behaviour on simulated data with exact truth; they do not replace
+comparison with an orthogonal real-data assay.
+
