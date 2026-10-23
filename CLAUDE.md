@@ -19,7 +19,7 @@ cmake --build build
 cmake --preset release && cmake --build --preset release
 ```
 
-Useful options: `-DSTAR_LONG_READS=ON` (STARlong), `-DSTAR_USE_AVX2=ON`, `-DSTAR_ASAN=ON`, `-DSTAR_UBSAN=ON`, `-DSTAR_CAPTURE_SEEDS=ON` (diagnostics only, not for benchmarks), and on GCC/Clang `-DSTAR_LTO=ON` and `-DSTAR_PGO=GENERATE|USE` with `-DSTAR_PGO_PATH=` (opt-in; measure before adopting). A build directory still configured with `STAR_CXX_STANDARD=17` fails at configure time; use a fresh one.
+Useful options: `-DSTAR_LONG_READS=ON` (STARlong), `-DSTAR_USE_AVX2=ON`, `-DSTAR_ASAN=ON`, `-DSTAR_UBSAN=ON`, `-DSTAR_TSAN=ON` (Clang + LLVM OpenMP), `-DSTAR_CAPTURE_SEEDS=ON` (diagnostics only, not for benchmarks), and on GCC/Clang `-DSTAR_LTO=ON` and `-DSTAR_PGO=GENERATE|USE` with `-DSTAR_PGO_PATH=` (opt-in; measure before adopting). A build directory still configured with `STAR_CXX_STANDARD=17` fails at configure time; use a fresh one.
 
 `source/Makefile` is a thin wrapper around the same CMake build (`make STAR`, `make STARlong`).
 
@@ -28,8 +28,9 @@ Useful options: `-DSTAR_LONG_READS=ON` (STARlong), `-DSTAR_USE_AVX2=ON`, `-DSTAR
 - Unit tests (doctest, `test/unit/`, plus seed-search property tests): `ctest --test-dir build --no-tests=error --output-on-failure -j4`
 - Validation-harness self-tests: `python3 -m unittest discover -s scripts -p 'test_*py'`
 - Miniature end-to-end alignment/count regression: `python3 scripts/test_cpu_upstream.py --star-exe build/STAR` (add `--ref-exe` to compare against a frozen baseline binary)
+- Multi-threaded race and thread-count-invariance check (use a `-DSTAR_TSAN=ON` Clang build): `python3 scripts/test_thread_sanitizer.py --star-exe build/STAR --threads 8`
 - Malformed-input robustness (use an ASan/UBSan build for memory-safety evidence): `python3 scripts/test_malformed_inputs.py --star-exe build/STAR`
-- `.github/workflows/build.yml` is the authoritative list of CI gates (platform matrix, frozen-baseline index/alignment equivalence, ASan/UBSan jobs).
+- `.github/workflows/build.yml` is the authoritative list of CI gates (platform matrix, frozen-baseline index/alignment equivalence, ASan/UBSan and ThreadSanitizer jobs).
 
 Scientific changes must preserve exact output parity (BAM records, SJ.out.tab, Solo matrices) against the frozen baseline; performance claims need paired, calibrated measurements (see `docs/QUALIFICATION_PLAN.md`).
 

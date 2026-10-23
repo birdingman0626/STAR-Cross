@@ -95,6 +95,7 @@ Pass options to the CMake configure command:
 | `STAR_BUILD_TESTS` | ON | Build the CTest unit suite |
 | `STAR_ASAN` | OFF | Enable AddressSanitizer for debugging |
 | `STAR_UBSAN` | OFF | Enable fail-fast UndefinedBehaviorSanitizer with GCC/Unix Clang |
+| `STAR_TSAN` | OFF | Enable ThreadSanitizer (GCC/Unix Clang; not with `STAR_ASAN`). Use Clang + LLVM OpenMP and run `scripts/test_thread_sanitizer.py`; see `docs/THREAD_SANITIZER_AUDIT.md` |
 | `USE_SYSTEM_HTSLIB` | OFF | Use system HTSlib via pkg-config instead of the bundled copy |
 | `STAR_USE_LIBDEFLATE` | OFF | Use an installed libdeflate with bundled HTSlib |
 | `STAR_ENABLE_CUDA` | OFF | Build the experimental CUDA adapter |

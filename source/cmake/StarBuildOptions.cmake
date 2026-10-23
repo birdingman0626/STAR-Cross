@@ -35,4 +35,10 @@ function(star_target_sanitizers target)
             $<$<COMPILE_LANGUAGE:C,CXX>:-fno-omit-frame-pointer>)
         target_link_options(${target} PUBLIC -fsanitize=undefined -fno-sanitize-recover=undefined)
     endif()
+    if(STAR_TSAN)
+        target_compile_options(${target} PRIVATE
+            $<$<COMPILE_LANGUAGE:C,CXX>:-fsanitize=thread>
+            $<$<COMPILE_LANGUAGE:C,CXX>:-fno-omit-frame-pointer>)
+        target_link_options(${target} PUBLIC -fsanitize=thread)
+    endif()
 endfunction()

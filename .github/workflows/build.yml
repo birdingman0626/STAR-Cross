@@ -252,6 +252,51 @@ jobs:
   # Memory-safety of the splice-junction insertion path (sjdbBuildIndex) under
   # AddressSanitizer. Regression coverage for the funCalcSAi out-of-bounds read
   # (upstream issue #2657) and the #2687 sjdb sort rewrite.
+  thread-sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        timeout-minutes: 10
+        run: |
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          timeout 180s sudo apt-get "${apt_options[@]}" update --error-on=any
+          timeout 300s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends zlib1g-dev ninja-build clang libclang-rt-dev libomp-dev
+
+      - name: Allow TSan's shadow-memory layout
+        # Runner kernels randomize mmap with 32 bits; TSan's fixed layout needs <= 28.
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Build with ThreadSanitizer (Clang + LLVM OpenMP)
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cd source
+          cmake -B build-tsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_BUILD_TESTS=ON -DSTAR_TSAN=ON
+          cmake --build build-tsan
+
+      - name: Unit tests under ThreadSanitizer
+        env:
+          TSAN_OPTIONS: halt_on_error=1 suppressions=${{ github.workspace }}/scripts/tsan_suppressions.txt
+        run: ctest --test-dir source/build-tsan --no-tests=error --output-on-failure
+
+      - name: Multi-threaded mapping, sorting and STARsolo under ThreadSanitizer
+        timeout-minutes: 60
+        run: python3 scripts/test_thread_sanitizer.py --star-exe source/build-tsan/STAR --threads 4
+
+      - name: Retain ThreadSanitizer evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: thread-sanitizer-reports
+          path: |
+            /tmp/star-threads-*/tsan/*
+            /tmp/star-threads-*/*/console.log
+            /tmp/star-threads-*/*/Log.out
+          if-no-files-found: ignore
+
   asan-sjdb:
     runs-on: ubuntu-latest
     steps:
