@@ -98,6 +98,19 @@ The macOS lane was not rerun for this change (its Homebrew toolchain was
 removed after the previous round); the changed code is platform-neutral except
 fix 6, which is Windows-specific.
 
+## Follow-up: input dispatcher error hand-off
+
+CI run `40055923992` (commit `df20588`) reported a race in the unit test
+"Input dispatcher serializes concurrent requests and delivers errors". When a
+read failed, `ChunkInputDispatcher` delivered the exception through a
+`std::packaged_task`. The producer thread could then drop the last reference
+to the exception after the caller had read it. That ordering exists only
+through libstdc++'s exception reference count, which TSan does not instrument,
+so TSan reported a race. It depends on timing, so earlier runs passed. The
+producer now runs the read itself and hands the error to the caller under the
+dispatcher mutex, keeping no reference of its own. The behavior is unchanged:
+requests are still serialized, and errors still reach the requesting worker.
+
 ## Not covered
 
 Cross-process shared-memory genome admission (handled separately, see
