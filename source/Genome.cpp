@@ -152,6 +152,15 @@ void Genome::HandleSharedMemoryException(const SharedMemoryException & exc, uint
             errOut << "SOLUTION: check shared memory settings as explained in STAR manual, OR run STAR with --genomeLoad NoSharedMemory to avoid using shared memory" << endl << flush;
             #endif
             break;
+        case EKEYCOLLISION:
+            errOut << "EXITING because of FATAL ERROR: the shared memory key of this genome (0x" << hex << shmKey << dec << ", the inode number of --genomeDir) "
+                   << "collides with the usage counter of another genome directory whose inode number is one lower (or vice versa)." << endl;
+            errOut << "SOLUTION: copy the genome to a new directory (it gets a new inode number), OR run STAR with --genomeLoad NoSharedMemory" << endl << flush;
+            break;
+        case ELOCK:
+            errOut << "EXITING because of FATAL ERROR: could not use the SysV semaphore that coordinates jobs sharing this genome (semget/semop)." << endl;
+            errOut << "SOLUTION: check the SysV semaphore limits (kernel.sem on Linux, kern.sysv.sem* on macOS) and permissions, OR run STAR with --genomeLoad NoSharedMemory" << endl << flush;
+            break;
         default:
             errOut << "EXITING because of FATAL ERROR: There was an issue with the shared memory allocation. Try running STAR with --genomeLoad NoSharedMemory to avoid using shared memory.";
             break;

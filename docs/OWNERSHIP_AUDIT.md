@@ -18,7 +18,7 @@ unverified whole-program teardown. C++17 remains sufficient for these changes.
 | Chunk input/output and Transcriptome | Chunk owns input streams/buffers, junction outputs, local Transcriptome object and quantifications; shared metadata borrowed | After Solo/counting/BAM sorting; pass1 chunks released before pass2 | Scoped owners migrated; complete Transcriptome/Solo aggregate metadata remains outside this change |
 | Per-read Solo / clipping / graph | Owned barcode/features and record streams, CR4 scorer and SpliceGraph row/column/seed allocations | Their ReadAlign/chunk lifetime; aggregate Solo consumers finish first | Barcode early release clears the borrow; graph destructor no longer uses an incorrect fixed row count |
 | CUDA allocation | Existing DeviceBuffer/Buffer scoped owners | Synchronizing adapter execution followed by cudaFree | Actual adapter/seed checks and memcheck; stream/event/global ownership not broadened |
-| SharedMemory | Noncopyable named IPC attachment and counter; external log stream borrowed | Detach both mappings; explicit Remove or verified last-user policy removes names | SysV/POSIX two-process lifecycle and failure fixtures pass on Linux; full Genome ownership and concurrent admission remain pending |
+| SharedMemory | Noncopyable named IPC attachment and counter; external log stream borrowed | Detach both mappings; explicit Remove or verified last-user policy removes names | SysV/POSIX two-process lifecycle and failure fixtures pass on Linux; concurrent admission/release serialized by a SysV semaphore lock with dead-loader detection (`docs/SHARED_MEMORY_ADMISSION.md`); full Genome ownership remains pending |
 
 `PackedArray` view copies intentionally do not extend the source lifetime. They
 are not deep copies or reference-counted ownership. Moving a borrowed view into
@@ -49,9 +49,10 @@ Mapping size comes from kernel metadata, not an uninitialized shared header.
 The existing header/payload offset remains reserved, preserving genome layout.
 Unix SysV and POSIX fixtures ran under ASan/UBSan with leak detection; real STAR
 SysV load/keep/remove modes were compared against NoSharedMemory. Windows still
-supports only NoSharedMemory. These tests do not prove atomic last-user decisions
-against concurrent new admissions, all syscall-failure paths, or orphan-free
-constructor failure. Do not mark all of O3 complete from this bounded work.
+supports only NoSharedMemory. Last-user decisions against concurrent admissions
+are now serialized and tested (see `docs/SHARED_MEMORY_ADMISSION.md`); these
+tests still do not prove all syscall-failure paths or orphan-free constructor
+failure. Do not mark all of O3 complete from this bounded work.
 
 ## Transcriptome / Solo aggregate continuation
 

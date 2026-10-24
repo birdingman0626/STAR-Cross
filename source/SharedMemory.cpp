@@ -13,6 +13,7 @@
     #include <sys/stat.h>        /* For mode constants */
     #include <fcntl.h>           /* For O_* constants */
     #include <semaphore.h>
+    #include <sys/sem.h>
     #include <errno.h>
     #include <sys/types.h>
 #endif
@@ -29,18 +30,153 @@
 
 using namespace std;
 
+// Cross-process admission protocol (SysV semaphores; not on Windows, where the
+// shared-memory genome is unavailable).
+//
+// One semaphore set per genome key (semaphore keys are a separate namespace
+// from shared-memory keys) holds:
+//   0  admission lock. 0 = unlocked. Lock = one atomic semop {wait for 0, +1},
+//      unlock = {-1}, both with SEM_UNDO, so a holder that dies releases it and
+//      a freshly created set (all zeros on Linux and macOS) is already unlocked.
+//   1  loader alive: +1 with SEM_UNDO when a process creates the segment, -1
+//      after it publishes the loaded genome. A crashed loader drops it to 0.
+//   2  loader recorded: +1 (no undo) when a process creates the segment, so a
+//      waiter can tell a dead loader from a segment created by an older build.
+// The lock serializes counter attach + segment open (constructor), segment
+// creation (Allocate), and count + detach + remove (destructor, Clean), so a
+// job that arrives while the last user removes the genome is either counted
+// before the removal or starts after it.
+namespace {
+    constexpr int kSemLock = 0;
+    constexpr int kSemLoaderAlive = 1;
+    constexpr int kSemLoaderRecorded = 2;
+    constexpr int kSemCount = 3;
+#ifndef _WIN32
+    bool semaphoreGone(int err)
+    {
+        return err == EIDRM || err == EINVAL; // macOS reports a removed set as EINVAL
+    }
+#endif
+}
+
+class SharedMemory::AdmissionGuard
+{
+public:
+    explicit AdmissionGuard(SharedMemory & shm): _shm(shm) { _shm.LockAdmission(); }
+    ~AdmissionGuard() { _shm.UnlockAdmission(); }
+    AdmissionGuard(const AdmissionGuard&) = delete;
+    AdmissionGuard& operator=(const AdmissionGuard&) = delete;
+private:
+    SharedMemory & _shm;
+};
+
+void SharedMemory::LockAdmission()
+{
+#ifndef _WIN32
+    // A set removed by Clean() while we wait is replaced by a new one; the
+    // bound only stops a foreign set at this key from looping forever.
+    for (int attempt = 0; attempt < 1000; ++attempt)
+    {
+        if (_lockSemID < 0)
+        {
+            _lockSemID = semget(_key, kSemCount, IPC_CREAT | 0666);
+            if (_lockSemID < 0)
+                ThrowError(ELOCK, errno);
+        }
+        struct sembuf ops[2];
+        ops[0].sem_num = kSemLock; ops[0].sem_op = 0; ops[0].sem_flg = 0;
+        ops[1].sem_num = kSemLock; ops[1].sem_op = 1; ops[1].sem_flg = SEM_UNDO;
+        if (semop(_lockSemID, ops, 2) == 0)
+        {
+            _lockHeld = true;
+            return;
+        }
+        const int err = errno;
+        if (err == EINTR)
+            continue;
+        if (semaphoreGone(err))
+        {
+            _lockSemID = -1;
+            continue;
+        }
+        ThrowError(ELOCK, err);
+    }
+    ThrowError(ELOCK, EAGAIN);
+#endif
+}
+
+void SharedMemory::UnlockAdmission()
+{
+#ifndef _WIN32
+    if (!_lockHeld)
+        return;
+    _lockHeld = false;
+    struct sembuf op;
+    op.sem_num = kSemLock; op.sem_op = -1; op.sem_flg = SEM_UNDO;
+    while (semop(_lockSemID, &op, 1) == -1 && errno == EINTR)
+    {}
+    // Any other failure means the set is gone, which also releases the lock.
+#endif
+}
+
+void SharedMemory::RemoveLockSemaphore()
+{
+#ifndef _WIN32
+    if (_lockSemID < 0)
+        _lockSemID = semget(_key, 0, 0);
+    if (_lockSemID >= 0 && semctl(_lockSemID, 0, IPC_RMID) == -1 && !semaphoreGone(errno))
+        ThrowError(ELOCK, errno);
+    _lockSemID = -1;
+    _lockHeld = false; // removing the set releases the lock for every waiter
+    _loaderRegistered = false;
+#endif
+}
+
+SharedMemory::LoaderState SharedMemory::GetLoaderState()
+{
+#ifndef _WIN32
+    if (_lockSemID < 0)
+        _lockSemID = semget(_key, 0, 0);
+    if (_lockSemID < 0)
+        return LoaderState::Unknown;
+    // Read "recorded" first: the creator raises both in one semop.
+    const int recorded = semctl(_lockSemID, kSemLoaderRecorded, GETVAL);
+    if (recorded <= 0)
+        return LoaderState::Unknown;
+    const int alive = semctl(_lockSemID, kSemLoaderAlive, GETVAL);
+    if (alive < 0)
+        return LoaderState::Unknown; // set removed meanwhile (explicit Remove)
+    return alive > 0 ? LoaderState::Loading : LoaderState::Exited;
+#else
+    return LoaderState::Unknown;
+#endif
+}
+
+void SharedMemory::LoaderFinished()
+{
+#ifndef _WIN32
+    if (!_loaderRegistered)
+        return;
+    _loaderRegistered = false;
+    struct sembuf op;
+    op.sem_num = kSemLoaderAlive; op.sem_op = -1; op.sem_flg = SEM_UNDO;
+    while (semop(_lockSemID, &op, 1) == -1 && errno == EINTR)
+    {}
+#endif
+}
+
 SharedMemory::SharedMemory(key_t key, bool unloadLast): _key(key), _counterKey(key+1), _unloadLast(unloadLast), _err(&cerr)
 {
     _shmID = -1;
     _sharedCounterID = -1;
     _counterMem = 0;
     _mapped=NULL;
-    _sem=NULL;
     _isAllocator = false;
     _needsAllocation = true;
 
     try
     {
+        AdmissionGuard guard(*this);
         EnsureCounter();
         OpenIfExists();
     }
@@ -59,10 +195,20 @@ SharedMemory::~SharedMemory()
         return;
     try
     {
+        AdmissionGuard guard(*this);
+        LoaderFinished(); // an unfinished load is abandoned; waiters detect it
         int inUse = SharedObjectsUseCount()-1;
+        const bool noSegment = _needsAllocation;
         Close();
 
-        if (_unloadLast)
+        if (noSegment)
+        {
+            // Never found or created a segment (e.g. Remove of an unloaded
+            // genome): drop the counter and semaphores if nobody else uses them.
+            if (inUse == 0)
+                CleanLocked();
+        }
+        else if (_unloadLast)
         {
             if (inUse > 0)
             {
@@ -71,7 +217,7 @@ SharedMemory::~SharedMemory()
             else
             {
                 (*_err) << "No other jobs are attached to the shared memory segment, removing it."<<endl;
-                Clean();
+                CleanLocked();
             }
         }
     }
@@ -97,6 +243,7 @@ void SharedMemory::Allocate(size_t shmSize)
 
     if (shmSize > std::numeric_limits<size_t>::max() - sizeof(size_t))
         ThrowError(EOPENFAILED, EOVERFLOW);
+    AdmissionGuard guard(*this);
     CreateAndInitSharedObject(shmSize);
 
     if (_exception.HasError() && _exception.GetErrorCode() != EEXISTS)
@@ -117,6 +264,26 @@ void SharedMemory::Allocate(size_t shmSize)
         throw;
     }
 
+#ifndef _WIN32
+    if (created)
+    {
+        // Record the loader in the lock section that created the segment, so
+        // no waiter can see the segment without also seeing its loader.
+        struct sembuf ops[2];
+        ops[0].sem_num = kSemLoaderAlive; ops[0].sem_op = 1; ops[0].sem_flg = SEM_UNDO;
+        ops[1].sem_num = kSemLoaderRecorded; ops[1].sem_op = 1; ops[1].sem_flg = 0;
+        int ret;
+        while ((ret = semop(_lockSemID, ops, 2)) == -1 && errno == EINTR)
+        {}
+        if (ret == -1)
+        {
+            const int detail = errno;
+            try { Close(); Unlink(); } catch (...) {}
+            ThrowError(ELOCK, detail);
+        }
+        _loaderRegistered = true;
+    }
+#endif
     _isAllocator = created;
 }
 
@@ -125,13 +292,6 @@ string SharedMemory::GetPosixObjectKey()
     ostringstream key;
     key << "/" << _key;
     return key.str();
-}
-
-string SharedMemory::CounterName()
-{
-    ostringstream counterName;
-    counterName << "/shared_use_counter" << _key;
-    return counterName.str();
 }
 
 
@@ -226,6 +386,13 @@ void SharedMemory::MapSharedObjectToMemory()
     struct shmid_ds info;
     if (shmctl(_shmID, IPC_STAT, &info) == -1)
         ThrowError(EMAPFAILED, errno);
+    if (info.shm_segsz == 1)
+    {
+        // Another genome's usage counter (always 1 byte) lives at this key:
+        // that genome's key is ours minus 1. Never use or remove it.
+        _shmID = -1;
+        ThrowError(EKEYCOLLISION, EEXIST);
+    }
     if (info.shm_segsz < sizeof(size_t))
         ThrowError(EMAPFAILED, EINVAL);
     void * mapped = shmat(_shmID, NULL, 0);
@@ -295,9 +462,17 @@ void SharedMemory::Unlink()
 
 void SharedMemory::Clean()
 {
+    AdmissionGuard guard(*this);
+    CleanLocked();
+}
+
+void SharedMemory::CleanLocked()
+{
+    _loaderRegistered = false;
     Close();
     Unlink();
     RemoveSharedCounter();
+    RemoveLockSemaphore(); // last: releases the lock and wakes waiting jobs
 }
 
 void SharedMemory::EnsureCounter()
@@ -316,6 +491,16 @@ void SharedMemory::EnsureCounter()
             _sharedCounterID=shmget(_counterKey,0,0);
         if (_sharedCounterID < 0)
             ThrowError(ECOUNTERCREATE, errno);
+    }
+
+    // The counter key (key+1) is also the data key of a genome directory whose
+    // inode is key+1. Counters are always 1 byte; anything else is that other
+    // genome's data, which must never be attached as a counter or removed.
+    struct shmid_ds counterInfo;
+    if (shmctl(_sharedCounterID, IPC_STAT, &counterInfo) == 0 && counterInfo.shm_segsz != 1)
+    {
+        _sharedCounterID = -1;
+        ThrowError(EKEYCOLLISION, EEXIST);
     }
 
     if (_counterMem == 0)

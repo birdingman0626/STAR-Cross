@@ -100,7 +100,8 @@ fix 6, which is Windows-specific.
 
 ## Not covered
 
-Cross-process shared-memory genome admission (separate work item), CUDA paths,
+Cross-process shared-memory genome admission (handled separately, see
+`SHARED_MEMORY_ADMISSION.md`), CUDA paths,
 STARlong, WASP, `CB_UMI_Complex` barcodes, `--readFilesCommand` subprocess
 input, and macOS/Windows thread runtimes (TSan ran on Linux only; Windows and
 macOS builds use the same locking code).

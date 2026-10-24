@@ -5,7 +5,17 @@
 #include "streamFuns.h"
 #include "SharedMemory.h"
 #include "genomeScanFastaFiles.h"
+#include <atomic>
+#include <chrono>
+#include <thread>
 using namespace std;
+
+// Size fields at the start of the shared genome are written by the loading job
+// and read by other processes; access them atomically (8-byte aligned).
+static_assert(std::atomic_ref<uint64>::is_always_lock_free, "cross-process atomics must be lock-free");
+static uint64 shmLoadAcquire(uint64 *p) {
+    return std::atomic_ref<uint64>(*p).load(std::memory_order_acquire);
+}
 //addresses with respect to shmStart of several genome values
 #define SHM_sizeG 0
 #define SHM_sizeSA 8
@@ -197,6 +207,7 @@ void Genome::genomeLoad(){//allocate and load Genome
                 if (sharedMemory->NeedsAllocation()) {//did not find genome in shared memory, nothing to kill
                 ostringstream errOut;
                 errOut << "EXITING: Did not find the genome in memory, did not remove any genomes from shared memory\n";
+                releaseSharedMemory(); // drop this job's counter attachment before exit
                 exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_GENOME_FILES, P);
                 } else {
                             sharedMemory->Clean();
@@ -218,22 +229,38 @@ void Genome::genomeLoad(){//allocate and load Genome
         shmNSA= (uint64*) (shmStart+SHM_sizeSA);
 
         if (!sharedMemory->IsAllocator()) {
-            // genome is in shared memory or being loaded
-            // wait for the process that will populate it
-            // and record the sizes
-            uint64 iwait=0;
-            while (*shmNG != nGenome) {
-                iwait++;
-                P.inOut->logMain <<"Another job is still loading the genome, sleeping for 1 min\n" <<flush;
-                sleep(60);
-                if (iwait==100) {
+            // The genome is in shared memory or being loaded: wait until the
+            // loading job publishes the sizes (NG last, with release order).
+            // NG != 0 marks a finished load; an older STAR build stored NG
+            // before NSA, so wait for NSA too when NG already matches.
+            const uint64 pollSeconds=1, logEveryPolls=60, maxPolls=100*60;
+            for (uint64 iwait=0; ; iwait++) {
+                const uint64 ng = shmLoadAcquire(shmNG);
+                if (ng!=0 && (ng!=nGenome || shmLoadAcquire(shmNSA)!=0))
+                    break;
+                if (sharedMemory->GetLoaderState()==SharedMemory::LoaderState::Exited && shmLoadAcquire(shmNG)==0) {
                     ostringstream errOut;
-                    errOut << "EXITING because of FATAL ERROR: waited too long for the other job to finish loading the genome" << strerror(errno) << "\n" <<flush;
+                    errOut << "EXITING because of FATAL ERROR: the job that was loading this genome into shared memory exited before it finished\n";
+                    errOut << "SOLUTION: remove the incomplete shared memory genome by running STAR with --genomeDir " << pGe.gDir << " --genomeLoad Remove, and restart STAR" <<flush;
+                    exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_SHM, P);
+                };
+                if (iwait==maxPolls) {
+                    ostringstream errOut;
+                    errOut << "EXITING because of FATAL ERROR: waited too long for the other job to finish loading the genome\n";
                     errOut << "SOLUTION: remove the shared memory chunk by running STAR with --genomeLoad Remove, and restart STAR" <<flush;
                     exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_GENOME_LOADING_WAITED_TOO_LONG, P);
                 };
+                if (iwait%logEveryPolls==0)
+                    P.inOut->logMain <<"Another job is still loading the genome, waiting\n" <<flush;
+                std::this_thread::sleep_for(std::chrono::seconds(pollSeconds));
             };
-            if (nSAbyte!=*shmNSA){
+            if (nGenome!=shmLoadAcquire(shmNG)) {
+                ostringstream errOut;
+                errOut << "EXITING because of FATAL ERROR: the genome size did not match what we found in shared memory" << "\n" << flush;
+                errOut << "SOLUTION: remove the shared memory chunk by running STAR with --genomeLoad Remove, and restart STAR" << flush;
+                exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INCONSISTENT_DATA, P);
+            };
+            if (nSAbyte!=shmLoadAcquire(shmNSA)){
                 ostringstream errOut;
                 errOut << "EXITING because of FATAL ERROR: the SA file size did not match what we found in shared memory" << "\n" << flush;
                 errOut << "SOLUTION: remove the shared memory chunk by running STAR with --genomeLoad Remove, and restart STAR" << flush;
@@ -351,9 +378,10 @@ void Genome::genomeLoad(){//allocate and load Genome
          pGe.gLoad=="LoadAndRemove" ||
          pGe.gLoad=="LoadAndExit") && isAllocatorProcess )
     {
-        //record sizes. This marks the end of genome loading
-        *shmNG=nGenome;
-        *shmNSA=nSAbyte;
+        //record sizes. NG, stored last with release order, marks the end of genome loading
+        std::atomic_ref<uint64>(*shmNSA).store(nSAbyte, std::memory_order_relaxed);
+        std::atomic_ref<uint64>(*shmNG).store(nGenome, std::memory_order_release);
+        sharedMemory->LoaderFinished();
     };
 
     time ( &rawtime );

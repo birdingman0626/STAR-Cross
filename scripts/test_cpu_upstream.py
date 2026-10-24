@@ -85,6 +85,9 @@ def main():
     parser.add_argument("--threads", type=int, default=2)
     parser.add_argument("--shared-memory", action="store_true",
                         help="Unix-only: compare real STAR keep/remove/load modes with ordinary loading")
+    parser.add_argument("--ipc-helper",
+                        help="With --shared-memory: test/star_ipc_sysv (or _posix, matching STAR's backend) "
+                             "used to simulate a genome loader that dies before publishing")
     parser.add_argument("--sa-sparse", type=int, default=1,
                         help="Miniature index suffix-array sparsity (exercise sparse seed competition)")
     args = parser.parse_args()
@@ -308,7 +311,44 @@ def main():
                 assert (shared / "SJ.out.tab").read_bytes() == (mapped / "SJ.out.tab").read_bytes()
             run("shared-reload-exit", common + ["--genomeLoad", "LoadAndExit"])
             run("shared-remove", common + ["--genomeLoad", "Remove"])
+            # Jobs that start together on an unloaded genome: one loads, the
+            # others wait for it, and the last one to finish removes it.
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                concurrent_runs = list(pool.map(
+                    lambda i: run(f"shared-concurrent-{i}", common + ["--genomeLoad", "LoadAndRemove",
+                                  "--readFilesIn", str(reads), "--outSAMtype", "BAM", "Unsorted",
+                                  "--outSAMunmapped", "Within"]),
+                    range(4)))
+            for shared in concurrent_runs:
+                assert bam_records(shared / "Aligned.out.bam") == bam_records(mapped / "Aligned.out.bam")
+                assert (shared / "SJ.out.tab").read_bytes() == (mapped / "SJ.out.tab").read_bytes()
+            gone = run("shared-concurrent-gone", common + ["--genomeLoad", "Remove"], valid=False)
+            assert "Did not find the genome in memory" in (gone / "console.log").read_text(errors="replace")
+            if args.ipc_helper:
+                # A loader that dies before publishing: the helper creates this
+                # genome's segment as STAR's allocator would, then exits. A new
+                # job must stop at once instead of waiting for the time-out.
+                import ctypes, time
+                key = ctypes.c_int32(os.stat(genome).st_ino).value  # STAR's key_t
+                ready_r, ready_w = os.pipe()
+                done_r, done_w = os.pipe()
+                helper = subprocess.Popen([args.ipc_helper, "loader-crash", str(key), str(ready_w), str(done_r), "-1"],
+                                          pass_fds=(ready_w, done_r))
+                os.close(ready_w); os.close(done_r)
+                assert os.read(ready_r, 1) == b"x", "helper did not create the segment"
+                os.write(done_w, b"x")
+                assert helper.wait(timeout=30) == 0
+                os.close(ready_r); os.close(done_w)
+                started = time.monotonic()
+                dead = run("shared-dead-loader", common + ["--genomeLoad", "LoadAndKeep", "--readFilesIn", str(reads)],
+                           valid=False, expected_code=106)
+                assert time.monotonic() - started < 60
+                assert "exited before it finished" in (dead / "console.log").read_text(errors="replace")
+                run("shared-dead-loader-remove", common + ["--genomeLoad", "Remove"])
+                checks.append("shared-memory loader that died before publishing: next job fails fast (exit 106), Remove recovers")
             checks.append("shared-memory LoadAndExit/Keep/Remove and explicit Remove: exact BAM, junction and scientific log equivalence")
+            checks.append("shared-memory concurrent LoadAndRemove admission: identical outputs, genome removed after the last job")
         finally:
             cleanup = subprocess.run([args.star_exe, *common, "--genomeLoad", "Remove",
                                       "--outFileNamePrefix", str(root / "shared-cleanup")],
