@@ -35,7 +35,7 @@
 #include <math.h>
 #include <assert.h>
 
-#include "VERSION"
+#include "STARVersion.h" // not "VERSION": shadows C++20 <version> on case-insensitive filesystems
 
 #define ERROR_OUT string ( __FILE__ ) +":"+ to_string ( (uint64) __LINE__ ) +":"+ string ( __FUNCTION__ )
 
