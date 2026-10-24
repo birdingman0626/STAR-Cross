@@ -49,7 +49,7 @@ uint64 compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, ui
         return N; //exact match
     } else if (dirR && !dirG) {
         const char* s  = s2[1] + S + L;
-        g += mapGen.nGenome-1-SAstr - L;
+        g += (int64) (mapGen.nGenome-1-SAstr) - (int64) L; // can be -1: signed, not a wrapped unsigned offset
         for (ii=0; (uint64) ii < N-L; ii++)
         {
             if (s[ii]!=g[-ii])
@@ -67,7 +67,7 @@ uint64 compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, ui
         };
         return N;
     } else if (!dirR && dirG) {
-        const char* s  = s2[1] + S - L;
+        const char* s  = s2[1] + ((int64) S - (int64) L);
         g += SAstr + L;
         for (ii=0; (uint64) ii < N-L; ii++)
         {
@@ -86,8 +86,8 @@ uint64 compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, ui
         };
         return N;
     } else {//if (!dirR && !dirG)
-        const char* s  = s2[0] + S - L;
-        g += mapGen.nGenome-1-SAstr - L;
+        const char* s  = s2[0] + ((int64) S - (int64) L);
+        g += (int64) (mapGen.nGenome-1-SAstr) - (int64) L; // can be -1: signed, not a wrapped unsigned offset
         for (ii=0; (uint64) ii < N-L; ii++)
         {
             if (s[-ii]!=g[-ii])
@@ -301,7 +301,7 @@ uint64 compareSeqToGenome1(const SeedIndexView &mapGen, const char* const* s2, u
     else
     {
         const char* s  = s2[1] + S + L;
-        g += mapGen.nGenome-1-SAstr - L;
+        g += (int64) (mapGen.nGenome-1-SAstr) - (int64) L; // can be -1: signed, not a wrapped unsigned offset
         for (ii=0; (uint64) ii < N-L; ii++)
         {
             if (s[ii]!=g[-ii])

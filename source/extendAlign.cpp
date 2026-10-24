@@ -12,8 +12,10 @@ int iS,iG;
 int Score=0, nMatch=0, nMM=0;
 trA->maxScore=0;
 
-R=R+rStart;
-G=G+gStart;
+// Callers pass start-1 for leftward extension, which wraps to (uint64)-1 at 0:
+// offset the pointers by the signed value (same address, defined behavior).
+R=R+(int64) rStart;
+G=G+(int64) gStart;
 
 if (extendToEnd) {//end to end extension
 

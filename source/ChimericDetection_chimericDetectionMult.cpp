@@ -64,23 +64,19 @@ int chimericAlignScore (ChimericSegment & seg1, ChimericSegment & seg2)
 };
 
 /////////////////////////////////////////////////////////////
-bool ChimericDetection::chimericDetectionMult(uint64 nW, uint64 *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA) {
-
-//     for (uint64 ii=0;ii<chimAligns.size();ii++) {//deallocate aligns
-//         if (chimAligns.at(ii).stitchingDone) {//al1,al2 were allocated
-//             delete chimAligns.at(ii).al1;
-//             delete chimAligns.at(ii).al2;
-//         };
-//     };
-
+void ChimericDetection::releaseChimAligns() {
     for (auto cAit=chimAligns.begin(); cAit<chimAligns.end(); cAit++) {//deallocate aligns
         if (cAit->stitchingDone) {//al1,al2 were allocated
             delete cAit->al1;
             delete cAit->al2;
         };
     };
-
     chimAligns.clear();
+};
+
+bool ChimericDetection::chimericDetectionMult(uint64 nW, uint64 *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA) {
+
+    releaseChimAligns(); // previous read's alignments
     int chimScoreBest=0;
     std::size_t bestChimAlign=0; // points to element of chimAligns with highest chimScoreBest
 

@@ -290,6 +290,13 @@ inline uint64 fastqReadOneLine(ifstream &streamIn, char *arrIn)
     streamIn.getline(arrIn, DEF_readNameSeqLengthMax+1 );
     lenIn = streamIn.gcount(); //=seqLength+1: includes \0 but not \n. We will replace \0 with \n
 
+    if (lenIn < 2) {
+        // Empty line (1) or nothing read (0, end of input): store nothing. The
+        // previous code reached the same result by rewriting the preceding '\n'
+        // through arrIn[-1], and could return (uint64)-1 at end of input.
+        return 0;
+    };
+
     if ( int(arrIn[lenIn-2]) < 33 ) {//remove control char at the end if present
         --lenIn;
     };

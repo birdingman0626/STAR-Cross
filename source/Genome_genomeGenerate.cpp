@@ -127,7 +127,7 @@ inline uint64 funG2strLocus (uint64 SAstr, uint64 const N, char const GstrandBit
 inline uint64 funSAsortPrefix(char* G, uint64 ii, uint64 prefixLength) {
     uint64 prefix=0;
     for (uint64 jj=0; jj<prefixLength; jj++) {
-        uint64 g=(uint64) G[ii-jj];
+        uint64 g=(uint64) G[(int64) ii - (int64) jj];
         if (g>5) g=5;
         prefix=prefix*6+g;
     };
@@ -137,7 +137,7 @@ inline uint64 funSAsortPrefix(char* G, uint64 ii, uint64 prefixLength) {
 inline uint64 funSAsortPrefixAtOffset(char* G, uint64 ii, uint64 offset, uint64 prefixLength) {
     uint64 prefix=0;
     for (uint64 jj=0; jj<prefixLength; jj++) {
-        uint64 g=(uint64) G[ii-offset-jj];
+        uint64 g=(uint64) G[(int64) ii - (int64) offset - (int64) jj];
         if (g>5) g=5;
         prefix=prefix*6+g;
     };
