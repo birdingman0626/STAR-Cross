@@ -86,7 +86,7 @@ jobs:
           python3 scripts/maintain_htslib.py --archive data/validation/htslib.tar.bz2
 
       - name: Miniature STAR integration
-        run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build/STAR" --shared-memory
+        run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build/STAR" --shared-memory --ipc-helper "$GITHUB_WORKSPACE/source/build/test/star_ipc_sysv"
 
       - name: STARlong and super-transcriptome lifecycle regression
         if: matrix.compiler == 'gcc' && matrix.platform.arch == 'x86_64'
@@ -162,7 +162,7 @@ jobs:
 
       - name: Native analysis and embedded-server integration
         run: |
-          python3 scripts/test_cpu_upstream.py --star-exe source/build/STAR --sa-sparse 3
+          python3 scripts/test_cpu_upstream.py --star-exe source/build/STAR --sa-sparse 3 --shared-memory --ipc-helper source/build/test/star_ipc_sysv
           python3 scripts/test_webui.py --star-exe source/build/STAR
 
   build-windows:
@@ -295,6 +295,62 @@ jobs:
             /tmp/star-threads-*/tsan/*
             /tmp/star-threads-*/*/console.log
             /tmp/star-threads-*/*/Log.out
+          if-no-files-found: ignore
+
+  # Clang's UBSan checks pointer arithmetic that GCC's does not report
+  # (pointer-overflow: an unsigned offset that wraps below the base pointer).
+  clang-asan-ubsan:
+    runs-on: ubuntu-latest
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        timeout-minutes: 10
+        run: |
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          timeout 180s sudo apt-get "${apt_options[@]}" update --error-on=any
+          timeout 300s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends zlib1g-dev ninja-build clang libclang-rt-dev libomp-dev
+
+      - name: Allow the sanitizer shadow-memory layout
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Build with AddressSanitizer + UBSan (Clang)
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cd source
+          cmake -B build-clang-asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_BUILD_TESTS=ON -DSTAR_ASAN=ON -DSTAR_UBSAN=ON
+          cmake --build build-clang-asan
+
+      - name: Unit tests
+        run: ctest --test-dir source/build-clang-asan --no-tests=error --output-on-failure
+
+      - name: Alignment and count integration (dense and sparse suffix array)
+        timeout-minutes: 20
+        run: |
+          python3 scripts/test_cpu_upstream.py --star-exe source/build-clang-asan/STAR
+          python3 scripts/test_cpu_upstream.py --star-exe source/build-clang-asan/STAR --sa-sparse 3
+
+      - name: Malformed-input robustness
+        run: python3 scripts/test_malformed_inputs.py --star-exe source/build-clang-asan/STAR
+
+      - name: Simulated multi-threaded workload (chimeric, two-pass, sjdb insertion, STARsolo)
+        timeout-minutes: 60
+        run: python3 scripts/test_thread_sanitizer.py --star-exe source/build-clang-asan/STAR --threads 4 --allow-tsan-reports
+
+      - name: Retain failed fixture evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: clang-asan-ubsan-fixtures
+          path: |
+            /tmp/star-cpu-regression-*/**/console.log
+            /tmp/star-malformed-*/**/console.log
+            /tmp/star-threads-*/*/console.log
           if-no-files-found: ignore
 
   asan-sjdb:
