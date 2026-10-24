@@ -141,6 +141,16 @@ header for every target with `source/` on its include path, so doctest and
 nlohmann/json read STAR's version file instead of the standard header. The file
 is now `source/STARVersion.h`.
 
+## `LoadAndExit` and `Remove` now exit
+
+Since upstream commit `8d12311` (October 2019), the "exit after loading or
+removing" check sat at the end of `genomeLoad()`, below the early `return`s
+of both modes, so it never ran. The job then went on to map with no reads.
+Linux mapped zero reads and exited 0, so this went unnoticed. CI's macOS job
+with Homebrew GCC was killed (arm64) or failed with `std::bad_alloc` (x86_64).
+Both modes now release their handle and exit 0 straight after their work. The
+genome stays loaded after `LoadAndExit`.
+
 ## Not changed
 
 - **No automatic recovery.** A dead loader's segment is not reloaded

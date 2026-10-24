@@ -212,7 +212,8 @@ void Genome::genomeLoad(){//allocate and load Genome
                 } else {
                             sharedMemory->Clean();
                     P.inOut->logMain <<"DONE: removed the genome from shared memory\n"<<flush;
-                            return;
+                    releaseSharedMemory();
+                    exit(0); // returning would start mapping with no reads
                 };
             };
 
@@ -404,7 +405,8 @@ void Genome::genomeLoad(){//allocate and load Genome
     if (pGe.gLoad=="LoadAndExit") {
 	for (uint64 ii=0;ii<shmSize;ii++) (void)shmStart[ii]; // touch shared memory to verify accessibility
         P.inOut->logMain << "pGe.gLoad=LoadAndExit: completed, the genome is loaded and kept in RAM, EXITING now.\n"<<flush;
-        return;
+        releaseSharedMemory(); // the genome stays loaded; only this job detaches
+        exit(0); // returning would start mapping with no reads
     };
 
     Genome::insertSequences();
