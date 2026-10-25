@@ -9,6 +9,8 @@ small I/O buffers, so hundreds of chunks are processed concurrently:
     unmapped-read output and signal tracks;
   - two-pass mapping with input-order SAM output;
   - the opt-in chunk pipeline and asynchronous BAM/SAM writers;
+  - transcriptome BAM with --quantTranscriptomeBAMprimary ReadIndex, compared
+    exactly (the default Random primary flag is compared with 0x100 masked);
   - STARsolo droplet (Gene/GeneFull/SJ/Velocyto, multimapper EM) and SmartSeq.
 
 Every scenario is run with --runThreadN 1 and with --threads; outputs that must
@@ -308,6 +310,13 @@ def main():
         "--outSAMtype", "BAM", "Unsorted", "--quantMode", "TranscriptomeSAM"], [
         ("Aligned.out.bam", "bamset"), ("Aligned.toTranscriptome.out.bam", "bamset-any-primary"), ("SJ.out.tab", "bytes")],
         env_extra={"STAR_CHUNK_PIPELINE": "1", "STAR_ASYNC_BAM": "1"})
+
+    # With ReadIndex the transcriptome primary flag no longer depends on the
+    # mapping thread, so the file is compared exactly, FLAG 0x100 included.
+    scenario("transcriptome_read_index", pe + [
+        "--outSAMtype", "BAM", "Unsorted", "--quantMode", "TranscriptomeSAM",
+        "--quantTranscriptomeBAMprimary", "ReadIndex"], [
+        ("Aligned.out.bam", "bamset"), ("Aligned.toTranscriptome.out.bam", "bamset")])
 
     scenario("async_sam", pe + ["--outSAMtype", "SAM"], [
         ("Aligned.out.sam", "lines"), ("SJ.out.tab", "bytes")],

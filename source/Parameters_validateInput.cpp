@@ -214,6 +214,14 @@ void Parameters::inputParameters_validate() {
     quant.trSAM.indel=false;
     quant.trSAM.softClip=false;
     quant.trSAM.singleEnd=false;
+    if (quant.trSAM.bamPrimary=="Random" || quant.trSAM.bamPrimary=="ReadIndex") {
+        quant.trSAM.primaryByReadIndex = quant.trSAM.bamPrimary=="ReadIndex";
+    } else {
+        ostringstream errOut;
+        errOut << "EXITING because of fatal PARAMETER error: unrecognized option in --quantTranscriptomeBAMprimary=" << quant.trSAM.bamPrimary << "\n";
+        errOut << "SOLUTION: use one of the allowed values of --quantTranscriptomeBAMprimary : Random or ReadIndex .\n";
+        exitWithError(errOut.str(),std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+    };
     if (quant.mode.at(0) != "-") {
         quant.yes=true;
         for (uint32 ii=0; ii<quant.mode.size(); ii++) {

@@ -38,6 +38,7 @@ unsorted outputs). It fails on any TSan report and on any crash.
 | `pe_chim_within_bam` | chimeric WithinBAM output with sorted BAM |
 | `twopass_sam` | two-pass mapping, input-ordered SAM (`PairedKeepInputOrder`) |
 | `async_bam`, `async_sam` | `STAR_CHUNK_PIPELINE` input dispatcher, asynchronous BAM/SAM writers |
+| `transcriptome_read_index` | transcriptome BAM with `--quantTranscriptomeBAMprimary ReadIndex`, compared exactly |
 | `sjdb_insert` | on-the-fly junction insertion (OpenMP) before mapping |
 | `solo_droplet` | CB/UMI barcode matching, Gene/GeneFull/SJ/Velocyto, multimapper Uniform+EM, CellRanger2.2 filtering, CB/UB-tagged sorted BAM |
 | `solo_smartseq` | SmartSeq manifest counting (OpenMP) |
@@ -61,8 +62,14 @@ unsorted outputs). It fails on any TSan report and on any crash.
   thread (`runRNGseed*(iThread+1)`). Threads take chunks dynamically, so FLAG
   0x100 in `Aligned.toTranscriptome.out.bam` can change with the thread count and
   between runs; the alignments themselves do not. This is upstream behavior and
-  is kept for frozen-baseline parity. The harness compares this file with 0x100
-  masked. Users needing a reproducible primary flag should use one thread.
+  is kept as the default for frozen-baseline parity, and the harness compares
+  this file with 0x100 masked. For a reproducible flag, use the opt-in
+  `--quantTranscriptomeBAMprimary ReadIndex`. It picks the primary from
+  `--runRNGseed` and the read's number in the input
+  (`source/transcriptomePrimary.h`), so the file is the same for any
+  `--runThreadN`. The thread's random draw still happens, so other random
+  choices are unchanged. Scenario `transcriptome_read_index` compares this file
+  exactly, 0x100 included.
 - **Fatal-error path.** `exitWithError()` serializes on `mutexError` and writes
   `Log.out` without `mutexLogMain`, while other workers may still log; the
   process then calls `exit()` with workers alive (TSan also reports these as

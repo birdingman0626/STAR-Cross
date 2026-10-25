@@ -256,6 +256,7 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "quantMode", &quant.mode));
     parArray.push_back(new ParameterInfoScalar <int>     (-1, -1, "quantTranscriptomeBAMcompression", &quant.trSAM.bamCompression));
     parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "quantTranscriptomeSAMoutput", &quant.trSAM.output));
+    parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "quantTranscriptomeBAMprimary", &quant.trSAM.bamPrimary));
 
     //2-pass
     parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "twopass1readsN", &twoPass.pass1readsN));

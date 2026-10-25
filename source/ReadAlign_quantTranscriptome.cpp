@@ -2,6 +2,7 @@
 #include "ReadAlign.h"
 #include "Transcript.h"
 #include "serviceFuns.cpp"
+#include "transcriptomePrimary.h"
 #include <random>
 using namespace std;
 uint64 ReadAlign::quantTranscriptome (Transcriptome *Tr, uint64 nAlignG, Transcript **alignG, Transcript *alignT) {
@@ -68,7 +69,12 @@ uint64 ReadAlign::quantTranscriptome (Transcriptome *Tr, uint64 nAlignG, Transcr
     };
 
     if (P.quant.trSAM.bamYes) {//output Aligned.toTranscriptome.bam
-        alignT[int(rngUniformReal0to1(rngMultOrder)*nAlignT)].primaryFlag=true;
+        // Draw in both modes so the thread's random stream, used by later
+        // choices such as --outMultimapperOrder Random, stays the same.
+        uint64 iPrimary = int(rngUniformReal0to1(rngMultOrder)*nAlignT);
+        if (P.quant.trSAM.primaryByReadIndex)
+            iPrimary = transcriptomePrimaryByReadIndex(P.runRNGseed, iReadAll, nAlignT);
+        alignT[iPrimary].primaryFlag=true;
 
         for (uint64 iatr=0;iatr<nAlignT;iatr++) {//write all transcripts
             alignBAM(alignT[iatr], nAlignT, iatr, 0, (uint64) -1, (uint64) -1, 0, -1, NULL, P.outSAMattrOrderQuant, outBAMoneAlign, outBAMoneAlignNbytes);

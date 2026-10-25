@@ -314,6 +314,8 @@ class Parameters {
                 bool singleEnd;
                 int bamCompression;
                 std::string output;
+                std::string bamPrimary; // --quantTranscriptomeBAMprimary
+                bool primaryByReadIndex=false; // ReadIndex: primary independent of threads
             } trSAM;
 
             struct {
