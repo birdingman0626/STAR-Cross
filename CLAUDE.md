@@ -68,12 +68,11 @@ Scientific changes must preserve exact output parity (BAM records, SJ.out.tab, S
 - **OpenMP threading**: Parallel read processing via `mapThreadsSpawn.cpp`; each thread gets its own `ReadAlignChunk`/`ReadAlign` instances.
 - **Shared memory**: Optional genome preloading into POSIX shared memory for multi-instance sharing (`SharedMemory.*`).
 - **Compile-time variants**: `COMPILE_FOR_LONG_READS` (STARlong), `COMPILE_FOR_MAC`, `POSIX_SHARED_MEM` controlled via `-D` flags.
-- **SIMD**: AVX2 by default for Opal alignment (`opal/opal.cpp`), configurable via `CXXFLAGS_SIMD`.
+- **SIMD**: generic builds do not enable AVX2 (`-DSTAR_USE_AVX2=ON` opts in). CellRanger4 adapter clipping (`ClipCR4.cpp`) is an in-house overlap aligner that runs 64 reads side by side in plain loops the compiler vectorizes.
 
 ### Dependencies
 
 - **HTSlib** (bundled in `source/htslib/`, optional system via `USE_SYSTEM_HTSLIB`) — BAM/SAM/CRAM I/O
-- **Parasail** (CMake FetchContent, v2.6.2) — sequence alignment for CellRanger4 adapter clipping (`ClipCR4`)
 - **zlib** — compression (system library)
 - **OpenMP** — thread parallelism (compiler built-in)
 - **xxd** — build tool to embed `parametersDefault` into the binary

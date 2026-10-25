@@ -68,27 +68,27 @@ target_include_directories(star_tests PRIVATE
 
 # IncludeDefine.h includes <omp.h>; the test binary must link OpenMP
 find_package(OpenMP REQUIRED)
-target_link_libraries(star_tests PRIVATE OpenMP::OpenMP_CXX hts parasail star_sjdb_remap)
+target_link_libraries(star_tests PRIVATE OpenMP::OpenMP_CXX hts star_sjdb_remap)
 add_executable(star_seed_benchmark benchmark_seed_search.cpp
     ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp)
 star_target_build_options(star_seed_benchmark)
 star_target_sanitizers(star_seed_benchmark)
 target_include_directories(star_seed_benchmark PRIVATE ${STAR_SOURCE_DIR})
-target_link_libraries(star_seed_benchmark PRIVATE OpenMP::OpenMP_CXX parasail nlohmann_json::nlohmann_json)
+target_link_libraries(star_seed_benchmark PRIVATE OpenMP::OpenMP_CXX nlohmann_json::nlohmann_json)
 target_compile_definitions(star_seed_benchmark PRIVATE STAR_SEED_HINT_REPLAY=1)
 add_executable(star_seed_properties seed_search_properties.cpp
     ${STAR_SOURCE_DIR}/SuffixArrayFuns.cpp ${STAR_SOURCE_DIR}/PackedArray.cpp)
 star_target_build_options(star_seed_properties)
 star_target_sanitizers(star_seed_properties)
 target_include_directories(star_seed_properties PRIVATE ${STAR_SOURCE_DIR})
-target_link_libraries(star_seed_properties PRIVATE OpenMP::OpenMP_CXX parasail)
+target_link_libraries(star_seed_properties PRIVATE OpenMP::OpenMP_CXX)
 target_compile_definitions(star_seed_properties PRIVATE STAR_SEED_HINT_REPLAY=1)
 add_executable(star_rank_hint_properties seed_rank_hint_properties.cpp
     ${STAR_SOURCE_DIR}/PackedArray.cpp)
 star_target_build_options(star_rank_hint_properties)
 star_target_sanitizers(star_rank_hint_properties)
 target_include_directories(star_rank_hint_properties PRIVATE ${STAR_SOURCE_DIR})
-target_link_libraries(star_rank_hint_properties PRIVATE OpenMP::OpenMP_CXX parasail)
+target_link_libraries(star_rank_hint_properties PRIVATE OpenMP::OpenMP_CXX)
 if(MSVC)
     target_compile_options(star_seed_benchmark PRIVATE /EHsc)
     target_compile_definitions(star_seed_benchmark PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)

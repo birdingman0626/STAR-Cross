@@ -44,8 +44,8 @@ cmake --build build --parallel 8
 ./build/STAR --version
 ```
 
-CMake disables global AVX2 by default on every architecture. Adapter clipping uses
-Parasail's platform-specific SIMD implementation.
+CMake disables global AVX2 by default on every architecture. Adapter clipping needs
+no SIMD flags: its aligner is plain C++ that the compiler vectorizes.
 
 ## Windows (MSVC)
 

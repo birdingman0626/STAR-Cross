@@ -2,8 +2,7 @@
 #define CODE_ClipCR4
 
 #include "IncludeDefine.h"
-#include <parasail.h>
-#include <memory>
+#include <vector>
 
 // Alignment result for one database sequence (score + end position)
 struct ClipAlignResult
@@ -15,7 +14,8 @@ struct ClipAlignResult
 class ClipCR4
 {
 public:
-    int dbN; // number of sequences in the alignment "database"
+    static constexpr int kLanes = 64; // sequences aligned together
+    int dbN; // number of sequences in the alignment "database" (kLanes)
 
     std::vector<uint8*> storeClip;
 
@@ -25,7 +25,6 @@ public:
     ClipCR4();
     ~ClipCR4() = default;
 
-    // Non-copyable: owns raw heap allocations and C resources
     ClipCR4(const ClipCR4&) = delete;
     ClipCR4& operator=(const ClipCR4&) = delete;
 
@@ -36,16 +35,21 @@ public:
 private:
     uint32 readLen; // sequence length to align against
 
-    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> scoreMatrix;
+    // Scoring: match 1, mismatch -2, N-vs-N 0; a gap of length k costs
+    // gapOpen + (k-1)*gapExt.
+    int match;
+    int mismatch;
     int gapOpen;
     int gapExt;
 
-    // Database sequences stored as ASCII characters (A/C/G/T/N)
-    std::vector<char> dbSeqArr;
-    std::vector<char*> dbSeqs;
+    // Database sequences as base codes (A=0,C=1,G=2,T=3,N=4), stored
+    // column-major: dbCode[position*dbN + sequence], so one alignment column
+    // of every sequence is contiguous.
+    std::vector<int16_t> dbCode;
 
-    // Reused buffer; do not silently truncate user-supplied adapters.
-    std::vector<char> queryCharsBuf;
+    // Per-row DP state, row-major [row*dbN + sequence]; reused across calls.
+    std::vector<int16_t> rowH16, rowE16;
+    std::vector<int32_t> rowH32, rowE32;
 };
 
 #endif

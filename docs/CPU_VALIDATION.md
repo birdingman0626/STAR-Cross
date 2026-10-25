@@ -70,10 +70,12 @@ Unsafe stitching branch-and-bound was removed: its bound omitted positive extens
 and junction/scoring contributions. Old-pruning output is a diagnostic comparison,
 not the correctness oracle. Compare against independently pinned upstream semantics.
 
-CellRanger4 uses Parasail **scan**, not striped: low gap penalties permit opposing
-gaps for which striped produced different scores/endpoints from upstream Opal.
-Independent scalar unit tests protect this contract. Do not restore striped for
-speed without naming and validating an algorithm change.
+CellRanger4 clipping must reproduce the full overlap recurrence (as Parasail
+**scan** did, not striped): low gap penalties permit opposing gaps for which
+striped produced different scores/endpoints from upstream Opal. The in-house
+aligner (`ClipCR4.cpp`) computes every DP cell exactly; independent scalar unit
+tests protect this contract. Do not trade exactness for speed without naming and
+validating an algorithm change.
 
 Start GPU work with one bounded subproblem, CPU fallback and CUDA disabled by
 default. Require exact supported-domain decisions, immutable candidate/result

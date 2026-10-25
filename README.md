@@ -70,7 +70,7 @@ preview, queue status and logs. See [Web UI usage](docs/webui/README.md).
 ## Differences and limits
 
 - **Native platforms:** Windows and macOS ARM builds use the same C++ codebase
-  as Linux. Adapter clipping uses Parasail; it no longer uses the old bundled Opal/SIMDe implementation.
+  as Linux. CellRanger4 adapter clipping uses a small in-house aligner with the same results as the earlier Opal and Parasail versions, and no external library.
 - **CPU optimizations:** dense-index seed search avoids temporary allocations;
   other changes address index generation, per-read resets and UMI processing.
   See [measured results and rejected experiments](docs/OPTIMIZATION_RESULTS_20261006.md).

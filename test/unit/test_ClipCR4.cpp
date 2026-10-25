@@ -3,7 +3,6 @@
 #include <stdexcept>
 #include <random>
 #include <limits>
-#include <parasail/memory.h>
 using namespace std;
 // Independent scalar affine overlap recurrence. Free leading ends; choose the
 // first best target endpoint on the last query row, then the last target column
@@ -80,48 +79,48 @@ TEST_CASE("CellRanger4 invalid inputs are rejected and unknown query bases norma
     CHECK(clip.alignRes[0].endLocationTarget == unknown.endLocationTarget);
 }
 
-TEST_CASE("Parasail rejects overflowing profile dimensions before reading the query") {
-    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> matrix(
-        parasail_matrix_create("ACGTN", 1, -2), parasail_matrix_free);
-    REQUIRE(matrix != nullptr);
-    // Only one byte exists: dimension validation must precede allocation/read.
-    const char query = 'A';
-    CHECK(parasail_profile_create_16(&query, std::numeric_limits<int>::max(), matrix.get()) == nullptr);
-    CHECK(parasail_memalign_int(16, std::numeric_limits<size_t>::max() / sizeof(int) + 1) == nullptr);
-    CHECK(parasail_memalign_int64_t(16, std::numeric_limits<size_t>::max() / sizeof(int64_t) + 1) == nullptr);
-    CHECK(parasail_result_new_table1(std::numeric_limits<int>::max(), 2) == nullptr);
+static std::string randomRead(std::mt19937& random, size_t maxLen) {
+    std::string sequence(random()%(maxLen+1),'A');
+    for(char& c:sequence) c="ACGTNXacgt"[random()%10];
+    if(random()%3==0) sequence="AAGCAGTGGTATCAACGCAGAGTACATGGG"+sequence;
+    return sequence;
 }
 
-TEST_CASE("Parasail 64-bit scan keeps large gap penalties in 64-bit arithmetic") {
-    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> matrix(
-        parasail_matrix_create("ACGTN", 1, -2), parasail_matrix_free);
-    REQUIRE(matrix != nullptr);
-    const std::string sequence(300, 'A');
-    std::unique_ptr<parasail_result_t, decltype(&parasail_result_free)> result(
-        parasail_sw_scan_64(sequence.data(), sequence.size(), sequence.data(), sequence.size(),
-            std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), matrix.get()),
-        parasail_result_free);
-    REQUIRE(result != nullptr);
-    CHECK(parasail_result_get_score(result.get()) == 300);
+TEST_CASE("CellRanger4 clipping aligns all 64 database sequences independently") {
+    ClipCR4 clip;
+    std::mt19937 random(2026);
+    for(int round=0;round<40;++round) {
+        std::vector<uint8> query(1+random()%60);
+        for(auto& b:query) b=random()%6; // includes N (4) and an out-of-range code
+        std::vector<std::string> reads(clip.dbN);
+        int used=1+random()%clip.dbN; // partial batches leave stale lanes behind
+        for(int i=0;i<used;++i) {
+            reads[i]=randomRead(random,120);
+            clip.fillOneSeq(i,reads[i].data(),reads[i].size());
+        }
+        clip.align(query.data(),query.size(),used);
+        std::vector<uint8> normalized(query);
+        for(auto& b:normalized) b=std::min<uint8>(b,4);
+        for(int i=0;i<used;++i) {
+            std::string target=reads[i];
+            for(char& c:target) if(std::string("ACGTN").find(c)==std::string::npos) c='N';
+            auto expected=overlap(normalized,target.substr(0,std::min<size_t>(target.size(),91)));
+            CHECK(clip.alignRes[i].score==expected.score);
+            CHECK(clip.alignRes[i].endLocationTarget==expected.endLocationTarget);
+        }
+    }
 }
 
-TEST_CASE("Parasail PSSM conversion validates dimensions and accepts a bounded query") {
-    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> matrix(
-        parasail_matrix_create("ACGTN", 1, -2), parasail_matrix_free);
-    REQUIRE(matrix != nullptr);
-    const char query[2] = {'A', 'C'};
-    CHECK(parasail_matrix_convert_square_to_pssm(nullptr, query, 2) == nullptr);
-    CHECK(parasail_matrix_convert_square_to_pssm(matrix.get(), nullptr, 2) == nullptr);
-    CHECK(parasail_matrix_convert_square_to_pssm(matrix.get(), query, 0) == nullptr);
-    CHECK(parasail_matrix_convert_square_to_pssm(matrix.get(), query, -1) == nullptr);
-    CHECK(parasail_matrix_convert_square_to_pssm(matrix.get(), query, std::numeric_limits<int>::max()) == nullptr);
-    std::unique_ptr<parasail_matrix_t, decltype(&parasail_matrix_free)> pssm(
-        parasail_matrix_convert_square_to_pssm(matrix.get(), query, 2), parasail_matrix_free);
-    REQUIRE(pssm != nullptr);
-    CHECK(pssm->length == 2);
-    CHECK(std::string(pssm->query) == "AC");
-    for (int row = 0; row < 2; ++row)
-        for (int col = 0; col < matrix->size; ++col)
-            CHECK(pssm->matrix[row * matrix->size + col]
-                == matrix->matrix[matrix->mapper[static_cast<unsigned char>(query[row])] * matrix->size + col]);
+TEST_CASE("CellRanger4 clipping keeps exact scores for adapters too long for 16-bit lanes") {
+    ClipCR4 clip;
+    std::mt19937 random(9);
+    std::vector<uint8> query(9000);
+    for(auto& b:query) b=random()%5;
+    std::string sequence=randomRead(random,91);
+    clip.fillOneSeq(0,sequence.data(),sequence.size());
+    clip.align(query.data(),query.size(),1);
+    for(char& c:sequence) if(std::string("ACGTN").find(c)==std::string::npos) c='N';
+    auto expected=overlap(query,sequence.substr(0,std::min<size_t>(sequence.size(),91)));
+    CHECK(clip.alignRes[0].score==expected.score);
+    CHECK(clip.alignRes[0].endLocationTarget==expected.endLocationTarget);
 }

@@ -52,7 +52,8 @@ Please include:
   may receive bounded local patches here):
   - **HTSlib** → [samtools/htslib](https://github.com/samtools/htslib/security)
 - Issues in dependencies fetched via CMake FetchContent:
-  - **Parasail** → [jeffdaily/parasail](https://github.com/jeffdaily/parasail)
+  - **cpp-httplib** → [yhirose/cpp-httplib](https://github.com/yhirose/cpp-httplib)
+  - **nlohmann/json** → [nlohmann/json](https://github.com/nlohmann/json)
 - Issues in the reference genome or annotation files (not part of this codebase)
 - Expected resource exhaustion from legitimately large input is not by itself a
   security defect. Memory corruption and invalid length checks on malformed
@@ -69,5 +70,5 @@ scanning; dependencies are not blanket-excluded:
 | HTSlib  | 1.24    | [samtools/htslib](https://github.com/samtools/htslib) |
 | SimpleGoodTuring | (bundled) | N/A |
 
-Additionally, **Parasail v2.6.2** is fetched at build time via CMake FetchContent
-([jeffdaily/parasail](https://github.com/jeffdaily/parasail)) for adapter clipping.
+Additionally, **cpp-httplib** and **nlohmann/json** (header-only, web UI) are
+fetched at build time via hash-checked CMake FetchContent.

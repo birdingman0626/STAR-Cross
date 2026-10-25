@@ -28,14 +28,19 @@ The Windows compatibility layer predates this upgrade. It is not a replacement
 for full upstream POSIX support; qualify BAM/CRAM and multithreaded compression
 on native Windows whenever HTSlib changes.
 
-Parasail 2.6.2 is still the latest official release reviewed on 2026-10-07.
-`PatchParasail.cmake` fixes the fetched project's fixture path and non-x86 s390x
-CPUID guard, and bounds the tiny verification fixture's OpenMP threads/time.
-It also checks profile/allocation bounds and widens gap-penalty arithmetic in
-the compiled kernels and generator templates. These are local patches, not an
-upstream release upgrade or a claim that all library findings are resolved.
-Changes happen before configuration, consistently for fresh builds. With custom
-`FETCHCONTENT_SOURCE_DIR_PARASAIL`, apply the same patch explicitly before configuring.
+Parasail was removed on 2026-10-25. Its only use, CellRanger4 adapter
+clipping, now uses an in-house aligner (`source/ClipCR4.cpp`):
+
+- Scores and end positions are identical to Parasail 2.6.2 on 31 million
+  random and adapter-rich alignments (GCC and Clang, with and without AVX2).
+- STARsolo BAM records and matrices with `--clipAdapterType CellRanger4` match
+  the frozen baseline. The miniature harness now has a CR4 fixture for this.
+- Clipping takes 5-9x less time per read (540-940 ns versus 4.2-5.0 us). A
+  400,000-read STARsolo run at 4 threads is about 10% faster end to end
+  (median paired ratio 0.90 over 5 alternating pairs).
+
+`PatchParasail.cmake` and the Parasail, SIMDe and sais-lite licence files are
+gone with it.
 
 ## Update procedure
 
@@ -76,6 +81,6 @@ Do not ignore all third-party security findings merely because code is vendored.
 ## Licenses
 
 Keep upstream per-file notices. HTSlib and htscodecs contain additional licenses
-beyond their top-level notices; Parasail bundles SIMDe with its own MIT notice.
+beyond their top-level notices.
 System zlib and compiler/OpenMP runtime redistribution remains subject to the
 selected distribution/toolchain's licenses. doctest is only linked into tests.

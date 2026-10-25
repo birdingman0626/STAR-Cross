@@ -214,7 +214,7 @@ readQualityScoreBase        33
 clipAdapterType             Hamming
     string:                 adapter clipping type
                             Hamming ... adapter clipping based on Hamming distance, with the number of mismatches controlled by --clip5pAdapterMMp
-                            CellRanger4 ... 5p and 3p adapter clipping similar to CellRanger4. Utilizes Parasail library by Jeff Daily: https://github.com/jeffdaily/parasail
+                            CellRanger4 ... 5p and 3p adapter clipping similar to CellRanger4
                             None ... no adapter clipping, all other clip* parameters are disregarded
                             
 clip3pNbases                 0

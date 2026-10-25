@@ -24,8 +24,6 @@ PY
 mkdir -p build
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
 
-# CMake's hash-verified Parasail patch step also handles s390x CPUID.
-
 # Build only the executable and the test binaries used below. Native platforms
 # qualify the full native test suite; emulated s390x retains its endian/BAM and
 # seed-search subset and runs the miniature scientific fixture.

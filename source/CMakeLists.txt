@@ -130,46 +130,7 @@ if(NOT ZLIB_FOUND)
     endif()
 endif()
 
-# ---------- Parasail (sequence alignment for adapter clipping) ----------
-if(NOT FETCHCONTENT_DECLARED)
-    include(FetchContent)
-endif()
-set(BUILD_SHARED_LIBS_SAVED ${BUILD_SHARED_LIBS})
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-# Parasail's cmake_minimum_required predates CMake 4.x policy enforcement
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
-    set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
-endif()
-FetchContent_Declare(parasail
-    URL https://codeload.github.com/jeffdaily/parasail/tar.gz/refs/tags/v2.6.2
-    URL_HASH SHA256=9057041db8e1cde76678f649420b85054650414e5de9ea84ee268756c7ea4b4b
-    PATCH_COMMAND ${CMAKE_COMMAND} -DPARASAIL_SOURCE=<SOURCE_DIR>
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchParasail.cmake
-)
-FetchContent_MakeAvailable(parasail)
-# FetchContent's download stamp can outlive changes to our patch script.
-# Reapply the idempotent patch when reconfiguring an existing build directory.
-execute_process(COMMAND ${CMAKE_COMMAND} -DPARASAIL_SOURCE=${parasail_SOURCE_DIR}
-    -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchParasail.cmake
-    RESULT_VARIABLE _parasail_patch_result)
-if(NOT _parasail_patch_result EQUAL 0)
-    message(FATAL_ERROR "Could not apply maintained Parasail patches")
-endif()
-set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_SAVED} CACHE BOOL "" FORCE)
-
-# Parasail builds its own test/app executables unconditionally. Exclude them from
-# the default ALL target so they don't cause build failures on newer compilers
-# (e.g. test_verify_traces fails with GCC 15 on macOS due to int8_t* / int* mismatch).
-# test_verify is kept as an explicit build target for CTest (see below).
-foreach(_pt IN ITEMS
-        test_verify_tables test_verify_rowcols test_verify_traces test_verify_cigars
-        parasail_aligner parasail_stats)
-    if(TARGET ${_pt})
-        set_target_properties(${_pt} PROPERTIES EXCLUDE_FROM_ALL TRUE)
-    endif()
-endforeach()
-
-# The patch step fixes the upstream fixture path without writing source files.
+include(FetchContent)
 
 # ---------- cpp-httplib (header-only HTTP server) ----------
 FetchContent_Declare(httplib
@@ -507,7 +468,7 @@ target_include_directories(STAR SYSTEM PRIVATE
     ${nlohmann_json_SOURCE_DIR}/include  # nlohmann/json.hpp
 )
 
-target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB parasail star_sjdb_remap)
+target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB star_sjdb_remap)
 
 # ---------- Compile-time defines ----------
 # Build date/place
@@ -679,7 +640,7 @@ else()
     set(STAR_BUILD_INFO_PGO "${STAR_PGO}")
 endif()
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json"
-    CONTENT "{\n  \"commit\": \"${GIT_COMMIT_HASH}\",\n  \"source_tree_clean\": ${STAR_SOURCE_TREE_CLEAN},\n  \"dependency_lock_sha256\": \"${STAR_DEPENDENCY_LOCK_SHA256}\",\n  \"configuration\": \"$<CONFIG>\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\n  \"cxx_standard\": ${STAR_CXX_STANDARD},\n  \"avx2\": \"${STAR_USE_AVX2}\",\n  \"asan\": \"${STAR_ASAN}\",\n  \"ubsan\": \"${STAR_UBSAN}\",\n  \"tsan\": \"${STAR_TSAN}\",\n  \"lto\": \"${STAR_BUILD_INFO_LTO}\",\n  \"pgo\": \"${STAR_BUILD_INFO_PGO}\",\n  \"htslib\": \"${STAR_HTSLIB_VERSION}\",\n  \"zlib\": \"${ZLIB_VERSION_STRING}\",\n  \"parasail\": \"2.6.2\",\n  \"httplib\": \"0.60.0\",\n  \"json\": \"3.12.0\"\n}\n")
+    CONTENT "{\n  \"commit\": \"${GIT_COMMIT_HASH}\",\n  \"source_tree_clean\": ${STAR_SOURCE_TREE_CLEAN},\n  \"dependency_lock_sha256\": \"${STAR_DEPENDENCY_LOCK_SHA256}\",\n  \"configuration\": \"$<CONFIG>\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\n  \"cxx_standard\": ${STAR_CXX_STANDARD},\n  \"avx2\": \"${STAR_USE_AVX2}\",\n  \"asan\": \"${STAR_ASAN}\",\n  \"ubsan\": \"${STAR_UBSAN}\",\n  \"tsan\": \"${STAR_TSAN}\",\n  \"lto\": \"${STAR_BUILD_INFO_LTO}\",\n  \"pgo\": \"${STAR_BUILD_INFO_PGO}\",\n  \"htslib\": \"${STAR_HTSLIB_VERSION}\",\n  \"zlib\": \"${ZLIB_VERSION_STRING}\",\n  \"httplib\": \"0.60.0\",\n  \"json\": \"3.12.0\"\n}\n")
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json" DESTINATION share/STAR-Cross COMPONENT STAR)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE" DESTINATION share/STAR-Cross/licenses RENAME STAR.txt COMPONENT STAR)
 if(NOT USE_SYSTEM_HTSLIB)
@@ -687,9 +648,6 @@ if(NOT USE_SYSTEM_HTSLIB)
     install(FILES "${HTSLIB_DIR}/htscodecs/LICENSE.md" DESTINATION share/STAR-Cross/licenses RENAME htscodecs.txt COMPONENT STAR)
     install(FILES "${HTSLIB_DIR}/os/rand.c" DESTINATION share/STAR-Cross/licenses RENAME HTSlib-rand-notice.c COMPONENT STAR)
 endif()
-install(FILES "${parasail_SOURCE_DIR}/LICENSE.md" DESTINATION share/STAR-Cross/licenses RENAME Parasail.txt COMPONENT STAR)
-install(FILES "${parasail_SOURCE_DIR}/contrib/simde/COPYING" DESTINATION share/STAR-Cross/licenses RENAME SIMDe.txt COMPONENT STAR)
-install(FILES "${parasail_SOURCE_DIR}/contrib/sais-lite-lcp/COPYING" DESTINATION share/STAR-Cross/licenses RENAME sais.txt COMPONENT STAR)
 install(FILES "${httplib_SOURCE_DIR}/LICENSE" DESTINATION share/STAR-Cross/licenses RENAME cpp-httplib.txt COMPONENT STAR)
 install(FILES "${nlohmann_json_SOURCE_DIR}/LICENSE.MIT" DESTINATION share/STAR-Cross/licenses RENAME nlohmann-json.txt COMPONENT STAR)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies.lock.json" DESTINATION share/STAR-Cross COMPONENT STAR)

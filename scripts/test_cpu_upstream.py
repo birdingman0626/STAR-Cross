@@ -515,6 +515,43 @@ def main():
                 relative = path.relative_to(default)
                 assert path.read_bytes() == (solo_before / relative).read_bytes(), str(relative)
         checks.append("Gene/GeneFull/Velocity integer matrices and axes match reference on tiny fixture")
+
+    # CellRanger4 5' adapter (TSO) and 3' polyA clipping: exact, mutated and
+    # truncated adapters exercise every branch of the clipping thresholds.
+    cr4_rng = random.Random(91)
+    tso = "AAGCAGTGGTATCAACGCAGAGTACATGGG"
+    cr4_cdna, cr4_barcode = [], []
+    for i in range(600):
+        start = cr4_rng.choice((100, 700, 2000)) + cr4_rng.randrange(0, 200)
+        insert = sequence[start:start + 91]
+        kind = i % 5
+        if kind in (0, 1, 2):
+            adapter = tso[cr4_rng.randrange(0, 20):] if kind == 2 else tso
+            if kind == 1:
+                adapter = "".join(c if cr4_rng.random() > 0.1 else cr4_rng.choice("ACGT") for c in adapter)
+            insert = (adapter + insert)[:91]
+        elif kind == 3:
+            insert = insert[:91 - 30] + "A" * 30
+        cr4_cdna.append(f"@r{i}\n{insert}\n+\n{'I' * len(insert)}\n")
+        umi = "".join(cr4_rng.choices("ACGT", k=4))
+        cr4_barcode.append(f"@r{i}\nACGTACGT{umi}\n+\nIIIIIIIIIIII\n")
+    cr4_cdna_file, cr4_barcode_file = root / "cr4-cdna.fastq", root / "cr4-barcode.fastq"
+    cr4_cdna_file.write_text("".join(cr4_cdna))
+    cr4_barcode_file.write_text("".join(cr4_barcode))
+    cr4_options = common + ["--readFilesIn", str(cr4_cdna_file), str(cr4_barcode_file), "--soloType", "CB_UMI_Simple",
+                            "--soloCBwhitelist", str(whitelist), "--soloCBlen", "8", "--soloUMIstart", "9",
+                            "--soloUMIlen", "4", "--soloCellFilter", "None", "--soloFeatures", "Gene",
+                            "--clipAdapterType", "CellRanger4", "--outSAMtype", "BAM", "Unsorted"]
+    cr4 = run("cr4-clip", cr4_options)
+    assert bam_records(cr4 / "Aligned.out.bam")
+    if args.ref_exe:
+        cr4_before = run("cr4-clip-before", cr4_options, args.ref_exe)
+        assert bam_records(cr4 / "Aligned.out.bam") == bam_records(cr4_before / "Aligned.out.bam")
+        for name in ("matrix.mtx", "barcodes.tsv", "features.tsv"):
+            relative = Path("Solo.out/Gene/raw") / name
+            assert (cr4 / relative).read_bytes() == (cr4_before / relative).read_bytes(), str(relative)
+    checks.append("CellRanger4 adapter/polyA clipping: BAM records and Gene matrix" +
+                  (" match reference" if args.ref_exe else " produced"))
     smartseq_reads = root / "smartseq-duplicates.fastq"
     smartseq_reads.write_text(cdna.read_text() * 2)
     manifest = root / "smartseq.tsv"

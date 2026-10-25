@@ -29,7 +29,6 @@ cd source && make STAR
 | Dependency | Location | Role | Replaceable? | Allowed includers |
 |---|---|---|---|---|
 | **HTSlib 1.21** | `source/htslib/` (bundled) | BAM/SAM/CRAM I/O | No (deep, cross-cutting) | Any source file via `htslib/*.h` |
-| **Parasail v2.6.2** | CMake FetchContent | Adapter clipping alignment | Yes (narrow scope) | `ClipCR4.h/.cpp` only |
 | **SimpleGoodTuring** | `source/SimpleGoodTuring/` (bundled) | EmptyDrops ambient smoothing | No (tiny, stable algorithm) | `SoloFeature_emptyDrops_CR.cpp` only |
 | **zlib** | System or CMake FetchContent | Compression | No (standard library) | Via HTSlib; STAR does not include directly |
 

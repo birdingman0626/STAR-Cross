@@ -155,3 +155,12 @@ Fatal-path fix verification: Windows CTest **124/124** and full native
 scientific fixtures pass; Linux RelWithDebInfo ASan/UBSan full scientific
 fixtures pass with leak detection and halt-on-error. Both malformed FASTA
 modes return 104 without sanitizer output or a final success report.
+
+## Follow-up, 2026-10-25: Parasail removed
+
+The 18 open alerts on `7649522` were unchanged from the list above, all in
+third-party code. Parasail, the source of 70 of the original 94 findings and
+8 of the 18 still open (#1-3, #84, #88, #99-101), is no longer a dependency:
+CellRanger4 clipping uses an in-house aligner (see `DEPENDENCIES.md`). Those
+alerts should close on the next CodeQL run of `main`. The remaining 10 are in
+HTSlib and cpp-httplib and keep the reasons recorded above.

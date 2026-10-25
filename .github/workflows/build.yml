@@ -95,8 +95,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DSTAR_LONG_READS=ON -DSTAR_BUILD_TESTS=OFF \
             -DFETCHCONTENT_SOURCE_DIR_HTTPLIB="$GITHUB_WORKSPACE/source/build/_deps/httplib-src" \
-            -DFETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON="$GITHUB_WORKSPACE/source/build/_deps/nlohmann_json-src" \
-            -DFETCHCONTENT_SOURCE_DIR_PARASAIL="$GITHUB_WORKSPACE/source/build/_deps/parasail-src"
+            -DFETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON="$GITHUB_WORKSPACE/source/build/_deps/nlohmann_json-src"
           cmake --build source/build-long --parallel 4
           python3 scripts/test_experimental_genomes.py --star-exe source/build/STAR --long-exe source/build-long/STAR
 

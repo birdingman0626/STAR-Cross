@@ -2,7 +2,7 @@
 """Compile actual private HTSlib helpers with small adversarial inputs.
 
 No production test hooks or copied implementations: extract the two private
-functions from the checked-out source. Public BAM/Parasail regressions live in
+functions from the checked-out source. Public BAM regressions live in
 star_tests. --baseline HEAD is a negative control, expected to fail.
 """
 import argparse
