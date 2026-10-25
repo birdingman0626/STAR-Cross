@@ -2,6 +2,7 @@
 #define STAR_SEED_SEARCH_H
 #include "SeedSearchTypes.h"
 #include "SuffixArrayFuns.h"
+#include <span>
 #include <stdexcept>
 
 // Synchronous CPU executor. No index ownership, read allocation or RNG state.
@@ -17,8 +18,8 @@ class SeedSearchEngine {
     }
     SeedMatch execute(const char* reads, const char* complement, const SeedQuery& q) const {
         const char* strands[2]={reads+q.offset,complement+q.offset};
-        uint length=q.initialLength, range[2];
-        const uint count=maxMappableLength(index,strands,q.start,q.length,q.lower,q.upper,
+        uint64 length=q.initialLength, range[2];
+        const uint64 count=maxMappableLength(index,strands,q.start,q.length,q.lower,q.upper,
                                           q.forward,length,range);
         return {length,range[0],range[1],count};
     }
@@ -27,8 +28,18 @@ public:
         if (!index.G || !index.SA.charArray || !index.nGenome || !index.nSA
             || index.nSA!=index.SA.length || index.GstrandBit>55 || index.GstrandBit<8
             || index.SA.wordLength!=index.GstrandBit+1
-            || index.GstrandMask!=((static_cast<uint>(1)<<index.GstrandBit)-1))
+            || index.GstrandMask!=((static_cast<uint64>(1)<<index.GstrandBit)-1))
             throw std::invalid_argument("invalid effective seed index geometry");
+    }
+    // Borrowed synchronous views: callers retain storage until this call returns.
+    // span itself does not bounds-check accesses; reject unequal extents before writes.
+    void searchBatch(std::span<const char> reads, std::span<const char> complement,
+                     std::span<const SeedQuery> queries, std::span<SeedMatch> output,
+                     int threads=1) const {
+        if (reads.size()!=complement.size() || queries.size()!=output.size())
+            throw std::invalid_argument("mismatched seed batch extents");
+        searchBatch(reads.data(),complement.data(),reads.size(),
+                    queries.data(),queries.size(),output.data(),threads);
     }
     void searchBatch(const char* reads, const char* complement, size_t bytes,
                      const SeedQuery* queries, size_t count, SeedMatch* output, int threads=1) const {

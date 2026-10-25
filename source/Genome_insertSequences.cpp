@@ -5,7 +5,7 @@
 #include "genomeScanFastaFiles.h"
 #include "insertSeqSA.h"
 #include "TimeFunctions.h"
-
+using namespace std;
 void Genome::insertSequences()
 {
 if (pGe.gFastaFiles.at(0)!="-")
@@ -16,7 +16,7 @@ if (pGe.gFastaFiles.at(0)!="-")
     //move the junctions to free up space for seqs
     // chrStart/Name/Length nChrReal include the extra sequences
     // nGenome is the old, small genome size
-    uint sjdblen=nGenome-(chrStart.back()-genomeInsertL);//length of sjdb sequences
+    uint64 sjdblen=nGenome-(chrStart.back()-genomeInsertL);//length of sjdb sequences
     memmove(G+chrStart.back(),G+chrStart.back()-genomeInsertL,sjdblen);
     memset(G+chrStart.back()-genomeInsertL, GENOME_spacingChar, genomeInsertL);//fill empty space with spacing characters
 

@@ -4,14 +4,27 @@ if(POLICY CMP0135)
 endif()
 project(STAR LANGUAGES CXX C)
 
-set(STAR_CXX_STANDARD "17" CACHE STRING "C++ language level for STAR targets (17 or 20)")
-set_property(CACHE STAR_CXX_STANDARD PROPERTY STRINGS 17 20)
-if(NOT STAR_CXX_STANDARD MATCHES "^(17|20)$")
-    message(FATAL_ERROR "STAR_CXX_STANDARD must be 17 or 20")
+# STAR-Cross is C++20-only. Reject caches or command lines still asking for C++17
+# so an old build directory cannot silently produce a different language level.
+if(DEFINED STAR_CXX_STANDARD AND NOT STAR_CXX_STANDARD STREQUAL "20")
+    message(FATAL_ERROR "STAR-Cross requires C++20; C++17 builds were removed. "
+                        "Remove STAR_CXX_STANDARD=${STAR_CXX_STANDARD} or use a fresh build directory.")
 endif()
-set(CMAKE_CXX_STANDARD ${STAR_CXX_STANDARD})
+unset(STAR_CXX_STANDARD CACHE)
+set(STAR_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles("#include <span>
+    #if !defined(__cpp_lib_span) || __cpp_lib_span < 202002L
+    #error C++20 span support is required
+    #endif
+    int main() { int data[1] = {}; return std::span<int>(data).size() != 1; }"
+    STAR_HAS_CXX20_SPAN)
+if(NOT STAR_HAS_CXX20_SPAN)
+    message(FATAL_ERROR "STAR-Cross requires a C++20 compiler and standard library with std::span")
+endif()
 
 # Export compile_commands.json for LSP/IDE support (clangd, ccls)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -52,6 +65,13 @@ option(STAR_ASAN "Enable AddressSanitizer" OFF)
 option(STAR_UBSAN "Enable UndefinedBehaviorSanitizer (GCC/Clang)" OFF)
 if(STAR_UBSAN AND MSVC)
     message(FATAL_ERROR "STAR_UBSAN requires GCC or Unix Clang")
+endif()
+option(STAR_TSAN "Enable ThreadSanitizer (GCC/Clang; diagnostics only)" OFF)
+if(STAR_TSAN AND MSVC)
+    message(FATAL_ERROR "STAR_TSAN requires GCC or Unix Clang")
+endif()
+if(STAR_TSAN AND STAR_ASAN)
+    message(FATAL_ERROR "STAR_TSAN cannot be combined with STAR_ASAN")
 endif()
 
 option(STAR_ENABLE_CUDA "Build experimental CUDA junction SA remap" OFF)
@@ -578,6 +598,41 @@ else()
 
     target_link_libraries(STAR PRIVATE pthread)
 
+    # Opt-in whole-program optimization. Defaults stay OFF so release identity and
+    # portable packaging are unchanged; measure before adopting either.
+    option(STAR_LTO "Link-time optimization for the STAR target (GCC/Clang)" OFF)
+    set(STAR_PGO "OFF" CACHE STRING "Profile-guided optimization: OFF, GENERATE or USE")
+    set_property(CACHE STAR_PGO PROPERTY STRINGS OFF GENERATE USE)
+    set(STAR_PGO_PATH "${CMAKE_BINARY_DIR}/pgo" CACHE PATH
+        "GCC: profile directory; USE must reconfigure the same build directory as GENERATE (profiles are named by object path). Clang: raw-profile directory (GENERATE) or merged .profdata file (USE)")
+    if(STAR_LTO)
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=thin>)
+            target_link_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=thin>)
+        else()
+            target_compile_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=auto>)
+            target_link_options(STAR PRIVATE $<$<NOT:$<CONFIG:Debug>>:-flto=auto>)
+        endif()
+    endif()
+    if(STAR_PGO STREQUAL "GENERATE")
+        # Atomic counters: OpenMP workers otherwise race on shared profile counters.
+        target_compile_options(STAR PRIVATE -fprofile-generate=${STAR_PGO_PATH} -fprofile-update=atomic)
+        target_link_options(STAR PRIVATE -fprofile-generate=${STAR_PGO_PATH} -fprofile-update=atomic)
+    elseif(STAR_PGO STREQUAL "USE")
+        if(NOT EXISTS "${STAR_PGO_PATH}")
+            message(FATAL_ERROR "STAR_PGO=USE requires an existing profile at STAR_PGO_PATH")
+        endif()
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(STAR PRIVATE -fprofile-use=${STAR_PGO_PATH} -Wno-profile-instr-unprofiled)
+        else()
+            # Unexercised code keeps normal -O3 treatment instead of being optimized for size.
+            target_compile_options(STAR PRIVATE -fprofile-use=${STAR_PGO_PATH}
+                -fprofile-partial-training -Wno-missing-profile)
+        endif()
+    elseif(NOT STAR_PGO STREQUAL "OFF")
+        message(FATAL_ERROR "STAR_PGO must be OFF, GENERATE or USE")
+    endif()
+
 endif()
 
 # ---------- Testing ----------
@@ -616,8 +671,15 @@ if(GIT_FOUND)
     endif()
 endif()
 file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies.lock.json" STAR_DEPENDENCY_LOCK_SHA256)
+if(MSVC)
+    set(STAR_BUILD_INFO_LTO "msvc-release-default")
+    set(STAR_BUILD_INFO_PGO "OFF")
+else()
+    set(STAR_BUILD_INFO_LTO "${STAR_LTO}")
+    set(STAR_BUILD_INFO_PGO "${STAR_PGO}")
+endif()
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json"
-    CONTENT "{\n  \"commit\": \"${GIT_COMMIT_HASH}\",\n  \"source_tree_clean\": ${STAR_SOURCE_TREE_CLEAN},\n  \"dependency_lock_sha256\": \"${STAR_DEPENDENCY_LOCK_SHA256}\",\n  \"configuration\": \"$<CONFIG>\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\n  \"cxx_standard\": ${STAR_CXX_STANDARD},\n  \"avx2\": \"${STAR_USE_AVX2}\",\n  \"asan\": \"${STAR_ASAN}\",\n  \"ubsan\": \"${STAR_UBSAN}\",\n  \"htslib\": \"${STAR_HTSLIB_VERSION}\",\n  \"zlib\": \"${ZLIB_VERSION_STRING}\",\n  \"parasail\": \"2.6.2\",\n  \"httplib\": \"0.60.0\",\n  \"json\": \"3.12.0\"\n}\n")
+    CONTENT "{\n  \"commit\": \"${GIT_COMMIT_HASH}\",\n  \"source_tree_clean\": ${STAR_SOURCE_TREE_CLEAN},\n  \"dependency_lock_sha256\": \"${STAR_DEPENDENCY_LOCK_SHA256}\",\n  \"configuration\": \"$<CONFIG>\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\n  \"cxx_standard\": ${STAR_CXX_STANDARD},\n  \"avx2\": \"${STAR_USE_AVX2}\",\n  \"asan\": \"${STAR_ASAN}\",\n  \"ubsan\": \"${STAR_UBSAN}\",\n  \"tsan\": \"${STAR_TSAN}\",\n  \"lto\": \"${STAR_BUILD_INFO_LTO}\",\n  \"pgo\": \"${STAR_BUILD_INFO_PGO}\",\n  \"htslib\": \"${STAR_HTSLIB_VERSION}\",\n  \"zlib\": \"${ZLIB_VERSION_STRING}\",\n  \"parasail\": \"2.6.2\",\n  \"httplib\": \"0.60.0\",\n  \"json\": \"3.12.0\"\n}\n")
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json" DESTINATION share/STAR-Cross COMPONENT STAR)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE" DESTINATION share/STAR-Cross/licenses RENAME STAR.txt COMPONENT STAR)
 if(NOT USE_SYSTEM_HTSLIB)

@@ -1,6 +1,6 @@
 #include "ThreadControl.h"
 #include "GlobalVariables.h"
-
+using namespace std;
 void* ThreadControl::threadRAprocessChunks(void* chunk) {
     try {static_cast<ReadAlignChunk*>(chunk)->processChunks();} catch (...) {
         std::lock_guard<std::mutex> lock(g_threadChunks.failureMutex);
@@ -12,5 +12,5 @@ void* ThreadControl::threadRAprocessChunks(void* chunk) {
 ThreadControl::ThreadControl() {
     chunkInN=0;
     chunkOutN=0;
-//     chunkOutBAMposition=new uint [MAX_chunkOutBAMposition];
+//     chunkOutBAMposition=new uint64 [MAX_chunkOutBAMposition];
 };

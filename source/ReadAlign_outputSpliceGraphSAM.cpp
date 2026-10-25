@@ -1,8 +1,8 @@
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
-
-uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint nTrOut, uint iTrOut, ostream *outStream) 
+using namespace std;
+uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, ostream *outStream) 
 {
 
     uint64 outStreamPos0=(uint64)outStream->tellp();
@@ -27,7 +27,7 @@ uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint nTrOut, uin
         };
         *outStream <<"\n";
         
-        return (uint)outStream->tellp()-outStreamPos0;
+        return (uint64)outStream->tellp()-outStreamPos0;
     };
     
     //mapped
@@ -50,7 +50,7 @@ uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint nTrOut, uin
         qualOut=Qual0[0];
     } else {
         revComplementNucleotides(Read0[0], seqRev, Lread);
-        for (uint ii=0;ii<Lread; ii++) 
+        for (uint64 ii=0;ii<Lread; ii++) 
             qualRev[ii]=Qual0[0][Lread-1-ii];
         seqOut=seqRev;
         qualOut=qualRev;
@@ -82,7 +82,7 @@ uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint nTrOut, uin
     
     uint32 tagNM = trOut.nMM + trOut.lIns + trOut.lDel;
 
-        for (uint ii=0;ii<P.outSAMattrOrder.size();ii++) {
+        for (uint64 ii=0;ii<P.outSAMattrOrder.size();ii++) {
             switch (P.outSAMattrOrder[ii]) {
                 case ATTR_NH:
                     *outStream <<"\tNH:i:" << nTrOut;
@@ -160,5 +160,5 @@ uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint nTrOut, uin
 
     *outStream << "\n"; //done with one SAM line
 
-    return (uint)outStream->tellp()-outStreamPos0;
+    return (uint64)outStream->tellp()-outStreamPos0;
 };

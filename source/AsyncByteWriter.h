@@ -10,6 +10,8 @@
 
 // Owns serialized batches, never borrowed mapping buffers. One pending packet
 // plus one active packet bounds extra payload memory to 2*maximumPacketBytes.
+// Drained packets are recycled, so at most two buffers ever exist and steady
+// state performs no allocation; the sink may modify the bytes it is given.
 class AsyncByteWriter {
     using Packet=std::vector<char>;
     std::function<void(char*,size_t)> sink;
@@ -17,6 +19,7 @@ class AsyncByteWriter {
     std::mutex mutex;
     std::condition_variable changed;
     std::deque<Packet> pending;
+    std::vector<Packet> spare; // drained buffers, capacity retained
     bool closing=false;
     std::exception_ptr failure;
     std::thread worker;

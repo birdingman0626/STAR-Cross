@@ -4,7 +4,7 @@
 #ifdef _WIN32
 #include "wincompat.h"
 #include <stdio.h>
-
+using namespace std;
 // Windows: recursive directory removal using FindFirstFile/FindNextFile
 static void sysRemoveDirRecursive(const std::string &dirPath) {
     std::string searchPath = dirPath + "\\*";

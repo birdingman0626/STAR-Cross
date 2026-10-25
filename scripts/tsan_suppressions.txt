@@ -1,0 +1,17 @@
+# ThreadSanitizer suppressions for scripts/test_thread_sanitizer.py.
+# Keep this list minimal; every entry needs a reason.
+#
+# The distribution's LLVM OpenMP runtime (libomp.so, libomp.so.5 on Debian/
+# Ubuntu) is not built with TSan, so TSan cannot see its internal
+# synchronization and reports its own thread-pool bookkeeping
+# (pthread_mutex_init/lock inside __kmp_* functions). Only reports whose
+# interceptor is called directly from libomp are suppressed; races in STAR's own
+# code inside OpenMP regions are still reported, and Archer
+# (OMP_TOOL_LIBRARIES=libarcher.so) supplies the OpenMP happens-before edges.
+called_from_lib:libomp.so*
+#
+# Archer itself (LLVM 18, Ubuntu 24.04) locks a mutex it allocated when an
+# OpenMP parallel region starts, and TSan reports "double lock of a mutex"
+# whose only STAR frame is the #pragma line (e.g. bamSortByCoordinate.cpp:48).
+# Not seen with Archer 21. Interceptor calls made by Archer are tool internals.
+called_from_lib:libarcher.so*

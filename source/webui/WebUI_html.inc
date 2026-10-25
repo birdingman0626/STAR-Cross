@@ -411,9 +411,8 @@ async function probeGenomeDir() {
     el.innerHTML = '<span style="color:#2e7d32">Valid STAR genome index</span>';
   } else if (d.type === 'cellranger_ref') {
     const sd = d.starDir || '', gf = d.gtfFile || '';
-    el.innerHTML = '<span style="color:#e65100">CellRanger reference detected \u2014 '
-      + '<button type="button" class="btn-sm" onclick="applyCRRef('+JSON.stringify(sd)+','+JSON.stringify(gf)+')">'
-      + 'Use star/ index + genes/genes.gtf</button></span>';
+    statusWithButton(el, '#e65100', 'CellRanger reference detected \u2014 ',
+                     'Use star/ index + genes/genes.gtf', () => applyCRRef(sd, gf));
   } else if (d.type === 'not_found') {
     el.innerHTML = '<span style="color:#c62828">Directory not found</span>';
   } else if (d.type === 'has_source') {
@@ -422,15 +421,28 @@ async function probeGenomeDir() {
       const hint = [];
       if (nf) hint.push(nf+' FASTA');
       if (ng) hint.push(ng+' GTF');
-      el.innerHTML = '<span style="color:#1565c0">Found '+hint.join(', ')+' file(s) \u2014 '
-        + '<button type="button" class="btn-sm" onclick="switchToGenomeGenerate('
-        + JSON.stringify(d.fastaFiles||[])+','+JSON.stringify((d.gtfFiles||[])[0]||'')+')">Switch to genomeGenerate</button></span>';
+      const fastas = d.fastaFiles||[], gtf = (d.gtfFiles||[])[0]||'';
+      statusWithButton(el, '#1565c0', 'Found '+hint.join(', ')+' file(s) \u2014 ',
+                       'Switch to genomeGenerate', () => switchToGenomeGenerate(fastas, gtf));
     } else {
       el.innerHTML = '<span style="color:#9c9c9c">No STAR index found \u2014 use genomeGenerate to build one</span>';
     }
   } else {
     el.innerHTML = '<span style="color:#9c9c9c">No STAR index found \u2014 use genomeGenerate to build one</span>';
   }
+}
+// Server-provided paths never become markup or inline script.
+function statusWithButton(el, color, text, label, onClick) {
+  const span = document.createElement('span');
+  span.style.color = color;
+  span.textContent = text;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn-sm';
+  btn.textContent = label;
+  btn.addEventListener('click', onClick);
+  span.appendChild(btn);
+  el.replaceChildren(span);
 }
 function applyCRRef(starDir, gtfFile) {
   document.getElementById('genomeDir').value = starDir;
@@ -663,7 +675,11 @@ document.getElementById('jform').addEventListener('submit', async e=>{
 });
 
 // ── Jobs table ──
-function badge(s){ return `<span class="badge s-${s}">${s}</span>`; }
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const STATES = ['queued','running','succeeded','failed','cancelled'];
+function badge(s){ const k = STATES.includes(s) ? s : 'failed'; return `<span class="badge s-${k}">${esc(s)}</span>`; }
 function dur(start,end){
   if (!start) return '';
   const s=new Date(start), e=end?new Date(end):new Date();
@@ -676,14 +692,14 @@ async function refreshJobs(){
   const jobs = await fetch('/jobs').then(r=>r.json());
   document.getElementById('nojobs').style.display = jobs.length?'none':'block';
   document.getElementById('jtbody').innerHTML = jobs.slice().reverse().map(j=>`<tr>
-    <td>${j.id}</td><td>${badge(j.state)}</td><td>${j.runMode}</td>
-    <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem" title="${j.outputPrefix}">${j.outputPrefix}</td>
-    <td style="font-size:.8rem">${j.submitTime}</td>
+    <td>${Number(j.id)}</td><td>${badge(j.state)}</td><td>${esc(j.runMode)}</td>
+    <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem" title="${esc(j.outputPrefix)}">${esc(j.outputPrefix)}</td>
+    <td style="font-size:.8rem">${esc(j.submitTime)}</td>
     <td style="font-size:.8rem">${dur(j.startTime,j.state==='running'?null:j.endTime)}</td>
     <td style="white-space:nowrap">
-      <button class="btn-log" onclick="viewLogs(${j.id})">Logs</button>
-      ${j.reportPath?`<button class="btn-log" style="margin-left:4px" onclick="window.open('/jobs/${j.id}/report','_blank')">Report</button>`:''}
-      ${j.state==='running'?`<button class="btn-cancel" style="margin-left:4px" onclick="cancelJob(${j.id})">Cancel</button>`:''}
+      <button class="btn-log" onclick="viewLogs(${Number(j.id)})">Logs</button>
+      ${j.reportPath?`<button class="btn-log" style="margin-left:4px" onclick="window.open('/jobs/${Number(j.id)}/report','_blank')">Report</button>`:''}
+      ${(j.state==='running'||j.state==='queued')?`<button class="btn-cancel" style="margin-left:4px" onclick="cancelJob(${Number(j.id)})">Cancel</button>`:''}
     </td>
   </tr>`).join('');
   if (watchId!==null) { const j=jobs.find(x=>x.id===watchId); if(j) fetchLogs(watchId); }
@@ -703,7 +719,7 @@ async function fetchLogs(id){
 }
 function closeLogs(){ watchId=null; document.getElementById('log-box').style.display='none'; }
 async function cancelJob(id){
-  await fetch('/jobs/'+id+'/cancel',{method:'POST'});
+  await fetch('/jobs/'+id+'/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
   refreshJobs();
 }
 

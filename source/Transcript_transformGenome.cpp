@@ -1,6 +1,6 @@
 #include "Transcript.h"
 #include "binarySearch2.h"
-
+using namespace std;
 bool Transcript::transformGenome(Genome &genOut, Transcript & A)
 {
     uint32 nB=0;//number of out blocks

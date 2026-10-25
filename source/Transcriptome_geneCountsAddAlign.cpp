@@ -1,7 +1,7 @@
 #include "Transcriptome.h"
 #include "serviceFuns.cpp"
-
-void Transcriptome::geneCountsAddAlign(uint nA, Transcript **aAll, vector<int32> &gene1) {
+using namespace std;
+void Transcriptome::geneCountsAddAlign(uint64 nA, Transcript **aAll, vector<int32> &gene1) {
 
     gene1.assign(quants->geneCounts.nType,-1);
 
@@ -16,7 +16,7 @@ void Transcriptome::geneCountsAddAlign(uint nA, Transcript **aAll, vector<int32>
 
              uint64 g1=a.exons[ib][EX_G]+a.exons[ib][EX_L]-1;//end of the block
 
-//              if ((uint)ib==a.nExons-1)
+//              if ((uint64)ib==a.nExons-1)
 //              {//binary search for the first time: end of the block among the starts of exons
                  e1=binarySearch1a<uint64>(g1, exG.s, (int32) exG.nEx);
 //              } else
@@ -29,7 +29,7 @@ void Transcriptome::geneCountsAddAlign(uint nA, Transcript **aAll, vector<int32>
 
              while (e1>=0 && exG.eMax[e1]>=a.exons[ib][EX_G]) {//these exons may overlap this block
                  if (exG.e[e1]>=a.exons[ib][EX_G]) {//this exon overlaps the block
-                     uint str1=(uint)exG.str[e1]-1;
+                     uint64 str1=(uint64)exG.str[e1]-1;
                      for (int itype=0; itype<quants->geneCounts.nType; itype++) {
                          //str1<2 (i.e. strand=0) requirement means that genes w/o strand will accept reads from both strands
                          if ( itype==1 && a.Str!=str1 && str1<2) continue; //same strand

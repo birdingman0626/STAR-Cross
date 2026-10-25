@@ -5,7 +5,7 @@
 #include "SequenceFuns.h"
 #include "GlobalVariables.h"
 #include "SeedDiagnostics.h"
-
+using namespace std;
 void ReadAlignChunk::processChunks() {//read-map-write chunks
     #ifdef STAR_CAPTURE_SEEDS
     if(std::getenv("STAR_SEED_TRACE_DIR") && (P.twoPass.yes || P.outFilterBySJoutStage!=0 || P.wasp.yes || P.peOverlap.yes))
@@ -51,7 +51,7 @@ void ReadAlignChunk::processChunks() {//read-map-write chunks
             if (P.runThreadN>1)
                 pthread_mutex_lock(&g_threadChunks.mutexOutUnmappedFastx);
 
-            for (uint ii=0;ii<P.readNends;ii++) {
+            for (uint64 ii=0;ii<P.readNends;ii++) {
                 chunkFstreamCat (RA->chunkOutUnmappedReadsStream[ii],P.inOut->outUnmappedReadsStream[ii], false, g_threadChunks.mutexOutUnmappedFastx);
             };
 

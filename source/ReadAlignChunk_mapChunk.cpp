@@ -4,7 +4,7 @@
 #include "ThreadControl.h"
 #include "ErrorWarning.h"
 #include SAMTOOLS_BGZF_H
-
+using namespace std;
 void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be setup in RA->readInStream[ii]
     
     for (uint32 im=0; im<1; im++) {//hardcoded mate 1 5p onyl for now
@@ -13,7 +13,7 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
     
     RA->statsRA.resetN();
 
-    for (uint ii=0;ii<P.readNends;ii++) {//update buffer size and rewind the input streams
+    for (uint64 ii=0;ii<P.readNends;ii++) {//update buffer size and rewind the input streams
         readInStream[ii]->setBuffer(chunkIn[ii], chunkInSizeBytesTotal[ii]);
     };
     
@@ -33,9 +33,9 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
 
         if (readStatus==0) {//there was a read processed
             RA->iRead++;
-//         chunkOutBAMtotal=(uint) RA->outSAMstream->tellp();
+//         chunkOutBAMtotal=(uint64) RA->outSAMstream->tellp();
             chunkOutBAMtotal+=RA->outBAMbytes;
-//             uint ddd=(uint) RA->outSAMstream->tellp();
+//             uint64 ddd=(uint64) RA->outSAMstream->tellp();
         };
 
         //write SAM aligns to chunk buffer
@@ -85,6 +85,7 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
                 exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
                 */
                 chunkOutSJ->dataSizeIncrease();
+                OptionalMutexLock logLock(g_threadChunks.mutexLogMain, P.runThreadN>1);
                 P.inOut->logMain << "Increased the size of chunkOutSJ to " << chunkOutSJ->Nstore <<'\n';
             };
         };
@@ -92,22 +93,23 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
         //collapse SJ1 buffer if needed
         if ( P.outFilterBySJoutStage != 1 ) {//no outFilterBySJoutStage
             //do nothing
-        } else if ( chunkOutSJ1->N > chunkOutSJ->Nstore ) {//this means the number of collapsed junctions is larger than the chunks size
+        } else if ( chunkOutSJ1->N > chunkOutSJ1->Nstore ) {//this means the number of collapsed junctions is larger than the chunks size
             ostringstream errOut;
             errOut <<"EXITING because of fatal error: buffer size for SJ output is too small\n";
             errOut <<"Solution: increase input parameter --limitOutSJoneRead\n";
             exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
-        } else if ( chunkOutSJ1->N + P.limitOutSJoneRead > chunkOutSJ->Nstore || (readStatus==-1 && noReadsLeft) ) {//write buffer to disk because it's almost full, or all reads are mapped
+        } else if ( chunkOutSJ1->N + P.limitOutSJoneRead > chunkOutSJ1->Nstore || (readStatus==-1 && noReadsLeft) ) {//write buffer to disk because it's almost full, or all reads are mapped
             chunkOutSJ1->collapseSJ();
-            if ( chunkOutSJ1->N + 2*P.limitOutSJoneRead > chunkOutSJ->Nstore ) {
+            if ( chunkOutSJ1->N + 2*P.limitOutSJoneRead > chunkOutSJ1->Nstore ) {
                 /*
                 ostringstream errOut;
                 errOut <<"EXITING because of fatal error: buffer size for SJ output is too small\n";
                 errOut <<"Solution: increase input parameter --limitOutSJcollapsed\n";
                 exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
                 */
-                chunkOutSJ->dataSizeIncrease();
-                P.inOut->logMain << "Increased the size of chunkOutSJ to " << chunkOutSJ->Nstore <<'\n';
+                chunkOutSJ1->dataSizeIncrease();//grow the stage-1 store itself; growing chunkOutSJ let chunkOutSJ1 overrun its array
+                OptionalMutexLock logLock(g_threadChunks.mutexLogMain, P.runThreadN>1);
+                P.inOut->logMain << "Increased the size of chunkOutSJ1 to " << chunkOutSJ1->Nstore <<'\n';
             };
         };
 

@@ -1,10 +1,11 @@
 #include "AsyncByteWriter.h"
 #include <stdexcept>
 #include <utility>
-
+using namespace std;
 AsyncByteWriter::AsyncByteWriter(size_t maximum,std::function<void(char*,size_t)> output)
     :sink(std::move(output)),maximumPacketBytes(maximum) {
     if (!maximum || !sink) throw std::invalid_argument("invalid asynchronous byte writer");
+    spare.reserve(2); // never allocates after a successful sink; see header bound
     worker=std::thread([this]{consume();});
 }
 AsyncByteWriter::~AsyncByteWriter() {try {finish();} catch (...) {}}
@@ -17,7 +18,12 @@ void AsyncByteWriter::submit(const char* data,size_t size) {
     if (failure) std::rethrow_exception(failure);
     if (closing) throw std::logic_error("submit after writer finish");
     // Copy only after obtaining capacity: blocked producers own no extra packets.
-    pending.emplace_back(data,data+size);
+    if (spare.empty()) {
+        pending.emplace_back(data,data+size);
+    } else {
+        pending.push_back(std::move(spare.back()));spare.pop_back();
+        pending.back().assign(data,data+size);
+    }
     changed.notify_all();
 }
 
@@ -33,10 +39,12 @@ void AsyncByteWriter::consume() noexcept {
                 changed.notify_all();
             }
             sink(packet.data(),packet.size());
+            std::lock_guard<std::mutex> lock(mutex);
+            spare.push_back(std::move(packet));
         }
     } catch (...) {
         std::lock_guard<std::mutex> lock(mutex);
-        failure=std::current_exception();closing=true;pending.clear();changed.notify_all();
+        failure=std::current_exception();closing=true;pending.clear();spare.clear();changed.notify_all();
     }
 }
 

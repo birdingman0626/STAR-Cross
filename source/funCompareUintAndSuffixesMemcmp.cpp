@@ -1,7 +1,7 @@
 #include "funCompareUintAndSuffixesMemcmp.h"
 #include <string.h> //for memcmp
 #include <algorithm>
-
+using namespace std;
 char* g_funCompareUintAndSuffixesMemcmp_G;
 uint64_t g_funCompareUintAndSuffixesMemcmp_L;
 uint64_t g_funCompareUintAndSuffixesMemcmp_N;

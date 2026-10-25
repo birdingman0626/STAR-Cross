@@ -2,8 +2,8 @@
 #include "Parameters.h"
 #include "Transcript.h"
 #include "extendAlign.h"
-
-bool extendAlign( char* R, char* G, uint rStart, uint gStart, int dR, int dG, uint L, uint Lprev, uint nMMprev, uint nMMmax, double pMMmax, bool extendToEnd, Transcript* trA ) {
+using namespace std;
+bool extendAlign( char* R, char* G, uint64 rStart, uint64 gStart, int dR, int dG, uint64 L, uint64 Lprev, uint64 nMMprev, uint64 nMMmax, double pMMmax, bool extendToEnd, Transcript* trA ) {
 
 // find the maximum score
 
@@ -12,8 +12,10 @@ int iS,iG;
 int Score=0, nMatch=0, nMM=0;
 trA->maxScore=0;
 
-R=R+rStart;
-G=G+gStart;
+// Callers pass start-1 for leftward extension, which wraps to (uint64)-1 at 0:
+// offset the pointers by the signed value (same address, defined behavior).
+R=R+(int64) rStart;
+G=G+(int64) gStart;
 
 if (extendToEnd) {//end to end extension
 
@@ -22,7 +24,7 @@ if (extendToEnd) {//end to end extension
         iS=dR*iExt;
         iG=dG*iExt;
 
-        if ((gStart+iG)==(uint)(-1) || G[iG]==5) {//prohibit extension through chr boundary
+        if ((gStart+iG)==(uint64)(-1) || G[iG]==5) {//prohibit extension through chr boundary
             trA->extendL=0;
             trA->maxScore=-999999999;
             trA->nMatch=0;
@@ -60,7 +62,7 @@ for (int i=0;i<(int) L;i++) {
     iS=dR*i;
     iG=dG*i;
 
-    if ((gStart+iG)==(uint)(-1) || G[iG]==5 || R[iS]==MARK_FRAG_SPACER_BASE) break; //no extension through chr boundary, or through the spacer between fragments
+    if ((gStart+iG)==(uint64)(-1) || G[iG]==5 || R[iS]==MARK_FRAG_SPACER_BASE) break; //no extension through chr boundary, or through the spacer between fragments
     if (R[iS]>3 || G[iG]>3) continue;//no penalties for Ns in reads or genome
 
     if (G[iG]==R[iS]) {//Match

@@ -71,7 +71,7 @@ genomeChainFiles            -
     string: chain files for genomic liftover. Only used with --runMode liftOver .
 
 genomeFileSizes             0
-    uint(s)>0: genome files exact sizes in bytes. Typically, this should not be defined by the user.
+    uint64(s)>0: genome files exact sizes in bytes. Typically, this should not be defined by the user.
     
 genomeTransformOutput       None
     string(s):              which output to transform back to original genome
@@ -770,6 +770,11 @@ quantTranscriptomeSAMoutput BanSingleEnd_BanIndels_ExtendSoftclip
                             BanSingleEnd_BanIndels_ExtendSoftclip ... prohibit indels and single-end alignments, extend softclips - compatible with RSEM
                             BanSingleEnd               ... prohibit single-end alignments, allow indels and softclips
                             BanSingleEnd_ExtendSoftclip ... prohibit single-end alignments, extend softclips, allow indels
+
+quantTranscriptomeBAMprimary Random
+    string: how the primary alignment (FLAG 0x100 unset) is chosen among a read's alignments in Aligned.toTranscriptome.out.bam
+                            Random    ... random choice from each thread's random generator (seeded by --runRNGseed); can change with --runThreadN and between runs
+                            ReadIndex ... pseudo-random choice from --runRNGseed and the read's number in the input; the same for any --runThreadN
 
 
 ### 2-pass Mapping

@@ -2,11 +2,11 @@
 #include "sjdbLoadFromStream.h"
 #include "ErrorWarning.h"
 #include "TimeFunctions.h"
-
+using namespace std;
 void sjdbLoadFromFiles(Parameters &P, SjdbClass &sjdbLoci) {
 
     if (P.pGe.sjdbFileChrStartEnd.at(0)!="-") {
-        for (uint ifile=0;ifile<P.pGe.sjdbFileChrStartEnd.size(); ifile++) {
+        for (uint64 ifile=0;ifile<P.pGe.sjdbFileChrStartEnd.size(); ifile++) {
             ifstream sjdbStreamIn ( P.pGe.sjdbFileChrStartEnd.at(ifile).c_str() );
             if (sjdbStreamIn.fail()) {
                 ostringstream errOut;

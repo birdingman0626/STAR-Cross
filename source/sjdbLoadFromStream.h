@@ -3,6 +3,6 @@
 
 #include <fstream>
 #include "SjdbClass.h"
-void sjdbLoadFromStream(ifstream &sjdbStreamIn, SjdbClass &sjdbLoci);
+void sjdbLoadFromStream(std::ifstream &sjdbStreamIn, SjdbClass &sjdbLoci);
 
 #endif

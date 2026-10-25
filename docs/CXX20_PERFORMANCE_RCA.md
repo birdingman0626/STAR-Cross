@@ -1,0 +1,222 @@
+# C++20 performance admission RCA — 2026-10-15
+
+## Decision
+
+On 2026-10-16 the user explicitly cancelled further performance testing and
+authorized default C++20 migration without calibrated performance admission.
+The recurring continuation is paused and no benchmark was running when this
+request was inspected. No ten-pair C++17/20 admission is claimed. The completed
+mean-only A/A attempt is retained, not deleted or recast as C++17/20 evidence.
+
+Previous evidence-based recommendation: keep the default at C++17. Ambient load and waiting-time variability are
+demonstrated; an intrinsic C++20 slowdown is neither established nor ruled out.
+The new short diagnostic comparisons are **not** promotion evidence. No alignment
+algorithm, optimization flags, dependencies or admission thresholds were changed.
+
+## Linux paired result — 2026-10-22
+
+Same-source `dacdf1a` built twice with GCC 14.3.1 on Oracle Linux 10.2 (KVM guest,
+12 vCPU AMD Ryzen 7 5825U, 42 GiB); `-std=c++17` vs `-std=c++20` in all 170 compile
+commands and no other flag difference. Distribution GCC defaults to
+`-march=x86-64-v3`, so these binaries are not the portable CI artifacts.
+Runner: `scripts/linux_paired_benchmark.py` (`5058154`), 1M-pair
+`tmj-condyle-1-prefix-1m-20261006` STARsolo profile, 8 threads, against the host's
+*Macaca fascicularis* 6.0 Ensembl 116 index (annotation embedded; no mapping-time
+GTF), which differs from the Windows experiments' Ensembl 115 index. The index was
+loaded once with `--genomeLoad LoadAndKeep`, so timings cover mapping, Solo and
+output but **not** genome loading; the segment was removed afterwards.
+
+- Every run (12 A/A, 22 A/B) reproduced the first run's BAM record multiset and
+  header, SJ.out.tab, every Solo.out file and scientific log fields exactly.
+- Background non-STAR CPU 0.48–1.33% per run; host otherwise idle.
+- A/A (C++17 vs itself, 5 pairs + warm-up): median ratio 1.0053, median absolute
+  deviation 0.53%, bootstrap 95% [0.996, 1.032]. One 3.2% pair keeps the strict
+  calibration gate (interval within ±2%) **INCONCLUSIVE**.
+- A/B (C++20/C++17, 10 ABBA pairs + warm-up): median 0.9893, bootstrap 95%
+  [0.9824, 0.9994]; peak RSS delta −0.17 MiB. Status `TIME_NONREGRESSION_PASS`.
+
+Interpretation: on this Linux/GCC host C++20 is **not slower** for this profile; the
+~1% speedup is outside the A/B interval but within the A/A outlier range, so treat
+it as suggestive, not established. This does not explain or overturn the
+Windows/MSVC observations above (different OS, compiler, index and load path).
+Receipts: `data/validation/cxx20-linux-ab-20261022/` (ignored, local only).
+
+The same host replayed every Linux x86_64 job of `build.yml` for `a14e2b7`:
+gcc and clang × C++17/20, frozen-baseline index/alignment equivalence and the
+ASan/UBSan job — 37/37 steps passed. aarch64, macOS and Windows hosted lanes
+remain unexecuted for the promoted default.
+
+The `build-windows` job was replayed locally for `4d380b2` (Windows 11, MSVC
+14.51, VS 18 Insiders, Python 3.14), C++17 and C++20 in fresh clones: qualification
+controls, build, smoke, web UI, miniature integration, C++17/20 language-pair
+qualification (C++20) and CTest (125/125) all pass. Miniature integration first
+failed in both lanes because `test_cpu_upstream.py` launched the relative
+`source/build/STAR.exe` that CI passes, which CreateProcess rejected; fixed in
+`87c5a18` by resolving absolute paths, after which both lanes pass. Logs:
+ignored `build/ci-replay-win-4d380b2/`.
+
+The `build-macos` job was replayed for `475ef01` on macOS 26.6.2 (Apple Silicon,
+Xcode SDK 26.4, Homebrew GCC 15, Python 3.14), C++17 and C++20 in fresh clones:
+build, smoke, CTest (128/128), miniature integration, web UI and the C++17/20
+language-pair qualification all pass. Two macOS defects surfaced and were fixed
+first: GCC could not compile the SDK 26 Mach headers reached via `<spawn.h>`
+(`215ff30`), and web UI jobs exec'd a bare `STAR` because `/proc/self/exe` does not
+exist on macOS, so every job exited 127 (`475ef01`). Hosted CI still uses
+macOS 15 images; Intel macOS and aarch64 Linux remain unexecuted. Logs: ignored
+`data/validation/macos-ci-replay-475ef01/`.
+
+### C++20-only verification, 2026-10-22
+
+After C++17 was retired (`2920c1d`) the Linux x86_64 jobs of `build.yml` were
+replayed again for `66bdd1a` on the Oracle Linux 10 host (GCC 14, Clang): gcc and
+clang lanes, HTSlib patch-queue reconstruction, STARlong and super-transcriptome
+lifecycle, frozen-baseline index/alignment/integer-matrix equivalence and the
+ASan/UBSan job, plus `test_malformed_inputs.py` under ASan/UBSan — 25/25 steps.
+
+Emulated lanes ran on the same host under QEMU user mode (`tonistiigi/binfmt`, as
+`docker/setup-qemu-action` uses), in podman with SELinux labelling disabled for the
+container (with it enabled, every emulated process segfaulted at start):
+
+- s390x (`debian:trixie`, `build_validate_s390x.sh`, as the hosted job): build, 24
+  endian/BAM/seed-search tests, miniature scientific fixture, big-endian
+  `genomeGenerate` and version identity pass.
+- aarch64 (`ubuntu:24.04`, GCC 13, gcc-lane steps): 128/128 CTest, 57 harness
+  self-tests, miniature integration with shared memory and the web UI queue/cancel
+  test pass. Two IPC lifecycle tests first failed because QEMU does not enforce the
+  `RLIMIT_AS` they use to inject an allocation failure; `4da8ef8` probes that the
+  limit is effective and otherwise skips only that sub-check (natively it still
+  runs). The emulated image also needed GNU `time`, which hosted runners provide.
+
+Emulation proves functional and byte-order behaviour only, never speed. Intel macOS
+is the one lane not executed anywhere. Logs: ignored
+`data/validation/linux-ci-replay-66bdd1a/` and `data/validation/emulated-ci-66bdd1a/`.
+
+## Evidence and attribution
+
+The original five identical-binary A/A pairs failed their [0.98, 1.02] interval
+bound. Ten C++17/20 pairs had a median elapsed ratio of 1.012124 and interval
+[1.004932, 1.064893]. That upper bound fails non-regression admission, but is
+not proof that the true slowdown exceeds 5%.
+
+Original console timestamps (one-second resolution) put both modes' median
+mapping phase at 12 seconds and Solo counting at 6 seconds. Median index loading
+was 19.5 vs 21 seconds, and GTF preparation 9 vs 11 seconds (17 vs 20). These
+coarse timings locate variation; they cannot exclude a small compute regression.
+
+Fresh comparisons use the same frozen MSVC 19.51 Release binaries, dependency
+lock, full cynomolgus index, one-million synchronized TMJ prefix pairs and eight
+threads. Each diagnostic uses one warmup per binary followed by two balanced
+A/B–B/A pairs. Complete BAM/header, SJ, Gene/GeneFull/Velocity, filtered/EM,
+scientific-log and memory checks pass in both diagnostics.
+
+| Diagnostic | Median paired wall ratio 20/17 | Individual paired process-CPU ratios | Admission |
+| --- | --- | --- | --- |
+| Default scheduler | 0.944177 | 1.012863, 0.975662 | INCONCLUSIVE; two pairs, busy host |
+| Same eight P cores | 1.111628 | 1.000137, 1.042217 | INCONCLUSIVE; two pairs, busy host |
+
+The changing wall-time direction is inconsistent with a stable effect identified
+by these small samples. It does not prove that every difference is environmental.
+In particular, the pinned C++20 observations also had higher competing load;
+this is not a clean estimate of a compiler-only effect.
+
+Concrete observed waiting components:
+
+- In the default-scheduler diagnostic, one C++17 index-loading window took
+  25.81 seconds wall and 21.16 seconds process CPU, versus 21.93/21.73 seconds
+  for C++20. Both transferred approximately 29.17 GB in process-accounted reads.
+  The window therefore includes substantial non-executing time; these counters
+  cannot distinguish storage waits from scheduler waits or attribute a service.
+- In the pinned diagnostic's first pair, whole-process wall times were
+  54.8325/57.9982 seconds (17/20), but summed process CPU times were
+  113.921875/113.9375 seconds. Mapping observations were 12.01/12.06 seconds.
+  Solo observations were 5.75/9.68 seconds wall and 5.70/7.12 seconds CPU.
+  The wall gap is not simply an equivalent increase in total CPU execution.
+- Maximum monitoring gaps in these formal runs were 0.263–0.426 seconds.
+  Phase boundaries are polling observations, not exact instrumentation events.
+  Aggregate process CPU sums all threads and is not an independent wall-time
+  admission metric. Read/write counters are logical transfers, not physical I/O.
+
+A separate 30-second control ran **no STAR**, only a sleeping child. Its CPU
+time was 0.078125 seconds; measured background CPU mean/p95 were
+37.3410%/68.8474%. Thus substantial load exists independently of STAR or C++20.
+System-time deltas in the pinned runs also tracked elapsed time times 20 logical
+CPUs (median normalized ratios approximately 1.00–1.01); a gross denominator or
+processor-group mismatch does not explain the reported load. Small quantization
+and sampling errors remain possible, not a reason to treat this as idle.
+
+The host has heterogeneous processors. Windows reports faster efficiency-class
+cores at logical indexes 0, 1, 6, 7, 8, 9, 18, 19. The diagnostic mask `0xc03c3`
+was applied and read back from each STAR process. It controls core eligibility,
+not exclusive ownership, frequency, thermal conditions or external contention.
+The earlier traces do not record which core executed each instruction; attributing
+the original slowdown specifically to E cores would be speculation.
+
+## Repairs and verification
+
+- Rename the statistical failure label from `TIME_REGRESSION` to
+  `NONREGRESSION_NOT_ESTABLISHED`. All existing quantitative gates remain intact.
+- Record process CPU time, logical I/O transfers, raw CPU samples and observed
+  phase boundaries. No hot-path instrumentation was added to STAR.
+- Add an optional STAR-only Windows affinity mask, verify the applied mask and
+  bind it into the calibration profile. Old/unpinned calibration cannot qualify
+  a pinned experiment.
+- Add a ten-second idle preflight before admission-sized Windows experiments
+  (five or more pairs). A busy/unknown host exits with
+  `UNVERIFIED_ENVIRONMENT_PREFLIGHT` before launching STAR. Short diagnostics
+  remain available but cannot satisfy pair-count/calibration requirements.
+- A real fresh five-pair admission attempt exercised this guard: preflight
+  mean/p95 24.5888%/36.4458%, zero STAR runs launched, no performance PASS.
+- Seven Windows helper/negative-control tests, five language-pair tests, the CI
+  contract test and the Linux fixture/negative-gate test pass. Windows CI now
+  runs the Windows-specific telemetry tests as well.
+
+Local evidence is retained under `data/validation/` (ignored, not release assets):
+`cxx20-rca-phase-1m-20261015`, `cxx20-rca-pcore-1m-20261015`,
+`cxx20-rca-admission-preflight-20261015`, and
+`architecture-20261009/cxx20-rca-idle-control.json`. Each scientific run retains
+its binary/input hashes, helper snapshot, commands, measurements and signatures.
+
+The independent s390x blocker is resolved: run
+[38742508396](https://github.com/birdingman0626/STAR-Cross/actions/runs/38742508396)
+passed 17/17 jobs. Downloaded artifact `11980547752` records same-source 17→20
+`PASS` with source-signature SHA256
+`55d7b48dca5583d75f4e69261685bafaaf2531de03ed71473b7b0a46c9ab545f`.
+This proves exercised scientific/endian parity, not emulated performance.
+
+## Remaining experiment
+
+### Prospective threshold revision authorized 2026-10-16
+
+The subsequent user instruction explicitly removes p95 from admission for the
+new attempt: use `--background-cpu-policy mean-only` together with
+`--max-background-cpu-percent 10`. Record p95 without blocking on it. This
+policy and threshold are bound into calibration compatibility; old receipts
+cannot qualify this experiment. No evidence establishes that observed spikes
+were caused solely by CPU queries. Other scientific/statistical/RSS gates are
+unchanged, and any PASS applies to this revised policy, not the original idle
+contract. The runner's default remains the original mean-and-p95 policy.
+
+The user explicitly revised the background CPU mean and p95 ceiling to 10%
+for a fresh attempt. Pass `--max-background-cpu-percent 10` to both the new
+A/A calibration and subsequent A/B experiment. Do not reclassify historical
+receipts. Scientific equality, pair counts, calibration dispersion/interval,
+elapsed-ratio and RSS bounds remain unchanged. This is qualification under a
+more permissive background-load contract, not proof of an idle host.
+
+The first fresh 10% attempt (`cxx20-aa-limit10-20261016-attempt1`) passed the
+30-second readiness sample (mean 3.2478%, p95 6.6327%), but its independent
+runner preflight measured mean 4.3772%, p95 10.3806%. It therefore exited as
+`UNVERIFIED_ENVIRONMENT_PREFLIGHT`, with zero STAR runs and no calibration.
+
+Use a demonstrably quiet host/window; do not terminate unrelated applications.
+Keep source, compiler, inputs, flags and affinity identical; qualify five fresh
+A/A pairs, then ten balanced A/B pairs with that exact calibration. Retain the
+same 5% background, 2% calibration, 1.05 elapsed-interval and memory thresholds.
+Only then decide on default promotion. If a repeatable residual exceeds the
+bound, use the recorded phase CPU/wall windows to investigate the implicated
+loader/parser/mapping/counting path; no such production defect is identified yet.
+
+API interpretation: [system times](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getsystemtimes),
+[process CPU times](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocesstimes),
+[I/O counters](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getprocessiocounters),
+[CPU efficiency classes](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_cpu_set_information).

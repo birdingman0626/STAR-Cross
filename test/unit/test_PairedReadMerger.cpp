@@ -3,13 +3,13 @@
 #include "SequenceFuns.h"
 #include <random>
 #include <stdexcept>
-
+using namespace std;
 namespace {
 // Frozen pre-extraction algorithm, independent of the component under test.
-PairedReadMergeResult legacy(std::vector<char>& bases, uint l0, uint l1, uint minimum, double mismatch) {
-    uint s1=localSearchNisMM(bases.data(),l0,bases.data()+l0+1,l1,mismatch);
-    uint s0=localSearchNisMM(bases.data()+l0+1,l1,bases.data(),l0,mismatch);
-    uint o1=min(l1,l0-s1),o0=min(l0,l1-s0),total=l0+l1+1;
+PairedReadMergeResult legacy(std::vector<char>& bases, uint64 l0, uint64 l1, uint64 minimum, double mismatch) {
+    uint64 s1=localSearchNisMM(bases.data(),l0,bases.data()+l0+1,l1,mismatch);
+    uint64 s0=localSearchNisMM(bases.data()+l0+1,l1,bases.data(),l0,mismatch);
+    uint64 o1=min(l1,l0-s1),o0=min(l0,l1-s0),total=l0+l1+1;
     PairedReadMergeResult r{max(o0,o1),{0,0},total};
     if (r.overlap<minimum) {r.overlap=0;return r;}
     if(o1>=o0) {
@@ -29,9 +29,9 @@ TEST_CASE("Paired merger matches legacy buffer bytes and overlap decisions") {
     std::mt19937 rng(8126);
     bool forward=false,reverse=false,none=false;
     for(unsigned trial=0;trial<1000;++trial) {
-        uint l0=1+rng()%30,l1=1+rng()%30,minimum=1+rng()%12;
+        uint64 l0=1+rng()%30,l1=1+rng()%30,minimum=1+rng()%12;
         std::vector<char> expected(128,5);
-        for(uint i=0;i<l0+l1+1;++i) expected[i]=rng()%5;
+        for(uint64 i=0;i<l0+l1+1;++i) expected[i]=rng()%5;
         auto actual=expected;
         double mismatch=(trial%3)*0.1;
         auto old=legacy(expected,l0,l1,minimum,mismatch);

@@ -2,7 +2,7 @@
 #include "AsyncByteWriter.h"
 #include "ChunkInputDispatcher.h"
 #include "GlobalVariables.h"
-
+using namespace std;
 InOutStreams::InOutStreams() {
     logStdOut=NULL;
     outSAM=NULL;

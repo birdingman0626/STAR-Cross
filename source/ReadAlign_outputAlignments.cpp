@@ -1,7 +1,7 @@
 #include "ReadAlign.h"
 #include "GlobalVariables.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 void ReadAlign::outputAlignments() {
   
     outBAMbytes=0;
@@ -94,8 +94,8 @@ void ReadAlign::outFilterBySJout()
     if (unmapType>0 || P.outFilterBySJoutStage!=1)
         return; //unmapped, or 2nd stage
    
-    for (uint iTr=0;iTr<nTr;iTr++) {//check transcript for unannotated junctions
-        for (uint iex=0;iex<trMult[iTr]->nExons-1;iex++) {//check all junctions
+    for (uint64 iTr=0;iTr<nTr;iTr++) {//check transcript for unannotated junctions
+        for (uint64 iex=0;iex<trMult[iTr]->nExons-1;iex++) {//check all junctions
             if (trMult[iTr]->canonSJ[iex]>=0 && trMult[iTr]->sjAnnot[iex]==0) {
                 outFilterBySJoutPass=false;
                 break;
@@ -110,7 +110,7 @@ void ReadAlign::outFilterBySJout()
         statsRA.readN--;
         statsRA.readBases -= readLength[0]+readLength[1];
 
-        for (uint im=0;im<P.readNends;im++) {
+        for (uint64 im=0;im<P.readNends;im++) {
             chunkOutFilterBySJoutFiles[im] << readNameMates[im] <<" "<< iReadAll <<" "<< readFilter <<" "<< readFilesIndex;
             if (!readNameExtra[im].empty())
                 chunkOutFilterBySJoutFiles[im]<<" "<< readNameExtra[im];
@@ -133,7 +133,7 @@ void ReadAlign::outFilterBySJout()
 void ReadAlign::outReadsUnmapped()
 {
     if (P.outReadsUnmapped=="Fastx" ) {//output to fasta/q files. Include unmapType==4, i.e. one-mate alignments of PE reads
-       for (uint im=0;im<P.readNends;im++) {
+       for (uint64 im=0;im<P.readNends;im++) {
            chunkOutUnmappedReadsStream[im] << readNameMates[im]  <<" "<<im<<":"<< readFilter <<": "<< readNameExtra[im];
            if (P.readNmates>1) //not readNends: this is alignment
                chunkOutUnmappedReadsStream[im] <<" "<< int(mateMapped[0]) <<  int(mateMapped[1]);
@@ -163,7 +163,7 @@ void ReadAlign::spliceGraphWriteSAM()
         };
     };
 
-    for (uint iTr=0; iTr<nTrOutSAM; iTr++) {//write all transcripts            
+    for (uint64 iTr=0; iTr<nTrOutSAM; iTr++) {//write all transcripts            
         outBAMbytes += outputSpliceGraphSAM(*(trMult[iTr]), nTrOutSAM, iTr, outSAMstream);
     };
 };

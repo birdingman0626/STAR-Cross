@@ -5,7 +5,7 @@
 #include "serviceFuns.cpp"
 #include "GTF.h"
 #include "funPrimaryAlignMark.h"
-
+using namespace std;
 template <typename T>
 void appendVector(vector<T> &v1, const vector<T> &v2)
 {
@@ -148,7 +148,7 @@ void Genome::transformGenome(GTF *gtf)
         chrName = concatenateVectors( appendString(chrName, "_h1"), appendString(chrName, "_h2") );
         nChrReal=chrName.size();
         
-        for (uint ii=0;ii<nChrReal;ii++) {
+        for (uint64 ii=0;ii<nChrReal;ii++) {
             chrNameIndex[chrName[ii]]=ii;
         };
         

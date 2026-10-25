@@ -56,10 +56,10 @@ unexpected skips and timeouts are not passes. Never overwrite previous evidence.
 
 | Lane | Matrix | Trigger and acceptance |
 | --- | --- | --- |
-| Linux x86-64 | GCC and Clang; C++17/20; Release | PR: root CTest, miniature analysis, WebUI; candidate C++20 compared to same-source C++17 |
-| Windows x86-64 | MSVC; C++17/20; Release | PR: same analysis/count contract, HTS BAM/CRAM, WebUI and runtime-DLL smoke test |
-| macOS ARM64 + Intel | GCC/OpenMP; C++17/20; Release | Required for candidate promotion: root CTest, miniature analysis, runtime dependencies; explicit architecture check |
-| Linux s390x | GCC in pinned s390x container; C++17/20 | Candidate promotion: bounded units, tiny index AND mapping/count checks under QEMU; no speed conclusion from emulation |
+| Linux x86-64 + aarch64 | GCC and Clang; C++20; Release | PR: root CTest, miniature analysis, WebUI |
+| Windows x86-64 | MSVC; C++20; Release | PR: same analysis/count contract, HTS BAM/CRAM, WebUI and runtime-DLL smoke test |
+| macOS ARM64 + Intel | GCC/OpenMP; C++20; Release | Required for candidate promotion: root CTest, miniature analysis, runtime dependencies; explicit architecture check |
+| Linux s390x | GCC in pinned s390x container; C++20 | Candidate promotion: bounded units, tiny index AND mapping/count checks under QEMU; no speed conclusion from emulation |
 | Sanitizers | Linux GCC or qualified Clang; Debug and optimized-with-symbols | PR for memory/code changes: units and miniature integration under ASan/UBSan; preserve documented full-CLI leak limitation |
 | Build configuration | Windows Ninja Multi-Config Debug/Release; Linux Ninja Debug/Release | Candidate promotion: verify selected flags, build/test; test portable CPU binary on actual or controlled non-AVX2 execution |
 | Moving versions | Latest hosted compiler/toolkit candidate | Scheduled or manual compatibility signal; does not redefine supported minimums automatically |
@@ -290,14 +290,17 @@ A commit label alone cannot identify the current uncommitted candidate.
 
 ## Non-language-upgrade continuation status
 
-C++17 remains the CPU and optional CUDA default. Continue qualification without
-coupling it to a C++20 promotion or treating every checklist item as a release
-requirement for an unrelated mode. Exact receipts are in the dated execution
+As of 2026-10-22 the CPU build is C++20-only; C++17 builds and the same-source
+C++17/20 language-pair gate were removed after the final paired comparisons passed
+on Linux, Windows and macOS (see `CXX20_PERFORMANCE_RCA.md`). The optional CUDA
+device standard remains independently configured (default 17). Continue
+qualification without treating every checklist item as a release requirement for
+an unrelated mode. Exact receipts are in the dated execution
 record, not inferred from this plan.
 
 | Remaining surface | Required next evidence / disposition |
 | --- | --- |
-| Standalone filtering, SmartSeq SE/PE, Transcript3p, EmptyDrops | Bounded independent count oracles, malformed-input rejection and targeted normal-teardown leak checks implemented; real/ambiguous Transcript3p accuracy and positive EmptyDrops rescue sensitivity still need independent validation |
+| Standalone filtering, SmartSeq SE/PE, Transcript3p, EmptyDrops | Bounded independent count oracles, malformed-input rejection and targeted normal-teardown leak checks implemented; simulated-truth validation added 2026-10-23 (below); real-data Transcript3p accuracy against an orthogonal assay remains open |
 | Optional CUDA | Refresh host17/device17 builds, actual remap/seed execution and device memcheck; seed remains an isolated experiment, not whole-mapper GPU acceleration |
 | Real data | Frozen-prefix full scientific contract first; full-library/cell-representative validation remains separate |
 | CPU time and memory | Prior A/A failed the 2% noise gate; no performance acceptance until independent calibration passes and paired A/B evidence is collected without concurrent builds |
@@ -317,3 +320,25 @@ toolkit. Save URL/version/retrieval date with the execution manifest.
 - [NVIDIA CUDA 13.3 Windows compiler support](https://docs.nvidia.com/cuda/archive/13.3.0/cuda-installation-guide-microsoft-windows/index.html)
 - [NVIDIA Compute Sanitizer tools and their coverage](https://docs.nvidia.com/compute-sanitizer/ComputeSanitizer/index.html)
 - [GitHub secure Actions and self-hosted runner guidance](https://docs.github.com/en/actions/reference/security/secure-use)
+
+## Simulated-truth validation, 2026-10-23
+
+Two seeded simulations with known truth now run in Linux CI:
+
+- `scripts/test_emptydrops_sensitivity.py`: 150 above-knee cells, 100 below-knee
+  cells from four marker-defined cell types, 6000 ambient empty droplets and 100
+  ambient-composition droplets with cell-like totals (scaled EmptyDrops_CR
+  parameters). Across 8 seeds: all large cells and 100% of small real cells
+  called, no empty droplet called, 0-2 ambient-composition droplets called
+  (bound <= 5, consistent with 1% FDR over ~250 calls). With weak markers (2x)
+  and 100-200 UMIs recall falls to 0, so the bound is informative.
+- `scripts/test_transcript3p_accuracy.py`: four genes with alternative
+  polyadenylation isoforms (long = short + 400 bp, so most reads are compatible
+  with both), four single-isoform genes for the distance model, two clusters with
+  gene-specific short-isoform fractions 0.2-0.9. Across 5 seeds the estimated short
+  fraction is within 0.044-0.067 of truth (tolerance 0.10), with a consistent
+  +0.02-0.04 bias toward the short isoform that is recorded, not corrected.
+
+These validate behaviour on simulated data with exact truth; they do not replace
+comparison with an orthogonal real-data assay.
+

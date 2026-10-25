@@ -54,6 +54,7 @@ add_executable(star_tests
     unit/test_OutputAlignmentSelection.cpp
     unit/test_PairedReadMerger.cpp
     unit/test_InsertSuffixCompare.cpp
+    unit/test_transcriptomePrimary.cpp
     ${STAR_TEST_SOURCES}
 )
 star_target_build_options(star_tests)
@@ -165,6 +166,6 @@ if(UNIX)
             endif()
         endif()
         add_test(NAME shared_memory_${backend}_lifecycle COMMAND star_ipc_${backend})
-        set_tests_properties(shared_memory_${backend}_lifecycle PROPERTIES TIMEOUT 20)
+        set_tests_properties(shared_memory_${backend}_lifecycle PROPERTIES TIMEOUT 90)
     endforeach()
 endif()

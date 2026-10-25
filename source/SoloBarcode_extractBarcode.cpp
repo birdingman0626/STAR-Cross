@@ -1,6 +1,6 @@
 #include "SoloBarcode.h"
 #include <array>
-
+using namespace std;
 bool SoloBarcode::extractBarcode(string &seqIn, string &qualIn, const uint32 adapterStart, string &bSeq, string &bQual)
 {//input: sequence seqIn, adapter start adapterStart
  //output: start position of the barcode   

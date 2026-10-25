@@ -1,6 +1,6 @@
 #include "ReadAlign.h"
 #include "BAMfunctions.h"
-
+using namespace std;
 
 void ReadAlign::chimericDetectionPEmerged(ReadAlign &seRA) {
 

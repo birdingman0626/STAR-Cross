@@ -31,7 +31,9 @@ ECLOSE,
 EUNLINK,
 ECOUNTERCREATE,
 ECOUNTERREMOVE,
-ECOUNTERUSE
+ECOUNTERUSE,
+ELOCK,
+EKEYCOLLISION
 };
 
 
@@ -103,7 +105,7 @@ public:
                 return _mappedSize - sizeof(size_t);
 
             _exception.SetError(ENOTALLOCATED, 0);
-            return -1;
+            return static_cast<size_t>(-1);
         };
 
         bool NeedsAllocation() const
@@ -146,6 +148,14 @@ public:
             _err = err;
         };
 
+        // State of the process that created the segment, as recorded by the
+        // admission semaphore set. Unknown: not recorded (for example a
+        // segment created by an older STAR build, or Windows).
+        enum class LoaderState { Unknown, Loading, Exited };
+        LoaderState GetLoaderState();
+        // The allocator calls this after publishing the loaded genome.
+        void LoaderFinished();
+
         SharedMemory(key_t key, bool unloadLast);
         SharedMemory(const SharedMemory&) = delete;
         SharedMemory& operator=(const SharedMemory&) = delete;
@@ -164,12 +174,17 @@ private:
 
         void * _mapped;
         size_t _mappedSize = 0;
-        sem_t * _sem;
         bool _isAllocator;
         bool _needsAllocation;
 
         key_t _key;
         key_t _counterKey;
+        // SysV semaphore set keyed by _key (semaphore keys do not share the
+        // shared-memory key namespace): 0 = admission lock, 1 = loader alive,
+        // 2 = loader recorded. See SharedMemory.cpp.
+        int _lockSemID = -1;
+        bool _lockHeld = false;
+        bool _loaderRegistered = false;
         bool _unloadLast;
         std::ostream * _err;
 
@@ -181,13 +196,15 @@ private:
         struct stat GetSharedObjectInfo();
         void Close();
         void Unlink();
-
-        std::string CounterName();
+        void CleanLocked();
 
         void EnsureCounter();
         void RemoveSharedCounter();
-        void SharedUseIncrement();
-        void SharedUseDecrement();
+
+        void LockAdmission();
+        void UnlockAdmission();
+        void RemoveLockSemaphore();
+        class AdmissionGuard;
 };
 
 #endif

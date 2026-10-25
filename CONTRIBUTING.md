@@ -44,6 +44,6 @@ cd source && make STAR
 
 ## Code Style
 
-- C++17 standard
+- C++20 (the only supported language level)
 - `.clang-format` and `.editorconfig` define formatting
 - Run `pre-commit install` for automatic checks

@@ -3,7 +3,7 @@
 #include "samAux.h"
 #include "bamEndian.h"
 #include "ErrorWarning.h"
-
+using namespace std;
 
 string bam_cigarString (bam1_t *b) {//output CIGAR string
 //    kstring_t strK;
@@ -14,7 +14,7 @@ string bam_cigarString (bam1_t *b) {//output CIGAR string
     if ( c->n_cigar > 0 ) {
       uint32_t *cigar = bam_get_cigar(b);
       for (int i = 0; i < c->n_cigar; ++i) {
-        cigarString+=to_string((uint)bam_cigar_oplen(cigar[i]))+bam_cigar_opchr(cigar[i]);
+        cigarString+=to_string((uint64)bam_cigar_oplen(cigar[i]))+bam_cigar_opchr(cigar[i]);
       };
     };
 
@@ -77,7 +77,7 @@ int bam_read1_fromArray(char *bamChar, bam1_t *b) //modified from samtools bam_r
 }
 
 
-void outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint> &chrl) {
+void outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint64> &chrl) {
     bgzf_write(fp,"BAM\001",4);
     int32 hlen=samh.size();
     bamWriteInt32LE(fp,hlen);

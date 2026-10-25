@@ -1,16 +1,16 @@
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
-
-uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint iTrOut, uint mateChr, uint mateStart, char mateStrand, int unmapType, bool *mateMap, ostream *outStream) {
+using namespace std;
+uint64 ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, ostream *outStream) {
 
     if (P.outSAMmode=="None") return 0; //no SAM output
 
-    uint outStreamPos0=(uint)outStream->tellp();
+    uint64 outStreamPos0=(uint64)outStream->tellp();
 
     if (unmapType>=0)
     {//unmapped reads: SAM
-        for (uint imate=0;imate<P.readNmates;imate++) {//cycle over mates //not readNends: this is alignment
+        for (uint64 imate=0;imate<P.readNmates;imate++) {//cycle over mates //not readNends: this is alignment
             if (!mateMap[imate]) {
                 uint16 samFLAG=0x4;
                 if (P.readNmates==2) {//paired read //not readNends: this is alignment
@@ -50,7 +50,7 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
                 *outStream <<"\n";
             };
         };
-        return (uint)outStream->tellp()-outStreamPos0;
+        return (uint64)outStream->tellp()-outStreamPos0;
     };//if (unmapType>=0 && outStream != NULL) //unmapped reads: SAM
 
 
@@ -58,8 +58,8 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
     string CIGAR;
 
     //for SAM output need to split mates
-    uint iExMate; //last exon of the first mate
-    uint nMates=1;
+    uint64 iExMate; //last exon of the first mate
+    uint64 nMates=1;
     for (iExMate=0;iExMate<trOut.nExons-1;iExMate++) {
         if (trOut.canonSJ[iExMate]==-3){
             nMates=2;
@@ -67,7 +67,7 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
         };
     };
 
-    uint samFlagCommon=0;//FLAG common for both mates
+    uint64 samFlagCommon=0;//FLAG common for both mates
     if (flagPaired)
     {//paired reads
         samFlagCommon=0x0001;
@@ -90,8 +90,8 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
 
     if (readFilter=='Y') samFlagCommon+=0x200; //not passing quality control
 
-    uint Str= trOut.Str;//note that Strand = the mate on the left
-    uint leftMate=0; //the mate (0 or 1) which is on the left
+    uint64 Str= trOut.Str;//note that Strand = the mate on the left
+    uint64 leftMate=0; //the mate (0 or 1) which is on the left
     if (flagPaired) {
         leftMate=Str;
     };
@@ -100,14 +100,14 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
         calcCIGAR(trOut, nMates, iExMate, leftMate);
     };
 
-    uint samFLAG;
+    uint64 samFLAG;
 
-    for (uint imate=0;imate<nMates;imate++) {
+    for (uint64 imate=0;imate<nMates;imate++) {
         samFLAG=samFlagCommon;
 
-        uint iEx1 = (imate==0 ? 0 : iExMate+1);
-        uint iEx2 = (imate==0 ? iExMate : trOut.nExons-1);
-        uint Mate=trOut.exons[iEx1][EX_iFrag];
+        uint64 iEx1 = (imate==0 ? 0 : iExMate+1);
+        uint64 iEx2 = (imate==0 ? iExMate : trOut.nExons-1);
+        uint64 Mate=trOut.exons[iEx1][EX_iFrag];
 
         if (Mate==0) {
             samFLAG|= Str*0x10;
@@ -131,7 +131,7 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
         samStreamSJintron.str(std::string());
 //         samStreamSJannot.str(std::string());
 
-        uint trimL;
+        uint64 trimL;
         if (Str==0 && Mate==0) {
             trimL=clipMates[Mate][0].clippedN;
         } else if (Str==0 && Mate==1) {
@@ -142,15 +142,15 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
             trimL=clipMates[Mate][0].clippedN;
         };
 
-        uint trimL1 = trimL + trOut.exons[iEx1][EX_R] - (trOut.exons[iEx1][EX_R]<readLength[leftMate] ? 0 : readLength[leftMate]+1);
+        uint64 trimL1 = trimL + trOut.exons[iEx1][EX_R] - (trOut.exons[iEx1][EX_R]<readLength[leftMate] ? 0 : readLength[leftMate]+1);
         if (trimL1>0) {
             samStreamCIGAR << trimL1 << "S"; //initial trimming
         };
 
-        for (uint ii=iEx1;ii<=iEx2;ii++) {
+        for (uint64 ii=iEx1;ii<=iEx2;ii++) {
             if (ii>iEx1) {//record gaps
-                uint gapG=trOut.exons[ii][EX_G]-(trOut.exons[ii-1][EX_G]+trOut.exons[ii-1][EX_L]);
-                uint gapR=trOut.exons[ii][EX_R]-trOut.exons[ii-1][EX_R]-trOut.exons[ii-1][EX_L];
+                uint64 gapG=trOut.exons[ii][EX_G]-(trOut.exons[ii-1][EX_G]+trOut.exons[ii-1][EX_L]);
+                uint64 gapR=trOut.exons[ii][EX_R]-trOut.exons[ii-1][EX_R]-trOut.exons[ii-1][EX_L];
                 //it's possible to have a D or N and I at the same time
                 if (gapR>0){
                     samStreamCIGAR << gapR;
@@ -181,7 +181,7 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
 //             SJannot=",-1";
         };
 
-        uint trimR1=(trOut.exons[iEx1][EX_R]<readLength[leftMate] ? \
+        uint64 trimR1=(trOut.exons[iEx1][EX_R]<readLength[leftMate] ? \
             readLengthOriginal[leftMate] : readLength[leftMate]+1+readLengthOriginal[Mate]) \
             - trOut.exons[iEx2][EX_R]-trOut.exons[iEx2][EX_L] - trimL;
         if ( trimR1 > 0 ) {
@@ -199,7 +199,7 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
         } else {
             revComplementNucleotides(Read0[Mate], seqMate, readLengthOriginal[Mate]);
             seqMate[readLengthOriginal[Mate]]=0;
-            for (uint ii=0;ii<readLengthOriginal[Mate]; ii++) qualMate[ii]=Qual0[Mate][readLengthOriginal[Mate]-1-ii];
+            for (uint64 ii=0;ii<readLengthOriginal[Mate]; ii++) qualMate[ii]=Qual0[Mate][readLengthOriginal[Mate]-1-ii];
             qualMate[readLengthOriginal[Mate]]=0;
             seqOut=&seqMate[0];
             qualOut=&qualMate[0];
@@ -239,13 +239,13 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
 
 //         vector<string> customAttr(outSAMattrN,"");
 
-        uint tagNM=0;
+        uint64 tagNM=0;
         string tagMD("");
         if (P.outSAMattrPresent.NM || P.outSAMattrPresent.MD) {
             char* R=Read1[trOut.roStr==0 ? 0:2];
-            uint matchN=0;
-            for (uint iex=iEx1;iex<=iEx2;iex++) {
-                for (uint ii=0;ii<trOut.exons[iex][EX_L];ii++) {
+            uint64 matchN=0;
+            for (uint64 iex=iEx1;iex<=iEx2;iex++) {
+                for (uint64 ii=0;ii<trOut.exons[iex][EX_L];ii++) {
                     char r1 = R[ii+trOut.exons[iex][EX_R]];
                     char g1 = genOut.G[ii+trOut.exons[iex][EX_G]];
                     if ( r1!=g1 || r1==4 || g1==4) {
@@ -263,7 +263,7 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
                     if (trOut.canonSJ[iex]==-1) {//deletion
                         tagNM+=trOut.exons[iex+1][EX_G]-(trOut.exons[iex][EX_G]+trOut.exons[iex][EX_L]);
                         tagMD+=to_string(matchN) + "^";
-                        for (uint ii=trOut.exons[iex][EX_G]+trOut.exons[iex][EX_L];ii<trOut.exons[iex+1][EX_G];ii++) {
+                        for (uint64 ii=trOut.exons[iex][EX_G]+trOut.exons[iex][EX_L];ii<trOut.exons[iex+1][EX_G];ii++) {
                             tagMD+=P.genomeNumToNT[(uint8) genOut.G[ii]];
                         };
                         matchN=0;
@@ -275,7 +275,7 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
             tagMD+=to_string(matchN);
         };
 
-        for (uint ii=0;ii<P.outSAMattrOrder.size();ii++) {
+        for (uint64 ii=0;ii<P.outSAMattrOrder.size();ii++) {
             switch (P.outSAMattrOrder[ii]) {
                 case ATTR_NH:
                     *outStream <<"\tNH:i:" << nTrOut;
@@ -357,7 +357,7 @@ uint ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint nTrOut, uint i
         };
 
         *outStream << "\n"; //done with one SAM line
-    };//for (uint imate=0;imate<nMates;imate++)
+    };//for (uint64 imate=0;imate<nMates;imate++)
 
-    return (uint)outStream->tellp()-outStreamPos0;
+    return (uint64)outStream->tellp()-outStreamPos0;
 };

@@ -12,5 +12,5 @@ AllowShortFunctionsOnASingleLine: Inline
 BreakBeforeBraces: Attach
 SpaceBeforeParens: ControlStatements
 PointerAlignment: Right
-Standard: c++17
+Standard: c++20
 SortIncludes: false

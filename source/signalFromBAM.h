@@ -6,8 +6,8 @@
 #include "Stats.h"
 #include "Parameters.h"
 
-using namespace std;
 
-void signalFromBAM(const string bamFileName, const string sigFileName, Parameters P);
+
+void signalFromBAM(const std::string bamFileName, const std::string sigFileName, Parameters &P);
 
 #endif

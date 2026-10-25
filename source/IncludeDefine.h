@@ -35,15 +35,15 @@
 #include <math.h>
 #include <assert.h>
 
-#include "VERSION"
+#include "STARVersion.h" // not "VERSION": shadows C++20 <version> on case-insensitive filesystems
 
-#define ERROR_OUT string ( __FILE__ ) +":"+ to_string ( (uint) __LINE__ ) +":"+ string ( __FUNCTION__ )
+#define ERROR_OUT string ( __FILE__ ) +":"+ to_string ( (uint64) __LINE__ ) +":"+ string ( __FUNCTION__ )
 
 //external libs
 #define SAMTOOLS_BGZF_H "htslib/htslib/bgzf.h"
 #define SAMTOOLS_SAM_H  "htslib/htslib/sam.h"
 
-using namespace std;
+
 
 #if defined(COMPILE_FOR_MAC) || defined(__APPLE__)
   // macOS: SHM_NORESERVE is Linux-specific; define as 0 (no-op)
@@ -59,7 +59,6 @@ using namespace std;
 typedef int8_t int8;
 typedef uint8_t uint8;
 
-#define uint unsigned long long
 using sint = signed long long;
 using uint64 = unsigned long long;
 using uint32 = unsigned int;
@@ -265,9 +264,9 @@ static_assert(sizeof(int64) == 8 && sizeof(int32) == 4 && sizeof(uchar) == 1,
 #define PEMARKER_SINGLE_END_NOTMAPPED 1001
 
 
-typedef uint uiPC[PC_SIZE];
-typedef uint uiWC[WC_SIZE];
-typedef uint uiWA[WA_SIZE];
+typedef uint64 uiPC[PC_SIZE];
+typedef uint64 uiWC[WC_SIZE];
+typedef uint64 uiWA[WA_SIZE];
 
 // debugging
 //#define DEBUG_Nread 1000000

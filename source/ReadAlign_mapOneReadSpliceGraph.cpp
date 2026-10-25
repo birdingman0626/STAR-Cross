@@ -2,7 +2,7 @@
 #include "SequenceFuns.h"
 #include "Stats.h"
 #include "serviceFuns.cpp"
-
+using namespace std;
 void ReadAlign::mapOneReadSpliceGraph() 
 {
     #ifdef OFF_BEFORE_SEEDING

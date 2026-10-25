@@ -4,7 +4,7 @@
 #include "serviceFuns.cpp"
 #include <unordered_map>
 #include "SoloCommon.h"
-
+using namespace std;
 inline int funCompareSolo1 (const void *a, const void *b);          //defined below
 inline int funCompare_uint32_1_2_0 (const void *a, const void *b);
 

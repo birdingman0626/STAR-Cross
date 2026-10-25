@@ -4,7 +4,7 @@
 #include "SequenceFuns.h"
 #include "GlobalVariables.h"
 #include "SeedDiagnostics.h"
-
+using namespace std;
 inline uint64 fastqReadOneLine(ifstream&,char*);
 inline void removeStringEndControl(string&);
 
@@ -58,8 +58,8 @@ void ReadAlignChunk::readChunk() {
 
                         uint64 flag1;
                         P.inOut->readIn[0] >> flag1;
-                        uint imate1=0;
-                        for (uint imate=0;imate<P.readNmates;imate++) {//not readNends: this is SAM input
+                        uint64 imate1=0;
+                        for (uint64 imate=0;imate<P.readNmates;imate++) {//not readNends: this is SAM input
                             if (imate>0) {
                                 string str2;
                                 uint64 flag2;
@@ -137,7 +137,7 @@ void ReadAlignChunk::readChunk() {
                         // bookkeeping fields (including Illumina sample indexes).
                         getline(P.inOut->readIn[0], headerExtra[0]);
                         removeStringEndControl(headerExtra[0]);
-                        for (uint imate=1; imate<P.readNends; imate++) {
+                        for (uint64 imate=1; imate<P.readNends; imate++) {
                             getline(P.inOut->readIn[imate], headerExtra[imate]);
                             removeStringEndControl(headerExtra[imate]);
                             const size_t comment = headerExtra[imate].find_first_of(" \t");
@@ -156,7 +156,7 @@ void ReadAlignChunk::readChunk() {
                         readID += ' '+ to_string(P.iReadAll)+' '+passFilterIllumina+' '+to_string(P.readFilesIndex);
 
                         //copy the same readID to both mates
-                        for (uint imate=0; imate<P.readNends; imate++) {
+                        for (uint64 imate=0; imate<P.readNends; imate++) {
                             if (readID.size() + headerExtra[imate].size() >= DEF_readNameLengthMax)
                                 exitWithError("EXITING: FASTQ header including comment is too long\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
                             chunkInSizeBytesTotal[imate] += readID.copy(chunkIn[imate] + chunkInSizeBytesTotal[imate], readID.size(),0);
@@ -166,7 +166,7 @@ void ReadAlignChunk::readChunk() {
                         };
                     };
                     //copy 3 (4 for stage 2) lines: sequence, dummy, quality
-                    for (uint imate=0; imate<P.readNends; imate++) {
+                    for (uint64 imate=0; imate<P.readNends; imate++) {
                         // read 1st line for 2nd stage only
                         if (P.outFilterBySJoutStage == 2)
                             chunkInSizeBytesTotal[imate] += fastqReadOneLine(P.inOut->readIn[imate], chunkIn[imate] + chunkInSizeBytesTotal[imate]);
@@ -183,7 +183,7 @@ void ReadAlignChunk::readChunk() {
                     };
                 } else if (nextChar=='>') {//fasta, can be multiline, which is converted to single line
                     P.iReadAll++; //increment read number
-                    for (uint imate=0; imate<P.readNends; imate++) {
+                    for (uint64 imate=0; imate<P.readNends; imate++) {
                         if (P.outFilterBySJoutStage!=2) {//not the 2nd stage of the 2-stage mapping
 
                             if (P.outSAMreadID=="Number") {
@@ -222,7 +222,8 @@ void ReadAlignChunk::readChunk() {
                         chunkInSizeBytesTotal[imate] ++;
                     };
                 } else if (nextChar==' ' || nextChar=='\n' || !P.inOut->readIn[0].good()) {//end of stream
-                    P.inOut->logMain << "Thread #" <<iThread <<" end of input stream, nextChar="<<int(nextChar) <<endl;
+                    {OptionalMutexLock logLock(g_threadChunks.mutexLogMain, P.runThreadN>1);
+                    P.inOut->logMain << "Thread #" <<iThread <<" end of input stream, nextChar="<<int(nextChar) <<endl;}
                     break;
                 } else {
                     string word1;
@@ -244,7 +245,7 @@ void ReadAlignChunk::readChunk() {
                         P.inOut->readIn[0] >> P.readFilesIndex;
                         pthread_mutex_lock(&g_threadChunks.mutexLogMain);
                         P.inOut->logMain << "Starting to map file # " << P.readFilesIndex<<"\n";
-                        for (uint imate=0; imate<P.readFilesNames.size(); imate++) {
+                        for (uint64 imate=0; imate<P.readFilesNames.size(); imate++) {
                             P.inOut->logMain << "mate " <<imate+1 <<":   "<<P.readFilesNames.at(imate).at(P.readFilesIndex) <<"\n";
                             P.inOut->readIn[imate].ignore(numeric_limits<streamsize>::max(),'\n');
                         };
@@ -264,7 +265,7 @@ void ReadAlignChunk::readChunk() {
                 g_threadChunks.chunkInN++;
             };
 
-            for (uint imate=0; imate<P.readNends; imate++)
+            for (uint64 imate=0; imate<P.readNends; imate++)
                 chunkIn[imate][chunkInSizeBytesTotal[imate]]='\n';//extra empty line at the end of the chunks
 
             #ifdef STAR_CAPTURE_SEEDS
@@ -274,7 +275,7 @@ void ReadAlignChunk::readChunk() {
 
         } else {//read from one file per thread
             noReadsLeft=true;
-            for (uint imate=0; imate<P.readNends; imate++) {
+            for (uint64 imate=0; imate<P.readNends; imate++) {
                 RA->chunkOutFilterBySJoutFiles[imate].flush();
                 RA->chunkOutFilterBySJoutFiles[imate].seekg(0,ios::beg);
                 RA->readInStream[imate]=& RA->chunkOutFilterBySJoutFiles[imate];
@@ -288,6 +289,13 @@ inline uint64 fastqReadOneLine(ifstream &streamIn, char *arrIn)
     uint64 lenIn;
     streamIn.getline(arrIn, DEF_readNameSeqLengthMax+1 );
     lenIn = streamIn.gcount(); //=seqLength+1: includes \0 but not \n. We will replace \0 with \n
+
+    if (lenIn < 2) {
+        // Empty line (1) or nothing read (0, end of input): store nothing. The
+        // previous code reached the same result by rewriting the preceding '\n'
+        // through arrIn[-1], and could return (uint64)-1 at end of input.
+        return 0;
+    };
 
     if ( int(arrIn[lenIn-2]) < 33 ) {//remove control char at the end if present
         --lenIn;

@@ -2,7 +2,7 @@
 #include "Parameters.h"
 #include "ErrorWarning.h"
 #include "GlobalVariables.h"
-
+using namespace std;
 void ParametersChimeric::initialize(Parameters *pPin)
 {
     out.bam=false;
@@ -103,7 +103,7 @@ void ParametersChimeric::initialize(Parameters *pPin)
     };
 
     filter.genomicN=false;
-    for (uint ii=0; ii<filter.stringIn.size(); ii++) {
+    for (uint64 ii=0; ii<filter.stringIn.size(); ii++) {
         if (filter.stringIn.at(ii)=="banGenomicN") {
             filter.genomicN=true;
         } else if (filter.stringIn.at(ii)=="None") {

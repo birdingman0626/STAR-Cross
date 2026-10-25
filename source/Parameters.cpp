@@ -13,7 +13,7 @@
 
 //for mkfifo
 #include <sys/stat.h>
-
+using namespace std;
 #define PAR_NAME_PRINT_WIDTH 30
 
 Parameters::Parameters() : inOut(new InOutStreams) {//initialize parameters info
@@ -47,7 +47,7 @@ int Parameters::scanOneLine (string &lineIn, int inputLevel, int inputLevelReque
     lineInStream >> parIn;
     if (parIn=="" || parIn.substr(0,2)=="//" || parIn.substr(0,1)=="#") return 0; //this is a comment
 
-    uint iPar;
+    uint64 iPar;
     for (iPar=0; iPar<parArray.size(); iPar++) {
         if (parIn==parArray[iPar]->nameString) {//
             if (inputLevelRequested < 0 || inputLevelRequested == parArray[iPar]->inputLevelAllowed) {

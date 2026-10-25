@@ -1,10 +1,10 @@
 #include "readLoad.h"
 #include "ErrorWarning.h"
 #include <cstdlib>
-
-int readLoad(istream& readInStream, Parameters& P, uint& Lread, uint& LreadOriginal, \
+using namespace std;
+int readLoad(istream& readInStream, Parameters& P, uint64& Lread, uint64& LreadOriginal, \
             char* readName, char* Seq, char* SeqNum, char* Qual, vector<ClipMate> &clipOneMate, \
-            uint &iReadAll, uint32 &readFilesIndex, char &readFilter, string &readNameExtra)
+            uint64 &iReadAll, uint32 &readFilesIndex, char &readFilter, string &readNameExtra)
 {//load one read from a stream
     int readFileType=0;
 
@@ -32,7 +32,7 @@ int readLoad(istream& readInStream, Parameters& P, uint& Lread, uint& LreadOrigi
 
     // Parse iReadAll, readFilter, readFilesIndex from remaining fields
     while (*p == ' ' || *p == '\t') ++p;
-    iReadAll = (uint)strtoull(p, &p, 10);
+    iReadAll = (uint64)strtoull(p, &p, 10);
     while (*p == ' ' || *p == '\t') ++p;
     if (*p && *p != '\n' && *p != '\r') readFilter = *p++;
     while (*p == ' ' || *p == '\t') ++p;
@@ -79,14 +79,14 @@ int readLoad(istream& readInStream, Parameters& P, uint& Lread, uint& LreadOrigi
 
     if (readName[0]=='@') {//fastq format, read qualities
         readInStream.getline(Qual,DEF_readSeqLengthMax);//read qualities
-        if ((uint) readInStream.gcount() != LreadOriginal+1) {//inconsistent read sequence and quality
+        if ((uint64) readInStream.gcount() != LreadOriginal+1) {//inconsistent read sequence and quality
             ostringstream errOut;
             errOut << "EXITING because of FATAL ERROR in reads input: quality string length is not equal to sequence length\n";
             errOut << readName <<'\n'<< Seq <<'\n'<< Qual <<'\n'<< "SOLUTION: fix your fastq file\n";
             exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
         };
         if (P.outQSconversionAdd!=0) {
-            for (uint ii=0;ii<LreadOriginal;ii++) {
+            for (uint64 ii=0;ii<LreadOriginal;ii++) {
                 int qs=int(Qual[ii])+P.outQSconversionAdd;
                 if (qs<33) {
                     qs=33;
@@ -99,7 +99,7 @@ int readLoad(istream& readInStream, Parameters& P, uint& Lread, uint& LreadOrigi
     
     } else if (readName[0]=='>') {//fasta format, assign Qtop to all qualities
         readFileType=1;
-        for (uint ii=0;ii<LreadOriginal;ii++) 
+        for (uint64 ii=0;ii<LreadOriginal;ii++) 
             Qual[ii]='A';
         Qual[LreadOriginal]=0;
     } else {//wrong header
@@ -109,7 +109,7 @@ int readLoad(istream& readInStream, Parameters& P, uint& Lread, uint& LreadOrigi
     };
 
     //trim read name TODO this is needed only for one mate
-    for (uint ii=0; ii<P.readNameSeparatorChar.size(); ii++) {
+    for (uint64 ii=0; ii<P.readNameSeparatorChar.size(); ii++) {
         char* pSlash=strchr(readName,P.readNameSeparatorChar.at(ii)); //trim everything after ' '
         if (pSlash!=NULL) *pSlash=0;
     };

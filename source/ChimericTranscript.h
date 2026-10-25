@@ -9,8 +9,8 @@ class ChimericTranscript
 {//
     public:
         Transcript  **chTrs; //all chimeric transcripts
-        uint        nCh;     //number of recorded (best) chimeric transcripts
-        uint        nChSize;  //size of the chTrs array, will be increased if nCh > nChSize
+        uint64        nCh;     //number of recorded (best) chimeric transcripts
+        uint64        nChSize;  //size of the chTrs array, will be increased if nCh > nChSize
 
         ChimericTranscript(Parameters &Pin); //allocate
     private:

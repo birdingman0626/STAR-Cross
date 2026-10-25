@@ -1,8 +1,8 @@
 #include "Transcriptome.h"
 #include "serviceFuns.cpp"
 #include "ReadAnnotations.h"
-
-void Transcriptome::geneFullAlignOverlap(uint nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat)
+using namespace std;
+void Transcriptome::geneFullAlignOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat)
 {
     // annFeat.fSet={};
     // annFeat.fAlign = {};

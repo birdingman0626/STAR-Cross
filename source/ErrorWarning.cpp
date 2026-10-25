@@ -4,7 +4,7 @@
 #include "ErrorWarning.h"
 #include "TimeFunctions.h"
 #include "GlobalVariables.h"
-
+using namespace std;
 void exitWithError(string messageOut, ostream &streamOut1, ostream &streamOut2, int errorInt, Parameters &P)
 {
     if (P.runThreadN>1) 

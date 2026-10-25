@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -75,7 +76,9 @@ for feature in ("Gene", "GeneFull_Ex50pAS"):
         tests.mkdir()
         (tests / "CTestTestfile.cmake").write_text("")
         self.assertNotEqual(self.invoke("validate_build.sh", *args)[0], 0) # zero discovered tests
-        (tests / "CTestTestfile.cmake").write_text('add_test(fixture "/bin/true")\n')
+        # An always-present no-op: /bin/true does not exist on macOS (it is /usr/bin/true).
+        (tests / "CTestTestfile.cmake").write_text(
+            f'add_test(fixture "{Path(sys.executable).as_posix()}" "-c" "pass")\n')
         self.assertNotEqual(self.invoke("validate_build.sh", *args)[0], 0) # absent reads
         for name in ["fastq/R1_1M.fastq", "fastq/R2_1M.fastq", "genome_cynomolgus/Genome",
                      "genome_cynomolgus/Macaca_fascicularis_6.0.115.cellranger_filtered.gtf",

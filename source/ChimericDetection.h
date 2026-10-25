@@ -14,16 +14,20 @@ class ChimericDetection {
         Parameters &P;
         ReadAlign *RA;
         Transcript ***trAll;
-        uint nW, *nWinTr;
+        uint64 nW, *nWinTr;
         char** Read1;
         Genome &outGen;
 
     public:
-        vector <ChimericAlign> chimAligns;
+        std::vector <ChimericAlign> chimAligns;
 
-        ChimericDetection(Parameters &Pin, Transcript ***trAll, uint *nWinTr, char** Read1in, Genome &genomeIn, fstream *ostreamChimJunctionIn, ReadAlign *RA);
-        bool chimericDetectionMult(uint nWin, uint *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA);
-        fstream *ostreamChimJunction;
+        ChimericDetection(Parameters &Pin, Transcript ***trAll, uint64 *nWinTr, char** Read1in, Genome &genomeIn, std::fstream *ostreamChimJunctionIn, ReadAlign *RA);
+        ~ChimericDetection() { releaseChimAligns(); } // the last read's stitched copies
+        ChimericDetection(const ChimericDetection&) = delete; // chimAligns own raw copies
+        ChimericDetection& operator=(const ChimericDetection&) = delete;
+        void releaseChimAligns(); // frees al1/al2 copied by chimericStitching, clears chimAligns
+        bool chimericDetectionMult(uint64 nWin, uint64 *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA);
+        std::fstream *ostreamChimJunction;
 };
 
 #endif

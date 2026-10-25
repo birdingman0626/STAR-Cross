@@ -13,8 +13,8 @@
 #include "gpuSjdbRemap.h"
 
 #include "funCompareUintAndSuffixes.h"
-
-static uint sjdbSortBucket(uint64 key, uint64 keyRange, uint bucketN)
+using namespace std;
+static uint64 sjdbSortBucket(uint64 key, uint64 keyRange, uint64 bucketN)
 {
     // Monotonic bucket mapping without a 128-bit intermediate (MSVC has no native
     // __uint128). Only monotonicity in the key is required for the bucketed
@@ -23,10 +23,10 @@ static uint sjdbSortBucket(uint64 key, uint64 keyRange, uint bucketN)
     uint64 bucketWidth=(keyRange + bucketN - 1)/bucketN;
     if (bucketWidth==0) bucketWidth=1;
     uint64 bucket=key/bucketWidth;
-    return bucket<bucketN ? (uint) bucket : bucketN-1;
+    return bucket<bucketN ? (uint64) bucket : bucketN-1;
 };
 
-static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint nInd, uint64 keyRange, char* Gsj)
+static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint64 nInd, uint64 keyRange, char* Gsj)
 {
     g_funCompareUintAndSuffixes_G=Gsj;
 
@@ -35,8 +35,8 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint nInd, 
         return false;
     };
 
-    uint bucketN=1;
-    while (bucketN<(uint) P.runThreadN*64 && bucketN<16384) {
+    uint64 bucketN=1;
+    while (bucketN<(uint64) P.runThreadN*64 && bucketN<16384) {
         bucketN <<= 1;
     };
     if (bucketN>nInd) {
@@ -55,10 +55,10 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint nInd, 
         return false;
     };
 
-    vector<uint64> bucketCount((uint) P.runThreadN*bucketN,0);
+    vector<uint64> bucketCount((uint64) P.runThreadN*bucketN,0);
     #pragma omp parallel num_threads(P.runThreadN)
     {
-        uint tid=(uint) omp_get_thread_num();
+        uint64 tid=(uint64) omp_get_thread_num();
         uint64* threadBucketCount=bucketCount.data()+tid*bucketN;
         #pragma omp for schedule(static)
         for (int64 ii=0; ii<(int64)nInd; ii++) {//signed index: MSVC OpenMP 2.0
@@ -67,31 +67,31 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint nInd, 
     };
 
     vector<uint64> bucketStart(bucketN+1,0);
-    for (uint iBucket=0; iBucket<bucketN; iBucket++) {
+    for (uint64 iBucket=0; iBucket<bucketN; iBucket++) {
         uint64 bucketTotal=0;
         for (int iThread=0; iThread<P.runThreadN; iThread++) {
-            bucketTotal += bucketCount[(uint) iThread*bucketN+iBucket];
+            bucketTotal += bucketCount[(uint64) iThread*bucketN+iBucket];
         };
         bucketStart[iBucket+1]=bucketStart[iBucket]+bucketTotal;
     };
 
-    vector<uint64> bucketThreadStart((uint) P.runThreadN*bucketN,0);
-    for (uint iBucket=0; iBucket<bucketN; iBucket++) {
+    vector<uint64> bucketThreadStart((uint64) P.runThreadN*bucketN,0);
+    for (uint64 iBucket=0; iBucket<bucketN; iBucket++) {
         uint64 offset=bucketStart[iBucket];
         for (int iThread=0; iThread<P.runThreadN; iThread++) {
-            bucketThreadStart[(uint) iThread*bucketN+iBucket]=offset;
-            offset += bucketCount[(uint) iThread*bucketN+iBucket];
+            bucketThreadStart[(uint64) iThread*bucketN+iBucket]=offset;
+            offset += bucketCount[(uint64) iThread*bucketN+iBucket];
         };
     };
 
     uint64* indArray1=new uint64[2*nInd+2];
     #pragma omp parallel num_threads(P.runThreadN)
     {
-        uint tid=(uint) omp_get_thread_num();
+        uint64 tid=(uint64) omp_get_thread_num();
         uint64* threadBucketStart=bucketThreadStart.data()+tid*bucketN;
         #pragma omp for schedule(static)
         for (int64 ii=0; ii<(int64)nInd; ii++) {//signed index: MSVC OpenMP 2.0
-            uint iBucket=sjdbSortBucket(indArray[2*ii],keyRange,bucketN);
+            uint64 iBucket=sjdbSortBucket(indArray[2*ii],keyRange,bucketN);
             uint64 jj=threadBucketStart[iBucket]++;
             indArray1[2*jj]=indArray[2*ii];
             indArray1[2*jj+1]=indArray[2*ii+1];
@@ -100,8 +100,8 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint nInd, 
 
     #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,1)
     for (int iBucket=0; iBucket<(int) bucketN; iBucket++) {
-        qsort((void*) (indArray1+2*bucketStart[(uint) iBucket]),
-              bucketStart[(uint) iBucket+1]-bucketStart[(uint) iBucket],
+        qsort((void*) (indArray1+2*bucketStart[(uint64) iBucket]),
+              bucketStart[(uint64) iBucket+1]-bucketStart[(uint64) iBucket],
               2*sizeof(uint64), funCompareUintAndSuffixes);
     };
 
@@ -124,14 +124,14 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     P.inOut->logMain   << timeMonthDayTime(rawtime) << " ..... inserting junctions into the genome indices" <<endl;
     *P.inOut->logStdOut  << timeMonthDayTime(rawtime) << " ..... inserting junctions into the genome indices" <<endl;
 
-    uint nGsj=mapGen.sjdbLength*mapGen.sjdbN;
-    for (uint ii=1; ii<=mapGen.sjdbN; ii++)
+    uint64 nGsj=mapGen.sjdbLength*mapGen.sjdbN;
+    for (uint64 ii=1; ii<=mapGen.sjdbN; ii++)
     {
         Gsj[ii*mapGen.sjdbLength-1]=SPACER_CHAR; //to make sure this is > than any genome char
     };
     Gsj[nGsj*2]=SPACER_CHAR;//mark the end of the text
 
-    for (uint ii=0; ii<nGsj; ii++) {//reverse complement junction sequences
+    for (uint64 ii=0; ii<nGsj; ii++) {//reverse complement junction sequences
         Gsj[nGsj*2-1-ii]=Gsj[ii]<4 ? 3-Gsj[ii] : Gsj[ii]; //reverse complement
     };
 
@@ -140,8 +140,8 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
 
     uint32* oldSJind=new uint32[mapGen1.sjdbN];
 
-//     uint nIndicesSJ1=mapGen.sjdbOverhang;
-    uint   nIndicesSJ1=mapGen.sjdbLength;//keep all indices - this is pre-2.4.1 of generating the genome
+//     uint64 nIndicesSJ1=mapGen.sjdbOverhang;
+    uint64   nIndicesSJ1=mapGen.sjdbLength;//keep all indices - this is pre-2.4.1 of generating the genome
 
     uint64* indArray=new uint64[2*mapGen.sjdbN*(nIndicesSJ1+1)*2];//8+4 bytes for SA index and index in the genome * nJunction * nIndices per junction * 2 for reverse compl
     uint64 sjNew=0;
@@ -153,7 +153,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
         seq1[0]=Gsj+isj*mapGen.sjdbLength;
         seq1[1]=G1c+isj*mapGen.sjdbLength;
 
-        uint isj1=isj<mapGen.sjdbN ? isj : 2*mapGen.sjdbN-1-isj;
+        uint64 isj1=isj<mapGen.sjdbN ? isj : 2*mapGen.sjdbN-1-isj;
         int sjdbInd = mapGen1.sjdbN==0 ? -1 : binarySearch2(mapGen.sjdbStart[isj1],mapGen.sjdbEnd[isj1],mapGen1.sjdbStart,mapGen1.sjdbEnd,mapGen1.sjdbN);
         if (sjdbInd<0)
         {//count new junctions
@@ -163,11 +163,11 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
             oldSJind[sjdbInd]=isj1;
         };
 
-        for (uint istart1=0; istart1<nIndicesSJ1;istart1++) {
+        for (uint64 istart1=0; istart1<nIndicesSJ1;istart1++) {
 
-            uint istart=istart1;
-//             uint istart=isj<mapGen.sjdbN ? istart1 : istart1+1; //for rev-compl junction, shift by one base to start with the 1st non-spacer base
-            uint ind1=2*(isj*nIndicesSJ1+istart1);
+            uint64 istart=istart1;
+//             uint64 istart=isj<mapGen.sjdbN ? istart1 : istart1+1; //for rev-compl junction, shift by one base to start with the 1st non-spacer base
+            uint64 ind1=2*(isj*nIndicesSJ1+istart1);
             if (sjdbInd>=0 || seq1[0][istart]>3)
             {//no index for already included junctions, or suffices starting with N
                 indArray[ind1]=-1;
@@ -186,9 +186,9 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     time ( &rawtime );
     P.inOut->logMain  << timeMonthDayTime(rawtime) << "   Finished SA search: number of new junctions=" << sjNew <<", old junctions="<<mapGen.sjdbN-sjNew<<endl;
 
-    uint nInd=0;//true number of new indices
-    for (uint ii=0; ii<2*mapGen.sjdbN*nIndicesSJ1; ii++) {//remove entries that cannot be inserted, this cannot be done in the parallel cycle above
-        if (indArray[ii*2]!= (uint) -1) {
+    uint64 nInd=0;//true number of new indices
+    for (uint64 ii=0; ii<2*mapGen.sjdbN*nIndicesSJ1; ii++) {//remove entries that cannot be inserted, this cannot be done in the parallel cycle above
+        if (indArray[ii*2]!= (uint64) -1) {
             indArray[nInd*2]=indArray[ii*2];
             indArray[nInd*2+1]=indArray[ii*2+1];
             ++nInd;
@@ -206,7 +206,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     mapGen.nGenome=mapGen.chrStart[mapGen.nChrReal]+nGsj;
     mapGen.nSA+=nInd;
 
-    char GstrandBit1 = (char) (uint) floor(log(mapGen.nGenome)/log(2))+1;
+    char GstrandBit1 = (char) (uint64) floor(log(mapGen.nGenome)/log(2))+1;
     if (GstrandBit1<32) GstrandBit1=32; //TODO: use simple access function for SA
 
     P.inOut->logMain <<"Genome size with junctions="<<mapGen.nGenome<<"  "<<mapGen.chrStart[mapGen.nChrReal]<<"   "<<nGsj<<"\n";
@@ -221,10 +221,10 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     };
 
     SA2.defineBits(mapGen.GstrandBit+1,mapGen.nSA);
-    uint nGsjNew=sjNew*mapGen.sjdbLength; //this is the actual number of bytes added to the genome, while nGsj is the total size of all junctions
+    uint64 nGsjNew=sjNew*mapGen.sjdbLength; //this is the actual number of bytes added to the genome, while nGsj is the total size of all junctions
 
-    uint N2bit= 1LLU << mapGen.GstrandBit;
-    uint strandMask=~N2bit;
+    uint64 N2bit= 1LLU << mapGen.GstrandBit;
+    uint64 strandMask=~N2bit;
 
     /*testing
     PackedArray SAo;
@@ -254,9 +254,9 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     }
     if(!remapped && supported) {
         bool identity=true;
-        for(uint j=0;j<mapGen1.sjdbN;++j) if(oldSJind[j]!=j) {identity=false;break;}
+        for(uint64 j=0;j<mapGen1.sjdbN;++j) if(oldSJind[j]!=j) {identity=false;break;}
         if(identity) {
-            const uint bytes=(mapGen1.nSA*SA.wordLength+7)/8;
+            const uint64 bytes=(mapGen1.nSA*SA.wordLength+7)/8;
             // STAR reserves SA buffers in one allocation; destination can overlap
             // the source even when no suffixes are added.
             memmove(SA2.charArray,SA.charArray,bytes);
@@ -267,11 +267,11 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
             P.inOut->logMain << "SJDB_SA_REMAP backend=cpu-identity-copy bytes=" << bytes << endl;
         }
     }
-    uint isj=0, isa2=0;
+    uint64 isj=0, isa2=0;
     if(!remapped) {
-    for (uint isa=0;isa<mapGen1.nSA;isa++) {
+    for (uint64 isa=0;isa<mapGen1.nSA;isa++) {
         while (isa==indArray[isj*2]) {//insert sj index before the existing index
-            uint ind1=indArray[isj*2+1];
+            uint64 ind1=indArray[isj*2+1];
             if (ind1<nGsj) {
                 ind1+=mapGen.chrStart[mapGen.nChrReal];
             } else {//reverse strand
@@ -287,13 +287,13 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
             ++isa2; ++isj;
         };
 
-        uint ind1=SA[isa];
+        uint64 ind1=SA[isa];
         if ( (ind1 & N2bit)>0 )
         {//- strand
-            uint ind1s = mapGen1.nGenome - (ind1 & strandMask);
+            uint64 ind1s = mapGen1.nGenome - (ind1 & strandMask);
             if (ind1s>=mapGen.chrStart[mapGen.nChrReal])
             {//this index was an old sj, may need to shift it
-                uint sj1 = (ind1s-mapGen.chrStart[mapGen.nChrReal])/mapGen.sjdbLength;//old junction index
+                uint64 sj1 = (ind1s-mapGen.chrStart[mapGen.nChrReal])/mapGen.sjdbLength;//old junction index
                 ind1s += (oldSJind[sj1]-sj1)*mapGen.sjdbLength;
                 ind1 = (mapGen.nGenome - ind1s) | N2bit;
             } else
@@ -304,7 +304,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
         {//+ strand
             if (ind1>=mapGen.chrStart[mapGen.nChrReal])
             {//this index was an old sj, may need to shift it
-                uint sj1 = (ind1-mapGen.chrStart[mapGen.nChrReal])/mapGen.sjdbLength;//old junction index
+                uint64 sj1 = (ind1-mapGen.chrStart[mapGen.nChrReal])/mapGen.sjdbLength;//old junction index
                 ind1 += (oldSJind[sj1]-sj1)*mapGen.sjdbLength;
             };
         };
@@ -320,7 +320,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     };
 
     for (;isj<nInd;isj++) {//insert last new indices after the last old index
-        uint ind1=indArray[isj*2+1];
+        uint64 ind1=indArray[isj*2+1];
         if (ind1<nGsj) {
             ind1+=mapGen.chrStart[mapGen.nChrReal];
         } else {//reverse strand
@@ -341,16 +341,16 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     P.inOut->logMain  << timeMonthDayTime(rawtime) << "   Finished inserting junction indices" <<endl;
 
     //SAi insertions
-    for (uint iL=0; iL < mapGen.pGe.gSAindexNbases; iL++) {
-        uint iSJ=0;
-        uint ind0=mapGen.genomeSAindexStart[iL]-1;//last index that was present in the old genome
-        for (uint ii=mapGen.genomeSAindexStart[iL];ii<mapGen.genomeSAindexStart[iL+1]; ii++) {//scan through the longest index
-            uint iSA1=SAi[ii];
-            uint iSA2=iSA1 & mapGen.SAiMarkNmask & mapGen.SAiMarkAbsentMask;
+    for (uint64 iL=0; iL < mapGen.pGe.gSAindexNbases; iL++) {
+        uint64 iSJ=0;
+        uint64 ind0=mapGen.genomeSAindexStart[iL]-1;//last index that was present in the old genome
+        for (uint64 ii=mapGen.genomeSAindexStart[iL];ii<mapGen.genomeSAindexStart[iL+1]; ii++) {//scan through the longest index
+            uint64 iSA1=SAi[ii];
+            uint64 iSA2=iSA1 & mapGen.SAiMarkNmask & mapGen.SAiMarkAbsentMask;
 
             if ( iSJ<nInd && (iSA1 &  mapGen.SAiMarkAbsentMaskC)>0 )
             {//index missing from the old genome
-                uint iSJ1=iSJ;
+                uint64 iSJ1=iSJ;
                 int64 ind1=funCalcSAi(Gsj+indArray[2*iSJ+1],iL);
                 while (ind1 < (int64)(ii-mapGen.genomeSAindexStart[iL]) && indArray[2*iSJ]-1<iSA2) {
                     ++iSJ;
@@ -359,7 +359,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
                 };
                 if (ind1 == (int64)(ii-mapGen.genomeSAindexStart[iL]) ) {
                     SAi.writePacked(ii,indArray[2*iSJ]-1+iSJ+1);
-                    for (uint ii0=ind0+1; ii0<ii; ii0++) {//fill all the absent indices with this value
+                    for (uint64 ii0=ind0+1; ii0<ii; ii0++) {//fill all the absent indices with this value
                         SAi.writePacked(ii0,(indArray[2*iSJ]-1+iSJ+1) | mapGen.SAiMarkAbsentMaskC);
                     };
                     ++iSJ;
@@ -382,7 +382,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
 
                 SAi.writePacked(ii,iSA1+iSJ);
 
-                for (uint ii0=ind0+1; ii0<ii; ii0++) {//fill all the absent indices with this value
+                for (uint64 ii0=ind0+1; ii0<ii; ii0++) {//fill all the absent indices with this value
                     SAi.writePacked(ii0,(iSA2+iSJ) | mapGen.SAiMarkAbsentMaskC);
                 };
                 ind0=ii;
@@ -394,34 +394,34 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     // Cache the first N/spacer position for each junction suffix. Most suffixes
     // have no N in the SAindex prefix, so the SAi marking pass can skip them.
     vector<uint8> sjdbFirstN(2*nGsj+1,mapGen.pGe.gSAindexNbases);
-    uint nextN=2*nGsj;
+    uint64 nextN=2*nGsj;
     for (int64 ii=2*(int64)nGsj; ii>=0; ii--) {
         if (Gsj[ii]>3) {
-            nextN=(uint) ii;
+            nextN=(uint64) ii;
         };
-        uint nDist=nextN-(uint) ii;
+        uint64 nDist=nextN-(uint64) ii;
         if (nDist<mapGen.pGe.gSAindexNbases) {
             sjdbFirstN[ii]=(uint8) nDist;
         };
     };
 
     uint64 sjdbSAiNmarkN=0;
-    for (uint isj=0;isj<nInd;isj++) {
-        uint isjG=indArray[2*isj+1];
-        uint iL=sjdbFirstN[isjG];
+    for (uint64 isj=0;isj<nInd;isj++) {
+        uint64 isjG=indArray[2*isj+1];
+        uint64 iL=sjdbFirstN[isjG];
         if (iL>=mapGen.pGe.gSAindexNbases) {
             continue;
         };
         sjdbSAiNmarkN++;
 
         int64 ind1=0;
-        for (uint iL0=0; iL0<iL; iL0++) {
+        for (uint64 iL0=0; iL0<iL; iL0++) {
             ind1 <<= 2;
-            ind1 += (uint) Gsj[isjG+iL0];
+            ind1 += (uint64) Gsj[isjG+iL0];
         };
 
         ind1 <<= 2;
-        for (uint iL1=iL; iL1 < mapGen.pGe.gSAindexNbases; iL1++) {
+        for (uint64 iL1=iL; iL1 < mapGen.pGe.gSAindexNbases; iL1++) {
             ind1+=3;
             int64 ind2=mapGen.genomeSAindexStart[iL1]+ind1;
             for (; ind2>=0; ind2--) {//find previous index that is not absent
@@ -454,15 +454,15 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     oldSAiin.close();
 
 
-    for (uint ii=0;ii<mapGen.nSA;ii++) {
+    for (uint64 ii=0;ii<mapGen.nSA;ii++) {
         if (SA2[ii]!=SAo[ii]) {
             cout <<ii <<" "<< SA2[ii]<<" "<<SAo[ii]<<endl;
         };
     };
 
 
-    for (uint iL=0; iL < P.pGe.gSAindexNbases; iL++) {
-        for (uint ii=mapGen.genomeSAindexStart[iL];ii<mapGen.genomeSAindexStart[iL+1]; ii++) {//scan through the longets index
+    for (uint64 iL=0; iL < P.pGe.gSAindexNbases; iL++) {
+        for (uint64 ii=mapGen.genomeSAindexStart[iL];ii<mapGen.genomeSAindexStart[iL+1]; ii++) {//scan through the longets index
                 if ( SAio[ii]!=SAi[ii] ) {
                     cout <<ii<<" "<<SAio[ii]<<" "<<SAi[ii]<<endl;
                 };

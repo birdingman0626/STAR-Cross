@@ -3,13 +3,13 @@ bool Transcript::convertGenomeCigar(Genome &genOut, Transcript & A)
 {
     auto &coBl=genOut.genomeOut.convBlocks;    
     auto cBit=coBl.begin();
-    cBit = std::upper_bound(cBit, coBl.end(), array<uint64,3> {gStart,0,0},
-                               [](const array<uint64,3> &t1, const array<uint64,3> &t2)
+    cBit = std::upper_bound(cBit, coBl.end(), std::array<uint64,3> {gStart,0,0},
+                               [](const std::array<uint64,3> &t1, const std::array<uint64,3> &t2)
                                {
                                   return t1[0] < t2[0];
                                });
     --cBit;
-    
+using namespace std;
     uint64 icB = cBit-coBl.begin();
     
     A.gStart=gStart-coBl[icB][0]+coBl[icB][2];

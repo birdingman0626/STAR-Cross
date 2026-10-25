@@ -2,7 +2,7 @@
 #include "streamFuns.h"
 #include "Stats.h"
 #include "GlobalVariables.h"
-
+using namespace std;
 void SoloFeature::statsOutput()
 {
     ofstream &strOut=ofstrOpen(outputPrefix+"Summary.csv", ERROR_OUT, P);

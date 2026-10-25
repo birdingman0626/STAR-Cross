@@ -6,13 +6,21 @@
 #ifdef _WIN32
 #include "wincompat.h"
 #else
+// macOS 26 SDK Mach headers (reached via <spawn.h>) use the C11 keyword
+// _Static_assert, which Apple Clang accepts in C++ but GCC rejects.
+#if defined(__APPLE__) && defined(__GNUC__) && !defined(__clang__) && !defined(_Static_assert)
+#define _Static_assert static_assert
 #include <spawn.h>
+#undef _Static_assert
+#else
+#include <spawn.h>
+#endif
 #include <unistd.h>
 // environ is declared in <unistd.h> on glibc but not on macOS; declare it
 // explicitly so posix_spawnp can pass the current environment on every platform.
 extern char **environ;
 #endif
-
+using namespace std;
 // Large read buffer for ifstream to reduce system call overhead
 // Persistent: must outlive the ifstream that uses it
 static char s_readInBuf[MAX_N_MATES][4 * 1024 * 1024]; // 4MB per mate
@@ -20,7 +28,7 @@ static char s_readInBuf[MAX_N_MATES][4 * 1024 * 1024]; // 4MB per mate
 void Parameters::openReadsFiles()
 {
     if (readFilesCommandString=="") {//read from file
-        for (uint ii=0;ii<readFilesIn.size();ii++) {//open readIn files
+        for (uint64 ii=0;ii<readFilesIn.size();ii++) {//open readIn files
             readFilesCommandPID[ii]=0;//no command process IDs
             if ( inOut->readIn[ii].is_open() ) inOut->readIn[ii].close();
 
@@ -38,7 +46,7 @@ void Parameters::openReadsFiles()
 
          vector<string> readsCommandFileName;
 
-         for (uint imate=0;imate<readFilesNames.size();imate++) {//open readIn files
+         for (uint64 imate=0;imate<readFilesNames.size();imate++) {//open readIn files
 
 #ifdef _WIN32
             // Windows: use temp files + system() instead of FIFO + vfork/exec

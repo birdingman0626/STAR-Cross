@@ -38,7 +38,7 @@
 #include "htslib/htslib/sam.h"
 #include "parametersDefault.xxd"
 #include "webui/WebUI.h"
-
+using namespace std;
 void usage(int usageType)
 {
     cout << "Usage: STAR  [options]... --genomeDir /path/to/genome/index/   --readFilesIn R1.fq R2.fq\n";
@@ -116,7 +116,7 @@ try
     }
     else if (P.runMode == "liftOver")
     {
-        for (uint ii = 0; ii < P.pGe.gChainFiles.size(); ii++)
+        for (uint64 ii = 0; ii < P.pGe.gChainFiles.size(); ii++)
         {
             Chain chain(P, P.pGe.gChainFiles.at(ii));
             chain.liftOverGTF(P.pGe.sjdbGTFfile, P.outFileNamePrefix + "GTFliftOver_" + to_string(ii + 1) + ".gtf");

@@ -4,7 +4,7 @@
 #include "SoloFeatureTypes.h"
 #include "serviceFuns.cpp"
 #include <cmath>
-
+using namespace std;
 void SoloFeature::loadRawMatrix()
 {    
     //make directories

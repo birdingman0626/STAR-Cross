@@ -1,7 +1,7 @@
 #include "ReadAlign.h"
 #include "SequenceFuns.h"
 #include "PairedReadMerger.h"
-
+using namespace std;
 void ReadAlign::peOverlapMergeMap() {
 
     if (!P.peOverlap.yes || P.readNmates!=2 ) {//no peOverlap //not readNends: this is alignment
@@ -32,7 +32,7 @@ void ReadAlign::peOverlapMergeMap() {
     peMergeRA->mapOneRead();
     if (peMergeRA->nW==0) { // || peMergeRA->trBest->maxScore+peOv.nOv < trBest->maxScore) {//no windows, score of the merged align is less. This is a preliminary check, more accurate check is done with alignment score calculated after transforming the SE back to PE
         //cout <<" -2\n";
-        //for (uint ii=0;ii<peMergeRA->Lread;ii++) {
+        //for (uint64 ii=0;ii<peMergeRA->Lread;ii++) {
         //    cout <<P.genomeNumToNT[peMergeRA->Read1[0][ii]];
         //};
         //cout << "\n";
@@ -63,7 +63,7 @@ void ReadAlign::peOverlapMergeMap() {
 
     //debug
     //cout << "\n";
-    //for (uint ii=0;ii<peMergeRA->Lread;ii++) {
+    //for (uint64 ii=0;ii<peMergeRA->Lread;ii++) {
     //    cout <<P.genomeNumToNT[peMergeRA->Read1[0][ii]];
     //};
     //cout << "\n";
@@ -94,38 +94,38 @@ void ReadAlign::peMergeMates() {
 
     //fill Read1[1,2]
     complementSeqNumbers(Read1[0],Read1[1],Lread); //returns complement of Reads[ii]
-    for (uint ii=0;ii<Lread;ii++) {//reverse
+    for (uint64 ii=0;ii<Lread;ii++) {//reverse
         Read1[2][Lread-ii-1]=Read1[1][ii];
     };
 
     return;
 };
 
-void Transcript::peOverlapSEtoPE(uint* mateStart, const Transcript &t) {//convert alignment from merged-SE to PE
+void Transcript::peOverlapSEtoPE(uint64* mateStart, const Transcript &t) {//convert alignment from merged-SE to PE
 
-    uint mLen[2];
+    uint64 mLen[2];
     mLen[0]=readLength[t.Str];
     mLen[1]=readLength[1-t.Str];
 
-    uint mSta2[2];
+    uint64 mSta2[2];
     mSta2[0]=0;//mates starts in the PE read
     mSta2[1]=mLen[0]+1;
 
-    uint mSta[2];
+    uint64 mSta[2];
     mSta[0]=mateStart[0];//mates starts in the merged SE read
     mSta[1]=mateStart[1];
     if (t.Str==1) {
-	for (uint ii=0;ii<2;ii++) {
+	for (uint64 ii=0;ii<2;ii++) {
             mSta[ii]=t.Lread-readLength[ii]-mSta[ii];
         };
         swap(mSta[0],mSta[1]);
     };
 
-    uint mEnd[2];
+    uint64 mEnd[2];
     mEnd[0]=mSta[0]+mLen[0];
     mEnd[1]=mSta[1]+mLen[1];
 
-//     uint iex=0;
+//     uint64 iex=0;
 //     for ( ; iex<t.nExons; iex++) {//first, cycle through the exons from mate1
 //         if (t.exons[iex][EX_R] >= mEnd[0] || t.exons[iex][EX_R]+t.exons[iex][EX_L] < mSta[0]) {//this exon is only in mate2, break this cycle
 //             break;
@@ -150,8 +150,8 @@ void Transcript::peOverlapSEtoPE(uint* mateStart, const Transcript &t) {//conver
 //     };
 
     nExons=0;
-    for (uint imate=0; imate<2; imate++) {//cycle over mate 1,2
-        for (uint iex=0; iex<t.nExons; iex++) {//cycle through the exons
+    for (uint64 imate=0; imate<2; imate++) {//cycle over mate 1,2
+        for (uint64 iex=0; iex<t.nExons; iex++) {//cycle through the exons
             if (t.exons[iex][EX_R] >= mEnd[imate] || t.exons[iex][EX_R]+t.exons[iex][EX_L] <= mSta[imate]) {//this exon is only in mate2, do not record here
                 continue;
             };
@@ -172,7 +172,7 @@ void Transcript::peOverlapSEtoPE(uint* mateStart, const Transcript &t) {//conver
                 exons[nExons][EX_R]=t.exons[iex][EX_R]-mSta[imate]+mSta2[imate];
             } else {//need to split the exon
                 exons[nExons][EX_R]=mSta2[imate];//exon starts at the mate start
-                uint delta=mSta[imate]-t.exons[iex][EX_R]; //shorten exon by this length
+                uint64 delta=mSta[imate]-t.exons[iex][EX_R]; //shorten exon by this length
                 exons[nExons][EX_L]=t.exons[iex][EX_L]-delta;
                 exons[nExons][EX_G]=t.exons[iex][EX_G]+delta;
             };
@@ -196,7 +196,7 @@ void Transcript::peOverlapSEtoPE(uint* mateStart, const Transcript &t) {//conver
     };
 
     //copy scalar variables
-    for (uint ii=0;ii<3;ii++) {
+    for (uint64 ii=0;ii<3;ii++) {
         intronMotifs[ii]=t.intronMotifs[ii];
     };
     sjMotifStrand=t.sjMotifStrand;
@@ -209,7 +209,7 @@ void Transcript::peOverlapSEtoPE(uint* mateStart, const Transcript &t) {//conver
     cStart=t.cStart;
 
     rLength=0;
-    for (uint iex=0;iex<nExons;iex++) {//caclulate total mapped length
+    for (uint64 iex=0;iex<nExons;iex++) {//caclulate total mapped length
         rLength += exons[iex][EX_L];
     };
     mappedLength=rLength ;
@@ -236,15 +236,15 @@ void ReadAlign::peOverlapSEtoPE(ReadAlign &seRA) {//ReAdAlign: convert SE to PE 
     //nW=seRA.nW;
     //memcpy((void*) nWinTr, (void*) seRA.nWinTr, nW*sizeof(*nWinTr));
 
-    uint trNtotal=0;
+    uint64 trNtotal=0;
     intScore bestScore=-10*Lread;
     trBest=trArray;//just to initialize - to the 0th spot in the trArray
     
     uint64 iW1=0;
-    for (uint iW=0; iW<seRA.nW; iW++) {//scan windows
+    for (uint64 iW=0; iW<seRA.nW; iW++) {//scan windows
         trAll[iW1]=trArrayPointer+trNtotal;
         uint64 iTr1=0;
-        for (uint iTr=0; iTr<seRA.nWinTr[iW]; iTr++) {//scan transcripts
+        for (uint64 iTr=0; iTr<seRA.nWinTr[iW]; iTr++) {//scan transcripts
             *trAll[iW1][iTr1]=*trInit;
             
             trAll[iW1][iTr1]->peOverlapSEtoPE(peOv.mateStart, *seRA.trAll[iW][iTr]);
@@ -282,14 +282,14 @@ void ReadAlign::peOverlapChimericSEtoPE(const Transcript *seTrIn1, const Transcr
     tempTrChim[0].peOverlapSEtoPE(peOv.mateStart,*seTrIn1);
     tempTrChim[1].peOverlapSEtoPE(peOv.mateStart,*seTrIn2);
 
-    uint segLen[2][2]; //segment length [tempTrChim][mate]
-    uint segEx[2];//last exon of the mate0 [tempTrChim]
-    uint i1=0,i2=0; //indices of mate to eliminate i1=[tempTrChim], i2=[mate]
-    uint posOfJunctionInRead=0; //position of chimeric junction in read
-    for (uint ii=0; ii<2; ii++) {
+    uint64 segLen[2][2]; //segment length [tempTrChim][mate]
+    uint64 segEx[2];//last exon of the mate0 [tempTrChim]
+    uint64 i1=0,i2=0; //indices of mate to eliminate i1=[tempTrChim], i2=[mate]
+    uint64 posOfJunctionInRead=0; //position of chimeric junction in read
+    for (uint64 ii=0; ii<2; ii++) {
         segLen[ii][0]=0;
         segLen[ii][1]=0;
-        for (uint iex=0; iex<tempTrChim[ii].nExons; iex++) {
+        for (uint64 iex=0; iex<tempTrChim[ii].nExons; iex++) {
             if (tempTrChim[ii].exons[iex][EX_iFrag]==tempTrChim[ii].exons[0][EX_iFrag]) {
                 segLen[ii][0]+=tempTrChim[ii].exons[iex][EX_L];
                 segEx[ii]=iex;
@@ -300,10 +300,10 @@ void ReadAlign::peOverlapChimericSEtoPE(const Transcript *seTrIn1, const Transcr
 
         //find mate with shortest mapped segment
         //in case of tie, use longest mate as tie-breaker (where posOfJunctionInRead is highest)
-        uint readLen0=readLengthOriginal[tempTrChim[ii].exons[0][EX_iFrag]];
-        uint readLen1=readLengthOriginal[1-tempTrChim[ii].exons[0][EX_iFrag]];
-        for (uint jj=0; jj<2; jj++) {
-            uint curPosOfJunctionInRead = tempTrChim[ii].exons[jj][EX_R]>readLen0 ? readLen0+readLen1+1-tempTrChim[ii].exons[jj][EX_R] : tempTrChim[ii].exons[jj][EX_R];
+        uint64 readLen0=readLengthOriginal[tempTrChim[ii].exons[0][EX_iFrag]];
+        uint64 readLen1=readLengthOriginal[1-tempTrChim[ii].exons[0][EX_iFrag]];
+        for (uint64 jj=0; jj<2; jj++) {
+            uint64 curPosOfJunctionInRead = tempTrChim[ii].exons[jj][EX_R]>readLen0 ? readLen0+readLen1+1-tempTrChim[ii].exons[jj][EX_R] : tempTrChim[ii].exons[jj][EX_R];
             if (segLen[ii][jj]<segLen[i1][i2] || (segLen[ii][jj]==segLen[i1][i2] && curPosOfJunctionInRead>posOfJunctionInRead)) {
                 posOfJunctionInRead=curPosOfJunctionInRead;
                 i1=ii;//tempTrChim of the shortest segment length
@@ -315,9 +315,9 @@ void ReadAlign::peOverlapChimericSEtoPE(const Transcript *seTrIn1, const Transcr
     if (i2==1) {//eliminate mate1: simply cut the exons that belong to mate1
         tempTrChim[i1].nExons=segEx[i1]+1;
     } else {//eliminate mate 0: shift mate1 exon to the beginning
-        for (uint iex=0; iex<tempTrChim[i1].nExons; iex++) {
-            uint iex1=iex+segEx[i1]+1;
-            for (uint ii=0; ii<EX_SIZE; ii++) {
+        for (uint64 iex=0; iex<tempTrChim[i1].nExons; iex++) {
+            uint64 iex1=iex+segEx[i1]+1;
+            for (uint64 ii=0; ii<EX_SIZE; ii++) {
                 tempTrChim[i1].exons[iex][ii]=tempTrChim[i1].exons[iex1][ii];
             };
             tempTrChim[i1].canonSJ[iex]=tempTrChim[i1].canonSJ[iex1];

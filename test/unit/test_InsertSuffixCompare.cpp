@@ -1,7 +1,7 @@
 #include "doctest/doctest.h"
 #include "funCompareUintAndSuffixes.h"
 #include "funCompareUintAndSuffixesMemcmp.h"
-
+using namespace std;
 TEST_CASE("Inserted suffix order terminates at separator and is reflexive") {
     char bases[]={0,1,5,0,1,5,0,2,5};
     g_funCompareUintAndSuffixes_G=bases;

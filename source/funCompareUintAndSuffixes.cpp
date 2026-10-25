@@ -1,5 +1,5 @@
 #include "funCompareUintAndSuffixes.h"
-
+using namespace std;
 char* g_funCompareUintAndSuffixes_G;
 uint64_t g_funCompareUintAndSuffixes_L;
 

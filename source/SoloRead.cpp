@@ -1,5 +1,5 @@
 #include "SoloRead.h"
-
+using namespace std;
 SoloRead::SoloRead(Parameters &Pin, int32 iChunkIn) :  iChunk(iChunkIn), P(Pin), pSolo(P.pSolo)
 {
     barcodeStorage.reset(new SoloReadBarcode(P)); readBar=barcodeStorage.get();

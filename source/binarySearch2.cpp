@@ -1,6 +1,6 @@
 #include "binarySearch2.h"
-
-int binarySearch2(uint x, uint y, uint *X, uint *Y, int N) {
+using namespace std;
+int binarySearch2(uint64 x, uint64 y, uint64 *X, uint64 *Y, int N) {
     //binary search in the sorted list to find the junction
     //check the boundaries first
     if (N==0 || x>X[N-1] || x<X[0]) return -1;

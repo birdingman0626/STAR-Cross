@@ -4,3 +4,4 @@ GpuSjdbRemapResult gpuSjdbRemap(const GpuSjdbRemapRequest& request) {
     return {GpuSjdbRemapResult::Unavailable,
             validGpuSjdbRemap(request) ? "CUDA backend not compiled" : "unsupported request"};
 }
+using namespace std;

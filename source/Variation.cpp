@@ -4,8 +4,8 @@
 #include "TimeFunctions.h"
 #include "serviceFuns.cpp"
 #include "ErrorWarning.h"
-
-Variation::Variation (Parameters &Pin, vector <uint> &chrStartIn, map <string,uint> &chrNameIndexIn, bool yesVar) : P(Pin), chrStart(chrStartIn), chrNameIndex(chrNameIndexIn) {
+using namespace std;
+Variation::Variation (Parameters &Pin, vector <uint64> &chrStartIn, map <string,uint64> &chrNameIndexIn, bool yesVar) : P(Pin), chrStart(chrStartIn), chrNameIndex(chrNameIndexIn) {
     if (yesVar) {
         yes=true;
 
@@ -20,13 +20,13 @@ Variation::Variation (Parameters &Pin, vector <uint> &chrStartIn, map <string,ui
     };
 };
 
-void scanVCF(ifstream& vcf, Parameters& P, SNP& snp, vector <uint> &chrStart, map <string,uint> &chrNameIndex) {
+void scanVCF(ifstream& vcf, Parameters& P, SNP& snp, vector <uint64> &chrStart, map <string,uint64> &chrNameIndex) {
     snp.N=0;
-    uint nlines=0;
+    uint64 nlines=0;
     uint32 nHomoz=0;//number of homoz alleles
     while (true) {
         string chr,id, ref, alt, dummy, sample;
-        uint pos;
+        uint64 pos;
         nlines++;
 
         vcf >> chr;
@@ -88,9 +88,9 @@ void Variation::loadVCF(string fileIn) {
     std::unique_ptr<ifstream> vcfStorage(&vcf);
     scanVCF(vcf, P, snp, chrStart, chrNameIndex);
 
-    snpLociStorage.reset(new uint[snp.N]);
+    snpLociStorage.reset(new uint64[snp.N]);
     snp.loci=snpLociStorage.get();
-    for (uint ii=0;ii<snp.N;ii++)
+    for (uint64 ii=0;ii<snp.N;ii++)
         snp.loci[ii]=snp.lociV[ii];
     snp.lociV.clear();
 
@@ -105,17 +105,17 @@ void Variation::loadVCF(string fileIn) {
     };
 
 
-    std::unique_ptr<uint[]> sortStorage(new uint[2*snp.N]);
-    uint *s1=sortStorage.get();
-    for (uint ii=0;ii<snp.N; ii++) {
+    std::unique_ptr<uint64[]> sortStorage(new uint64[2*snp.N]);
+    uint64 *s1=sortStorage.get();
+    for (uint64 ii=0;ii<snp.N; ii++) {
         s1[2*ii]=snp.loci[ii];
         s1[2*ii+1]=ii;
     };
 
-    qsort((void*)s1, snp.N, 2*sizeof(uint), funCompareUint1);
+    qsort((void*)s1, snp.N, 2*sizeof(uint64), funCompareUint1);
 
     vector< array<char,3> > nt1=snp.nt;
-    for (uint ii=0;ii<snp.N; ii++) {
+    for (uint64 ii=0;ii<snp.N; ii++) {
         snp.loci[ii]=s1[2*ii];
         snp.nt[ii]=nt1.at(s1[2*ii+1]);
     };
@@ -124,9 +124,9 @@ void Variation::loadVCF(string fileIn) {
     P.inOut->logMain << timeMonthDayTime(rawTime) <<" ..... Finished sorting VCF data"<<endl;
 };
 
-void SNP::snpOnBlocks(uint blockStart, uint blockL, int blockShift, vector<vector<array<int,2>>> &snpV) {
-    int32 isnp=binarySearch1b <uint> (blockStart, loci, N);
-    while ((uint)isnp<N && loci[isnp]<(blockStart+blockL)) {
+void SNP::snpOnBlocks(uint64 blockStart, uint64 blockL, int blockShift, vector<vector<array<int,2>>> &snpV) {
+    int32 isnp=binarySearch1b <uint64> (blockStart, loci, N);
+    while ((uint64)isnp<N && loci[isnp]<(blockStart+blockL)) {
         for (int ii=0;ii<2;ii++) {
             if (nt[isnp][ii+1]!=nt[isnp][0]) {//allele different from reference
                 array<int,2> snp1;
@@ -139,7 +139,7 @@ void SNP::snpOnBlocks(uint blockStart, uint blockL, int blockShift, vector<vecto
     };
 };
 
-vector<vector<array<int,2>>> Variation::sjdbSnp(uint sjStart, uint sjEnd, uint sjdbOverhang1) {
+vector<vector<array<int,2>>> Variation::sjdbSnp(uint64 sjStart, uint64 sjEnd, uint64 sjdbOverhang1) {
     vector<vector<array<int,2>>> snpV(2);
 
     if (!yes) {//no variation, return 1 empty element

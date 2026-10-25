@@ -1,6 +1,6 @@
 #include "doctest/doctest.h"
 #include "FastResetVector.h"
-
+using namespace std;
 TEST_CASE("FastResetVector - resize initializes all elements to resetValue") {
     FastResetVector<unsigned short> v;
     v.resize(100, 0xFFFF);

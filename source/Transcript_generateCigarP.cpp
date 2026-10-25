@@ -1,6 +1,6 @@
 #include "Transcript.h"
 #include "SequenceFuns.h"
-
+using namespace std;
 string Transcript::generateCigarP()
 {//generates CIGARp string for the transcript with "p" operation for PE reads
  //p is a special CIGAR operation to encode gap between mates. This gap is negative for overlapping mates.
@@ -8,23 +8,23 @@ string Transcript::generateCigarP()
     string CIGAR;
     stringstream samStreamCIGAR;
 
-    uint leftMate=0;
+    uint64 leftMate=0;
     if (readNmates>1) leftMate=Str; //not readNends: this is alignment
 
-    uint trimL=exons[0][EX_R] - (exons[0][EX_R]<readLengthOriginal[leftMate] ? 0 : readLengthOriginal[leftMate]+1);
+    uint64 trimL=exons[0][EX_R] - (exons[0][EX_R]<readLengthOriginal[leftMate] ? 0 : readLengthOriginal[leftMate]+1);
     if (trimL>0) {
         samStreamCIGAR << trimL << "S"; //initial trimming
     };
 
-    for (uint ii=0;ii<nExons;ii++) {//cycle over all exons, record CIGAR
+    for (uint64 ii=0;ii<nExons;ii++) {//cycle over all exons, record CIGAR
         if (ii>0) {//record gaps
-            uint gapG=exons[ii][EX_G]-(exons[ii-1][EX_G]+exons[ii-1][EX_L]);
+            uint64 gapG=exons[ii][EX_G]-(exons[ii-1][EX_G]+exons[ii-1][EX_L]);
 
             if (exons[ii][EX_G] >= (exons[ii-1][EX_G]+exons[ii-1][EX_L]) ) {//
                 if (canonSJ[ii-1]==-3) {//gap between mates
                     //soft clipping of the second mate
-                    uint s1=readLengthOriginal[leftMate]-(exons[ii-1][EX_R]+exons[ii-1][EX_L]);
-                    uint s2=exons[ii][EX_R]-(readLengthOriginal[leftMate]+1);
+                    uint64 s1=readLengthOriginal[leftMate]-(exons[ii-1][EX_R]+exons[ii-1][EX_L]);
+                    uint64 s2=exons[ii][EX_R]-(readLengthOriginal[leftMate]+1);
                     if (s1>0){
                         samStreamCIGAR << s1 << "S";
                     };
@@ -35,7 +35,7 @@ string Transcript::generateCigarP()
 
                 } else {
                     //it's possible to have a D or N and I for at the same time
-                    uint gapR=exons[ii][EX_R]-exons[ii-1][EX_R]-exons[ii-1][EX_L]; //gapR>0 always
+                    uint64 gapR=exons[ii][EX_R]-exons[ii-1][EX_R]-exons[ii-1][EX_L]; //gapR>0 always
                     if (gapR>0){
                         samStreamCIGAR << gapR << "I";
                     };

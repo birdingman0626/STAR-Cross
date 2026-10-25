@@ -4,7 +4,7 @@
 #include "AlignVsTranscript.h"
 #include "ReadAnnotations.h"
 #include <bitset>
-
+using namespace std;
 int alignToTranscript(Transcript &aG, uint64 trS1, uint16 exN1, uint32 *exSE1, uint32 *exLenCum1, array<uint32,2> &distTrEnds) 
 {    
     bool alignIntronic      =false;
@@ -90,7 +90,7 @@ int alignToTranscript(Transcript &aG, uint64 trS1, uint16 exN1, uint32 *exSE1, u
     };
 };
 
-int alignToTranscriptMinOverlap(Transcript &aG, uint trS1, uint32 *exSE1, uint16 exN1, uint32 minOverlapMinusOne) 
+int alignToTranscriptMinOverlap(Transcript &aG, uint64 trS1, uint32 *exSE1, uint16 exN1, uint32 minOverlapMinusOne) 
 {
     bool alignIntronic      =false;
     bool alignExonic        =false;
@@ -190,12 +190,12 @@ void Transcriptome::classifyAlign (Transcript **alignG, uint64 nAlignG, ReadAnno
     uint32 reGe=(uint32)-2;//so that the first gene can be recorded
     std::bitset<velocytoTypeGeneBits> reAnn; //initialized to 0 (false)
        
-    for (uint iag=0; iag<nAlignG; iag++) {
+    for (uint64 iag=0; iag<nAlignG; iag++) {
         
         Transcript &aG=*alignG[iag];
 
         //binary search through transcript starts
-        uint32 tr1=binarySearch1a<uint>(aG.exons[0][EX_G], trS, nTr);//tr1 has the maximum transcript start such that it is still <= align start
+        uint32 tr1=binarySearch1a<uint64>(aG.exons[0][EX_G], trS, nTr);//tr1 has the maximum transcript start such that it is still <= align start
         if (tr1==(uint32) -1) 
             continue; //this alignment is outside of range of all transcripts
 

@@ -1,7 +1,7 @@
 #include "sjAlignSplit.h"
-
-bool sjAlignSplit(uint a1,uint aLength, const Genome &mapGen, uint &a1D, uint &aLengthD, uint &a1A, uint &aLengthA, uint &isj) {
-    uint sj1=(a1-mapGen.sjGstart)%mapGen.sjdbLength;
+using namespace std;
+bool sjAlignSplit(uint64 a1,uint64 aLength, const Genome &mapGen, uint64 &a1D, uint64 &aLengthD, uint64 &a1A, uint64 &aLengthA, uint64 &isj) {
+    uint64 sj1=(a1-mapGen.sjGstart)%mapGen.sjdbLength;
     if (sj1<mapGen.sjdbOverhang && sj1+aLength>mapGen.sjdbOverhang) {//align crosses the junctions
         isj=(a1-mapGen.sjGstart)/mapGen.sjdbLength;
         aLengthD=mapGen.sjdbOverhang-sj1;

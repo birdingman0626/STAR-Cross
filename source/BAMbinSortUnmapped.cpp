@@ -3,14 +3,14 @@
 #include "BAMfunctions.h"
 #include "unaligned.h"
 #include "bamEndian.h"
-
-void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
+using namespace std;
+void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
 
     BGZF *bgzfBin;
-    bgzfBin=bgzf_open((dirBAMsort+"/b"+to_string((uint) iBin)).c_str(),("w"+to_string((long long) P.output.bamCompression)).c_str());
+    bgzfBin=bgzf_open((dirBAMsort+"/b"+to_string((uint64) iBin)).c_str(),("w"+to_string((long long) P.output.bamCompression)).c_str());
     if (bgzfBin==NULL) {
         ostringstream errOut;
-        errOut <<"EXITING because of fatal ERROR: could not open temporary bam file: " << dirBAMsort+"/b"+to_string((uint) iBin) << "\n";
+        errOut <<"EXITING because of fatal ERROR: could not open temporary bam file: " << dirBAMsort+"/b"+to_string((uint64) iBin) << "\n";
         errOut <<"SOLUTION: check that the disk is not full, increase the max number of open files with Linux command ulimit -n before running STAR";
         exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
@@ -19,11 +19,11 @@ void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameter
 
 
     vector<string> bamInFile;
-    std::map <uint,uint> startPos;
+    std::map <uint64,uint64> startPos;
 
-    for (uint it=0; it<nThreads; it++) {//files from all threads, and BySJout
-        bamInFile.push_back(dirBAMsort+to_string(it)+"/"+to_string((uint) iBin));
-        bamInFile.push_back(dirBAMsort+to_string(it)+"/"+to_string((uint) iBin)+".BySJout");
+    for (uint64 it=0; it<nThreads; it++) {//files from all threads, and BySJout
+        bamInFile.push_back(dirBAMsort+to_string(it)+"/"+to_string((uint64) iBin));
+        bamInFile.push_back(dirBAMsort+to_string(it)+"/"+to_string((uint64) iBin)+".BySJout");
     };
     vector<uint32> bamSize(bamInFile.size(),0);//record sizes
 
@@ -31,16 +31,16 @@ void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameter
     char **bamIn=new char* [bamInFile.size()];
     ifstream *bamInStream = new ifstream [bamInFile.size()];
 
-    for (uint it=0; it<bamInFile.size(); it++) {//initialize
+    for (uint64 it=0; it<bamInFile.size(); it++) {//initialize
         bamIn[it] = new char [BAMoutput_oneAlignMaxBytes];
 
         bamInStream[it].open(bamInFile.at(it).c_str());//opean all files
 
         bamInStream[it].read(bamIn[it],sizeof(int32));//read BAM record size
         if (bamInStream[it].good()) {
-            bamSize[it]=loadUnaligned<uint32>(bamIn[it])+sizeof(int32);//true record size +=4 (4 bytes for uint-iRead)
-            bamInStream[it].read(bamIn[it]+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint64));//read the rest of the record, including last uint = iRead
-            uint64 iRead=loadUnaligned<uint>(bamIn[it]+bamSize.at(it));
+            bamSize[it]=loadUnaligned<uint32>(bamIn[it])+sizeof(int32);//true record size +=4 (4 bytes for uint64-iRead)
+            bamInStream[it].read(bamIn[it]+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint64));//read the rest of the record, including last uint64 = iRead
+            uint64 iRead=loadUnaligned<uint64>(bamIn[it]+bamSize.at(it));
             iRead = iRead >> 32; //iRead is recorded in top 32bits
             startPos[iRead]=it;//startPos[iRead]=it : record the order of the files to output
         } else {//nothing to do here, file is empty, do not record it
@@ -50,8 +50,8 @@ void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameter
     //send ordered aligns to bgzf one-by-one
     char bam1[BAM_ATTR_MaxSize];//temp array
     while (startPos.size()>0) {
-        uint it=startPos.begin()->second;
-        uint startNext=startPos.size()>1 ? (++startPos.begin())->first : (uint) -1;
+        uint64 it=startPos.begin()->second;
+        uint64 startNext=startPos.size()>1 ? (++startPos.begin())->first : (uint64) -1;
 
         while (true) {
             //add extra tags to the BAM record
@@ -66,8 +66,8 @@ void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameter
             bamInStream[it].read(bamIn[it],sizeof(int32));//read record size
             if (bamInStream[it].good()) {
                  bamSize[it]=loadUnaligned<uint32>(bamIn[it])+sizeof(int32);
-                 bamInStream[it].read(bamIn[it]+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint));//read the rest of the record, including 
-                 uint64 iRead=loadUnaligned<uint>(bamIn[it]+bamSize.at(it));
+                 bamInStream[it].read(bamIn[it]+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint64));//read the rest of the record, including 
+                 uint64 iRead=loadUnaligned<uint64>(bamIn[it]+bamSize.at(it));
                  iRead = iRead >> 32; //iRead is recorded in top 32bits
                  if (iRead>startNext) {//this read from this chunk is > than a read from another chunk
                      startPos[iRead]=it;
@@ -84,7 +84,7 @@ void BAMbinSortUnmapped(uint32 iBin, uint nThreads, string dirBAMsort, Parameter
     bgzf_close(bgzfBin);
 
 
-    for (uint it=0; it<bamInFile.size(); it++) {//destroy at the end
+    for (uint64 it=0; it<bamInFile.size(); it++) {//destroy at the end
         bamInStream[it].close();
         remove(bamInFile.at(it).c_str());
         delete [] bamIn[it];

@@ -4,10 +4,10 @@
 #include "AlignVsTranscript.h"
 #include "ReadAnnotations.h"
 #include <bitset>
-
+using namespace std;
 int32 alignBlocksOverlapExons(Transcript &aG, uint16 exN1, uint32 *exSE1, uint64 trStart1, bool &sjConcord);
 
-void Transcriptome::alignExonOverlap(uint nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat)
+void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat)
 {
     struct GeneStrOverlapAlign {
         uint32 g;
@@ -45,7 +45,7 @@ void Transcriptome::alignExonOverlap(uint nA, Transcript **aAll, int32 strandTyp
         uint64 aGend=aG.exons[aG.nExons-1][EX_G]+aG.exons[aG.nExons-1][EX_L]-1;
 
         //binary search through transcript starts
-        uint32 tr1=binarySearch1a<uint>(aGstart, trS, nTr);//tr1 has the maximum transcript start such that it is still <= align start: aGstart>=trS[tr1]
+        uint32 tr1=binarySearch1a<uint64>(aGstart, trS, nTr);//tr1 has the maximum transcript start such that it is still <= align start: aGstart>=trS[tr1]
         if (tr1==(uint32) -1) 
             continue; //this alignment is outside of range of all transcripts
 

@@ -1,6 +1,6 @@
 #include "genomeParametersWrite.h"
 #include "streamFuns.h"
-
+using namespace std;
 void genomeParametersWrite(string fileName, Parameters& P, string errorOut, Genome &mapGen)
 {//write the genome information into the genomePar stream
     ofstream genomePar = ofstrOpenOwned(fileName, errorOut, P);
@@ -12,7 +12,7 @@ void genomeParametersWrite(string fileName, Parameters& P, string errorOut, Geno
     genomePar << "genomeType\t" << mapGen.pGe.gTypeString <<"\n";
     
     genomePar << "genomeFastaFiles\t";
-    for (uint ii=0;ii<mapGen.pGe.gFastaFiles.size();ii++) 
+    for (uint64 ii=0;ii<mapGen.pGe.gFastaFiles.size();ii++) 
         genomePar << mapGen.pGe.gFastaFiles.at(ii) << " ";
     genomePar << "\n";
     genomePar << "genomeSAindexNbases\t" << mapGen.pGe.gSAindexNbases << "\n";
@@ -24,7 +24,7 @@ void genomeParametersWrite(string fileName, Parameters& P, string errorOut, Geno
     
     genomePar << "sjdbOverhang\t" << mapGen.sjdbOverhang <<"\n";
     genomePar << "sjdbFileChrStartEnd\t";
-    for (uint ii=0;ii<mapGen.pGe.sjdbFileChrStartEnd.size();ii++) 
+    for (uint64 ii=0;ii<mapGen.pGe.sjdbFileChrStartEnd.size();ii++) 
         genomePar<< mapGen.pGe.sjdbFileChrStartEnd.at(ii) << " ";
     genomePar<<"\n";
 
@@ -37,7 +37,7 @@ void genomeParametersWrite(string fileName, Parameters& P, string errorOut, Geno
     genomePar << "sjdbInsertSave\t" << mapGen.pGe.sjdbInsertSave <<"\n";
 
     genomePar << "genomeFileSizes\t" << mapGen.pGe.gFileSizes.at(0);
-    for (uint ii=1;ii<mapGen.pGe.gFileSizes.size();ii++)
+    for (uint64 ii=1;ii<mapGen.pGe.gFileSizes.size();ii++)
         genomePar << " " << mapGen.pGe.gFileSizes.at(ii) ;
     genomePar << "\n";
 

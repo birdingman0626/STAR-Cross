@@ -3,7 +3,7 @@ name: Build and Test
 on:
   workflow_call:
   push:
-    branches: [main]
+    branches: [main, codex/cxx20-migration]
   pull_request:
     branches: [main]
 
@@ -41,7 +41,6 @@ jobs:
           - {os: ubuntu-24.04, arch: x86_64}
           - {os: ubuntu-24.04-arm, arch: aarch64}
         compiler: [gcc, clang]
-        standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
 
@@ -66,7 +65,7 @@ jobs:
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             export CC=clang CXX=clang++
           fi
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=${{ matrix.standard }}
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
           cmake --build build
 
       - name: Smoke test
@@ -79,7 +78,7 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_*py'
 
       - name: Reconstruct locked HTSlib patch queue
-        if: matrix.compiler == 'gcc' && matrix.standard == 17 && matrix.platform.arch == 'x86_64'
+        if: matrix.compiler == 'gcc' && matrix.platform.arch == 'x86_64'
         run: |
           mkdir -p data/validation
           readarray -t source_info < <(python3 -c 'import json; d=next(x for x in json.load(open("dependencies.lock.json"))["dependencies"] if x["name"]=="HTSlib"); print(d["source"])')
@@ -87,13 +86,13 @@ jobs:
           python3 scripts/maintain_htslib.py --archive data/validation/htslib.tar.bz2
 
       - name: Miniature STAR integration
-        run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build/STAR" --shared-memory
+        run: python3 scripts/test_cpu_upstream.py --star-exe "$GITHUB_WORKSPACE/source/build/STAR" --shared-memory --ipc-helper "$GITHUB_WORKSPACE/source/build/test/star_ipc_sysv"
 
       - name: STARlong and super-transcriptome lifecycle regression
-        if: matrix.compiler == 'gcc' && matrix.standard == 17 && matrix.platform.arch == 'x86_64'
+        if: matrix.compiler == 'gcc' && matrix.platform.arch == 'x86_64'
         run: |
           cmake -S source -B source/build-long -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DSTAR_CXX_STANDARD=17 \
+            -DCMAKE_BUILD_TYPE=Release \
             -DSTAR_LONG_READS=ON -DSTAR_BUILD_TESTS=OFF \
             -DFETCHCONTENT_SOURCE_DIR_HTTPLIB="$GITHUB_WORKSPACE/source/build/_deps/httplib-src" \
             -DFETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON="$GITHUB_WORKSPACE/source/build/_deps/nlohmann_json-src" \
@@ -104,12 +103,16 @@ jobs:
       - name: Embedded HTTP and JSON integration
         run: python3 scripts/test_webui.py --star-exe source/build/STAR
 
-      - name: Same-source C++17 vs C++20 qualification
-        if: matrix.standard == 20
-        run: python3 scripts/qualify_language_pair.py --build-dir source/build
+      - name: Standalone BAM signal and duplicate-marking tools
+        run: python3 scripts/test_bam_tools.py --star-exe source/build/STAR
+
+      - name: Simulated-truth EmptyDrops and Transcript3p accuracy
+        run: |
+          python3 scripts/test_emptydrops_sensitivity.py --star-exe source/build/STAR
+          python3 scripts/test_transcript3p_accuracy.py --star-exe source/build/STAR
 
       - name: Upload binary
-        if: matrix.compiler == 'gcc' && matrix.standard == 17
+        if: matrix.compiler == 'gcc'
         uses: actions/upload-artifact@v7
         with:
           name: qualification-STAR-linux-${{ matrix.platform.arch }}
@@ -121,7 +124,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, macos-15-intel]
-        standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
 
@@ -140,7 +142,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER="${GCC_C_BIN}" \
             -DCMAKE_CXX_COMPILER="${GCC_BIN}" \
-            -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=${{ matrix.standard }}
+            -DSTAR_BUILD_TESTS=ON
           cmake --build build
 
       - name: Smoke test
@@ -149,27 +151,22 @@ jobs:
       - name: Unit tests
         run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
 
+      - name: Validation harness failure gates
+        run: python3 -m unittest discover -s scripts -p 'test_*py'
+
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
-          name: qualification-STAR-${{ matrix.os }}-cxx${{ matrix.standard }}
+          name: qualification-STAR-${{ matrix.os }}
           path: source/build/STAR
 
       - name: Native analysis and embedded-server integration
         run: |
-          python3 scripts/test_cpu_upstream.py --star-exe source/build/STAR --sa-sparse 3
+          python3 scripts/test_cpu_upstream.py --star-exe source/build/STAR --sa-sparse 3 --shared-memory --ipc-helper source/build/test/star_ipc_sysv
           python3 scripts/test_webui.py --star-exe source/build/STAR
-
-      - name: Same-source C++17 vs C++20 qualification
-        if: matrix.standard == 20
-        run: python3 scripts/qualify_language_pair.py --build-dir source/build
 
   build-windows:
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        standard: [17, 20]
     steps:
       - uses: actions/checkout@v7
 
@@ -178,10 +175,13 @@ jobs:
         with:
           arch: x64
 
+      - name: Windows benchmark admission and telemetry controls
+        run: python -m unittest discover -s scripts -p test_qualification.py
+
       - name: Build
         run: |
           cd source
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DSTAR_CXX_STANDARD=${{ matrix.standard }}
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
           cmake --build build
 
       - name: Smoke test
@@ -193,15 +193,10 @@ jobs:
       - name: Miniature STAR integration
         run: python scripts/test_cpu_upstream.py --star-exe source/build/STAR.exe --sa-sparse 3
 
-      - name: Same-source C++17 vs C++20 qualification
-        if: matrix.standard == 20
-        run: python scripts/qualify_language_pair.py --build-dir source/build
-
       - name: Unit tests
         run: ctest --test-dir source/build --no-tests=error --output-on-failure -j4
 
       - name: Upload binary
-        if: matrix.standard == 17
         uses: actions/upload-artifact@v7
         with:
           name: qualification-STAR-windows-x86_64
@@ -257,6 +252,107 @@ jobs:
   # Memory-safety of the splice-junction insertion path (sjdbBuildIndex) under
   # AddressSanitizer. Regression coverage for the funCalcSAi out-of-bounds read
   # (upstream issue #2657) and the #2687 sjdb sort rewrite.
+  thread-sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        timeout-minutes: 10
+        run: |
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          timeout 180s sudo apt-get "${apt_options[@]}" update --error-on=any
+          timeout 300s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends zlib1g-dev ninja-build clang libclang-rt-dev libomp-dev
+
+      - name: Allow TSan's shadow-memory layout
+        # Runner kernels randomize mmap with 32 bits; TSan's fixed layout needs <= 28.
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Build with ThreadSanitizer (Clang + LLVM OpenMP)
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cd source
+          cmake -B build-tsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_BUILD_TESTS=ON -DSTAR_TSAN=ON
+          cmake --build build-tsan
+
+      - name: Unit tests under ThreadSanitizer
+        env:
+          TSAN_OPTIONS: halt_on_error=1 suppressions=${{ github.workspace }}/scripts/tsan_suppressions.txt
+        run: ctest --test-dir source/build-tsan --no-tests=error --output-on-failure
+
+      - name: Multi-threaded mapping, sorting and STARsolo under ThreadSanitizer
+        timeout-minutes: 60
+        run: python3 scripts/test_thread_sanitizer.py --star-exe source/build-tsan/STAR --threads 4
+
+      - name: Retain ThreadSanitizer evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: thread-sanitizer-reports
+          path: |
+            /tmp/star-threads-*/tsan/*
+            /tmp/star-threads-*/*/console.log
+            /tmp/star-threads-*/*/Log.out
+          if-no-files-found: ignore
+
+  # Clang's UBSan checks pointer arithmetic that GCC's does not report
+  # (pointer-overflow: an unsigned offset that wraps below the base pointer).
+  clang-asan-ubsan:
+    runs-on: ubuntu-latest
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        timeout-minutes: 10
+        run: |
+          apt_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          timeout 180s sudo apt-get "${apt_options[@]}" update --error-on=any
+          timeout 300s sudo apt-get "${apt_options[@]}" install -y --no-install-recommends zlib1g-dev ninja-build clang libclang-rt-dev libomp-dev
+
+      - name: Allow the sanitizer shadow-memory layout
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Build with AddressSanitizer + UBSan (Clang)
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cd source
+          cmake -B build-clang-asan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_BUILD_TESTS=ON -DSTAR_ASAN=ON -DSTAR_UBSAN=ON
+          cmake --build build-clang-asan
+
+      - name: Unit tests
+        run: ctest --test-dir source/build-clang-asan --no-tests=error --output-on-failure
+
+      - name: Alignment and count integration (dense and sparse suffix array)
+        timeout-minutes: 20
+        run: |
+          python3 scripts/test_cpu_upstream.py --star-exe source/build-clang-asan/STAR
+          python3 scripts/test_cpu_upstream.py --star-exe source/build-clang-asan/STAR --sa-sparse 3
+
+      - name: Malformed-input robustness
+        run: python3 scripts/test_malformed_inputs.py --star-exe source/build-clang-asan/STAR
+
+      - name: Simulated multi-threaded workload (chimeric, two-pass, sjdb insertion, STARsolo)
+        timeout-minutes: 60
+        run: python3 scripts/test_thread_sanitizer.py --star-exe source/build-clang-asan/STAR --threads 4 --allow-tsan-reports
+
+      - name: Retain failed fixture evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: clang-asan-ubsan-fixtures
+          path: |
+            /tmp/star-cpu-regression-*/**/console.log
+            /tmp/star-malformed-*/**/console.log
+            /tmp/star-threads-*/*/console.log
+          if-no-files-found: ignore
+
   asan-sjdb:
     runs-on: ubuntu-latest
     steps:
@@ -310,6 +406,12 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: python3 scripts/test_experimental_genomes.py --star-exe source/build-asan/STAR
+
+      - name: Leak-checked standalone BAM tools
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: python3 scripts/test_bam_tools.py --star-exe source/build-asan/STAR
 
       - name: sjdb insertion memory-safety (issue #2657)
         run: |

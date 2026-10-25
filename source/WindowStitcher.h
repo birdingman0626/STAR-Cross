@@ -10,17 +10,17 @@ class Transcript;
 struct WindowStitcher {
     Parameters& P;
     Genome& mapGen;
-    const uint* nWA;
+    const uint64* nWA;
     uiWA** WA;
     intScore* scoreSeedBest;
-    uint *scoreSeedBestMM,*scoreSeedBestInd,*seedChain;
+    uint64 *scoreSeedBestMM,*scoreSeedBestInd,*seedChain;
     bool* WAincl;
     Transcript &trA,&trA1;
     const Transcript* trInit;
-    uint Lread,outFilterMismatchNmaxTotal;
+    uint64 Lread,outFilterMismatchNmaxTotal;
     intScore* maxScoreMate;
     Transcript*** trAll;
-    uint* nWinTr;
-    void stitch(uint window,uint resultWindow,bool* excluded,char* read);
+    uint64* nWinTr;
+    void stitch(uint64 window,uint64 resultWindow,bool* excluded,char* read);
 };
 #endif

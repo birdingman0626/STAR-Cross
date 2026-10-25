@@ -1,6 +1,6 @@
 #include "ClipCR4.h"
 #include <stdexcept>
-
+using namespace std;
 ClipCR4::ClipCR4() : scoreMatrix(nullptr, parasail_matrix_free)
 {
     dbN = 64;

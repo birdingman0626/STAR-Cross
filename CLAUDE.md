@@ -4,45 +4,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-STAR (Spliced Transcripts Alignment to a Reference) is a high-performance RNA-seq aligner written in C++11. It performs spliced alignment of short and long reads to a reference genome, supporting features like chimeric/fusion detection, single-cell (STARsolo), two-pass mapping, and transcriptome quantification.
+STAR-Cross is a cross-platform fork of STAR (Spliced Transcripts Alignment to a Reference), a high-performance RNA-seq aligner written in C++20 (C++20-only; C++17 builds were removed). It performs spliced alignment of short and long reads to a reference genome, supporting features like chimeric/fusion detection, single-cell (STARsolo), two-pass mapping, and transcriptome quantification. It builds on Linux (x86_64, aarch64, s390x), macOS and Windows (MSVC/clang-cl).
 
 ## Build Commands
 
-All builds run from the `source/` directory. HTSlib (bundled) is built automatically as a dependency.
+CMake is the primary build system; see `docs/BUILD.md` for per-platform details. The first configure downloads pinned dependencies (hash-checked against `dependencies.lock.json`).
 
 ```bash
-cd source
+# Release build with unit tests (from the repository root)
+cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
+cmake --build build
 
-# Standard Linux build
-make STAR
-
-# Static binary (no runtime deps)
-make STARstatic
-
-# Long reads variant
-make STARlong
-
-# Debug build (gdb, -O0 -g3)
-make gdb
-
-# macOS (adjust g++ path to your version)
-make STARforMacStatic CXX=/usr/local/Cellar/gcc/8.2.0/bin/g++-8
-
-# For CPUs without AVX2 (use sse or let compiler auto-detect)
-make STAR CXXFLAGS_SIMD=sse
-
-# Clean object files
-make clean
-
-# Deep clean (including htslib)
-make CLEAN
+# Presets (run from source/): release, debug, sanitized (ASan+UBSan)
+cmake --preset release && cmake --build --preset release
 ```
 
-Custom compiler/flags: `CXX=`, `CXXFLAGSextra=`, `LDFLAGSextra=`, `CXXFLAGS_SIMD=`.
+Useful options: `-DSTAR_LONG_READS=ON` (STARlong), `-DSTAR_USE_AVX2=ON`, `-DSTAR_ASAN=ON`, `-DSTAR_UBSAN=ON`, `-DSTAR_TSAN=ON` (Clang + LLVM OpenMP), `-DSTAR_CAPTURE_SEEDS=ON` (diagnostics only, not for benchmarks), and on GCC/Clang `-DSTAR_LTO=ON` and `-DSTAR_PGO=GENERATE|USE` with `-DSTAR_PGO_PATH=` (opt-in; measure before adopting). A build directory still configured with `STAR_CXX_STANDARD=17` fails at configure time; use a fresh one.
+
+`source/Makefile` is a thin wrapper around the same CMake build (`make STAR`, `make STARlong`).
 
 ## Testing
 
-There is no formal unit test suite. Validation is done by running STAR on test data and checking outputs. Some AWK-based validation scripts exist in `extras/tests/scripts/` for STARsolo cell stats.
+- Unit tests (doctest, `test/unit/`, plus seed-search property tests): `ctest --test-dir build --no-tests=error --output-on-failure -j4`
+- Validation-harness self-tests: `python3 -m unittest discover -s scripts -p 'test_*py'`
+- Miniature end-to-end alignment/count regression: `python3 scripts/test_cpu_upstream.py --star-exe build/STAR` (add `--ref-exe` to compare against a frozen baseline binary)
+- Multi-threaded race and thread-count-invariance check (use a `-DSTAR_TSAN=ON` Clang build): `python3 scripts/test_thread_sanitizer.py --star-exe build/STAR --threads 8`
+- Malformed-input robustness (use an ASan/UBSan build for memory-safety evidence): `python3 scripts/test_malformed_inputs.py --star-exe build/STAR`
+- `.github/workflows/build.yml` is the authoritative list of CI gates (platform matrix, frozen-baseline index/alignment equivalence, GCC and Clang ASan/UBSan and ThreadSanitizer jobs). Clang's UBSan also reports pointer arithmetic with a wrapped unsigned offset (`p + (a - b)` where `a < b`); write such offsets as signed `int64`.
+
+Scientific changes must preserve exact output parity (BAM records, SJ.out.tab, Solo matrices) against the frozen baseline; performance claims need paired, calibrated measurements (see `docs/QUALIFICATION_PLAN.md`).
 
 ## Architecture
 

@@ -2,7 +2,7 @@
 #include "BAMfunctions.h"
 #include "SequenceFuns.h"
 #include "unaligned.h"
-
+using namespace std;
 void SoloFeature::addBAMtags(char *&bam0, uint32 &size0, char *bam1)
 {//add extra tags to the BAM record
     

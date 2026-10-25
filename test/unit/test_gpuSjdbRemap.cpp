@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <random>
 #include <cstring>
-
+using namespace std;
 TEST_CASE("GPU SJ remap request rejects unsupported geometry before execution") {
     char input[32]{}, output[32]{};
     uint32_t order[2]={0,1};

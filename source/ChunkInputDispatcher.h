@@ -2,8 +2,8 @@
 #define STAR_CHUNK_INPUT_DISPATCHER_H
 #include <condition_variable>
 #include <deque>
+#include <exception>
 #include <functional>
-#include <future>
 #include <mutex>
 #include <thread>
 #include <stdexcept>
@@ -11,22 +11,38 @@
 // One producer serves bounded requests from persistent logical mapping workers.
 // Each caller waits for completion before reading/reusing its own chunk buffer.
 class ChunkInputDispatcher {
+    // Lives on the caller's stack until the producer marks it done.
+    struct Request {
+        std::function<void()> read;
+        std::exception_ptr error;
+        bool done=false;
+    };
     size_t capacity;
     std::mutex mutex;
     std::condition_variable changed;
-    std::deque<std::packaged_task<void()>> requests;
+    std::deque<Request*> requests;
     bool closing=false;
     std::thread producer;
     void run() {
         while (true) {
-            std::packaged_task<void()> request;
+            Request* request;
             {
                 std::unique_lock<std::mutex> lock(mutex);
                 changed.wait(lock,[this]{return closing || !requests.empty();});
                 if (requests.empty()) return;
-                request=std::move(requests.front());requests.pop_front();changed.notify_all();
+                request=requests.front();requests.pop_front();changed.notify_all();
             }
-            request(); // Exceptions are delivered to the requesting worker's future.
+            std::exception_ptr error;
+            try {request->read();} catch (...) {error=std::current_exception();}
+            // Hand the error over under the mutex, so the producer holds no
+            // reference to it once the caller can see it. Releasing that last
+            // reference later, from this thread, races (for ThreadSanitizer)
+            // with the caller reading the exception.
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                request->error=std::move(error);request->done=true;
+            }
+            changed.notify_all();
         }
     }
 public:
@@ -38,15 +54,15 @@ public:
     ChunkInputDispatcher& operator=(const ChunkInputDispatcher&)=delete;
     ~ChunkInputDispatcher(){finish();}
     void invoke(std::function<void()> readChunk) {
-        std::packaged_task<void()> request(std::move(readChunk));
-        auto result=request.get_future();
+        Request request{std::move(readChunk),nullptr,false};
         {
             std::unique_lock<std::mutex> lock(mutex);
             changed.wait(lock,[this]{return closing || requests.size()<capacity;});
             if (closing) throw std::logic_error("input dispatcher is closed");
-            requests.push_back(std::move(request));changed.notify_all();
+            requests.push_back(&request);changed.notify_all();
+            changed.wait(lock,[&request]{return request.done;}); // queued requests run even after finish()
         }
-        result.get();
+        if (request.error) std::rethrow_exception(request.error); // exceptions reach the requesting worker
     }
     void finish() {
         {std::lock_guard<std::mutex> lock(mutex);closing=true;changed.notify_all();}

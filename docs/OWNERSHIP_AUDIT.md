@@ -13,12 +13,12 @@ unverified whole-program teardown. C++17 remains sufficient for these changes.
 | Parameter registration | Shared registration owner, raw field addresses still borrow original Parameters | Last pass1 copy destroys registry; original parameter values must outlive readers | Genome reader borrows CLI streams without allocating a discarded stream set; stream deletion remains explicit |
 | BAM buffers/bin arrays | BAMoutput unique owners; binStart elements borrow offsets in bamArray | After mapping, Solo, sorting and other BAM consumers finish | Implemented without zero-filling the large buffer |
 | BAM temporary streams | BAMoutput owns streams returned by `ofstrOpen()` | Checked `finalize()`, before deleting temporary files | Implemented; destructor closes best-effort only; deferred disk-full regression added |
-| BAM BGZF | Parameters owns open handle; BAMoutput borrows | Checked flush/close in STAR; borrower destruction never closes it | Implemented for unsorted/transcriptome handles; other standalone BAM writers still need a separate audit |
+| BAM BGZF | Parameters owns open handle; BAMoutput borrows | Checked flush/close in STAR; borrower destruction never closes it | Implemented for unsorted/transcriptome handles; standalone signal and duplicate-marking tools audited 2026-10-23 (below) |
 | ReadAlign arenas | Named unique allocation bases in ReadAlign::Storage; raw fields are algorithm views | Chunk owns primary/WASP/merged instances; destruction after worker join | Read/window/transcript/BAM arenas migrated; merged junction stream is explicitly borrowed |
 | Chunk input/output and Transcriptome | Chunk owns input streams/buffers, junction outputs, local Transcriptome object and quantifications; shared metadata borrowed | After Solo/counting/BAM sorting; pass1 chunks released before pass2 | Scoped owners migrated; complete Transcriptome/Solo aggregate metadata remains outside this change |
 | Per-read Solo / clipping / graph | Owned barcode/features and record streams, CR4 scorer and SpliceGraph row/column/seed allocations | Their ReadAlign/chunk lifetime; aggregate Solo consumers finish first | Barcode early release clears the borrow; graph destructor no longer uses an incorrect fixed row count |
 | CUDA allocation | Existing DeviceBuffer/Buffer scoped owners | Synchronizing adapter execution followed by cudaFree | Actual adapter/seed checks and memcheck; stream/event/global ownership not broadened |
-| SharedMemory | Noncopyable named IPC attachment and counter; external log stream borrowed | Detach both mappings; explicit Remove or verified last-user policy removes names | SysV/POSIX two-process lifecycle and failure fixtures pass on Linux; full Genome ownership and concurrent admission remain pending |
+| SharedMemory | Noncopyable named IPC attachment and counter; external log stream borrowed | Detach both mappings; explicit Remove or verified last-user policy removes names | SysV/POSIX two-process lifecycle and failure fixtures pass on Linux; concurrent admission/release serialized by a SysV semaphore lock with dead-loader detection (`docs/SHARED_MEMORY_ADMISSION.md`); full Genome ownership remains pending |
 
 `PackedArray` view copies intentionally do not extend the source lifetime. They
 are not deep copies or reference-counted ownership. Moving a borrowed view into
@@ -49,9 +49,10 @@ Mapping size comes from kernel metadata, not an uninitialized shared header.
 The existing header/payload offset remains reserved, preserving genome layout.
 Unix SysV and POSIX fixtures ran under ASan/UBSan with leak detection; real STAR
 SysV load/keep/remove modes were compared against NoSharedMemory. Windows still
-supports only NoSharedMemory. These tests do not prove atomic last-user decisions
-against concurrent new admissions, all syscall-failure paths, or orphan-free
-constructor failure. Do not mark all of O3 complete from this bounded work.
+supports only NoSharedMemory. Last-user decisions against concurrent admissions
+are now serialized and tested (see `docs/SHARED_MEMORY_ADMISSION.md`); these
+tests still do not prove all syscall-failure paths or orphan-free constructor
+failure. Do not mark all of O3 complete from this bounded work.
 
 ## Transcriptome / Solo aggregate continuation
 
@@ -77,6 +78,8 @@ still require independent fixtures. Standalone soloCellFiltering retains its
 process-exit contract: an attempted test exposed a pre-existing single-barcode
 boundary (loadRawMatrix leaves nCB as the final zero-based index). It is not
 silently repaired in an ownership-only change or claimed as leak-qualified.
+(Resolved later in `722e9e7`: `nCB` stays a count with a separate cell index, and
+the malformed-matrix fixtures include a single-column matrix.)
 
 ## Standalone filtering and SmartSeq follow-up
 
@@ -183,3 +186,25 @@ its bins are ready. This avoids duplicate file/stdout ownership without changing
 the sorting algorithm. Sorting bin boundaries now use vector ownership, and
 outputSJ's local pointer/filter arrays use unique ownership. No extra matrix,
 index or per-read allocation is introduced by these fixes.
+
+## Standalone BAM tools audit, 2026-10-23
+
+`--runMode inputAlignmentsFromBAM` signal output (`signalFromBAM`) and duplicate
+marking (`bamRemoveDuplicates`) had no tests. The audit found, and the new
+`scripts/test_bam_tools.py` reproduces on the previous binary:
+
+- a missing input BAM crashed signal output (SIGSEGV in `bam_hdr_read`);
+- output write failures (e.g. a full disk) exited 0 with truncated BAM or signal
+  files, because `bgzf_write`/`bgzf_close` and the signal stream state were
+  unchecked;
+- duplicate marking read and wrote BAM record fields through `uint32*` at
+  unaligned offsets (UBSan: misaligned load), which is undefined behaviour;
+- headers, input handles, the `bam1_t`, raw arrays (including the
+  `--limitBAMsortRAM`-sized block) and per-signal `ofstream` objects leaked.
+
+Both tools now use scoped owners, check every open/read/write/close and report
+fatal errors with exit codes, and access record fields through `unaligned.h`.
+`bamA` only views records inside the loaded block and is detached before
+destruction. Outputs of 17 signal variants and 3 duplicate-marking modes are
+identical to the previous binary; the test runs clean under ASan, UBSan and
+LeakSanitizer and is part of the Linux and sanitizer CI jobs.

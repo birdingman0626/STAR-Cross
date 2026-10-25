@@ -9,5 +9,5 @@
 ## Checklist
 - [ ] Both CMake and Makefile build paths updated (if source files added/removed)
 - [ ] No modifications to vendored code (htslib/, opal/, SimpleGoodTuring/) without documented rationale
-- [ ] New code uses C++17 features where appropriate
+- [ ] New code uses C++20 features where they simplify an interface (e.g. `std::span`, `<bit>`)
 - [ ] No new compiler warnings on MSVC `/W4` or GCC `-Wall -Wextra`

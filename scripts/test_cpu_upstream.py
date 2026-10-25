@@ -85,6 +85,9 @@ def main():
     parser.add_argument("--threads", type=int, default=2)
     parser.add_argument("--shared-memory", action="store_true",
                         help="Unix-only: compare real STAR keep/remove/load modes with ordinary loading")
+    parser.add_argument("--ipc-helper",
+                        help="With --shared-memory: test/star_ipc_sysv (or _posix, matching STAR's backend) "
+                             "used to simulate a genome loader that dies before publishing")
     parser.add_argument("--sa-sparse", type=int, default=1,
                         help="Miniature index suffix-array sparsity (exercise sparse seed competition)")
     args = parser.parse_args()
@@ -92,6 +95,11 @@ def main():
         parser.error("Thread count must be positive")
     if args.sa_sparse < 1:
         parser.error("Suffix-array sparsity must be positive")
+    # Windows CreateProcess cannot launch a relative path written with '/'
+    # (e.g. source/build/STAR.exe, as CI passes it); launch absolute paths.
+    args.star_exe = str(Path(args.star_exe).resolve(strict=True))
+    if args.ref_exe:
+        args.ref_exe = str(Path(args.ref_exe).resolve(strict=True))
     root = Path(tempfile.mkdtemp(prefix="star-cpu-regression-"))
     print(f"Evidence retained at: {root}", flush=True)
     checks = []
@@ -176,6 +184,13 @@ def main():
                   env={**os.environ,'STAR_CHUNK_PIPELINE':'1','STAR_ASYNC_SAM':'1'})
     assert sam_scientific(sync)==sam_scientific(async_out)
     checks.append('ordered SAM across multiple chunks retains the exact record sequence')
+    two_pass_ordered=run('multichunk-ordered-sam-two-pass',options+['--twopassMode','Basic'])
+    def primary_names(out):
+        return [line.split('\t',1)[0] for line in sam_scientific(out)
+                if not line.startswith('@') and not int(line.split('\t',2)[1])&0x100]
+    assert primary_names(sync), 'ordered one-pass SAM has no records'
+    assert primary_names(two_pass_ordered)==primary_names(sync), 'two-pass ordered SAM lost or reordered records'
+    checks.append('two-pass ordered SAM keeps every read in input order (chunk numbering restarts per pass)')
     for mode,extra in (('ordinary',[]),('two-pass',['--twopassMode','Basic']),
                        ('by-junction',['--outFilterType','BySJout'])):
         options=common+['--readFilesIn',str(many_reads),'--limitIObufferSize','1000000','1000000',
@@ -296,7 +311,44 @@ def main():
                 assert (shared / "SJ.out.tab").read_bytes() == (mapped / "SJ.out.tab").read_bytes()
             run("shared-reload-exit", common + ["--genomeLoad", "LoadAndExit"])
             run("shared-remove", common + ["--genomeLoad", "Remove"])
+            # Jobs that start together on an unloaded genome: one loads, the
+            # others wait for it, and the last one to finish removes it.
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                concurrent_runs = list(pool.map(
+                    lambda i: run(f"shared-concurrent-{i}", common + ["--genomeLoad", "LoadAndRemove",
+                                  "--readFilesIn", str(reads), "--outSAMtype", "BAM", "Unsorted",
+                                  "--outSAMunmapped", "Within"]),
+                    range(4)))
+            for shared in concurrent_runs:
+                assert bam_records(shared / "Aligned.out.bam") == bam_records(mapped / "Aligned.out.bam")
+                assert (shared / "SJ.out.tab").read_bytes() == (mapped / "SJ.out.tab").read_bytes()
+            gone = run("shared-concurrent-gone", common + ["--genomeLoad", "Remove"], valid=False)
+            assert "Did not find the genome in memory" in (gone / "console.log").read_text(errors="replace")
+            if args.ipc_helper:
+                # A loader that dies before publishing: the helper creates this
+                # genome's segment as STAR's allocator would, then exits. A new
+                # job must stop at once instead of waiting for the time-out.
+                import ctypes, time
+                key = ctypes.c_int32(os.stat(genome).st_ino).value  # STAR's key_t
+                ready_r, ready_w = os.pipe()
+                done_r, done_w = os.pipe()
+                helper = subprocess.Popen([args.ipc_helper, "loader-crash", str(key), str(ready_w), str(done_r), "-1"],
+                                          pass_fds=(ready_w, done_r))
+                os.close(ready_w); os.close(done_r)
+                assert os.read(ready_r, 1) == b"x", "helper did not create the segment"
+                os.write(done_w, b"x")
+                assert helper.wait(timeout=30) == 0
+                os.close(ready_r); os.close(done_w)
+                started = time.monotonic()
+                dead = run("shared-dead-loader", common + ["--genomeLoad", "LoadAndKeep", "--readFilesIn", str(reads)],
+                           valid=False, expected_code=106)
+                assert time.monotonic() - started < 60
+                assert "exited before it finished" in (dead / "console.log").read_text(errors="replace")
+                run("shared-dead-loader-remove", common + ["--genomeLoad", "Remove"])
+                checks.append("shared-memory loader that died before publishing: next job fails fast (exit 106), Remove recovers")
             checks.append("shared-memory LoadAndExit/Keep/Remove and explicit Remove: exact BAM, junction and scientific log equivalence")
+            checks.append("shared-memory concurrent LoadAndRemove admission: identical outputs, genome removed after the last job")
         finally:
             cleanup = subprocess.run([args.star_exe, *common, "--genomeLoad", "Remove",
                                       "--outFileNamePrefix", str(root / "shared-cleanup")],
@@ -386,6 +438,11 @@ def main():
     oversized_header.write_text("@long " + "A"*50000 + "\n" + "N"*100 + "\n+\n" + "I"*100 + "\n")
     run("oversized-header", common + ["--readFilesIn", str(oversized_header), "--outSAMtype", "None"], valid=False)
     checks.append("oversized preserved FASTQ header rejected before chunk copy")
+    small_buffer = run("small-input-buffer", common + ["--readFilesIn", str(reads), str(reads), "--outSAMtype", "None",
+                                                      "--limitIObufferSize", "150000", "100000"],
+                       valid=False, expected_code=102)
+    assert "--limitIObufferSize input buffer 150000 is too small for 2 read end(s)" in (small_buffer / "console.log").read_text()
+    checks.append("input buffer smaller than one read per end rejected instead of overrunning the chunk")
 
     sam = root / "input.sam"
     sam.write_text("@HD\tVN:1.6\nread\t4\t*\t0\t0\t*\t*\t0\t0\t" + sequence[100:200] +
@@ -432,6 +489,22 @@ def main():
     velocity = default / "Solo.out/Velocyto/raw"
     assert all((velocity / name).is_file() for name in ("spliced.mtx", "unspliced.mtx", "ambiguous.mtx"))
     checks.append("native Velocity always emits all three required raw layers")
+    spliced_cdna = root / "spliced-cdna.fastq"
+    spliced_barcode = root / "spliced-barcode.fastq"
+    junction_read = sequence[350:400] + sequence[700:750]  # exon 1 end + exon 2 start of g1
+    spliced_cdna.write_text("".join(f"@sj{i}\n{junction_read}\n+\n{'I'*100}\n" for i in range(2)))
+    spliced_barcode.write_text("".join(f"@sj{i}\nACGTACGT{umi}\n+\nIIIIIIIIIIII\n" for i, umi in enumerate(("ACGT", "TGCA"))))
+    solo_sj = run("solo-sj", common + ["--readFilesIn", str(spliced_cdna), str(spliced_barcode), "--soloType",
+                                       "CB_UMI_Simple", "--soloCBwhitelist", str(whitelist), "--soloCBlen", "8",
+                                       "--soloUMIstart", "9", "--soloUMIlen", "4", "--soloCellFilter", "None",
+                                       "--outSAMtype", "None", "--soloFeatures", "SJ"])
+    sj_features = (solo_sj / "Solo.out/SJ/raw/features.tsv").read_text().splitlines()
+    sj_rows = [line.split() for line in (solo_sj / "Solo.out/SJ/raw/matrix.mtx").read_text().splitlines()
+               if line and not line.startswith("%")]
+    assert sj_features and int(sj_rows[0][0]) == len(sj_features), (sj_rows[0], len(sj_features))
+    assert sj_rows[1:] and all(1 <= int(row[0]) <= len(sj_features) for row in sj_rows[1:])
+    assert sum(int(row[2]) for row in sj_rows[1:]) == 2
+    checks.append("Solo SJ matrix declares one row per junction feature (count arrays sized after junction load)")
     if args.ref_exe:
         solo_before = run("solo-before", solo, args.ref_exe)
         for feature in solo_features:

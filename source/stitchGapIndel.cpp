@@ -1,10 +1,10 @@
 #include "IncludeDefine.h"
 #include "Parameters.h"
+using namespace std;
+int stitchGapIndel (uint64 rAend, uint64 gAend, uint64 rBstart, uint64 gBstart, uint64 L, uint64 gapStart, uint64 gapEnd, char* R, char* G, Parameters& P,\
+                    uint64 &iRbest, uint64 &nMM){//returns stitch score
 
-int stitchGapIndel (uint rAend, uint gAend, uint rBstart, uint gBstart, uint L, uint gapStart, uint gapEnd, char* R, char* G, Parameters& P,\
-                    uint &iRbest, uint &nMM){//returns stitch score
-
-    uint gapLength = gapEnd-gapStart+1;
+    uint64 gapLength = gapEnd-gapStart+1;
     sint inDel= (sint) (gBstart-gAend-1) - (sint) gapLength - (sint) (rBstart-rAend-1); //>0: deletion; <0: insertion
 
     if (inDel==0) {//this should not happen, it should have been caught in the first stitching
@@ -17,9 +17,9 @@ int stitchGapIndel (uint rAend, uint gAend, uint rBstart, uint gBstart, uint L, 
         score2=0;
         score2best=-1;
         iRbest=0;
-        for (uint iR=1; iR<rBstart-rAend; iR++) {//scan to find the best position iR of the indel
-            uint iG1=gAend+iR;
-            uint iG2=iG1+(uint) inDel;
+        for (uint64 iR=1; iR<rBstart-rAend; iR++) {//scan to find the best position iR of the indel
+            uint64 iG1=gAend+iR;
+            uint64 iG2=iG1+(uint64) inDel;
             if (iG1>=gapStart) iG1 += gapLength;//exclude gap
             if (iG2>=gapStart) iG2 += gapLength;
 
@@ -38,9 +38,9 @@ int stitchGapIndel (uint rAend, uint gAend, uint rBstart, uint gBstart, uint L, 
         //score the alignment with inDel at iRbest
         nMM=0;
         score2= L - inDel*P.scoreDelBase - P.scoreDelOpen; //score B and deletion
-        for (uint iR=1; iR<rBstart-rAend; iR++) {//scan to find the best position iR of the indel
-            uint iG=gAend+iR;
-            if (iR>iRbest) iG += (uint) inDel;
+        for (uint64 iR=1; iR<rBstart-rAend; iR++) {//scan to find the best position iR of the indel
+            uint64 iG=gAend+iR;
+            if (iR>iRbest) iG += (uint64) inDel;
             if (iG>=gapStart) iG += gapLength;//exclude gap
 
             if  ( R[rAend+iR]==G[iG] ) {

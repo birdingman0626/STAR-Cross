@@ -8,18 +8,18 @@
 #include "htslib/htslib/hts_endian.h"
 
 
-void outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint> &chrl);
+void outBAMwriteHeader (BGZF* fp, const std::string &samh, const std::vector <std::string> &chrn, const std::vector <uint64> &chrl);
 int bam_read1_fromArray(char *bamChar, bam1_t *b);
-string bam_cigarString (bam1_t *b);
+std::string bam_cigarString (bam1_t *b);
         
 int reg2bin(int beg, int end);
 int bamAttrArrayWrite(int32 attr, const char* tagName, char* attrArray );
 int bamAttrArrayWrite(float attr, const char* tagName, char* attrArray );
 int bamAttrArrayWrite(char attr, const char* tagName, char* attrArray );
-int bamAttrArrayWrite(string &attr, const char* tagName, char* attrArray );
-int bamAttrArrayWrite(const vector<char> &attr, const char* tagName, char* attrArray );
-int bamAttrArrayWrite(const vector<int32> &attr, const char* tagName, char* attrArray );
-int bamAttrArrayWriteSAMtags(string &attrStr, char *attrArray, size_t capacity, Parameters &P);
+int bamAttrArrayWrite(std::string &attr, const char* tagName, char* attrArray );
+int bamAttrArrayWrite(const std::vector<char> &attr, const char* tagName, char* attrArray );
+int bamAttrArrayWrite(const std::vector<int32> &attr, const char* tagName, char* attrArray );
+int bamAttrArrayWriteSAMtags(std::string &attrStr, char *attrArray, size_t capacity, Parameters &P);
 
 template <class TintType>
 TintType bamAttributeInt(const char *bamAux, const char *attrName) {//not tested!!!
@@ -59,7 +59,7 @@ int bamAttrArrayWriteInt(intType xIn, const char* tagName, char* attrArray, Para
         } else {
             ATTR_RECORD_INT('i',int32_t,x);
             if (!(x>=-2147483647)) {
-                ostringstream errOut;
+                std::ostringstream errOut;
                 errOut <<"EXITING because of FATAL BUG: integer out of range for BAM conversion: "<< x <<"\n";
                 errOut <<"SOLUTION: contact Alex Dobin at dobin@cshl.edu\n";
                 exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
@@ -73,7 +73,7 @@ int bamAttrArrayWriteInt(intType xIn, const char* tagName, char* attrArray, Para
         } else {
             ATTR_RECORD_INT('I',uint32_t,x);
             if (!(x<=4294967295)) {
-                ostringstream errOut;
+                std::ostringstream errOut;
                 errOut <<"EXITING because of FATAL BUG: integer out of range for BAM conversion: "<< x <<"\n";
                 errOut <<"SOLUTION: contact Alex Dobin at dobin@cshl.edu\n";
                 exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);

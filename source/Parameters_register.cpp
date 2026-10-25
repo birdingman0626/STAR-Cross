@@ -1,5 +1,5 @@
 #include "Parameters.h"
-
+using namespace std;
 Parameters::Parameters(InOutStreams& borrowedStreams) : inOut(&borrowedStreams) {
     registerParameters();
 }
@@ -35,11 +35,11 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "genomeLoad", &pGe.gLoad));
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "genomeFastaFiles", &pGe.gFastaFiles));
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "genomeChainFiles", &pGe.gChainFiles));
-    parArray.push_back(new ParameterInfoScalar <uint> (-1, -1, "genomeSAindexNbases", &pGe.gSAindexNbases));
-    parArray.push_back(new ParameterInfoScalar <uint> (-1, -1, "genomeChrBinNbits", &pGe.gChrBinNbits));
-    parArray.push_back(new ParameterInfoScalar <uint> (-1, -1, "genomeSAsparseD", &pGe.gSAsparseD));
-    parArray.push_back(new ParameterInfoScalar <uint> (-1, -1, "genomeSuffixLengthMax", &pGe.gSuffixLengthMax));
-    parArray.push_back(new ParameterInfoVector <uint> (-1, -1, "genomeFileSizes", &pGe.gFileSizes));
+    parArray.push_back(new ParameterInfoScalar <uint64> (-1, -1, "genomeSAindexNbases", &pGe.gSAindexNbases));
+    parArray.push_back(new ParameterInfoScalar <uint64> (-1, -1, "genomeChrBinNbits", &pGe.gChrBinNbits));
+    parArray.push_back(new ParameterInfoScalar <uint64> (-1, -1, "genomeSAsparseD", &pGe.gSAsparseD));
+    parArray.push_back(new ParameterInfoScalar <uint64> (-1, -1, "genomeSuffixLengthMax", &pGe.gSuffixLengthMax));
+    parArray.push_back(new ParameterInfoVector <uint64> (-1, -1, "genomeFileSizes", &pGe.gFileSizes));
     //parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "genomeConsensusFile", &pGe.gConsensusFile)); DEPRECATED
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "genomeTransformType", &pGe.transform.typeString));
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "genomeTransformVCF", &pGe.transform.vcfFile));
@@ -53,7 +53,7 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesCommand", &readFilesCommand));
 
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "readMatesLengthsIn", &readMatesLengthsIn));
-    parArray.push_back(new ParameterInfoScalar <uint> (-1, -1, "readMapNumber", &readMapNumber));
+    parArray.push_back(new ParameterInfoScalar <uint64> (-1, -1, "readMapNumber", &readMapNumber));
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readNameSeparator", &readNameSeparator));
     parArray.push_back(new ParameterInfoScalar <uint32> (-1, -1, "readQualityScoreBase", &readQualityScoreBase));
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesManifest", &readFilesManifest));
@@ -67,17 +67,17 @@ void Parameters::registerParameters() {
 
     //BAM processing
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "bamRemoveDuplicatesType", &removeDuplicates.mode));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "bamRemoveDuplicatesMate2basesN", &removeDuplicates.mate2basesN));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "bamRemoveDuplicatesMate2basesN", &removeDuplicates.mate2basesN));
 
     //limits
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "limitGenomeGenerateRAM", &limitGenomeGenerateRAM));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitGenomeGenerateRAM", &limitGenomeGenerateRAM));
     parArray.push_back(new ParameterInfoVector <uint64>   (-1, -1, "limitIObufferSize", &limitIObufferSize));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "limitOutSAMoneReadBytes", &limitOutSAMoneReadBytes));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "limitOutSJcollapsed", &limitOutSJcollapsed));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "limitOutSJoneRead", &limitOutSJoneRead));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "limitBAMsortRAM", &limitBAMsortRAM));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "limitSjdbInsertNsj", &limitSjdbInsertNsj));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "limitNreadsSoft", &limitNreadsSoft));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitOutSAMoneReadBytes", &limitOutSAMoneReadBytes));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitOutSJcollapsed", &limitOutSJcollapsed));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitOutSJoneRead", &limitOutSJoneRead));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitBAMsortRAM", &limitBAMsortRAM));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitSjdbInsertNsj", &limitSjdbInsertNsj));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitNreadsSoft", &limitNreadsSoft));
 
     //output
     parArray.push_back(new ParameterInfoScalar <string>     (-1, 2, "outFileNamePrefix", &outFileNamePrefix));
@@ -108,8 +108,8 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoScalar <int>        (-1, -1, "outBAMsortingThreadN", &outBAMsortingThreadN));
     parArray.push_back(new ParameterInfoScalar <uint32>        (-1, -1, "outBAMsortingBinsN", &outBAMsortingBinsN));
     parArray.push_back(new ParameterInfoVector <string>     (-1, -1, "outSAMfilter", &outSAMfilter.mode));
-    parArray.push_back(new ParameterInfoScalar <uint>     (-1, -1, "outSAMmultNmax", &output.maxAlignments));
-    parArray.push_back(new ParameterInfoScalar <uint>     (-1, -1, "outSAMattrIHstart", &outSAMattrIHstart));
+    parArray.push_back(new ParameterInfoScalar <uint64>     (-1, -1, "outSAMmultNmax", &output.maxAlignments));
+    parArray.push_back(new ParameterInfoScalar <uint64>     (-1, -1, "outSAMattrIHstart", &outSAMattrIHstart));
     parArray.push_back(new ParameterInfoScalar <int>        (-1, -1, "outSAMtlen", &outSAMtlen));
 
     //outSJ
@@ -132,16 +132,16 @@ void Parameters::registerParameters() {
     //output filtering
     parArray.push_back(new ParameterInfoScalar <string>   (-1, -1, "outFilterType", &outFilterType) );
 
-    parArray.push_back(new ParameterInfoScalar <uint>     (-1, -1, "outFilterMultimapNmax", &alignFilter.multimapMax));
+    parArray.push_back(new ParameterInfoScalar <uint64>     (-1, -1, "outFilterMultimapNmax", &alignFilter.multimapMax));
     parArray.push_back(new ParameterInfoScalar <intScore> (-1, -1, "outFilterMultimapScoreRange", &alignFilter.multimapScoreRange));
 
     parArray.push_back(new ParameterInfoScalar <intScore> (-1, -1, "outFilterScoreMin", &alignFilter.scoreMin));
     parArray.push_back(new ParameterInfoScalar <double>   (-1, -1, "outFilterScoreMinOverLread", &alignFilter.scoreOverReadLengthMin));
 
-    parArray.push_back(new ParameterInfoScalar <uint>     (-1, -1, "outFilterMatchNmin", &alignFilter.matchMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>     (-1, -1, "outFilterMatchNmin", &alignFilter.matchMin));
     parArray.push_back(new ParameterInfoScalar <double>   (-1, -1, "outFilterMatchNminOverLread", &alignFilter.matchOverReadLengthMin));
 
-    parArray.push_back(new ParameterInfoScalar <uint>     (-1, -1, "outFilterMismatchNmax", &alignFilter.mismatchMax));
+    parArray.push_back(new ParameterInfoScalar <uint64>     (-1, -1, "outFilterMismatchNmax", &alignFilter.mismatchMax));
     parArray.push_back(new ParameterInfoScalar <double>   (-1, -1, "outFilterMismatchNoverLmax", &alignFilter.mismatchOverLengthMax));
     parArray.push_back(new ParameterInfoScalar <double>   (-1, -1, "outFilterMismatchNoverReadLmax", &alignFilter.mismatchOverReadLengthMax));
     parArray.push_back(new ParameterInfoScalar <string>   (-1, -1, "outFilterIntronMotifs", &outFilterIntronMotifs));
@@ -159,12 +159,12 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoVector <double> (-1, -1, "clip3pAdapterMMp", &pClip.in[1].adMMp));
 
     //binning, anchors, windows
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "winBinNbits", &winBinNbits));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "winAnchorDistNbins", &winAnchorDistNbins));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "winFlankNbins", &winFlankNbins));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "winAnchorMultimapNmax", &winAnchorMultimapNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winBinNbits", &winBinNbits));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winAnchorDistNbins", &winAnchorDistNbins));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winFlankNbins", &winFlankNbins));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winAnchorMultimapNmax", &winAnchorMultimapNmax));
     parArray.push_back(new ParameterInfoScalar <double>   (-1, -1, "winReadCoverageRelativeMin", &winReadCoverageRelativeMin));
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "winReadCoverageBasesMin", &winReadCoverageBasesMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winReadCoverageBasesMin", &winReadCoverageBasesMin));
 
     //scoring
     parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreGap", &scoreGap));
@@ -180,30 +180,30 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreInsBase", &scoreInsBase));
 
     //alignment
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "seedSearchLmax", &seedSearchLmax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "seedSearchStartLmax", &seedSearchStartLmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedSearchLmax", &seedSearchLmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedSearchStartLmax", &seedSearchStartLmax));
     parArray.push_back(new ParameterInfoScalar <double>     (-1, -1, "seedSearchStartLmaxOverLread", &seedSearchStartLmaxOverLread));
 
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "seedPerReadNmax", &seedPerReadNmax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "seedPerWindowNmax", &seedPerWindowNmax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "seedNoneLociPerWindow", &seedNoneLociPerWindow));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "seedMultimapNmax", &seedMultimapNmax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "seedSplitMin", &seedSplitMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedPerReadNmax", &seedPerReadNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedPerWindowNmax", &seedPerWindowNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedNoneLociPerWindow", &seedNoneLociPerWindow));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedMultimapNmax", &seedMultimapNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedSplitMin", &seedSplitMin));
     parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedMapMin", &seedMapMin));
 
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "alignIntronMin", &alignIntronMin));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "alignIntronMax", &alignIntronMax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "alignMatesGapMax", &alignMatesGapMax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignIntronMin", &alignIntronMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignIntronMax", &alignIntronMax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignMatesGapMax", &alignMatesGapMax));
 
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "alignTranscriptsPerReadNmax", &alignTranscriptsPerReadNmax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "alignSJoverhangMin", &alignSJoverhangMin));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "alignSJDBoverhangMin", &alignSJDBoverhangMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignTranscriptsPerReadNmax", &alignTranscriptsPerReadNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignSJoverhangMin", &alignSJoverhangMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignSJDBoverhangMin", &alignSJDBoverhangMin));
     parArray.push_back(new ParameterInfoVector <int32>      (-1, -1, "alignSJstitchMismatchNmax", &alignSJstitchMismatchNmax));
 
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "alignSplicedMateMapLmin", &alignSplicedMateMapLmin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignSplicedMateMapLmin", &alignSplicedMateMapLmin));
     parArray.push_back(new ParameterInfoScalar <double>     (-1, -1, "alignSplicedMateMapLminOverLmate", &alignSplicedMateMapLminOverLmate));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "alignWindowsPerReadNmax", &alignWindowsPerReadNmax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "alignTranscriptsPerWindowNmax", &alignTranscriptsPerWindowNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignWindowsPerReadNmax", &alignWindowsPerReadNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignTranscriptsPerWindowNmax", &alignTranscriptsPerWindowNmax));
     parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "alignEndsType", &alignEndsType.in));
     parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "alignSoftClipAtReferenceEnds", &alignSoftClipAtReferenceEnds.in));
 
@@ -211,23 +211,23 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "alignInsertionFlush", &alignInsertionFlush.in));
 
     //peOverlap
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "peOverlapNbasesMin", &peOverlap.NbasesMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "peOverlapNbasesMin", &peOverlap.NbasesMin));
     parArray.push_back(new ParameterInfoScalar <double>     (-1, -1, "peOverlapMMp", &peOverlap.MMp));
 
     //chimeric
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "chimSegmentMin", &pCh.segmentMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "chimSegmentMin", &pCh.segmentMin));
     parArray.push_back(new ParameterInfoScalar <int>        (-1, -1, "chimScoreMin", &pCh.scoreMin));
     parArray.push_back(new ParameterInfoScalar <int>        (-1, -1, "chimScoreDropMax", &pCh.scoreDropMax));
     parArray.push_back(new ParameterInfoScalar <int>        (-1, -1, "chimScoreSeparation", &pCh.scoreSeparation));
     parArray.push_back(new ParameterInfoScalar <int>        (-1, -1, "chimScoreJunctionNonGTAG", &pCh.scoreJunctionNonGTAG));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "chimMainSegmentMultNmax", &pCh.mainSegmentMultNmax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "chimJunctionOverhangMin", &pCh.junctionOverhangMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "chimMainSegmentMultNmax", &pCh.mainSegmentMultNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "chimJunctionOverhangMin", &pCh.junctionOverhangMin));
     parArray.push_back(new ParameterInfoVector <string>     (-1, -1, "chimOutType", &pCh.out.type));
     parArray.push_back(new ParameterInfoVector <string>     (-1, -1, "chimFilter", &pCh.filter.stringIn));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "chimSegmentReadGapMax", &pCh.segmentReadGapMax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "chimMultimapNmax", &pCh.multimapNmax));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "chimMultimapScoreRange", &pCh.multimapScoreRange));
-    parArray.push_back(new ParameterInfoScalar <uint>       (-1, -1, "chimNonchimScoreDropMin", &pCh.nonchimScoreDropMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "chimSegmentReadGapMax", &pCh.segmentReadGapMax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "chimMultimapNmax", &pCh.multimapNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "chimMultimapScoreRange", &pCh.multimapScoreRange));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "chimNonchimScoreDropMin", &pCh.nonchimScoreDropMin));
     parArray.push_back(new ParameterInfoVector <int>        (-1, -1, "chimOutJunctionFormat", &pCh.outJunctionFormat));
 
     //sjdb
@@ -241,7 +241,7 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "sjdbGTFtagExonParentGeneName", &pGe.sjdbGTFtagExonParentGeneName));
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "sjdbGTFtagExonParentGeneType", &pGe.sjdbGTFtagExonParentGeneType));
 
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "sjdbOverhang", &pGe.sjdbOverhang));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "sjdbOverhang", &pGe.sjdbOverhang));
     pGe.sjdbOverhang_par=parArray.size()-1;
     parArray.push_back(new ParameterInfoScalar <int>    (-1, -1, "sjdbScore", &pGe.sjdbScore));
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "sjdbInsertSave", &pGe.sjdbInsertSave));
@@ -256,9 +256,10 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "quantMode", &quant.mode));
     parArray.push_back(new ParameterInfoScalar <int>     (-1, -1, "quantTranscriptomeBAMcompression", &quant.trSAM.bamCompression));
     parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "quantTranscriptomeSAMoutput", &quant.trSAM.output));
+    parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "quantTranscriptomeBAMprimary", &quant.trSAM.bamPrimary));
 
     //2-pass
-    parArray.push_back(new ParameterInfoScalar <uint>   (-1, -1, "twopass1readsN", &twoPass.pass1readsN));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "twopass1readsN", &twoPass.pass1readsN));
     twoPass.pass1readsN_par=parArray.size()-1;
     parArray.push_back(new ParameterInfoScalar <string>   (-1, -1, "twopassMode", &twoPass.mode));
 

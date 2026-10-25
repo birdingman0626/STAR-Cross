@@ -3,7 +3,7 @@
 #include "Transcript.h"
 #include "ReadAlign.h"
 #include "blocksOverlap.h"
-
+using namespace std;
 bool ReadAlign::chimericDetectionOld() {
 
     //////////////////// chimeras
@@ -28,12 +28,12 @@ bool ReadAlign::chimericDetectionOld() {
     trChim[0]=*trBest;
     Transcript* trChim1=NULL;
 
-    uint roStart1=trBest->Str==0 ? trBest->exons[0][EX_R] : Lread - trBest->exons[trBest->nExons-1][EX_R] - trBest->exons[trBest->nExons-1][EX_L];
-    uint roEnd1=trBest->Str==0 ? trBest->exons[trBest->nExons-1][EX_R] + trBest->exons[trBest->nExons-1][EX_L] - 1 : Lread - trBest->exons[0][EX_R] - 1;
+    uint64 roStart1=trBest->Str==0 ? trBest->exons[0][EX_R] : Lread - trBest->exons[trBest->nExons-1][EX_R] - trBest->exons[trBest->nExons-1][EX_L];
+    uint64 roEnd1=trBest->Str==0 ? trBest->exons[trBest->nExons-1][EX_R] + trBest->exons[trBest->nExons-1][EX_L] - 1 : Lread - trBest->exons[0][EX_R] - 1;
     if (roStart1>readLength[0]) roStart1--;
     if (roEnd1>readLength[0]) roEnd1--;
 
-    uint chimStrBest=0;
+    uint64 chimStrBest=0;
     if (trBest->intronMotifs[1]==0 && trBest->intronMotifs[2]==0) {//strand is undefined
         chimStr=0;
     } else if ( (trBest->Str==0) == (trBest->intronMotifs[1]>0)) {//strand the same as RNA
@@ -42,12 +42,12 @@ bool ReadAlign::chimericDetectionOld() {
         chimStr=2;
     };
 
-    for (uint iW=0; iW<nW; iW++) {//check all other windows for chimeras
-        for (uint iWt=0; iWt<nWinTr[iW]; iWt++){//cycl over transcripts in the window
+    for (uint64 iW=0; iW<nW; iW++) {//check all other windows for chimeras
+        for (uint64 iWt=0; iWt<nWinTr[iW]; iWt++){//cycl over transcripts in the window
             if (trBest!=trAll[iW][0] && iWt>0) break; //for all windows except that of the best transcript - hceck only iWt=0 (best trnascripts)
             if (trBest==trAll[iW][0] && iWt==0) continue;
             if (trAll[iW][iWt]->intronMotifs[0]>0) continue; //do not stitch a window to itself, or to a window with non-canonical junctions
-            uint chimStr1;
+            uint64 chimStr1;
             if (trAll[iW][iWt]->intronMotifs[1]==0 && trAll[iW][iWt]->intronMotifs[2]==0) {//strand is undefined
                 chimStr1=0;
             } else if ( (trAll[iW][iWt]->Str==0) == (trAll[iW][iWt]->intronMotifs[1]>0)) {//strand the same as RNA
@@ -58,12 +58,12 @@ bool ReadAlign::chimericDetectionOld() {
 
             if (chimStr!=0 && chimStr1!=0 && chimStr!=chimStr1) continue; //chimeric segments have to have consitent strands
 
-            uint roStart2=trAll[iW][iWt]->Str==0 ? trAll[iW][iWt]->exons[0][EX_R] : Lread - trAll[iW][iWt]->exons[trAll[iW][iWt]->nExons-1][EX_R] - trAll[iW][iWt]->exons[trAll[iW][iWt]->nExons-1][EX_L];
-            uint roEnd2=trAll[iW][iWt]->Str==0 ? trAll[iW][iWt]->exons[trAll[iW][iWt]->nExons-1][EX_R] + trAll[iW][iWt]->exons[trAll[iW][iWt]->nExons-1][EX_L] - 1 : Lread - trAll[iW][iWt]->exons[0][EX_R] - 1;
+            uint64 roStart2=trAll[iW][iWt]->Str==0 ? trAll[iW][iWt]->exons[0][EX_R] : Lread - trAll[iW][iWt]->exons[trAll[iW][iWt]->nExons-1][EX_R] - trAll[iW][iWt]->exons[trAll[iW][iWt]->nExons-1][EX_L];
+            uint64 roEnd2=trAll[iW][iWt]->Str==0 ? trAll[iW][iWt]->exons[trAll[iW][iWt]->nExons-1][EX_R] + trAll[iW][iWt]->exons[trAll[iW][iWt]->nExons-1][EX_L] - 1 : Lread - trAll[iW][iWt]->exons[0][EX_R] - 1;
             if (roStart2>readLength[0]) roStart2--;
             if (roEnd2>readLength[0]) roEnd2--;
 
-            uint chimOverlap = roStart2>roStart1 ?  (roStart2>roEnd1 ? 0 : roEnd1-roStart2+1) : (roEnd2<roStart1 ? 0 : roEnd2-roStart1+1);
+            uint64 chimOverlap = roStart2>roStart1 ?  (roStart2>roEnd1 ? 0 : roEnd1-roStart2+1) : (roEnd2<roStart1 ? 0 : roEnd2-roStart1+1);
             bool diffMates=(roEnd1 < readLength[0] && roStart2 >= readLength[0]) || (roEnd2 < readLength[0] && roStart1 >= readLength[0]);
 
             //segment lengths && (different mates || small gap between segments)
@@ -72,7 +72,7 @@ bool ReadAlign::chimericDetectionOld() {
 
                 int chimScore=trBest->maxScore + trAll[iW][iWt]->maxScore - (int)chimOverlap; //subtract overlap to avoid double counting
 
-                uint overlap1=0;
+                uint64 overlap1=0;
                 if (iWt>0 && chimScoreBest>0)
                 {//overlap between chimeric candidate segment and the best chimeric segment so far. Maybe non-zero only if both are in the same window.
                     overlap1=blocksOverlap(trChim[1],*trAll[iW][iWt]);
@@ -116,8 +116,8 @@ bool ReadAlign::chimericDetectionOld() {
     };
     if (trChim[0].roStart > trChim[1].roStart) swap (trChim[0],trChim[1]);
 
-    uint e0 = trChim[0].Str==1 ? 0 : trChim[0].nExons-1;
-    uint e1 = trChim[1].Str==0 ? 0 : trChim[1].nExons-1;
+    uint64 e0 = trChim[0].Str==1 ? 0 : trChim[0].nExons-1;
+    uint64 e1 = trChim[1].Str==0 ? 0 : trChim[1].nExons-1;
 
     chimRepeat0=0;chimRepeat1=0;chimJ0=0;chimJ1=0;chimMotif=0;
 
@@ -146,12 +146,12 @@ bool ReadAlign::chimericDetectionOld() {
             //large enough overhang required
             return false;
         };
-        uint roStart0 = trChim[0].Str==0 ? trChim[0].exons[e0][EX_R] : Lread - trChim[0].exons[e0][EX_R] - trChim[0].exons[e0][EX_L];
-        uint roStart1 = trChim[1].Str==0 ? trChim[1].exons[e1][EX_R] : Lread - trChim[1].exons[e1][EX_R] - trChim[1].exons[e1][EX_L];
+        uint64 roStart0 = trChim[0].Str==0 ? trChim[0].exons[e0][EX_R] : Lread - trChim[0].exons[e0][EX_R] - trChim[0].exons[e0][EX_L];
+        uint64 roStart1 = trChim[1].Str==0 ? trChim[1].exons[e1][EX_R] : Lread - trChim[1].exons[e1][EX_R] - trChim[1].exons[e1][EX_L];
 
-        uint jR, jRbest=0;
+        uint64 jR, jRbest=0;
         int jScore=0,jMotif=0,jScoreBest=-999999,jScoreJ=0;
-        uint jRmax = roStart1+trChim[1].exons[e1][EX_L];
+        uint64 jRmax = roStart1+trChim[1].exons[e1][EX_L];
         jRmax = jRmax>roStart0 ? jRmax-roStart0-1 : 0;
         for (jR=0; jR<jRmax; jR++) {//scan through the exons to find a canonical junction, and check for mismatches
 

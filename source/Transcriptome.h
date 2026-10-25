@@ -12,12 +12,12 @@
 
 class Transcriptome {
 public:
-    string trInfoDir;
+    std::string trInfoDir;
 
-    vector <string> trID, geID, geName, geBiotype; //transcript/gene IDs
+    std::vector <std::string> trID, geID, geName, geBiotype; //transcript/gene IDs
     uint32 nTr=0, nGe=0; //number of transcript/genes
 
-    uint *trS=nullptr, *trE=nullptr, *trEmax=nullptr; //transcripts start,end,end-max
+    uint64 *trS=nullptr, *trE=nullptr, *trEmax=nullptr; //transcripts start,end,end-max
 
     uint32 nEx=0; //number of exons
     uint16 *trExN=nullptr; //number of exons per transcript
@@ -48,18 +48,18 @@ public:
     Transcriptome(const Transcriptome&) = default; // metadata shared; counts still chunk-local
     Transcriptome& operator=(const Transcriptome&) = delete;
     uint32 quantAlign (Transcript &aG, Transcript *aTall);//transform coordinates for all aligns from genomic in RA to transcriptomic in RAtr
-    void geneCountsAddAlign(uint nA, Transcript **aAll, vector<int32> &gene1); //add one alignment to gene counts
+    void geneCountsAddAlign(uint64 nA, Transcript **aAll, std::vector<int32> &gene1); //add one alignment to gene counts
     void quantsAllocate(); //allocate quants structure
     void quantsOutput(); //output quantification files
-    void geneFullAlignOverlap(uint nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat);
-    void geneFullAlignOverlap_ExonOverIntron(uint nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat, ReadAnnotFeature &annFeatGeneConcordant);
-    //void geneFullAlignOverlap_CR(uint nA, Transcript **aAll, int32 strandType, ReadAnnotations &readAnnot);
+    void geneFullAlignOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat);
+    void geneFullAlignOverlap_ExonOverIntron(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat, ReadAnnotFeature &annFeatGeneConcordant);
+    //void geneFullAlignOverlap_CR(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotations &readAnnot);
     void classifyAlign(Transcript **alignG, uint64 nAlignG, ReadAnnotations &readAnnot);
-    void alignExonOverlap(uint nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat);
+    void alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat);
 
 private:
     struct MetadataStorage {
-        std::unique_ptr<uint[]> trS, trE, trEmax;
+        std::unique_ptr<uint64[]> trS, trE, trEmax;
         std::unique_ptr<uint32[]> trExI, trGene, trLen, exSE, exLenCum;
         std::unique_ptr<uint16[]> trExN;
         std::unique_ptr<uint8[]> trStr;

@@ -4,7 +4,7 @@
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
 #include "systemFunctions.h"
-
+using namespace std;
 void SoloFeature::processRecords()
 {
     if (pSolo.type==0)
@@ -38,6 +38,13 @@ void SoloFeature::processRecords()
         };
         sjIn.close();
         P.inOut->logMain <<"Read splice junctions for Solo SJ feature: "<< P.sjAll[0].size() <<endl;
+    };
+    if (featureType==SoloFeatureTypes::SJ) {
+        // The constructor ran before mapping, when sjAll was still empty, and set
+        // featuresNumber=0: the per-cell gene arrays in collapseUMIall then held one
+        // entry (heap overrun for any cell with junction reads) and matrix.mtx
+        // declared 0 rows. The junction list is known only now.
+        featuresNumber=P.sjAll[0].size();
     };
 
     SoloFeature::sumThreads();

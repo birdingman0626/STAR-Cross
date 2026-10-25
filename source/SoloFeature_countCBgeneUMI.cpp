@@ -3,7 +3,7 @@
 #include "TimeFunctions.h"
 #include "SequenceFuns.h"
 #include "systemFunctions.h"
-
+using namespace std;
 void SoloFeature::countCBgeneUMI()
 {    
     time_t rawTime;

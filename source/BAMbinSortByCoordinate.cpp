@@ -5,18 +5,18 @@
 #include "unaligned.h"
 #include "bamEndian.h"
 #include "SequenceFuns.h"
-
-void BAMbinSortByCoordinate(uint32 iBin, uint binN, uint binS, uint nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
+using namespace std;
+void BAMbinSortByCoordinate(uint32 iBin, uint64 binN, uint64 binS, uint64 nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
 
     if (binS==0) return; //nothing to do for empty bins
     //allocate arrays
     char *bamIn=new char[binS+1];
-    uint *startPos=new uint[binN*3];
+    uint64 *startPos=new uint64[binN*3];
 
-    uint bamInBytes=0;
+    uint64 bamInBytes=0;
     //load all aligns
-    for (uint it=0; it<nThreads; it++) {
-        string bamInFile=dirBAMsort+to_string(it)+"/"+to_string((uint) iBin);
+    for (uint64 it=0; it<nThreads; it++) {
+        string bamInFile=dirBAMsort+to_string(it)+"/"+to_string((uint64) iBin);
         ifstream bamInStream;
         bamInStream.open(bamInFile.c_str(),std::ios::binary | std::ios::ate);//open at the end to get file size
         int64 s1=bamInStream.tellg();
@@ -25,7 +25,7 @@ void BAMbinSortByCoordinate(uint32 iBin, uint binN, uint binS, uint nThreads, st
             bamInStream.read(bamIn+bamInBytes,s1);//read the whole file
         } else if (s1<0) {
             ostringstream errOut;
-            errOut << "EXITING because of FATAL ERROR: failed reading from temporary file: " << dirBAMsort+to_string(it)+"/"+to_string((uint) iBin);
+            errOut << "EXITING because of FATAL ERROR: failed reading from temporary file: " << dirBAMsort+to_string(it)+"/"+to_string((uint64) iBin);
             exitWithError(errOut.str(),std::cerr, P.inOut->logMain, 1, P);
         };
         bamInBytes += bamInStream.gcount();
@@ -41,24 +41,24 @@ void BAMbinSortByCoordinate(uint32 iBin, uint binN, uint binS, uint nThreads, st
 
     //extract coordinates
 
-    for (uint ib=0,ia=0;ia<binN;ia++) {
+    for (uint64 ib=0,ia=0;ia<binN;ia++) {
         uint32 bamIn32[3];
         std::memcpy(bamIn32, bamIn+ib, sizeof(bamIn32));
-        startPos[ia*3]  =( ((uint) bamIn32[1]) << 32) | ( (uint)bamIn32[2] );
+        startPos[ia*3]  =( ((uint64) bamIn32[1]) << 32) | ( (uint64)bamIn32[2] );
         startPos[ia*3+2]=ib;
         ib+=bamIn32[0]+sizeof(uint32);//note that size of the BAM record does not include the size record itself
-        startPos[ia*3+1]=loadUnaligned<uint>(bamIn+ib); //read order
-        ib+=sizeof(uint);
+        startPos[ia*3+1]=loadUnaligned<uint64>(bamIn+ib); //read order
+        ib+=sizeof(uint64);
     };
 
     //sort
-    qsort((void*) startPos, binN, sizeof(uint)*3, funCompareArrays<uint,3>);
+    qsort((void*) startPos, binN, sizeof(uint64)*3, funCompareArrays<uint64,3>);
 
     BGZF *bgzfBin;
-    bgzfBin=bgzf_open((dirBAMsort+"/b"+to_string((uint) iBin)).c_str(),("w"+to_string((long long) P.output.bamCompression)).c_str());
+    bgzfBin=bgzf_open((dirBAMsort+"/b"+to_string((uint64) iBin)).c_str(),("w"+to_string((long long) P.output.bamCompression)).c_str());
     if (bgzfBin==NULL) {
         ostringstream errOut;
-        errOut <<"EXITING because of fatal ERROR: could not open temporary bam file: " << dirBAMsort+"/b"+to_string((uint) iBin) << "\n";
+        errOut <<"EXITING because of fatal ERROR: could not open temporary bam file: " << dirBAMsort+"/b"+to_string((uint64) iBin) << "\n";
         errOut <<"SOLUTION: check that the disk is not full, increase the max number of open files with Linux command ulimit -n before running STAR";
         exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
@@ -66,7 +66,7 @@ void BAMbinSortByCoordinate(uint32 iBin, uint binN, uint binS, uint nThreads, st
     outBAMwriteHeader(bgzfBin,P.samHeaderSortedCoord,genome.chrNameAll,genome.chrLengthAll);
     //send ordered aligns to bgzf one-by-one
     char bam1[BAM_ATTR_MaxSize];//temp array
-    for (uint ia=0;ia<binN;ia++) {
+    for (uint64 ia=0;ia<binN;ia++) {
         char* bam0=bamIn+startPos[ia*3+2];
         uint32 size0=loadUnaligned<uint32>(bam0)+sizeof(uint32);
         

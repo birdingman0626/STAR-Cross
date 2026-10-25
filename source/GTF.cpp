@@ -3,7 +3,7 @@
 #include "ErrorWarning.h"
 #include "streamFuns.h"
 #include "TimeFunctions.h"
-
+using namespace std;
 GTF::GTF(Genome &genome, Parameters &P, const string &dirOut, SjdbClass &sjdbLoci) 
                  : genome(genome), P(P), dirOut(dirOut), sjdbLoci(sjdbLoci), superTrome(P)
  {//initialize; load gtf file; returns number of added junctions

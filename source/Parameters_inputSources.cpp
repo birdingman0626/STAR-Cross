@@ -2,7 +2,7 @@
 #include "Parameters.h"
 #include "ErrorWarning.h"
 #include "streamFuns.h"
-
+using namespace std;
 #define PAR_NAME_PRINT_WIDTH 30
 
 // Load default parameters, parse command-line arguments, open the log file,
@@ -20,7 +20,7 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
     stringstream parStream (parString);
 
     scanAllLines(parStream, 0, -1);
-    for (uint ii=0; ii<parArray.size(); ii++) {
+    for (uint64 ii=0; ii<parArray.size(); ii++) {
         if (parArray[ii]->inputLevel<0) {
             ostringstream errOut;
             errOut <<"BUG: DEFAULT parameter value not defined: "<<parArray[ii]->nameString;
@@ -109,7 +109,7 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
 
     /*
     inOut->logMain << "##### DEFAULT parameters:\n" <<flush;
-    for (uint ii=0; ii<parArray.size(); ii++) {
+    for (uint64 ii=0; ii<parArray.size(); ii++) {
         if (parArray[ii]->inputLevel==0) {
             inOut->logMain << setw(PAR_NAME_PRINT_WIDTH) << parArray[ii]->nameString <<"    "<< *(parArray[ii]) << endl;
         };
@@ -119,7 +119,7 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
     inOut->logMain <<"##### Command Line:\n"<<commandLine <<endl ;
 
     inOut->logMain << "##### Initial USER parameters from Command Line:\n";
-    for (uint ii=0; ii<parArray.size(); ii++) {
+    for (uint64 ii=0; ii<parArray.size(); ii++) {
         if (parArray[ii]->inputLevel==1) {
             inOut->logMain << setw(PAR_NAME_PRINT_WIDTH) << parArray[ii]->nameString <<"    "<< *(parArray[ii]) << endl;
         };
@@ -128,7 +128,7 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
 ///////// Parameters files
 
     if (parametersFiles.at(0) != "-") {//read parameters from a user-defined file
-        for (uint ii=0; ii<parametersFiles.size(); ii++) {
+        for (uint64 ii=0; ii<parametersFiles.size(); ii++) {
             parameterInputName.push_back(parametersFiles.at(ii));
             ifstream parFile(parametersFiles.at(ii).c_str());
             if (parFile.good()) {
@@ -157,7 +157,7 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
 
     ostringstream clFull;
     clFull << argIn[0];
-    for (uint ii=0; ii<parArray.size(); ii++) {
+    for (uint64 ii=0; ii<parArray.size(); ii++) {
         if (parArray[ii]->inputLevel>0) {
             inOut->logMain << setw(PAR_NAME_PRINT_WIDTH) << parArray[ii]->nameString <<"    "<< *(parArray[ii]) << endl;
             if (parArray[ii]->nameString != "parametersFiles" ) {
@@ -172,7 +172,7 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
     //     parOut.close();
     inOut->logMain << "\n##### Final parameters after user input--------------------------------:\n" << flush;
     //     parOut.open("Parameters.all.out");
-    for (uint ii=0; ii<parArray.size(); ii++) {
+    for (uint64 ii=0; ii<parArray.size(); ii++) {
         inOut->logMain << setw(PAR_NAME_PRINT_WIDTH) << parArray[ii]->nameString <<"    "<< *(parArray[ii]) << endl;
     };
     //     parOut.close();

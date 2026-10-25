@@ -12,7 +12,8 @@ import subprocess
 import time
 import sys
 import random
-from qualification import measured_run, bam_signature, paired_assessment, scientific_final_fields
+from qualification import measured_run, bam_signature, paired_assessment, scientific_final_fields, background_environment_pass
+from qualification import machine_identity, execution_environment, calibration_profile_matches, performance_acceptance
 from compare_raw_counts import matrix
 
 
@@ -36,14 +37,24 @@ def main():
     parser.add_argument("--order-seed", type=int, default=1729)
     parser.add_argument("--full-contract", action="store_true", help="Also compare BAM/header, scientific logs and all Solo matrices/axes; floats exact by default")
     parser.add_argument("--calibration-receipt", type=Path, help="Successful independent A/A result.json; required before accepting paired performance")
+    parser.add_argument("--max-background-cpu-percent", type=float, default=5.0,
+                        help="Windows per-run background CPU mean/p95 limit, recorded before measurement")
+    parser.add_argument("--background-cpu-policy", choices=("mean-and-p95", "mean-only"), default="mean-and-p95",
+                        help="Predeclared environment policy; mean-only retains p95 telemetry but does not gate on it")
     parser.add_argument("--legacy", action="store_true")
+    parser.add_argument("--cpu-affinity", type=lambda value: int(value, 0),
+                        help="Windows STAR-only CPU mask for controlled RCA, e.g. 0xff; not a low-load waiver")
     parser.add_argument("--gpu-sjdb-remap", action="append", default=[], help="label=off|auto|required, explicit experimental backend per binary")
     parser.add_argument("--reference-run", type=Path, help="Reuse a successful run with identical arguments, avoiding another full index load")
     args = parser.parse_args()
+    if args.cpu_affinity is not None and (sys.platform != "win32" or not 0 < args.cpu_affinity <= sys.maxsize*2+1):
+        parser.error("CPU affinity requires Windows and a positive pointer-sized mask")
     if args.threads < 1:
         parser.error("Thread count must be positive")
     if args.rounds < 1 or args.warmups < 0:
         parser.error("Invalid repetitions")
+    if not 0 < args.max_background_cpu_percent <= 100:
+        parser.error("Invalid background CPU threshold")
     if args.rounds > 1 and (not args.full_contract or len(args.binary) != 2 or args.reference_run):
         parser.error("Paired runs require exactly two binaries, full contract and no reused run")
     if args.full_contract and args.reference_run:
@@ -108,6 +119,11 @@ def main():
     if args.legacy:
         common += ["--legacy", "True"]
     result = {"status": "RUNNING", "pairs": manifest["pairs"], "sampling": manifest["sampling"],
+              "machine_identity": machine_identity(),
+              "affinity_mask": args.cpu_affinity,
+              "execution_environment": execution_environment(),
+              "max_background_cpu_percent": args.max_background_cpu_percent,
+              "background_cpu_policy": args.background_cpu_policy,
               "runner_sha256": hashlib.sha256(runner).hexdigest(),
               "count_comparator_sha256": hashlib.sha256(comparator).hexdigest(),
               "helper_sha256": helper_signatures,
@@ -141,6 +157,18 @@ def main():
             reject(f"Invalid evidence JSON: {path}: {error}")
 
     save()
+    # Admission-sized Windows experiments should fail fast on known-busy hosts.
+    # Short diagnostic pairs remain available for attribution, never promotion.
+    if sys.platform == "win32" and args.rounds >= 5:
+        with (output/"idle_preflight.log").open("w") as console:
+            code, idle = measured_run([sys.executable, "-c", "import time; time.sleep(10)"], console, output)
+        result["idle_preflight"] = dict(exit_code=code, **idle)
+        if code or not background_environment_pass([dict(warmup=False, **idle)], args.max_background_cpu_percent, args.background_cpu_policy):
+            result["status"] = "UNVERIFIED_ENVIRONMENT_PREFLIGHT"
+            result["performance_acceptance"] = "UNVERIFIED_ENVIRONMENT"
+            save()
+            raise SystemExit(2)
+        save()
     baseline = None
     baseline_run = args.reference_run
     if args.reference_run is not None:
@@ -174,14 +202,22 @@ def main():
             reject("Calibration receipt incomplete")
         if paired_assessment(calibration["runs"], calibration_labels).get("status") != "CALIBRATION_PASS":
             reject("Calibration receipt did not pass")
-        if calibration.get("pairs") != manifest["pairs"] or calibration.get("threads") != args.threads:
-            reject("Calibration workload differs")
+        if not background_environment_pass(calibration["runs"], args.max_background_cpu_percent, args.background_cpu_policy):
+            reject("Calibration environment missing or busy")
+        if not calibration_profile_matches(calibration, result):
+            reject("Calibration workload, machine or measurement code differs")
         for prior in calibration["runs"]:
             prior_dir = args.calibration_receipt.parent/prior["run_directory"]
             if (prior.get("binary_sha256") != sha256(args.binary[0].split("=", 1)[1])
                     or prior.get("requested_gpu_mode", "off") != gpu_modes.get(labels[0], "off")
                     or read_json(prior_dir/"input_signatures.json") != signatures):
                 reject("Calibration input/binary/backend differs")
+            prior_command = read_json(prior_dir/"command.json")
+            expected_arguments = common + (["--gpuSjdbRemap", gpu_modes[labels[0]]] if labels[0] in gpu_modes else [])
+            if (not isinstance(prior_command, list) or len(prior_command) < 3
+                    or prior_command[1:-2] != expected_arguments or prior_command[-2] != "--outFileNamePrefix"
+                    or sha256(prior_command[0]) != prior["binary_sha256"]):
+                reject("Calibration executed command differs")
             for name in ("full_contract_signature", "full_artifact_hashes"):
                 if not prior.get(name+"_sha256") or sha256(prior_dir/(name+".json")) != prior[name+"_sha256"]:
                     reject("Calibration full-contract provenance missing or changed")
@@ -216,8 +252,11 @@ def main():
         print(f"Starting {label}", flush=True)
         start = time.monotonic()
         with (run/"console.log").open("w") as console:
-            invocation = command if sys.platform == "win32" else ["/usr/bin/time", "-v", "-o", str(run/"time.txt"), *command]
-            exit_code, memory = measured_run(invocation, console, run)
+            # GNU time -v on Linux; BSD time -l on macOS (no -v there). Both write
+            # wall-clock and peak-RSS evidence to time.txt, parsed below.
+            timer = ["-l"] if sys.platform == "darwin" else ["-v"]
+            invocation = command if sys.platform == "win32" else ["/usr/bin/time", *timer, "-o", str(run/"time.txt"), *command]
+            exit_code, memory = measured_run(invocation, console, run, affinity_mask=args.cpu_affinity)
         item = {"label": label, "round": round_number, "warmup": round_number < 0,
                 "run_directory": run.name, "binary_sha256": binary_digest, "exit_code": exit_code, **memory,
                 "requested_gpu_mode": gpu_modes.get(label, "off"),
@@ -233,18 +272,33 @@ def main():
             item["wall_clock_source"] = "Windows monotonic whole-process elapsed"
             item["peak_rss_status"] = "MEASURED"
             (run/"time.txt").write_text(f"Windows whole-process wall seconds: {item['wall_seconds']}\nPeak RSS bytes: {item['peak_rss_bytes']}\n")
-        elapsed = [line.rsplit(": ", 1)[-1].strip() for line in read_text(run/"time.txt").splitlines()
-                   if "Elapsed (wall clock)" in line]
-        if sys.platform != "win32" and len(elapsed) != 1:
-            reject("GNU time wall-clock evidence missing")
-        try:
-            if sys.platform != "win32":
+        if sys.platform == "darwin":
+            # BSD time -l: "<s> real <s> user <s> sys" and "<bytes>  maximum resident set size".
+            lines = read_text(run/"time.txt").splitlines()
+            elapsed = [line.split()[0] for line in lines if line.split()[1:2] == ["real"]]
+            if len(elapsed) != 1:
+                reject("BSD time wall-clock evidence missing")
+            try:
+                item["wall_seconds"] = float(elapsed[0])
+            except ValueError:
+                reject("Invalid BSD time wall-clock evidence")
+            item["wall_clock_source"] = "BSD time real"
+            rss = [line.split()[0] for line in lines if line.strip().endswith("maximum resident set size")]
+            if len(rss) != 1 or not rss[0].isdigit() or int(rss[0]) <= 0:
+                reject("Peak memory evidence missing")
+            item["peak_rss_bytes"] = int(rss[0])  # macOS reports bytes
+            item["memory_source"] = "BSD time maximum resident set size"
+        elif sys.platform != "win32":
+            elapsed = [line.rsplit(": ", 1)[-1].strip() for line in read_text(run/"time.txt").splitlines()
+                       if "Elapsed (wall clock)" in line]
+            if len(elapsed) != 1:
+                reject("GNU time wall-clock evidence missing")
+            try:
                 item["wall_clock_source"] = "GNU time elapsed wall clock"
                 item["wall_seconds"] = sum(float(part)*60**index
-                                       for index, part in enumerate(reversed(elapsed[0].split(":"))))
-        except ValueError:
-            reject("Invalid GNU time wall-clock evidence")
-        if sys.platform != "win32":
+                                           for index, part in enumerate(reversed(elapsed[0].split(":"))))
+            except ValueError:
+                reject("Invalid GNU time wall-clock evidence")
             rss = [line.rsplit(":", 1)[-1].strip() for line in read_text(run/"time.txt").splitlines()
                    if "Maximum resident set size" in line]
             if len(rss) != 1 or not rss[0].isdigit() or int(rss[0]) <= 0:
@@ -360,11 +414,13 @@ def main():
     save()
     if args.rounds > 1:
         result["paired_assessment"] = paired_assessment(result["runs"], labels, args.order_seed)
-        result["performance_acceptance"] = "UNVERIFIED_ENVIRONMENT_AND_CALIBRATION"
-        if args.calibration_receipt:
-            result["performance_acceptance"] = "UNVERIFIED_ENVIRONMENT"
+        result["background_environment_gate"] = "PASS" if background_environment_pass(result["runs"], args.max_background_cpu_percent, args.background_cpu_policy) else "UNVERIFIED_OR_BUSY"
+        result["performance_acceptance"] = performance_acceptance(
+            result["status"], result["paired_assessment"]["status"],
+            result["background_environment_gate"] == "PASS",
+            bool(args.calibration_receipt and calibration.get("performance_acceptance") == "CALIBRATION_PASS"))
         result["limitations"] = ["prefix not cell-representative", "not full-library regression",
-                                "performance requires idle-machine and independent calibration evidence",
+                                "performance requires the declared background-load policy and independent calibration evidence",
                                 "float matrices compared exactly; no post-hoc tolerance"]
         save()
     print(json.dumps(result, indent=2))

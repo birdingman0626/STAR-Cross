@@ -30,7 +30,7 @@ public:
     typedef uint32 typeFlag;
     typeFlag flag=0;
     enum: uint32 {cbMatch, cbPerfect, cbMMunique, cbMMmultiple, genomeU, genomeM, featureU, featureM, exonic, intronic, exonicAS, intronicAS, mito, countedU, countedM, nBits};
-    const vector<string> statNames={"cbMatch", "cbPerfect", "cbMMunique", "cbMMmultiple", "genomeU", "genomeM", "featureU", "featureM", "exonic", "intronic", "exonicAS", "intronicAS", "mito", "countedU", "countedM"};
+    const std::vector<std::string> statNames={"cbMatch", "cbPerfect", "cbMMunique", "cbMMmultiple", "genomeU", "genomeM", "featureU", "featureM", "exonic", "intronic", "exonicAS", "intronicAS", "mito", "countedU", "countedM"};
 
     /* lookup table, probably not efficient
         typeFlag bitMask[nBits], bitInt[nBits];
@@ -44,8 +44,8 @@ public:
         };
     */
 
-    unordered_map < uintCB, array<uint64,nBits> > flagCounts;
-    array<uint64,nBits> flagCountsNoCB={};
+    std::unordered_map < uintCB, std::array<uint64,nBits> > flagCounts;
+    std::array<uint64,nBits> flagCountsNoCB={};
 
     void setBit(uint32 ibit) {
         flag |= ((typeFlag)1) << ibit;
@@ -69,7 +69,7 @@ public:
             flagCountsNoCB[ibit] += (uint64) checkBit(ibit);
     };
 
-    void countsAddNoCBarray(array<uint64,nBits> &arrIn)
+    void countsAddNoCBarray(std::array<uint64,nBits> &arrIn)
     {
         for (uint32 ibit=0; ibit<nBits; ibit++)
             flagCountsNoCB[ibit] += arrIn[ibit];

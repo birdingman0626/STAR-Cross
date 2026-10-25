@@ -21,17 +21,18 @@ import sys, platform
 assert sys.byteorder == 'big' and platform.machine() == 's390x'
 PY
 
+mkdir -p build
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON
 
 # CMake's hash-verified Parasail patch step also handles s390x CPUID.
 
-# Build only the executable and the unit-test binary used below. Native
-# platforms separately qualify the C++17/C++20 language pair; emulated s390x
-# qualifies the shipping C++17 artifact and its big-endian behavior.
-cmake --build build --target STAR star_tests -j2
-
+# Build only the executable and the test binaries used below. Native platforms
+# qualify the full native test suite; emulated s390x retains its endian/BAM and
+# seed-search subset and runs the miniature scientific fixture.
+cmake --build build --target STAR star_tests star_seed_properties -j2
 ./build/STAR --version
-ctest --test-dir build/test --no-tests=error --output-on-failure -R 'PackedArray|byteOrder|unaligned|BAM'
+ctest --test-dir build/test --no-tests=error --output-on-failure \
+    -R 'PackedArray|byteOrder|unaligned|BAM|^seed_search_properties$'
 python3 "$SCRIPT_DIR/../../../scripts/test_cpu_upstream.py" --star-exe "$SRC_DIR/build/STAR" --sa-sparse 3
 
 # End-to-end big-endian validation: building a genome index exercises the

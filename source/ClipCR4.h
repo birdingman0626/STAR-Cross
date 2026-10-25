@@ -17,10 +17,10 @@ class ClipCR4
 public:
     int dbN; // number of sequences in the alignment "database"
 
-    vector<uint8*> storeClip;
+    std::vector<uint8*> storeClip;
 
     // Results for each sequence in database
-    vector<ClipAlignResult> alignRes;
+    std::vector<ClipAlignResult> alignRes;
 
     ClipCR4();
     ~ClipCR4() = default;
@@ -41,11 +41,11 @@ private:
     int gapExt;
 
     // Database sequences stored as ASCII characters (A/C/G/T/N)
-    vector<char> dbSeqArr;
-    vector<char*> dbSeqs;
+    std::vector<char> dbSeqArr;
+    std::vector<char*> dbSeqs;
 
     // Reused buffer; do not silently truncate user-supplied adapters.
-    vector<char> queryCharsBuf;
+    std::vector<char> queryCharsBuf;
 };
 
 #endif

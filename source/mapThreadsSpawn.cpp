@@ -7,7 +7,7 @@
 #include "bamEndian.h"
 #include <cstdlib>
 #include <stdexcept>
-
+using namespace std;
 void mapThreadsSpawn (Parameters &P, ReadAlignChunk** RAchunk) {
     if (const char* enabled=std::getenv("STAR_CHUNK_PIPELINE")) {
         if (std::string(enabled)!="1") exitWithError("STAR_CHUNK_PIPELINE must be 1 or unset",std::cerr,P.inOut->logMain,EXIT_CODE_PARAMETER,P);
@@ -16,6 +16,11 @@ void mapThreadsSpawn (Parameters &P, ReadAlignChunk** RAchunk) {
         P.inOut->chunkInputDispatcher.reset(new ChunkInputDispatcher(P.runThreadN));
     }
     g_threadChunks.mappingFailure=nullptr;
+    // Ordered SAM chunks are numbered per mapping pass. Without this reset the
+    // two-pass main pass named its chunks after the first pass's count, the
+    // concatenator waited for chunk 0, and Aligned.out.sam lost every record.
+    g_threadChunks.chunkInN=0;
+    g_threadChunks.chunkOutN=0;
     if (const char* enabled=std::getenv("STAR_ASYNC_SAM")) {
         if (std::string(enabled)!="1") exitWithError("STAR_ASYNC_SAM must be 1 or unset",std::cerr,P.inOut->logMain,EXIT_CODE_PARAMETER,P);
         if (P.outSAMbool && !P.inOut->samWriter) {

@@ -1,5 +1,5 @@
 #include "Quantifications.h"
-
+using namespace std;
 Quantifications::Quantifications (uint32 nGeIn) {
 
     geneCounts.nType=3;

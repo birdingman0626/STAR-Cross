@@ -1,5 +1,5 @@
 #include "ReadAlign.h"
-
+using namespace std;
 void ReadAlign::waspMap() {
 
     if (!P.wasp.yes) {
@@ -60,11 +60,11 @@ void ReadAlign::waspMap() {
             if (vA1==vA)
                 continue; //this combination was already mapped as the real read
 
-            for (uint iv=0; iv<vA1.size(); ++iv) {//set all variants in this combination
+            for (uint64 iv=0; iv<vA1.size(); ++iv) {//set all variants in this combination
 
                 //we assume the homo-vars are already excluded
                 char nt2=Var1->snp.nt[align1->varInd.at(iv)][vA1.at(iv)]; //the other allele
-                uint vr=align1->varReadCoord.at(iv);//read coordinate
+                uint64 vr=align1->varReadCoord.at(iv);//read coordinate
 
                 if (align1->Str==1) {//variant was found on the - strand alignment
                     nt2=3-nt2;
@@ -98,8 +98,8 @@ void ReadAlign::waspMap() {
                 waspType=6;
                 return;
             } else {
-                for (uint ii=0; ii<align1->nExons; ii++) {
-                    for (uint jj=0; jj<=2; jj++) {
+                for (uint64 ii=0; ii<align1->nExons; ii++) {
+                    for (uint64 jj=0; jj<=2; jj++) {
                         if (align1->exons[ii][jj]!=align2->exons[ii][jj]) {
                             waspType=6;
                             return;//this combination maps to a different place, return with waspType 0 (set above)
@@ -123,6 +123,6 @@ void ReadAlign::copyRead(ReadAlign &r) {//copy read information only
     readFilter=r.readFilter;
     readFilesIndex=r.readFilesIndex;
     
-    for (uint ii=0;ii<=2;ii++)
+    for (uint64 ii=0;ii<=2;ii++)
         memcpy(Read1[ii],r.Read1[ii],Lread);//need to copy since it will be changed
 };

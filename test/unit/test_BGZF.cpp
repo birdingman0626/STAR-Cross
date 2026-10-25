@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <random>
 #include <vector>
-
+using namespace std;
 TEST_CASE("BGZF round trip, multithreaded blocks, EOF and random access index") {
     const auto path = (std::filesystem::temp_directory_path() /
         ("star-bgzf-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))).string();

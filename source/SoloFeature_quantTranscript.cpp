@@ -10,7 +10,7 @@
 #include <bitset>
 #include "serviceFuns.cpp"
 #include <math.h>       /* log */
-
+using namespace std;
 void SoloFeature::quantTranscript()
 {//velocyto counting gets info from Gene counting
     time_t rawTime;

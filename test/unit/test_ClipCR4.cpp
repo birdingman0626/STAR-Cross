@@ -4,7 +4,7 @@
 #include <random>
 #include <limits>
 #include <parasail/memory.h>
-
+using namespace std;
 // Independent scalar affine overlap recurrence. Free leading ends; choose the
 // first best target endpoint on the last query row, then the last target column
 // only on a strictly larger score (Opal's endpoint policy).

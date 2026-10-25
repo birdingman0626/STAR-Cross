@@ -1,7 +1,7 @@
 #include "doctest/doctest.h"
 #include "PackedArray.h"
 #include <stdexcept>
-
+using namespace std;
 TEST_CASE("PackedArray ownership survives borrowed snapshots and moves") {
     PackedArray owner;
     owner.defineBits(8, 4);
@@ -34,19 +34,19 @@ TEST_CASE("PackedArray frees allocation base rather than a rebound view") {
 }
 
 // Compute the value mask for a given bit-width (bitRecMask is private in PackedArray).
-static uint makeMask(uint wordLen) {
-    return wordLen >= 64 ? ~(uint)0 : ((uint)1 << wordLen) - 1;
+static uint64 makeMask(uint64 wordLen) {
+    return wordLen >= 64 ? ~(uint64)0 : ((uint64)1 << wordLen) - 1;
 }
 
 // Helper: allocate a PackedArray with given bit-width and length, write values, read back.
-static void roundtrip(uint wordLen, uint length, uint value) {
-    uint mask = makeMask(wordLen);
+static void roundtrip(uint64 wordLen, uint64 length, uint64 value) {
+    uint64 mask = makeMask(wordLen);
     PackedArray pa;
     pa.defineBits(wordLen, length);
     pa.allocateArray();
-    for (uint i = 0; i < length; i++)
+    for (uint64 i = 0; i < length; i++)
         pa.writePacked(i, value & mask);
-    for (uint i = 0; i < length; i++)
+    for (uint64 i = 0; i < length; i++)
         CHECK(pa[i] == (value & mask));
     pa.deallocateArray();
 }
@@ -67,9 +67,9 @@ TEST_CASE("PackedArray - 5-bit words round-trip (typical suffix array use)") {
     PackedArray pa;
     pa.defineBits(5, 100);
     pa.allocateArray();
-    for (uint i = 0; i < 100; i++)
+    for (uint64 i = 0; i < 100; i++)
         pa.writePacked(i, i % 32); // 5-bit max = 31
-    for (uint i = 0; i < 100; i++)
+    for (uint64 i = 0; i < 100; i++)
         CHECK(pa[i] == i % 32);
     pa.deallocateArray();
 }
@@ -84,25 +84,25 @@ TEST_CASE("PackedArray - 21-bit words round-trip (genome SA typical)") {
     PackedArray pa;
     pa.defineBits(21, 20);
     pa.allocateArray();
-    uint vals[] = {0, 1, (1<<20)-1, (1<<21)-1, 12345, 0x1FFFFF};
-    for (uint i = 0; i < 20; i++)
+    uint64 vals[] = {0, 1, (1<<20)-1, (1<<21)-1, 12345, 0x1FFFFF};
+    for (uint64 i = 0; i < 20; i++)
         pa.writePacked(i, vals[i % 6]);
-    for (uint i = 0; i < 20; i++)
+    for (uint64 i = 0; i < 20; i++)
         CHECK(pa[i] == vals[i % 6]);
     pa.deallocateArray();
 }
 
 TEST_CASE("PackedArray - sequential writes do not corrupt adjacent words") {
     // Write ascending values, verify no cross-contamination
-    const uint bits = 7;
-    const uint len  = 200;
-    const uint mask = (1u << bits) - 1; // 0x7F
+    const uint64 bits = 7;
+    const uint64 len  = 200;
+    const uint64 mask = (1u << bits) - 1; // 0x7F
     PackedArray pa;
     pa.defineBits(bits, len);
     pa.allocateArray();
-    for (uint i = 0; i < len; i++)
+    for (uint64 i = 0; i < len; i++)
         pa.writePacked(i, i & mask);
-    for (uint i = 0; i < len; i++)
+    for (uint64 i = 0; i < len; i++)
         CHECK(pa[i] == (i & mask));
     pa.deallocateArray();
 }
@@ -111,10 +111,10 @@ TEST_CASE("PackedArray - overwrite same index does not corrupt neighbors") {
     PackedArray pa;
     pa.defineBits(8, 10);
     pa.allocateArray();
-    for (uint i = 0; i < 10; i++)
+    for (uint64 i = 0; i < 10; i++)
         pa.writePacked(i, 0xAA);
     pa.writePacked(5, 0x55); // overwrite middle
-    for (uint i = 0; i < 10; i++) {
+    for (uint64 i = 0; i < 10; i++) {
         if (i == 5) CHECK(pa[i] == 0x55);
         else        CHECK(pa[i] == 0xAA);
     }
@@ -122,7 +122,7 @@ TEST_CASE("PackedArray - overwrite same index does not corrupt neighbors") {
 }
 
 TEST_CASE("PackedArray - pointArray uses external buffer") {
-    const uint bits = 8, len = 4;
+    const uint64 bits = 8, len = 4;
     PackedArray pa;
     pa.defineBits(bits, len);
     // Allocate enough bytes manually
@@ -154,16 +154,16 @@ TEST_CASE("PackedArray rejects invalid dimensions before allocating") {
     CHECK_THROWS_AS(pa.defineBits(0, 10), std::invalid_argument);
     CHECK_THROWS_AS(pa.defineBits(65, 10), std::invalid_argument);
     CHECK_THROWS_AS(pa.defineBits(63, 10), std::invalid_argument);
-    CHECK_THROWS_AS(pa.defineBits(32, std::numeric_limits<uint>::max()), std::length_error);
+    CHECK_THROWS_AS(pa.defineBits(32, std::numeric_limits<uint64>::max()), std::length_error);
 }
 
 TEST_CASE("PackedArray empty storage and 64-bit aligned words are defined") {
     PackedArray empty;
     empty.defineBits(8, 0);
-    CHECK(empty.lengthByte == sizeof(uint));
+    CHECK(empty.lengthByte == sizeof(uint64));
     empty.allocateArray();
     empty.deallocateArray();
-    roundtrip(64, 3, std::numeric_limits<uint>::max());
-    roundtrip(58, 12, (static_cast<uint>(1) << 58)-1);
-    roundtrip(60, 12, (static_cast<uint>(1) << 60)-1);
+    roundtrip(64, 3, std::numeric_limits<uint64>::max());
+    roundtrip(58, 12, (static_cast<uint64>(1) << 58)-1);
+    roundtrip(60, 12, (static_cast<uint64>(1) << 60)-1);
 }

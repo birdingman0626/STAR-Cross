@@ -1,9 +1,17 @@
 # Building STAR-Cross
 
-Run commands from the repository root unless noted otherwise. Use a C++17
+Run commands from the repository root unless noted otherwise. Use a C++20
 compiler, CMake and Git. CMake downloads pinned dependencies, so an initial
 build needs network access. Downloads are verified against archive hashes in
 `dependencies.lock.json`. CUDA is not required for ordinary builds.
+
+STAR-Cross is C++20-only. Tested compilers: GCC 10.5 and newer, Clang 14 and
+newer, MSVC 14.51 (Visual Studio 18) and Homebrew GCC 15 on macOS; older MSVC
+releases may work but are untested. A working
+standard-library `std::span` is checked at configure time. C++17 builds were
+removed: a build directory or command line that still sets
+`STAR_CXX_STANDARD=17` fails at configure time; use a fresh build directory.
+CUDA device language remains independently configured (default 17).
 
 ```sh
 git clone https://github.com/birdingman0626/STAR-Cross.git
@@ -82,12 +90,12 @@ Pass options to the CMake configure command:
 | Option | Default | Use |
 | --- | --- | --- |
 | `STAR_USE_AVX2` | OFF | Optional AVX2-only build; requires an AVX2 CPU |
-| `STAR_CXX_STANDARD` | 17 | Set 20 for migration qualification |
 | `STAR_LONG_READS` | OFF | Build the long-read variant |
 | `STAR_POSIX_SHARED_MEM` | OFF | Unix-only POSIX shared-memory backend (`make POSIXSHARED`) |
 | `STAR_BUILD_TESTS` | ON | Build the CTest unit suite |
 | `STAR_ASAN` | OFF | Enable AddressSanitizer for debugging |
 | `STAR_UBSAN` | OFF | Enable fail-fast UndefinedBehaviorSanitizer with GCC/Unix Clang |
+| `STAR_TSAN` | OFF | Enable ThreadSanitizer (GCC/Unix Clang; not with `STAR_ASAN`). Use Clang + LLVM OpenMP and run `scripts/test_thread_sanitizer.py`; see `docs/THREAD_SANITIZER_AUDIT.md` |
 | `USE_SYSTEM_HTSLIB` | OFF | Use system HTSlib via pkg-config instead of the bundled copy |
 | `STAR_USE_LIBDEFLATE` | OFF | Use an installed libdeflate with bundled HTSlib |
 | `STAR_ENABLE_CUDA` | OFF | Build the experimental CUDA adapter |
@@ -103,10 +111,10 @@ hostnames and working directories are not embedded as build provenance.
 
 From `source/`, CMake >= 3.21 also supports `cmake --preset release`,
 `cmake --build --preset release`, and `ctest --preset release`. The `debug`,
-`sanitized` (GCC/Unix Clang) and `cxx20` presets use separate build directories.
+`sanitized` (GCC/Unix Clang) presets use separate build directories.
 
 GNU Make is a compatibility frontend to CMake: `make STAR`, `make STARlong`,
-`make gdb`, or `make gdb-long`, with `JOBS`, `CXX_STANDARD` and `CMAKE_ARGS`.
+`make gdb`, or `make gdb-long`, with `JOBS` and `CMAKE_ARGS`.
 It no longer maintains a separate source list. Full-static legacy targets report
 that a separately qualified toolchain is required instead of producing a binary
 with a misleading static name.
@@ -147,7 +155,7 @@ python3 scripts/test_experimental_genomes.py --star-exe <STAR> --ref-exe <refere
 ```
 
 The optional long-read executable must be built with `STAR_LONG_READS=ON`;
-the default build remains C++17 with long reads and CUDA disabled. The fixture
+the default build uses C++20 with long reads and CUDA disabled. The fixture
 checks actual 1200/1600-base exonic/spliced reads, not just compilation.
 Super-transcriptome checks validate index equality, real graph diagnostic scores
 and teardown only. Its upstream alignment output and mapping statistics are

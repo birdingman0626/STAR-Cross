@@ -16,7 +16,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstdint>
-
+using namespace std;
 // Minimal exon descriptor mirroring the EX_R/EX_G/EX_L layout used by Transcript.
 struct Exon {
     uint64_t r; // read start (EX_R)

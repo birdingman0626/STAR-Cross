@@ -1,16 +1,16 @@
 #include "PairedReadMerger.h"
 #include "SequenceFuns.h"
 #include <stdexcept>
-
+using namespace std;
 PairedReadMergeResult mergePairedRead(char* bases, size_t capacity,
-                                    uint length0, uint length1,
-                                    uint minimumOverlap, double mismatchRatio) {
+                                    uint64 length0, uint64 length1,
+                                    uint64 minimumOverlap, double mismatchRatio) {
     if (!bases || length0>=capacity || length1>capacity-length0-1)
         throw std::invalid_argument("paired-read input exceeds buffer capacity");
-    const uint total=length0+length1+1;
-    const uint s1=localSearchNisMM(bases,length0,bases+length0+1,length1,mismatchRatio);
-    const uint s0=localSearchNisMM(bases+length0+1,length1,bases,length0,mismatchRatio);
-    const uint o1=min(length1,length0-s1), o0=min(length0,length1-s0);
+    const uint64 total=length0+length1+1;
+    const uint64 s1=localSearchNisMM(bases,length0,bases+length0+1,length1,mismatchRatio);
+    const uint64 s0=localSearchNisMM(bases+length0+1,length1,bases,length0,mismatchRatio);
+    const uint64 o1=min(length1,length0-s1), o0=min(length0,length1-s0);
     PairedReadMergeResult result{max(o0,o1),{0,0},total};
     if (result.overlap<minimumOverlap) {result.overlap=0; return result;}
     if (o1>=o0) {

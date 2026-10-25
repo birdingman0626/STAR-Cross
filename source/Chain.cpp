@@ -1,7 +1,7 @@
 #include "Chain.h"
 #include "streamFuns.h"
 #include "serviceFuns.cpp"
-
+using namespace std;
 Chain::Chain(Parameters &Pin, string chainFileNameIn) : P(Pin), chainFileName(chainFileNameIn)
 {
     chainLoad();
@@ -33,7 +33,7 @@ void Chain::chainLoad()
         {//normal chain block
             chrChains[chr1].bLen.push_back(std::stoi(fields[0]));
 
-            uint s=chrChains[chr1].bStart1.back() + chrChains[chr1].bLen.back() + std::stoi(fields[1]);//prev start + length + shift
+            uint64 s=chrChains[chr1].bStart1.back() + chrChains[chr1].bLen.back() + std::stoi(fields[1]);//prev start + length + shift
             chrChains[chr1].bStart1.push_back(s);
 
             s=chrChains[chr1].bStart2.back() + chrChains[chr1].bLen.back() + std::stoi(fields[2]);//prev start + length + shift
@@ -81,12 +81,12 @@ void Chain::liftOverGTF(string gtfFileName, string outFileName)
         string str1,str2;
         line1str >> str1 >> str2;//fields 2,3
 
-        uint c1, c2[2]; //coordinates: 1/2 (old/new)
+        uint64 c1, c2[2]; //coordinates: 1/2 (old/new)
 
         for (int ii=0;ii<2;ii++)
         {//read and transform the two coordinates
             line1str >> c1;
-            int32 i1 = binarySearch1a <uint> (c1, ch1->bStart1.data(), ch1->bN);
+            int32 i1 = binarySearch1a <uint64> (c1, ch1->bStart1.data(), ch1->bN);
 
             c2[ii]=-1;//-1 means impossible to lift this end
 
@@ -122,5 +122,5 @@ void Chain::liftOverGTF(string gtfFileName, string outFileName)
 //                 errOut << ERROR_OUT << "\n";
 //                 exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
 //             };
-//             uint ichr=mapGen.chrNameIndex[oldname];//chr index in the genome list
+//             uint64 ichr=mapGen.chrNameIndex[oldname];//chr index in the genome list
 //             bStart1[bN] += mapGen.chrLength[ichr];//whole genome chain - shift by chr start

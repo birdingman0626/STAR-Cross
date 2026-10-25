@@ -1,7 +1,7 @@
 #include "OutSJ.h"
 #include "ErrorWarning.h"
-
-OutSJ::OutSJ (uint nSJmax, Parameters &Pin, Genome &genomeIn) : oneSJ(genomeIn), P(Pin), genOut(genomeIn)  {//do I need P?
+using namespace std;
+OutSJ::OutSJ (uint64 nSJmax, Parameters &Pin, Genome &genomeIn) : oneSJ(genomeIn), P(Pin), genOut(genomeIn)  {//do I need P?
 
     //data = new char [oneSJ.dataSize*nSJmax]; //allocate big array of SJ loci and properties
     Nstore = nSJmax;
@@ -13,16 +13,16 @@ OutSJ::OutSJ (uint nSJmax, Parameters &Pin, Genome &genomeIn) : oneSJ(genomeIn),
 
 
 int compareSJ(const void* i1, const void* i2) {//compare SJs from the data structure
-    uint s1=loadUnaligned<uint>(i1);
-    uint s2=loadUnaligned<uint>(i2);
+    uint64 s1=loadUnaligned<uint64>(i1);
+    uint64 s2=loadUnaligned<uint64>(i2);
 
     if (s1>s2) {
         return 1;
     } else if (s1<s2) {
         return -1;
     } else {
-        uint32 g1=loadUnaligned<uint32>((const char*)i1 + sizeof(uint));
-        uint32 g2=loadUnaligned<uint32>((const char*)i2 + sizeof(uint));
+        uint32 g1=loadUnaligned<uint32>((const char*)i1 + sizeof(uint64));
+        uint32 g2=loadUnaligned<uint32>((const char*)i2 + sizeof(uint64));
         if (g1>g2) {
             return 1;
         } else if (g1<g2) {
@@ -41,9 +41,9 @@ void OutSJ::collapseSJ() {//collapse junctions. Simple version now: re-sort ever
     if (N==0) return;
     qsort((void*) data, N, oneSJ.dataSize, compareSJ);
     //collapse
-    uint isj1=0; //last collapsed junction
+    uint64 isj1=0; //last collapsed junction
     char* isj1P=data;
-    for (uint isj=1;isj<N;isj++) {//cycle through all non-collapsed junctions
+    for (uint64 isj=1;isj<N;isj++) {//cycle through all non-collapsed junctions
         char* isjP=data+isj*oneSJ.dataSize;
         if ( compareSJ( (void*) isjP, (void*) isj1P ) == 0 ) {
             oneSJ.collapseOneSJ(isj1P, isjP, P);
@@ -69,9 +69,9 @@ Junction::Junction(Genome &genOut) : genOut(genOut) {
 };
 
 //////////////////////////////////////////////////// oneJunctionWrite
-void Junction::junctionPointer(char* sjPoint, uint isj) {//
+void Junction::junctionPointer(char* sjPoint, uint64 isj) {//
     char* d1=sjPoint+isj*dataSize;
-    start=(uint*) (d1+startP);
+    start=(uint64*) (d1+startP);
     gap=(uint32*) (d1+gapP);
     strand=d1+strandP;
     motif=d1+motifP;
@@ -83,7 +83,7 @@ void Junction::junctionPointer(char* sjPoint, uint isj) {//
 };
 
 void Junction::outputStream(ostream &outStream) {
-    uint sjChr=genOut.chrBin[*start >> genOut.pGe.gChrBinNbits];
+    uint64 sjChr=genOut.chrBin[*start >> genOut.pGe.gChrBinNbits];
     outStream << genOut.chrName.at(sjChr) <<"\t"<< *start + 1 - genOut.chrStart[sjChr] <<"\t"<<*start + *gap - genOut.chrStart[sjChr] \
             <<"\t"<< int(*strand) <<"\t"<< int(*motif) <<"\t"<< int (*annot) <<"\t"<< *countUnique <<"\t"<< *countMultiple \
             <<"\t"<< *overhangLeft << endl;
@@ -101,8 +101,8 @@ void Junction::collapseOneSJ(char* isj1P, char* isjP, Parameters& P) {//collapse
     };
 
     if (*(isj1P+motifP) != *(isjP+motifP) ) {
-            uint s1=loadUnaligned<uint>(isj1P+startP);
-            uint c1=genOut.chrBin[ s1 >> genOut.pGe.gChrBinNbits];
+            uint64 s1=loadUnaligned<uint64>(isj1P+startP);
+            uint64 c1=genOut.chrBin[ s1 >> genOut.pGe.gChrBinNbits];
 
             stringstream errOut;
             errOut <<"EXITING because of BUG: different motifs for the same junction while collapsing junctions\n" \

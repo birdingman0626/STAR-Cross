@@ -1,6 +1,6 @@
 #include <string>
 #include <time.h>
-
+using namespace std;
 // Thread-safe wrapper: fills tmBuf via localtime_r (POSIX) or localtime_s (MSVC).
 static void localtime_safe(const time_t *t, struct tm *tmBuf) {
 #ifdef _WIN32

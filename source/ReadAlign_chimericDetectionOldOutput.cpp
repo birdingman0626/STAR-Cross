@@ -1,7 +1,7 @@
 #include "ReadAlign.h"
 #include "BAMfunctions.h"
 #include "ChimericAlign.h"
-
+using namespace std;
 void ReadAlign::chimericDetectionOldOutput() {
 
     if (!chimRecord) {
@@ -33,10 +33,10 @@ void ReadAlign::chimericDetectionOldOutput() {
             trChim[1-chimRepresent].primaryFlag=false;
         };
 
-        for (uint iTr=0;iTr<chimN;iTr++)
+        for (uint64 iTr=0;iTr<chimN;iTr++)
         {//write all chimeric pieces to Chimeric.out.sam/junction
             if (P.readNmates==2) {//PE: need mate info //not readNends: this is alignment
-                uint iex=0;
+                uint64 iex=0;
                 if ( trChim[1-iTr].exons[0][EX_iFrag] != trChim[1-iTr].exons[trChim[1-iTr].nExons-1][EX_iFrag] )
                 {//the other segment has 2 mates, need to find the opposite mate
                     for (;iex<trChim[1-iTr].nExons;iex++) {
@@ -46,8 +46,8 @@ void ReadAlign::chimericDetectionOldOutput() {
                     };
                 };
 
-                uint mateChr=trChim[1-iTr].Chr;
-                uint mateStart=trChim[1-iTr].exons[iex][EX_G];
+                uint64 mateChr=trChim[1-iTr].Chr;
+                uint64 mateStart=trChim[1-iTr].exons[iex][EX_G];
                 char mateStrand=(char) (trChim[1-iTr].Str!=trChim[1-iTr].exons[iex][EX_iFrag]);
 
                 outputTranscriptSAM(trChim[iTr], chimN, iTr, mateChr, mateStart, mateStrand, -1, NULL, &chunkOutChimSAM);

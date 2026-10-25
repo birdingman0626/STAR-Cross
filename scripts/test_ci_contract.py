@@ -1,5 +1,6 @@
 """Regression checks for the repository's deliberately simple release gate layout."""
 from pathlib import Path
+import json
 import re
 import unittest
 
@@ -34,7 +35,36 @@ def release_contract(build, release):
         raise ValueError("Validated big-endian artifact not connected to publication")
 
 
+def cxx20_only_contract(cmake, makefile, presets, build, s390x):
+    """C++20 is the only language level: no knob may select or test another."""
+    if "set(CMAKE_CXX_STANDARD 20)" not in cmake or 'NOT STAR_CXX_STANDARD STREQUAL "20"' not in cmake:
+        raise ValueError("CMake must fix C++20 and reject other requested standards")
+    if "CXX_STANDARD" in makefile:
+        raise ValueError("Makefile must not offer a language-level override")
+    for preset in json.loads(presets)["configurePresets"]:
+        if "STAR_CXX_STANDARD" in preset.get("cacheVariables", {}):
+            raise ValueError(f"Preset {preset['name']} selects a language level")
+    for text, where in ((build, "build.yml"), (s390x, "build_validate_s390x.sh")):
+        if re.search(r"STAR_CXX_STANDARD|matrix\.standard|standard: \[|qualify_language_pair", text):
+            raise ValueError(f"{where} still configures or compares language levels")
+
+
 class CIContractTests(unittest.TestCase):
+    def test_cxx20_only(self):
+        root = Path(__file__).resolve().parents[1]
+        files = [(root/name).read_text(encoding="utf-8") for name in
+                 ("source/CMakeLists.txt", "source/Makefile", "source/CMakePresets.json",
+                  ".github/workflows/build.yml", "extras/tests/scripts/build_validate_s390x.sh")]
+        cxx20_only_contract(*files)
+        cmake, makefile, presets, build, s390x = files
+        for broken in ((cmake.replace("set(CMAKE_CXX_STANDARD 20)", "set(CMAKE_CXX_STANDARD 17)"), makefile, presets, build, s390x),
+                       (cmake, makefile + "\nCXX_STANDARD ?= 17\n", presets, build, s390x),
+                       (cmake, makefile, presets.replace('"STAR_USE_AVX2": "OFF"', '"STAR_USE_AVX2": "OFF", "STAR_CXX_STANDARD": "17"'), build, s390x),
+                       (cmake, makefile, presets, build.replace("compiler: [gcc, clang]", "compiler: [gcc, clang]\n        standard: [17, 20]"), s390x),
+                       (cmake, makefile, presets, build, s390x + "\ncmake -B build -DSTAR_CXX_STANDARD=17\n")):
+            with self.assertRaises(ValueError):
+                cxx20_only_contract(*broken)
+
     def test_actual_and_bypass_negative_controls(self):
         root = Path(__file__).resolve().parents[1]/".github/workflows"
         build = (root/"build.yml").read_text()

@@ -12,10 +12,10 @@ class Parameters;
 class ReadClipInput
 {
 public:
-    vector <uint32> N;
-    vector <uint32> NafterAd;
-    vector <string> adSeq;
-    vector <double> adMMp;
+    std::vector <uint32> N;
+    std::vector <uint32> NafterAd;
+    std::vector <std::string> adSeq;
+    std::vector <double> adMMp;
 };
 
 class ParametersClip
@@ -23,12 +23,12 @@ class ParametersClip
 public:
     //bool yes; //trimming is performed
 
-    vector<string> adapterType;
+    std::vector<std::string> adapterType;
     
-    array<ReadClipInput,2> in;
+    std::array<ReadClipInput,2> in;
 
     void initialize(Parameters *pPin);
-    void initializeClipMates(vector<vector<ClipMate>> &clipMates);
+    void initializeClipMates(std::vector<std::vector<ClipMate>> &clipMates);
         
 private:
     Parameters *pP;

@@ -6,7 +6,7 @@
 #ifdef _WIN32
 #include "wincompat.h"
 #endif
-
+using namespace std;
 void Parameters::readSAMheader(const string readFilesCommandString, const vector<string> readFilesNames) {
 
     if (readFilesCommandString=="") {//simply read from file

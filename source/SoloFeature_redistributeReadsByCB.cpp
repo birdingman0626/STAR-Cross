@@ -4,7 +4,7 @@
 //#include "SequenceFuns.h"
 //#include "Stats.h"
 //#include "GlobalVariables.h"
-
+using namespace std;
 void SoloFeature::redistributeReadsByCB()
 {//redistribute reads in files by CB - each file with the approximately the same number of reads, each CB is on one file only
     

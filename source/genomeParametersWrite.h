@@ -4,6 +4,6 @@
 #include "Parameters.h"
 #include "Genome.h"
 
-void genomeParametersWrite(string fileName, Parameters& P, string errorOut, Genome &mapGen);
+void genomeParametersWrite(std::string fileName, Parameters& P, std::string errorOut, Genome &mapGen);
 
 #endif

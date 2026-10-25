@@ -3,7 +3,7 @@
 #include "ErrorWarning.h"
 #include <iostream>
 #include <cstdio>
-
+using namespace std;
 bool bamToCramReferenceless(const std::string &inBam, const std::string &outCram, Parameters &P) {
 
     samFile *in = sam_open(inBam.c_str(), "rb");

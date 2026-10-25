@@ -1,15 +1,15 @@
 #include "blocksOverlap.h"
+using namespace std;
+uint64 blocksOverlap(Transcript &t1, Transcript &t2) {//calculate overlap between blocks of two transcripts
 
-uint blocksOverlap(Transcript &t1, Transcript &t2) {//calculate overlap between blocks of two transcripts
-
-    uint i1=0, i2=0, nOverlap=0;
+    uint64 i1=0, i2=0, nOverlap=0;
     while (i1<t1.nExons && i2<t2.nExons) {//scan through all exons
-        uint rs1=t1.exons[i1][EX_R];
-        uint rs2=t2.exons[i2][EX_R];
-        uint re1=t1.exons[i1][EX_R]+t1.exons[i1][EX_L];//1st base after the end
-        uint re2=t2.exons[i2][EX_R]+t2.exons[i2][EX_L];
-        uint gs1=t1.exons[i1][EX_G];
-        uint gs2=t2.exons[i2][EX_G];
+        uint64 rs1=t1.exons[i1][EX_R];
+        uint64 rs2=t2.exons[i2][EX_R];
+        uint64 re1=t1.exons[i1][EX_R]+t1.exons[i1][EX_L];//1st base after the end
+        uint64 re2=t2.exons[i2][EX_R]+t2.exons[i2][EX_L];
+        uint64 gs1=t1.exons[i1][EX_G];
+        uint64 gs2=t2.exons[i2][EX_G];
 
         if (rs1>=re2) {//t1 block is on the right to t2, no hope of overlap
             i2++;
@@ -26,8 +26,8 @@ uint blocksOverlap(Transcript &t1, Transcript &t2) {//calculate overlap between 
     };
 
     //debug
-//     uint nO1=0;
-//     for (uint ir=0;ir<t1.Lread;ir++) {
+//     uint64 nO1=0;
+//     for (uint64 ir=0;ir<t1.Lread;ir++) {
 //         if (t1.gMap[ir]==t2.gMap[ir] && t1.gMap[ir]>0) nO1++;
 //     };
 //

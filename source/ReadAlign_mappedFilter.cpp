@@ -1,6 +1,6 @@
 #include "ReadAlign.h"
 #include "AlignmentFilter.h"
-
+using namespace std;
 void ReadAlign::mappedFilter() {//filter mapped read, add to stats
     AlignmentFilterInput read{};
     read.windows=nW;
