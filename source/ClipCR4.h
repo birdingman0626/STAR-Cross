@@ -30,7 +30,7 @@ public:
 
     void fillOneSeq(uint32 idb, char *seq, uint32 seqL);
     void align(uint8 *query, uint32 queryLen, int dbN1);
-    uint32 polyTail3p(char *seq, uint32 seqLen);
+    static uint32 polyTail3p(char *seq, uint32 seqLen); // stateless: the 3' mate has no ClipCR4 instance
 
 private:
     uint32 readLen; // sequence length to align against

@@ -53,7 +53,7 @@ uint32 ClipMate::clip(uint64 &Lread, char *seqNum)
                 break;
             };
             case 11: {//3p: CR4, polyA
-                clippedAdN = cr4->polyTail3p(seqNum, Lread);
+                clippedAdN = ClipCR4::polyTail3p(seqNum, Lread);
             };
 		};
 
