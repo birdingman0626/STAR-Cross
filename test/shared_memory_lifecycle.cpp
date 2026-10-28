@@ -225,6 +225,16 @@ int main(int argc, char** argv) {
             require(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == (abrupt ? 77 : 0), "child exit");
             if (abrupt) {
                 require(!absent(key), "abrupt exit does not unlink a named resource");
+                // waitpid can return before the kernel drops the dead child's
+                // SysV attachment (the final mm teardown may be deferred), so
+                // wait for it; otherwise recovery sees a phantom user and keeps
+                // the segment.
+                for (int i = 0; i < 500; ++i) {
+                    struct shmid_ds ds;
+                    const int id = shmget(key + 1, 0, 0);
+                    if (id < 0 || shmctl(id, IPC_STAT, &ds) != 0 || ds.shm_nattch == 0) break;
+                    usleep(10000);
+                }
                 SharedMemory recovery(key, true);
                 require(*static_cast<int*>(recovery.GetMapped()) == 43, "recovery retains payload");
             }
