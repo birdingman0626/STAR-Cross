@@ -185,3 +185,63 @@ the per-read mapping loop restructured into batched reads.
 revisit only if seed search becomes a larger share (e.g. much longer reads) or the
 mapping loop is batched for another reason. Receipts:
 `data/validation/seed-interleave-20261023/` (ignored, local only).
+
+## Queue wakeups, specialization and huge pages — 2026-10-28
+
+Host: WSL2 Ubuntu (kernel 6.18) on an Intel Core Ultra 7 265F (12 vCPU, 117 GiB),
+GCC, Release, commit `3e2363d`. Workload: the 1M-pair
+`tmj-condyle-1-prefix-1m-20261006` STARsolo profile of `linux_paired_benchmark.py`,
+8 threads, *M. fascicularis* index, default `--genomeLoad NoSharedMemory` (so
+timings include loading the index). The Oracle Linux host used above was not
+reachable over SSH that day.
+
+**Item 3, queue notification costs: closed, nothing to gain.** Both queues
+(`ChunkInputDispatcher`, `AsyncByteWriter`) are opt-in (`STAR_CHUNK_PIPELINE`,
+`STAR_ASYNC_BAM`, `STAR_ASYNC_SAM`) and the default path never uses them. With all
+three enabled, a counting build recorded 26 input requests, 10 output packets and
+about 100 notifications for the whole 1M-pair run: they work per chunk, not per
+read, so wakeups cost well under a millisecond against ~13 s of mapping.
+
+**Item 4, specialized kernels: not pursued.** A `perf` profile (user space) puts
+31% of cycles in `compareSeqToGenome`, plus ~8% in `PackedArray` reads and
+`binarySearchExact`. Instruction-level attribution shows the samples sit on the
+instruction after the suffix-array load (7.8%) and after the first genome-byte
+load of each strand loop (~23%): the kernel waits on memory, not on comparison
+work. Specialized or wider comparisons cannot remove that wait, consistent with
+the rejected four-byte comparison (P1 in `LITERATURE_OPTIMIZATION_RESULTS_20261008.md`).
+
+**Transparent huge pages: adopted.** The 24 GB suffix array and 3 GB genome are
+read at random, so with 4 KiB pages nearly every lookup also misses the TLB.
+`adviseHugePages` (`source/HugePages.h`) calls `madvise(MADV_HUGEPAGE)` on the
+private genome and every `PackedArray` allocation before they are first written.
+It is a hint: contents and output cannot change; it is Linux-only and does nothing
+when THP is `never` or `STAR_NO_HUGEPAGES=1`. Peak RSS is unchanged (the arrays
+are fully written anyway). 26 GiB of the index was backed by 2 MiB pages.
+
+| Comparison | Pairs | Median time ratio | Bootstrap 95% | Status |
+| --- | --- | --- | --- | --- |
+| A/A base / base | 5 | 0.985 | [0.898, 1.130] | inconclusive (MAD 3.7%) |
+| THP / base | 10 | **0.783** | [0.734, 0.821] | speedup supported |
+
+All 34 runs reproduced the reference BAM multiset/header, SJ.out.tab, every
+Solo.out file and the scientific Log.final.out fields. The WSL host shares the
+machine with Windows, so the A/A spread is wide; the effect is several times that
+spread. On the 5M-pair fixture (3 alternating pairs, not a calibrated run) the
+mapping phase went from 26–27 s to 20–25 s and user CPU fell ~13%, so the gain is
+not only in loading. `test_cpu_upstream.py` passes against the baseline binary
+(two-pass, on-the-fly junction insertion, chimeric and multi-chunk fixtures).
+
+Limits:
+
+- The size of the gain depends on the host's THP policy. Ubuntu and Debian
+  default to `madvise`, where this change is what enables huge pages. RHEL and
+  Oracle Linux default to `always`, where large allocations may already get some
+  huge pages; the advice still enables direct compaction for these arrays.
+  Re-measure on such a host before quoting a number for it.
+- Shared-memory genomes (`LoadAndKeep` etc.) are unchanged: SysV segments only get
+  huge pages with `shmem_enabled=advise` or `SHM_HUGETLB`, both administrator
+  settings.
+- Windows and macOS are unchanged. Windows large pages need the "Lock pages in
+  memory" privilege.
+
+Receipts: `data/validation/thp-20261028/` (ignored, local only).

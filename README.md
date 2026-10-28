@@ -74,6 +74,11 @@ preview, queue status and logs. See [Web UI usage](docs/webui/README.md).
 - **CPU optimizations:** dense-index seed search avoids temporary allocations;
   other changes address index generation, per-read resets and UMI processing.
   See [measured results and rejected experiments](docs/OPTIMIZATION_RESULTS_20261006.md).
+- **Huge pages on Linux:** with the default `--genomeLoad NoSharedMemory`, the
+  genome and suffix array ask for transparent huge pages (`madvise`), which cut
+  TLB misses during seed search. A 1M-pair STARsolo run was 22% faster with
+  identical output ([results](docs/CXX20_OPTIMIZATION_BACKLOG.md)). Set
+  `STAR_NO_HUGEPAGES=1` to turn this off.
 - **Additional output:** optional referenceless CRAM output transcodes the main
   BAM outputs at finalization. Transcriptome output remains BAM. Conversion
   failure preserves the BAM; inspect run logs rather than assuming CRAM was produced.

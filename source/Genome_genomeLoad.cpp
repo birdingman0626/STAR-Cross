@@ -1,4 +1,5 @@
 #include "Genome.h"
+#include "HugePages.h"
 #include "SuffixArrayFuns.h"
 #include "PackedArray.h"
 #include "ErrorWarning.h"
@@ -305,6 +306,7 @@ void Genome::genomeLoad(){//allocate and load Genome
 
                 G1=new char[nGenomePass2+L+L];
                 sequenceStorage.reset(G1);
+                adviseHugePages(G1,nGenomePass2+L+L);
 
                 SApass2.defineBits(GstrandBit+1,nSApass2);
                 SApass2.allocateArray();
@@ -320,10 +322,12 @@ void Genome::genomeLoad(){//allocate and load Genome
                 if (genomeInsertL==0) {// no sequence insertion, simple allocation
                     G1=new char[nGenome+L+L];
                     sequenceStorage.reset(G1);
+                    adviseHugePages(G1,nGenome+L+L);
                     SA.allocateArray();
                 } else {
                     G1=new char[nGenome+L+L+genomeInsertL];
                     sequenceStorage.reset(G1);
+                    adviseHugePages(G1,nGenome+L+L+genomeInsertL);
                     SAinsert.defineBits(GstrandBit+1,nSA+2*genomeInsertL);//TODO: re-define GstrandBit if necessary
                     SAinsert.allocateArray();
                     SA.pointArray(SAinsert.charArray+SAinsert.lengthByte-SA.lengthByte);
