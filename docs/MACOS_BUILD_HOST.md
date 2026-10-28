@@ -148,6 +148,57 @@ ssh -i KEY MACUSER@MAC 'cd ~/STAR-Cross && python3 scripts/test_cpu_upstream.py 
 To compare against a frozen baseline, build that commit the same way into
 another directory and add `--ref-exe <baseline>/build/STAR`.
 
+## Optional: Linux aarch64 VM for the ARM CI jobs (Apple Silicon)
+
+An Apple Silicon Mac can also run the `build-linux (ubuntu-24.04-arm, …)` and
+Linux sanitizer CI jobs natively in an Ubuntu VM. [Lima](https://lima-vm.io)
+uses Apple's Virtualization framework and needs no `sudo` on the Mac.
+
+Install Lima and create the VM. 6 CPUs, 8 GiB RAM and a 30 GiB sparse disk
+leave room on a 16 GB Mac. `--mount-none` keeps the Mac's home directory out
+of the VM:
+
+```bash
+ssh -i KEY MACUSER@MAC '/opt/homebrew/bin/brew install lima && /opt/homebrew/bin/limactl start --name=ci-arm64 --tty=false --cpus=6 --memory=8 --disk=30 --mount-none template:ubuntu-24.04'
+```
+
+Install the CI toolchain inside the VM (the Lima user has passwordless `sudo`
+there). `libclang-rt-dev` is only needed for the sanitizer jobs:
+
+```bash
+ssh -i KEY MACUSER@MAC '/opt/homebrew/bin/limactl shell ci-arm64 bash -c "sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends build-essential cmake ninja-build zlib1g-dev clang libomp-dev libclang-rt-dev python3 git curl ca-certificates"'
+```
+
+Allow memory overcommit, as GitHub's runners do. Without it,
+`--bamRemoveDuplicatesType` (in `scripts/test_bam_tools.py`) fails with
+`std::bad_alloc`, because with `--limitBAMsortRAM 0` it reserves 16 GB up
+front, more than the VM has:
+
+```bash
+ssh -i KEY MACUSER@MAC '/opt/homebrew/bin/limactl shell ci-arm64 bash -c "echo vm.overcommit_memory=1 | sudo tee /etc/sysctl.d/90-ci-overcommit.conf && sudo sysctl --system"'
+```
+
+Copy the source in through the Mac (step 5's archive, one hop further):
+
+```bash
+git archive --format=tar.gz -o /tmp/starcross.tgz HEAD && scp -i KEY /tmp/starcross.tgz MACUSER@MAC:/tmp/ && ssh -i KEY MACUSER@MAC 'L=/opt/homebrew/bin/limactl; $L copy /tmp/starcross.tgz ci-arm64:/tmp/ && rm /tmp/starcross.tgz && $L shell ci-arm64 bash -c "rm -rf ~/STAR-Cross && mkdir ~/STAR-Cross && tar xzf /tmp/starcross.tgz -C ~/STAR-Cross && rm /tmp/starcross.tgz"'
+```
+
+Then run the job steps from `.github/workflows/build.yml` inside the VM with
+`limactl shell ci-arm64 bash -c "cd ~/STAR-Cross && …"`. For example, the
+Clang `build-linux` job:
+
+```bash
+ssh -i KEY MACUSER@MAC '/opt/homebrew/bin/limactl shell ci-arm64 bash -c "set -e; cd ~/STAR-Cross; export CC=clang CXX=clang++; b=source/build-clang; cmake -S source -B \$b -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON; cmake --build \$b; ctest --test-dir \$b --no-tests=error --output-on-failure -j4; python3 -m unittest discover -s scripts -p \"test_*py\"; python3 scripts/test_cpu_upstream.py --star-exe \$PWD/\$b/STAR --shared-memory --ipc-helper \$PWD/\$b/test/star_ipc_sysv; for t in webui bam_tools emptydrops_sensitivity transcript3p_accuracy; do python3 scripts/test_\$t.py --star-exe \$b/STAR; done"'
+```
+
+For the `clang-asan-ubsan` job, configure with
+`-DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTAR_ASAN=ON -DSTAR_UBSAN=ON`, export the
+job's `ASAN_OPTIONS`/`UBSAN_OPTIONS`, and run its steps the same way.
+
+Stop the VM when idle (`limactl stop ci-arm64`), and start it again with
+`limactl start ci-arm64`. Remove it with `limactl delete ci-arm64`.
+
 ## Verified
 
 2026-10-28, Intel Mac (macOS 15.8.2, x86_64, 4 cores), Command Line Tools
@@ -155,6 +206,11 @@ another directory and add `--ref-exe <baseline>/build/STAR`.
 CMake found OpenMP 5.1, `STAR` links `@rpath/libomp.dylib`, CTest 125/125,
 script self-tests OK (57 run, 2 skipped), `test_cpu_upstream.py` passes. The
 Apple Silicon Homebrew route in step 4 was not re-run for this document.
+
+2026-10-28, Linux aarch64 VM on an Apple M4 Mac (macOS 26.6, Lima 2.2.1,
+Ubuntu 24.04, GCC 13.3, Clang 18.1, CMake 3.28): the `build-linux` steps pass
+with GCC and Clang, including `test_bam_tools.py` once overcommit is on. All
+`clang-asan-ubsan` job steps pass.
 
 ## Cleanup
 
