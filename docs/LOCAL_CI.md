@@ -7,7 +7,7 @@ A local run therefore follows CI as the workflow changes.
 
 ```bash
 python scripts/local_ci.py --list                         # lanes and the host each runs on
-python scripts/local_ci.py --worktree --skip build-s390x  # everything but the 2-hour emulated job
+python scripts/local_ci.py --worktree --skip build-s390x  # everything but the slow emulated s390x job (35 min on an 8-core VM)
 python scripts/local_ci.py --only 'build-linux*'          # one job family, committed HEAD
 ```
 
