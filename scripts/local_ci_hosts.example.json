@@ -1,0 +1,25 @@
+{
+  "_comment": "Copy to local_ci_hosts.json (gitignored) and edit. 'runners' maps a GitHub runs-on label to a host; labels left out are reported as SKIPPED. Host 'env' values are shell expressions expanded on the host. 'step_overrides' replace (string) or skip (null) workflow steps by name on that host only; the summary lists every override.",
+  "runners": {
+    "ubuntu-latest": "linux-x86",
+    "ubuntu-24.04": "linux-x86",
+    "ubuntu-24.04-arm": "linux-arm",
+    "macos-15": "mac-arm",
+    "macos-15-intel": "mac-intel",
+    "windows-latest": "windows"
+  },
+  "hosts": {
+    "linux-x86": {"type": "ssh", "target": "ci@LINUX_X86_HOST", "key": "~/.ssh/star_ci"},
+    "linux-arm": {"type": "lima", "target": "MACUSER@APPLE_SILICON_MAC", "key": "~/.ssh/vn_mac_build",
+                  "limactl": "/opt/homebrew/bin/limactl", "vm": "ci-arm64", "stop_after_if_started": true},
+    "mac-arm": {"type": "ssh", "target": "MACUSER@APPLE_SILICON_MAC", "key": "~/.ssh/vn_mac_build",
+                "env": {"PATH": "/opt/homebrew/bin:$PATH"}},
+    "mac-intel": {"type": "ssh", "target": "MACUSER@INTEL_MAC", "key": "~/.ssh/vn_mac_build",
+                  "env": {"PATH": "$HOME/opt/buildtools/bin:$PATH"},
+                  "step_overrides": {
+                    "build-macos/Install dependencies": null,
+                    "build-macos/Build": "cd source\ncmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTAR_BUILD_TESTS=ON -DOpenMP_ROOT=$HOME/opt/libomp\ncmake --build build"
+                  }},
+    "windows": {"type": "local", "shell": "pwsh"}
+  }
+}

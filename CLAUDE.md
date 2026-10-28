@@ -30,6 +30,7 @@ Useful options: `-DSTAR_LONG_READS=ON` (STARlong), `-DSTAR_USE_AVX2=ON`, `-DSTAR
 - Miniature end-to-end alignment/count regression: `python3 scripts/test_cpu_upstream.py --star-exe build/STAR` (add `--ref-exe` to compare against a frozen baseline binary)
 - Multi-threaded race and thread-count-invariance check (use a `-DSTAR_TSAN=ON` Clang build): `python3 scripts/test_thread_sanitizer.py --star-exe build/STAR --threads 8`
 - Malformed-input robustness (use an ASan/UBSan build for memory-safety evidence): `python3 scripts/test_malformed_inputs.py --star-exe build/STAR`
+- Local replay of the CI jobs on your own machines (hosts mapped in a gitignored `local_ci_hosts.json`; see `docs/LOCAL_CI.md`): `python scripts/local_ci.py --worktree --skip build-s390x`
 - `.github/workflows/build.yml` is the authoritative list of CI gates (platform matrix, frozen-baseline index/alignment equivalence, GCC and Clang ASan/UBSan and ThreadSanitizer jobs). Clang's UBSan also reports pointer arithmetic with a wrapped unsigned offset (`p + (a - b)` where `a < b`); write such offsets as signed `int64`.
 
 Scientific changes must preserve exact output parity (BAM records, SJ.out.tab, Solo matrices) against the frozen baseline; performance claims need paired, calibrated measurements (see `docs/QUALIFICATION_PLAN.md`).

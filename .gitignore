@@ -83,3 +83,6 @@ Signal.*.bg
 _STARtmp/
 _STARgenome/
 _STARpass1/
+
+# Local CI host map (machine-specific; see scripts/local_ci_hosts.example.json)
+/local_ci_hosts.json
