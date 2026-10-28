@@ -164,3 +164,24 @@ third-party code. Parasail, the source of 70 of the original 94 findings and
 CellRanger4 clipping uses an in-house aligner (see `DEPENDENCIES.md`). Those
 alerts should close on the next CodeQL run of `main`. The remaining 10 are in
 HTSlib and cpp-httplib and keep the reasons recorded above.
+
+## Follow-up, 2026-10-28: remaining alerts dismissed
+
+The Parasail alerts closed on the next run. The last 10 open alerts were
+reviewed against STAR's actual HTSlib and cpp-httplib use and dismissed on
+GitHub with these reasons. STAR calls only BGZF, BAM record/header, `bam_cat`
+and `sam_open`/`sam_write1` (to convert its own BAM to CRAM with
+`CRAM_OPT_NO_REF`); it never loads an index, a FASTA reference or a remote file.
+
+| Alerts | Rule | Location | Dismissed as | Reason |
+| --- | --- | --- | --- | --- |
+| #80-83 | `cpp/missing-check-scanf` | `htslib/faidx.c:448` | false positive | `n != 4` / `n != 5` jumps to `fail` before any field is used; STAR never reads a `.fai`/`.fqi` |
+| #102, #103 | `cpp/type-confusion` | `htslib/hts.c`, `htslib/sam.c` | false positive | Deliberate tagged cast: both structs start with `fmt`, and the CRAI type is used only when `fmt == HTS_FMT_CRAI`; STAR loads no indexes |
+| #89, #96, #98 | `cpp/path-injection`, `cpp/user-controlled-bypass` | `htslib/cram/cram_io.c`, `open_trace_file.c` | won't fix | `REF_PATH`/`REF_CACHE`/`RAWDATA` come from the invoking user's own environment, not a trust boundary; CRAM reference lookup is not reached with `CRAM_OPT_NO_REF` |
+| #106 | `cpp/non-https-url` | `httplib.h` (build `_deps`) | won't fix | Client URL handling; STAR uses only `httplib::Server` for its local web UI and makes no outbound requests |
+
+Moving the dependency download before `codeql init` was considered and not
+done: cpp-httplib is header-only and compiled into STAR's web UI sources, so it
+is extracted either way. If a later HTSlib update or a new STAR call (index
+loading, reference-based CRAM, remote input) reaches these paths, reopen the
+matching alerts.
