@@ -382,7 +382,11 @@ def run_local_windows(lane, host, plan, bundle, workdir, log, timeout):
     import shutil
     ws = workdir / lane["id"]
     if ws.exists():
-        shutil.rmtree(ws)
+        # git leaves its object files read-only, which Windows refuses to delete
+        def make_writable(func, path, _):
+            os.chmod(path, 0o700)
+            func(path)
+        shutil.rmtree(ws, onexc=make_writable) if sys.version_info >= (3, 12) else shutil.rmtree(ws, onerror=make_writable)
     ws.mkdir(parents=True)
     with tarfile.open(fileobj=io.BytesIO(bundle), mode="r:gz") as tar:
         tar.extractall(ws, filter="data")
