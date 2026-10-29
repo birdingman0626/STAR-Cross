@@ -1,3 +1,4 @@
+#include "SoloTextIO.h"
 #include "SoloFeature.h"
 #include "streamFuns.h"
 #include "TimeFunctions.h"
@@ -68,21 +69,32 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
     ofstream &cbStr=ofstrOpen(outputPrefixMat+pSolo.outFileNames[2],ERROR_OUT, P);
     std::unique_ptr<ofstream> barcodeStreamStorage(&cbStr);
     uint64 nCellGeneEntries=0;//total number of non-zero cell/gene combinations (entries in the output matrix)
+    // Lines are batched: per-line << is slow with some standard libraries (see SoloTextIO.h).
+    std::string outBatch;
+    auto writeBatch = [&outBatch](std::ostream &out, bool force) {
+        if (force || outBatch.size() >= (1u<<20)) {
+            out.write(outBatch.data(), (std::streamsize) outBatch.size());
+            outBatch.clear();
+        };
+    };
     if (cellFilterYes) {//filtered cells
         for (uint32 icb=0; icb<nCB; icb++) {
             if (filteredCells.filtVecBool[icb]) {
-                cbStr << pSolo.cbWLstr[indCB[icb]] <<'\n';
+                outBatch += pSolo.cbWLstr[indCB[icb]]; outBatch += '\n';
+                writeBatch(cbStr, false);
                 nCellGeneEntries += nGenePerCB[icb];
             };
         };
     } else {//unfiltered cells
         for (uint64 ii=0; ii<pSolo.cbWLsize; ii++) {
-             cbStr << pSolo.cbWLstr[ii] <<'\n';
+            outBatch += pSolo.cbWLstr[ii]; outBatch += '\n';
+            writeBatch(cbStr, false);
         };
         for (uint32 icb=0; icb<nCB; icb++) {
             nCellGeneEntries += nGenePerCB[icb];
         };
     };
+    writeBatch(cbStr, true);
     cbStr.flush();   
 
     /////////////////////////////////////////////////////////////
@@ -128,9 +140,13 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
                 uint32 indG1=countCellGeneUMIindex[icb]+ig*countMatStride;
                 
                 //feature index, CB index, count
-                countMatrixStream << countCellGeneUMI[indG1]+1 <<' '<< cbInd1 <<' '<< countCellGeneUMI[indG1+iCol] << '\n';
+                appendNumber(outBatch, countCellGeneUMI[indG1]+1); outBatch += ' ';
+                appendNumber(outBatch, cbInd1); outBatch += ' ';
+                appendNumber(outBatch, countCellGeneUMI[indG1+iCol]); outBatch += '\n';
+                writeBatch(countMatrixStream, false);
             };
         };
+        writeBatch(countMatrixStream, true);
 
         countMatrixStream.close();
     };

@@ -55,6 +55,7 @@ add_executable(star_tests
     unit/test_PairedReadMerger.cpp
     unit/test_InsertSuffixCompare.cpp
     unit/test_transcriptomePrimary.cpp
+    unit/test_SoloTextIO.cpp
     ${STAR_TEST_SOURCES}
 )
 star_target_build_options(star_tests)

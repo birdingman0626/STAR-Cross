@@ -245,3 +245,66 @@ Limits:
   memory" privilege.
 
 Receipts: `data/validation/thp-20261028/` (ignored, local only).
+
+## Windows performance gap — 2026-10-28
+
+Same machine (Intel Core Ultra 7 265F, 128 GiB), same 5M-pair
+`tmj-condyle-1-prefix-5m-20261008` STARsolo profile, 8 threads,
+`NoSharedMemory`. Before this change a native MSVC build took twice as long as
+the GCC build in WSL2 on the same hardware:
+
+| Phase (Log.out timestamps) | WSL2 GCC, no THP | Windows MSVC before | Windows MSVC after |
+| --- | --- | --- | --- |
+| Genome load | 16 s | 18–30 s | 18–19 s |
+| Mapping | 27 s | 54–59 s | 24–27 s |
+| Solo counting | 6 s | 27–30 s | 8–9 s |
+
+**Cause: formatted iostream I/O of the STARsolo temporary files.** Every mapped
+read writes a text line per feature to `_STARtmp/solo*` with `operator<<`, and
+Solo counting parses them back with `operator>>`. A micro-benchmark of 5M such
+lines showed MSVC's library at ~10x the per-field cost of libstdc++ (write 5.2 s
+vs 0.46 s, read 6.2 s vs 0.58 s); a larger stream buffer changed nothing, so the
+cost is per call, not per system call.
+
+**Fix:** `source/SoloTextIO.h` writes integers with `std::to_chars` into a line
+buffer (one `write` per line) and parses them straight from the stream buffer
+with `operator>>` semantics (white space, sign, "-1" into unsigned, eof/fail
+state); `test/unit/test_SoloTextIO.cpp` compares both against the iostream
+operators. Applied to the per-read record writer (`outputReadCB`, Velocyto),
+the record readers (`soloInputFeatureUMI`, `inputRecords`, Velocyto counting),
+and the `barcodes.tsv` / integer `matrix.mtx` writers. The SmartSeq
+redistribution, restart and floating-point (EM) matrix paths are unchanged.
+
+Evidence:
+
+- Temporary files byte-identical: a 1-thread run with Gene, SJ, GeneFull,
+  GeneFull_Ex50pAS and Velocyto and `--outTmpKeep All` produced the same five
+  `solo*` files and `SJ.start_gap.tsv` (SHA-256) from both binaries, and the same
+  48 Solo.out files and SJ.out.tab.
+- Windows ABBA, 5 pairs after one warm-up pair: every pair **0.49–0.52** of the
+  baseline wall time (base 103–106 s, new 52–55 s); process CPU 460–486 s ->
+  196–215 s. BAM record multiset, SJ.out.tab, scientific Log.final.out fields and
+  all 33 Solo.out files identical. 126/126 MSVC unit tests.
+- Linux (WSL2 GCC, 1M pairs, `STAR_NO_HUGEPAGES=1`, 10 ABBA pairs): median
+  0.992 [0.936, 1.054] — neutral, as expected with libstdc++'s faster streams.
+  `test_cpu_upstream.py` against the baseline binary, Solo cell-filtering,
+  EmptyDrops and Transcript3p accuracy tests pass; 129/129 unit tests.
+
+After the fix the Windows build is within the WSL build's range for each phase.
+The remaining difference (no huge pages on Windows) needs the "Lock pages in
+memory" privilege and is not pursued.
+
+Receipts: `data/validation/windows-textio-20261028/` (ignored, local only).
+
+### Huge pages: tail latency seen under WSL2
+
+The same Linux comparison with transparent huge pages left on (10 pairs) had
+three runs of 28–47 s against a usual 16–20 s. In those runs user CPU was
+normal and system time rose to 21–41 s; with `STAR_NO_HUGEPAGES=1` all 22 runs
+stayed within 20–24 s. `/proc/vmstat` showed no compaction stalls or allocation
+stalls, which points at the WSL2 VM's memory handling (free-page reporting to
+the Windows host) rather than at compaction, but this is not proven. The median
+THP run is still faster. **Before relying on the THP default, repeat the paired
+benchmark on bare-metal or KVM Linux** (e.g. the Oracle Linux host) and look at
+the slowest runs as well as the median; set `STAR_NO_HUGEPAGES=1` if such
+stalls reproduce.

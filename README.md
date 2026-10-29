@@ -78,7 +78,11 @@ preview, queue status and logs. See [Web UI usage](docs/webui/README.md).
   genome and suffix array ask for transparent huge pages (`madvise`), which cut
   TLB misses during seed search. A 1M-pair STARsolo run was 22% faster with
   identical output ([results](docs/CXX20_OPTIMIZATION_BACKLOG.md)). Set
-  `STAR_NO_HUGEPAGES=1` to turn this off.
+  `STAR_NO_HUGEPAGES=1` to turn this off. One WSL2 benchmark showed occasional
+  slow outliers with it on; this is not yet checked on bare-metal Linux.
+- **Faster STARsolo on Windows:** STARsolo's temporary read files are written and
+  parsed without formatted iostream operators, which are slow in MSVC's library.
+  A 5M-pair STARsolo run takes half the time it did, with identical output.
 - **Additional output:** optional referenceless CRAM output transcodes the main
   BAM outputs at finalization. Transcriptome output remains BAM. Conversion
   failure preserves the BAM; inspect run logs rather than assuming CRAM was produced.

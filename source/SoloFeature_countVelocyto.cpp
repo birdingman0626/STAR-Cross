@@ -1,3 +1,4 @@
+#include "SoloTextIO.h"
 #include "SoloFeature.h"
 #include "streamFuns.h"
 #include "TimeFunctions.h"
@@ -29,7 +30,7 @@ void SoloFeature::countVelocyto()
         streamReads->seekg(0,ios::beg);
         
         uint64 iread;
-        while (*streamReads >> iread) {//until the end of file
+        while (readNumber(*streamReads, iread)) {//until the end of file
             uintCB cb=soloFeatAll[pSolo.featureInd[SoloFeatureTypes::Gene]]->readInfo[iread].cb;
             uintUMI umi=soloFeatAll[pSolo.featureInd[SoloFeatureTypes::Gene]]->readInfo[iread].umi;
             if (cb == (uintCB)-1 || umi == (uintUMI)-1 ) {//CB and/or UMI undefined.   TODO: put a filter on CBs here, e.g. UMI threshold
@@ -46,11 +47,11 @@ void SoloFeature::countVelocyto()
             };
 
             uint32 nTr;
-            *streamReads >> nTr;
+            readNumber(*streamReads, nTr);
             vector<trTypeStruct> trT(nTr);
             for (auto & tt: trT) {
                 uint32 ty;
-                *streamReads >> tt.tr >> ty;
+                readNumber(*streamReads, tt.tr); readNumber(*streamReads, ty);
                 tt.type=(uint8) ty;
             };
 

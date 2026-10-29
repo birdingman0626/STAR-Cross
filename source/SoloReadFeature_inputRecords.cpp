@@ -3,6 +3,7 @@
 #include "SoloCommon.h"
 #include "SoloFeature.h"
 #include "soloInputFeatureUMI.h"
+#include "SoloTextIO.h"
 #include "serviceFuns.cpp"
 using namespace std;
 void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32> &cbReadCountTotal, vector<readInfoStruct> &readInfo, SoloReadFlagClass &readFlagCounts,
@@ -31,7 +32,7 @@ void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32
         bool noTooManyWLmatches = false;
 
         if (cbmatch<=1) {//single match
-            *streamReads >> cb;
+            readNumber(*streamReads, cb);
 
             if ( pSolo.CBmatchWL.oneExact && cbmatch==1 && cbReadCountTotal[cb]==0 ) {//single 1MM match, no exact matches to this CB
                 noMMtoWLwithoutExact = true;
@@ -73,7 +74,7 @@ void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32
             for (uint32 ii=0; ii<(uint32)cbmatch; ii++) {
                 uint32 cbin;
                 char  qin;
-                *streamReads >> cbin >> qin;
+                readNumber(*streamReads, cbin); readChar(*streamReads, qin);
                 if (cbReadCountTotal[cbin]>0) {//otherwise this cbin does not work
                     qin -= pSolo.QSbase;
                     qin = qin < pSolo.QSmax ? qin : pSolo.QSmax;

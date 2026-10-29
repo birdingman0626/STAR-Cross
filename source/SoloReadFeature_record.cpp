@@ -3,6 +3,7 @@
 #include "SequenceFuns.h"
 #include "ReadAnnotations.h"
 #include "SoloReadBarcode.h"
+#include "SoloTextIO.h"
 using namespace std;
 class ReadSoloFeatures {
 public:
@@ -164,10 +165,15 @@ void SoloReadFeature::record(SoloReadBarcode &soloBar, uint64 nTr, Transcript **
                     sort(readAnnot.trVelocytoType.begin(), readAnnot.trVelocytoType.end(),
                          [](const trTypeStruct &t1, const trTypeStruct &t2) {return t1.tr < t2.tr;});
 
-                    *streamReads << iRead <<' '<< readAnnot.trVelocytoType.size();
-                    for (auto &tt: readAnnot.trVelocytoType)
-                         *streamReads <<' '<< tt.tr <<' '<< (uint32) tt.type;
-                    *streamReads <<'\n';
+                    {
+                        std::string line;
+                        appendNumber(line, iRead); line+=' '; appendNumber(line, readAnnot.trVelocytoType.size());
+                        for (auto &tt: readAnnot.trVelocytoType) {
+                            line+=' '; appendNumber(line, tt.tr); line+=' '; appendNumber(line, (uint32) tt.type);
+                        };
+                        line+='\n';
+                        streamReads->write(line.data(), (std::streamsize) line.size());
+                    };
                     nFeat=1;
                 } else {
                     stats.V[stats.noNoFeature]++;
@@ -218,59 +224,77 @@ uint32 outputReadCB(fstream *streamOut, const uint64 iRead, const int32 featureT
     };
     
     uint64 nout=1;
-    
+
+    // One write per line: formatted << per field is slow (see SoloTextIO.h).
+    thread_local std::string line;
+    auto readPrefix = [&](uint64 iReadOut, bool alwaysIRead) {//UMI [iRead flag]
+        line.clear();
+        appendNumber(line, soloBar.umiB); line+=' ';
+        if ( alwaysIRead || iReadOut != (uint64)-1 ) {
+            appendNumber(line, iReadOut); line+=' '; appendNumber(line, readFlag.flag); line+=' ';
+        };
+    };
+    auto cbSuffix = [&]() {//cbMatch cbMatchString
+        appendNumber(line, soloBar.cbMatch); line+=' '; line+=soloBar.cbMatchString; line+='\n';
+        streamOut->write(line.data(), (std::streamsize) line.size());
+    };
+
     switch (featureType) {
         case -1 :
             //no feature, output for readInfo
-            *streamOut << soloBar.umiB <<' '<< iRead <<' '<< readFlag.flag <<' '<< -1 <<' '<< soloBar.cbMatch <<' '<< soloBar.cbMatchString <<'\n';
+            readPrefix(iRead, true);
+            line+="-1 ";
+            cbSuffix();
             break;
-            
+
         case SoloFeatureTypes::Gene :
         case SoloFeatureTypes::GeneFull :
         case SoloFeatureTypes::GeneFull_Ex50pAS :
         case SoloFeatureTypes::GeneFull_ExonOverIntron :
             if (reFe.geneMult.size()==0) {
                 //just gene id
-                *streamOut << soloBar.umiB <<' ';//UMI
-                if ( iRead != (uint64)-1 )
-                    *streamOut << iRead <<' '<< readFlag.flag <<' ';//iRead
-                *streamOut << reFe.gene <<' '<< soloBar.cbMatch <<' '<< soloBar.cbMatchString <<'\n';;
+                readPrefix(iRead, false);
+                appendNumber(line, reFe.gene); line+=' ';
+                cbSuffix();
             } else {
                 for (auto &g : reFe.geneMult) {
-                    *streamOut << soloBar.umiB <<' ';//UMI
-                    *streamOut << iRead <<' '<< readFlag.flag <<' ';//iRead is always output for multiGene
-                    *streamOut << g <<' '<< soloBar.cbMatch <<' '<< soloBar.cbMatchString <<'\n';;
+                    readPrefix(iRead, true);//iRead is always output for multiGene
+                    appendNumber(line, g); line+=' ';
+                    cbSuffix();
                 };
                 nout = reFe.geneMult.size();
             };
             break;
-            
+
         case SoloFeatureTypes::SJ :
             //sj - two numbers, multiple sjs per read
             for (auto &sj : reFe.sj) {
-                *streamOut << soloBar.umiB <<' ';//UMI
-                if ( iRead != (uint64)-1 )
-                    *streamOut << iRead <<' '<< readFlag.flag <<' ';//iRead            
-                *streamOut << sj[0] <<' '<< sj[1] <<' '<< soloBar.cbMatch <<' '<< soloBar.cbMatchString <<'\n' << flush;
+                readPrefix(iRead, false);
+                appendNumber(line, sj[0]); line+=' '; appendNumber(line, sj[1]); line+=' ';
+                cbSuffix();
+                streamOut->flush();
             };
             nout=reFe.sj.size();
             break;
-            
+
         case SoloFeatureTypes::Transcript3p :
-            //transcript,distToTTS structure    
-            *streamOut << soloBar.cbMatchString <<' ';            
-            *streamOut << soloBar.umiB <<' ';
-            *streamOut << readAnnot.transcriptConcordant.size();
+            //transcript,distToTTS structure
+            line.clear();
+            line+=soloBar.cbMatchString; line+=' ';
+            appendNumber(line, soloBar.umiB); line+=' ';
+            appendNumber(line, readAnnot.transcriptConcordant.size());
             for (auto &tt: readAnnot.transcriptConcordant) {
-                *streamOut <<' '<< tt[0] <<' '<< tt[1];
+                line+=' '; appendNumber(line, tt[0]); line+=' '; appendNumber(line, tt[1]);
             };
-            if ( iRead != (uint64)-1 )
-                *streamOut  <<' '<< iRead;//iRead
-            *streamOut  <<'\n';
+            if ( iRead != (uint64)-1 ) {
+                line+=' '; appendNumber(line, iRead);//iRead
+            };
+            line+='\n';
+            streamOut->write(line.data(), (std::streamsize) line.size());
             nout=1;
 
             break;
     }; //switch (featureType)
-    
+
     return nout;
 };
