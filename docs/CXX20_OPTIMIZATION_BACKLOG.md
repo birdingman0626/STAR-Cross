@@ -308,3 +308,29 @@ THP run is still faster. **Before relying on the THP default, repeat the paired
 benchmark on bare-metal or KVM Linux** (e.g. the Oracle Linux host) and look at
 the slowest runs as well as the median; set `STAR_NO_HUGEPAGES=1` if such
 stalls reproduce.
+
+**KVM re-check (Oracle Linux 10.2, kernel 6.12 UEK, 2026-10-29).** The Oracle
+Linux host is a KVM guest (Ryzen 7 5825U, 12 vCPU, 40 GB). Its THP mode is
+`always`, so the `madvise` call changes nothing there; the comparison is
+therefore the same `9ac84cc` binary with huge pages on and off per process
+(`prctl(PR_SET_THP_DISABLE)` in a launcher used for both labels; 27.5 GB of
+`AnonHugePages` with it on, 0 with it off). 1M-pair STARsolo profile, 8 threads,
+its own Ensembl 116 cynomolgus index, 10 ABBA pairs plus a warm-up:
+
+| | huge pages on | huge pages off |
+| --- | --- | --- |
+| wall, median run | 49.6 s | 52.5 s |
+| user CPU | 31–32 s | 31–37 s |
+| system CPU | 13–19 s | 24–27 s |
+| slowest run | 61.4 s | 62.4 s |
+
+Pairwise ratio off/on: median 1.090, 95% bootstrap [1.049, 1.131]; on was
+faster in 9 of 10 pairs; peak RSS equal; all 22 runs scientifically identical.
+No run with huge pages on showed the WSL2-style system-time spike, even though
+the 40 GB guest was under memory pressure (genome page cache plus 27.5 GB
+anonymous memory: 65k compaction stalls and 11k THP fallbacks over the run).
+Wall time drifted from about 40 s to 60 s over the session for both labels while
+CPU time stayed flat, which points at genome reads from disk as page cache was
+evicted; ABBA ordering cancels it. Conclusion: the WSL2 outliers did not
+reproduce under KVM; keep the THP default. Not covered: bare-metal hardware and
+a `madvise`-mode kernel outside WSL2. Receipts: `data/validation/thp-185-20261029/`.
