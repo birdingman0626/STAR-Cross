@@ -8,7 +8,11 @@ branches are out of scope). Sources: the converted texts in `knowledge/docling/`
 The question is whether the code follows the approach the papers describe.
 Each section names the code that was read, deliberate deviations, and open
 gaps. "Matches" means the method was compared with the paper's text, not that
-every output was re-derived.
+every output was re-derived. This is a method-level review, not an acceptance
+result: a "Matches" verdict does not show that outputs agree with the reference
+tool, and a maintainer review found four places where the first version
+over-claimed (EM trigger, UMI grouping, CellRanger equivalence, Velocyto
+workaround; corrected below).
 
 ## Summary
 
@@ -16,10 +20,10 @@ every output was re-derived.
 | --- | --- | --- | --- |
 | Seed search (MMP) | Dobin 2013 §2.1; Manber & Myers 1993 | `ReadAlign_maxMappableLength2strands.cpp`, `SuffixArrayFuns.cpp` | Matches |
 | Junction insertion, two-pass | Veeneman 2016; Mäkinen et al. 2023, Insight 16.2 | `sjdbInsert*`, `twopassMode` | Matches; the paper's artifact filter is not available |
-| EmptyDrops cell calling | Lun 2019; Phipson & Smyth 2010; Benjamini & Hochberg 1995; CellRanger source | `SoloFeature_emptyDrops_CR.cpp` | Matches CellRanger exactly; deviations from the paper are CellRanger's; BH step-up correct |
+| EmptyDrops cell calling | Lun 2019; Phipson & Smyth 2010; Benjamini & Hochberg 1995; CellRanger source | `SoloFeature_emptyDrops_CR.cpp` | Main statistical steps correspond to CellRanger; deviations from the paper are CellRanger's; BH step-up correct. Not shown to give identical p-values or cell sets (no pinned CellRanger commit, no end-to-end diff, different RNG) |
 | Ambient profile smoothing | Gale & Sampson 1995; Sampson 2001 ch. 7 | `SimpleGoodTuring/sgt.h` | Matches the published recipe step by step; slope/fit not checked |
-| UMI deduplication | Smith 2017 (UMI-tools) | `SoloFeature_collapseUMIall.cpp` | Matches (`1MM_Directional_UMItools`) |
-| Multi-gene reads (EM) | Kaminow 2021 §5.1.7 | `SoloFeature_collapseUMIall.cpp` | Matches; **NaN for UMIs with > 100 genes** |
+| UMI deduplication | Smith 2017 (UMI-tools) | `SoloFeature_collapseUMIall.cpp` | Link threshold matches (`1MM_Directional_UMItools`); **grouping differs** (greedy, not graph traversal) |
+| Multi-gene reads (EM) | Kaminow 2021 §5.1.7 | `SoloFeature_collapseUMIall.cpp` | Matches; **NaN for UMIs whose gene set has > 100 genes, reachable with default settings** |
 | Velocyto counts | La Manno 2018, Methods | `Transcriptome_classifyAlign.cpp`, `SoloFeature_countVelocyto.cpp` | Matches; no repeat-mask filter |
 | WASP filtering | van de Geijn 2015 | `ReadAlign_waspMap.cpp`, `Variation.cpp` | Matches the re-mapping test |
 | Chimeric detection | Dobin 2013; Haas 2019 (STAR-Fusion); Uhrig 2021 (Arriba) | `ChimericAlign*.cpp`, `ChimericDetection_*.cpp` | Default scoring differs from upstream only with `--chimMultimapNmax > 0`, which STAR-Fusion's published command uses; not validated against a fusion truth set |
@@ -33,19 +37,24 @@ every output was re-derived.
 
 In priority order:
 
-1. **Fix the EM NaN** (multi-gene reads, below). Small, output-neutral for every
-   case that currently gives a finite result. Add a unit test with a 101-gene UMI.
-2. **Validate the default chimeric scoring** against simulated fusions with known
+1. **Fix the EM NaN** (multi-gene reads, below). It needs only
+   `--soloMultiMappers EM`, not a raised multimap limit. Small, output-neutral for
+   every case that currently gives a finite result. Add a unit test with a
+   101-gene UMI.
+2. **Fix or document UMI-tools directional grouping** (UMI deduplication, below):
+   the link rule matches, the grouping does not. Add the counterexample as a
+   regression test.
+3. **Validate the default chimeric scoring** against simulated fusions with known
    truth, comparing default and `--legacy`. The change only affects
    `--chimMultimapNmax > 0`, which STAR-Fusion's published command sets (10);
    Arriba's published command leaves it at 0 and is unaffected. Until then,
    recommend `--legacy` to STAR-Fusion users and anyone using multimapping
    chimeric detection, and port the acceptance test the cherry-pick plan deferred.
-3. **Warn when the Good-Turing fit is unusable** (slope ≥ −1). Output-neutral.
-4. **Setup randomization** for benchmark claims below about 5%.
-5. Optional features: a short-overhang count per junction (two-pass artifacts),
-   and a repeat-mask filter for Velocyto. Both would be opt-in so existing
-   outputs stay identical.
+4. **Warn when the Good-Turing fit is unusable** (slope ≥ −1). Output-neutral.
+5. **Setup randomization** for benchmark claims below about 5%.
+6. Optional features: a short-overhang count per junction (two-pass artifacts),
+   and a read-level repeat-mask filter for Velocyto. Both would be opt-in so
+   existing outputs stay identical.
 
 ## Details
 
@@ -79,8 +88,9 @@ enable it without changing `SJ.out.tab`.
 
 ### EmptyDrops (`EmptyDrops_CR`)
 
-Deviations from Lun et al., all of which match CellRanger 3/4 (checked against
-`lib/python/cellranger/cell_calling_stats.py`, `compute_multinomial_ambient_pvalues`):
+Deviations from Lun et al., each of which corresponds to a step in CellRanger 3/4
+(read in `lib/python/cellranger/cell_calling_stats.py`,
+`compute_multinomial_ambient_pvalues`; the checkout was not pinned to a commit):
 
 | Paper | `EmptyDrops_CR` and CellRanger |
 | --- | --- |
@@ -101,8 +111,17 @@ Checked against the primary sources:
   takes the running minimum from the largest rank down, which is the standard
   adjusted-p form of the same rule.
 
-No action needed: the mode is named and documented as the CellRanger variant.
-`test_EmptyDrops.cpp` pins the strict comparison.
+Limits of this check: it compares the statistical steps, not outputs. No
+specific CellRanger commit was pinned and no end-to-end diff was run. STAR and
+CellRanger also use different random number generators and seeding, so the
+simulated p-values, and therefore the final cell set near the threshold, are not
+guaranteed to be identical. "Corresponds to CellRanger" is the supported claim;
+"identical to CellRanger" is not.
+
+No change to the method is needed: the mode is named and documented as the
+CellRanger variant. `test_EmptyDrops.cpp` pins the strict comparison. An
+end-to-end comparison against a pinned CellRanger release would be needed before
+claiming identical cell calls.
 
 ### Simple Good-Turing
 
@@ -139,11 +158,21 @@ UMI-tools' directional rule links UMI a → b when they differ by one base and
 n_a ≥ 2·n_b − 1. `umiArrayCorrect_Directional` with `dirCountAdd = -1`
 (`1MM_Directional_UMItools`) applies the same inequality. UMIs are processed in
 descending count order and each inherits its parent's correction, so chains
-collapse onto the most abundant UMI, as in the paper's network method.
+collapse onto the most abundant UMI along a single parent chain.
 `1MM_Directional` (`dirCountAdd = 0`) is STAR's own, slightly stricter variant.
-Not re-verified: whether the greedy "first qualifying parent" choice always gives
-the same molecule count as UMI-tools' breadth-first search when a UMI qualifies
-under two parents.
+
+**The grouping differs.** The link threshold is the same, but STAR assigns each
+UMI greedily to its first qualifying parent, while UMI-tools' directional method
+groups every UMI reachable through the directed graph. These are not
+equivalent. Counterexample (found in review): among the 144 synthetic cases of
+three UMIs, each seen once, forming a connected one-mismatch path, the current
+implementation reports 2 molecules in 36 cases; UMI-tools v1.1.6
+`directional` puts all three in one group (1 molecule) in every case. This
+shows the methods disagree on constructed inputs; it does not measure how often
+the difference occurs, or how large it is, in real data. Verdict: threshold
+consistent, aggregation different. Suggested action: add these cases as a
+regression test, then either implement the graph grouping for
+`1MM_Directional_UMItools` or document the difference.
 
 ### Multi-gene reads (EM)
 
@@ -160,9 +189,14 @@ spreads one count over its gene set, so at least one of its genes holds
 ≥ 1/|set|. With more than 100 genes and no unique support, every gene of the set
 can be below 0.01. All are then zeroed, `norm1 = 1/0`, and `0 · ∞` writes NaN
 into the EM matrix. A replay of the loop (one UMI, no unique counts) is finite
-for 50 and 100 genes and gives NaN for 101 and 150. This cannot happen with the
-default `--outFilterMultimapNmax 10`. It can when users raise that limit, as is
-common for transposable-element work. Suggested fix: when a UMI's set sums to
+for 50 and 100 genes and gives NaN for 101 and 150.
+
+The gene set is the set of genes the UMI's reads overlap, not the set of
+alignment loci, so `--outFilterMultimapNmax` does not bound it. A uniquely
+mapped read that overlaps more than 100 annotated genes is enough. This was
+reproduced with the real STAR binary at default limits, every read uniquely
+mapped: 100 overlapping genes give finite counts, 101 give NaN for all 101
+genes. The only setting required is `--soloMultiMappers EM`. Suggested fix: when a UMI's set sums to
 zero after the cut, skip the cut for that UMI (fall back to the previous values).
 That leaves every currently finite result unchanged.
 
@@ -178,8 +212,17 @@ type bits), drops multi-gene UMIs and applies the same three rules.
 intronic call across introns > 1 Mb).
 
 Gap: the paper discards reads in repeat-masked regions; STARsolo has no
-repeat-mask input. Users who need this must pass a masked GTF or filter
-afterwards. An opt-in `--soloVelocytoRepeatMask` (BED/GTF) would close it.
+repeat-mask input. The workarounds are not equivalent and must be done at the
+right level:
+- Editing the GTF changes the annotation model (exon and intron boundaries,
+  transcript compatibility), not just which reads are counted.
+- Filtering the finished matrices cannot work: read and UMI assignment is gone
+  by then.
+- Reproducing velocyto's behaviour means removing reads that overlap masked
+  regions at the read/BAM level, then recounting.
+
+An opt-in `--soloVelocytoRepeatMask` (BED/GTF) that drops such reads before
+velocyto classification would close the gap.
 
 ### WASP
 
