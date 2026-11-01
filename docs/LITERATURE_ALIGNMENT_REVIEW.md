@@ -1,0 +1,247 @@
+# Implementation vs. literature review
+
+Date: 2026-11-01. Revision checked: `1367fb6`, CPU code paths only (CUDA/GPU
+branches are out of scope). Sources: the converted texts in `knowledge/docling/`
+(gitignored; Markdown plus docling JSON per document, listed in
+`knowledge/docling/manifest.json`). Bibliography: [REFERENCES.md](REFERENCES.md).
+
+The question is whether the code follows the approach the papers describe.
+Each section names the code that was read, deliberate deviations, and open
+gaps. "Matches" means the method was compared with the paper's text, not that
+every output was re-derived.
+
+## Summary
+
+| Area | Source | Code | Verdict |
+| --- | --- | --- | --- |
+| Seed search (MMP) | Dobin 2013 §2.1; Manber & Myers 1993 | `ReadAlign_maxMappableLength2strands.cpp`, `SuffixArrayFuns.cpp` | Matches |
+| Junction insertion, two-pass | Veeneman 2016; Mäkinen et al. 2023, Insight 16.2 | `sjdbInsert*`, `twopassMode` | Matches; the paper's artifact filter is not available |
+| EmptyDrops cell calling | Lun 2019; CellRanger source | `SoloFeature_emptyDrops_CR.cpp` | Matches CellRanger exactly; deviations from the paper are CellRanger's |
+| Ambient profile smoothing | Gale & Sampson 1995 | `SimpleGoodTuring/sgt.h` | Matches; slope condition not checked |
+| UMI deduplication | Smith 2017 (UMI-tools) | `SoloFeature_collapseUMIall.cpp` | Matches (`1MM_Directional_UMItools`) |
+| Multi-gene reads (EM) | Kaminow 2021 §5.1.7 | `SoloFeature_collapseUMIall.cpp` | Matches; **NaN for UMIs with > 100 genes** |
+| Velocyto counts | La Manno 2018, Methods | `Transcriptome_classifyAlign.cpp`, `SoloFeature_countVelocyto.cpp` | Matches; no repeat-mask filter |
+| WASP filtering | van de Geijn 2015 | `ReadAlign_waspMap.cpp`, `Variation.cpp` | Matches the re-mapping test |
+| Chimeric detection | Dobin 2013; Haas 2019 (STAR-Fusion) | `ChimericAlign*.cpp`, `ChimericDetection_*.cpp` | Default scoring differs from upstream; not validated against a fusion truth set |
+| Alignment scoring | Durbin 1998 ch. 2; Smith & Waterman 1981 | `scoreGap*`, `scoreDel*`, `scoreIns*` | Matches (affine gaps, local extension) |
+| Benchmark statistics | Kalibera & Jones 2013; Georges 2007; Mytkowicz 2009 | `scripts/qualification.py`, `scripts/linux_paired_benchmark.py` | Mostly matches; no setup randomization |
+| Huge pages | Drepper 2007 §4.3.2, §6.2.4; Kwon 2016 (Ingens) | `source/HugePages.h` | Matches; tail latency measured |
+| Learned seed-search hints | Kirsche 2021; PLA-index 2024; Kraska 2018 | seed replay benchmark | Evaluated 2026-10-08 and rejected ([results](LITERATURE_OPTIMIZATION_RESULTS_20261008.md)) |
+| Exact-output optimization | Kalikar 2022 (mm2-fast); Vasimuddin 2019 (BWA-MEM2) | project policy | Same principle: speed-ups keep output identical |
+
+## Recommended actions
+
+In priority order:
+
+1. **Fix the EM NaN** (multi-gene reads, below). Small, output-neutral for every
+   case that currently gives a finite result. Add a unit test with a 101-gene UMI.
+2. **Validate the default chimeric scoring** against simulated fusions with known
+   truth, comparing default and `--legacy`, using the STAR-Fusion parameter set
+   (below). Until then, recommend `--legacy` to STAR-Fusion users.
+3. **Warn when the Good-Turing slope is ≥ −1.** Output-neutral.
+4. **Setup randomization** for benchmark claims below about 5%.
+5. Optional features: a short-overhang count per junction (two-pass artifacts),
+   and a repeat-mask filter for Velocyto. Both would be opt-in so existing
+   outputs stay identical.
+
+## Details
+
+### Seed search
+
+The STAR paper defines the Maximal Mappable Prefix as the natural result of binary
+search in an uncompressed suffix array, and the code does exactly that. A prefix
+lookup (`SAi`, `gSAindexNbases`) narrows the range, then `maxMappableLength`
+runs the binary search. It uses Manber & Myers' simple accelerant: comparisons
+start after `min(L1, L2)` characters already known to match at both interval
+ends. It does not use their LCP-array refinement (O(P + log N) worst case), which
+needs extra arrays of suffix-array size. That is consistent with the paper's
+memory/speed trade-off. The backlog profile also shows memory latency, not
+character comparisons, dominating `compareSeqToGenome`, so the refinement would
+gain little.
+
+### Junction insertion and two-pass mode
+
+Mäkinen et al. (Insight 16.2) describe the principled approach: index sequences
+built by joining the end of one exon to the start of the next. They note it needs
+flanks at least as long as the read. That is STAR's junction insertion, with
+`--sjdbOverhang` documented as ideally mate length − 1. Two-pass mode follows Veeneman
+et al.'s framework: first-pass junctions are inserted, then all reads are
+re-mapped.
+
+Gap: Veeneman et al. flag second-pass artifacts with 93% sensitivity and 99.8%
+specificity when ≥ 80% of a junction's reads span it by ≤ 12 nt. `SJ.out.tab`
+reports only the maximum overhang (column 9), so users cannot apply that filter.
+An opt-in per-junction count of short-overhang reads, in a separate file, would
+enable it without changing `SJ.out.tab`.
+
+### EmptyDrops (`EmptyDrops_CR`)
+
+Deviations from Lun et al., all of which match CellRanger 3/4 (checked against
+`lib/python/cellranger/cell_calling_stats.py`, `compute_multinomial_ambient_pvalues`):
+
+| Paper | `EmptyDrops_CR` and CellRanger |
+| --- | --- |
+| Dirichlet-multinomial likelihood with fitted α | Multinomial (α → ∞): no overdispersion |
+| Ambient pool = barcodes with total ≤ T (100) | Barcodes ranked `indMin`–`indMax` (default 45,000–90,000) |
+| Known cells = total ≥ knee U from a spline fit | Known cells = the simple (CellRanger 2.2) filter |
+| BH over candidates plus known cells (p = 0) | BH over candidates only |
+| p = (R_b + 1)/(R + 1), R_b counts L′ ≤ L | R_b counts L′ < L (CellRanger: `sim_loglk < obs_loglk`) |
+
+No action needed: the mode is named and documented as the CellRanger variant.
+`test_EmptyDrops.cpp` pins the strict comparison.
+
+### Simple Good-Turing
+
+`sgt.h` is Elworthy's C++ port of Gale & Sampson's reference code. It does a
+log–log least-squares fit of Z_r, and switches from raw to smoothed estimates at
+the first r where the two differ by less than 1.96 standard deviations. The paper relies on a
+downward-sloping line ("guaranteed to satisfy" r* < r; observed slopes lie
+between −1 and −2). The code does not check the slope. With a flat or rising fit,
+r* can exceed r, and the ambient profile is distorted without notice. Suggested
+change: expose the slope from `SGT::analyse()` and log a warning in
+`emptyDrops_CR` when it is ≥ −1.
+
+### UMI deduplication
+
+UMI-tools' directional rule links UMI a → b when they differ by one base and
+n_a ≥ 2·n_b − 1. `umiArrayCorrect_Directional` with `dirCountAdd = -1`
+(`1MM_Directional_UMItools`) applies the same inequality. UMIs are processed in
+descending count order and each inherits its parent's correction, so chains
+collapse onto the most abundant UMI, as in the paper's network method.
+`1MM_Directional` (`dirCountAdd = 0`) is STAR's own, slightly stricter variant.
+Not re-verified: whether the greedy "first qualifying parent" choice always gives
+the same molecule count as UMI-tools' breadth-first search when a UMI qualifies
+under two parents.
+
+### Multi-gene reads (EM)
+
+The method matches §5.1.7 of the STARsolo paper:
+- gene sets of a UMI's reads are intersected;
+- `Uniform` gives 1/N to each gene;
+- `Rescue` is one EM step;
+- `EM` iterates with unique-gene counts held fixed. It starts from unique plus
+  uniform counts and stops when the largest change is < 0.01, or after 100
+  iterations.
+
+**Defect.** Before each iteration, gene values below 0.01 are set to 0. A UMI
+spreads one count over its gene set, so at least one of its genes holds
+≥ 1/|set|. With more than 100 genes and no unique support, every gene of the set
+can be below 0.01. All are then zeroed, `norm1 = 1/0`, and `0 · ∞` writes NaN
+into the EM matrix. A replay of the loop (one UMI, no unique counts) is finite
+for 50 and 100 genes and gives NaN for 101 and 150. This cannot happen with the
+default `--outFilterMultimapNmax 10`. It can when users raise that limit, as is
+common for transposable-element work. Suggested fix: when a UMI's set sums to
+zero after the cut, skip the cut for that UMI (fall back to the previous values).
+That leaves every currently finite result unchanged.
+
+### Velocyto
+
+La Manno et al. (Methods, "Annotation of spliced and unspliced reads"): only
+unique mappers, reads grouped per molecule, compatible transcripts intersected;
+spliced if all reads are exonic in the compatible models, unspliced if every
+compatible model has a spanning or intronic read, ambiguous otherwise.
+`countVelocyto` intersects transcript sets per UMI (OR-ing the per-transcript
+type bits), drops multi-gene UMIs and applies the same three rules.
+`Transcriptome_classifyAlign` uses velocyto.py's constants (`MIN_FLANK=5`, no
+intronic call across introns > 1 Mb).
+
+Gap: the paper discards reads in repeat-masked regions; STARsolo has no
+repeat-mask input. Users who need this must pass a masked GTF or filter
+afterwards. An opt-in `--soloVelocytoRepeatMask` (BED/GTF) would close it.
+
+### WASP
+
+The paper's test: swap the alleles of each SNP a read overlaps, re-map, and
+discard the read unless every version maps to the same unique location.
+`waspMap` re-maps all 2^n allele combinations (up to 10 SNPs; more is flagged
+`vW:7`), and requires a unique mapping with identical exon blocks. Homozygous
+genotypes are excluded at VCF load (`Variation.cpp`). Not part of STAR, and not
+expected to be: WASP's random duplicate removal and its combined haplotype test.
+Minor: the comparison checks exon read/genome start and length but not strand. A
+same-coordinate opposite-strand remap is practically impossible.
+
+### Chimeric detection
+
+STAR-Fusion uses `Chimeric.out.junction`. Haas et al. ran STAR with
+`--chimSegmentMin 12 --chimJunctionOverhangMin 12 --chimOutJunctionFormat 1
+--alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000
+--alignSJstitchMismatchNmax 5 -1 5 5 --outSAMstrandField intronMotif`. All these
+options still exist.
+
+STAR-Cross changed default chimeric scoring (commit `29be20a`; `--legacy`
+restores upstream 2.7.11b):
+- the junction exon pair is chosen as the pair that overlaps most in read space
+  and lies on different chromosomes;
+- exons on the far side of the junction are trimmed before stitching;
+- segment overlap is computed per exon block;
+- the a2 negative-strand coordinate uses `a2.Lread` instead of `a1.Lread`.
+
+Observations:
+- The new exon-pair choice skips same-chromosome pairs ("same chromosome —
+  splice, not chimeric") and falls back to the upstream positional choice.
+  Intra-chromosomal chimeras (strand switches, distant same-chromosome
+  breakpoints) therefore keep the old selection, while inter-chromosomal ones
+  get the new one. The comment is inaccurate; the behaviour is consistent but
+  asymmetric.
+- No test compares default and `--legacy` outputs, or either against simulated
+  fusions with known truth. `test_cpu_upstream.py` exercises chimeric output for
+  teardown only. STAR-Fusion's published accuracy was measured with upstream
+  scoring.
+
+Recommendation: run both scorings on a simulated fusion set with the parameters
+above and compare true/false fusion calls. Haas et al. published such sets
+alongside their benchmark (data, not a paper; see below). Until that is done,
+document `--legacy` as the STAR-Fusion-compatible setting.
+
+### Alignment scoring
+
+Durbin et al. (ch. 2) and Smith & Waterman define local alignment with affine gap
+costs. STAR's stitching uses affine deletion and insertion penalties
+(`scoreDelOpen/Base`, `scoreInsOpen/Base`), a separate junction penalty
+(`scoreGap*`, by motif) and extension that keeps the best-scoring local end.
+This matches the classical model, extended with splice-specific gap costs.
+`ClipCR4` (CellRanger4 adapter clipping) is an inter-sequence vectorized aligner
+(64 reads side by side) rather than Farrar's striped layout. Its equivalence to
+the earlier Opal/Parasail results is covered by the repository's own tests; no
+paper describes CellRanger4's clipping rules.
+
+### Benchmark method
+
+Aligned with the literature:
+- every run is a separate process, the highest level of random variation
+  (Kalibera & Jones);
+- results are a paired ratio with a bootstrap 95% interval, not a significance
+  test (Kalibera & Jones; Georges et al.);
+- A/A calibration is required before trusting small effects;
+- ABBA ordering cancels drift;
+- the background-load gate is recorded.
+
+Gap: Mytkowicz et al. show environment size and link order alone move timings by
+several percent, and recommend setup randomization. The harness runs one build
+of each binary in one environment. Measured effects so far (8–22% for huge
+pages, 2× on Windows) are well above that. A claim below about 5% should be
+repeated with varied environment sizes (e.g. a padding variable) or relinked builds.
+
+### Huge pages
+
+Drepper (§4.3.2 "Influencing TLB Performance", §6.2.4 "Optimizing TLB Usage")
+and Ingens support huge pages for large, randomly accessed working sets, which
+is the case for the genome and suffix array. Ingens documents the risks: memory
+bloat and latency from synchronous compaction. Both were measured: the WSL2
+outliers, and 65k compaction stalls with no outlier runs on a KVM guest. See
+[the backlog](CXX20_OPTIMIZATION_BACKLOG.md).
+
+## Missing material
+
+These would let the open points be closed:
+- **Simulated fusion reads with truth** (STAR-Fusion / Haas et al. benchmark
+  data), for the chimeric scoring comparison.
+- **velocyto.py source** at the version STAR targets: its `Permissive10X` logic
+  differs from the paper's text in details. This is public code, not a download
+  request.
+- **UMI-tools source** (`network.py`), to confirm the multi-parent case.
+
+The books were used for the points above (Mäkinen ch. 16, Durbin ch. 2, Drepper
+ch. 4 and 6, and the sections already cited in
+[the literature optimization plan](LITERATURE_OPTIMIZATION_PLAN.md)). They were
+not reviewed cover to cover.
