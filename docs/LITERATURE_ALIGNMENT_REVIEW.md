@@ -16,13 +16,13 @@ every output was re-derived.
 | --- | --- | --- | --- |
 | Seed search (MMP) | Dobin 2013 §2.1; Manber & Myers 1993 | `ReadAlign_maxMappableLength2strands.cpp`, `SuffixArrayFuns.cpp` | Matches |
 | Junction insertion, two-pass | Veeneman 2016; Mäkinen et al. 2023, Insight 16.2 | `sjdbInsert*`, `twopassMode` | Matches; the paper's artifact filter is not available |
-| EmptyDrops cell calling | Lun 2019; CellRanger source | `SoloFeature_emptyDrops_CR.cpp` | Matches CellRanger exactly; deviations from the paper are CellRanger's |
-| Ambient profile smoothing | Gale & Sampson 1995 | `SimpleGoodTuring/sgt.h` | Matches; slope condition not checked |
+| EmptyDrops cell calling | Lun 2019; Phipson & Smyth 2010; Benjamini & Hochberg 1995; CellRanger source | `SoloFeature_emptyDrops_CR.cpp` | Matches CellRanger exactly; deviations from the paper are CellRanger's; BH step-up correct |
+| Ambient profile smoothing | Gale & Sampson 1995; Sampson 2001 ch. 7 | `SimpleGoodTuring/sgt.h` | Matches the published recipe step by step; slope/fit not checked |
 | UMI deduplication | Smith 2017 (UMI-tools) | `SoloFeature_collapseUMIall.cpp` | Matches (`1MM_Directional_UMItools`) |
 | Multi-gene reads (EM) | Kaminow 2021 §5.1.7 | `SoloFeature_collapseUMIall.cpp` | Matches; **NaN for UMIs with > 100 genes** |
 | Velocyto counts | La Manno 2018, Methods | `Transcriptome_classifyAlign.cpp`, `SoloFeature_countVelocyto.cpp` | Matches; no repeat-mask filter |
 | WASP filtering | van de Geijn 2015 | `ReadAlign_waspMap.cpp`, `Variation.cpp` | Matches the re-mapping test |
-| Chimeric detection | Dobin 2013; Haas 2019 (STAR-Fusion) | `ChimericAlign*.cpp`, `ChimericDetection_*.cpp` | Default scoring differs from upstream; not validated against a fusion truth set |
+| Chimeric detection | Dobin 2013; Haas 2019 (STAR-Fusion); Uhrig 2021 (Arriba) | `ChimericAlign*.cpp`, `ChimericDetection_*.cpp` | Default scoring differs from upstream only with `--chimMultimapNmax > 0`, which STAR-Fusion's published command uses; not validated against a fusion truth set |
 | Alignment scoring | Durbin 1998 ch. 2; Smith & Waterman 1981 | `scoreGap*`, `scoreDel*`, `scoreIns*` | Matches (affine gaps, local extension) |
 | Benchmark statistics | Kalibera & Jones 2013; Georges 2007; Mytkowicz 2009 | `scripts/qualification.py`, `scripts/linux_paired_benchmark.py` | Mostly matches; no setup randomization |
 | Huge pages | Drepper 2007 §4.3.2, §6.2.4; Kwon 2016 (Ingens) | `source/HugePages.h` | Matches; tail latency measured |
@@ -36,9 +36,12 @@ In priority order:
 1. **Fix the EM NaN** (multi-gene reads, below). Small, output-neutral for every
    case that currently gives a finite result. Add a unit test with a 101-gene UMI.
 2. **Validate the default chimeric scoring** against simulated fusions with known
-   truth, comparing default and `--legacy`, using the STAR-Fusion parameter set
-   (below). Until then, recommend `--legacy` to STAR-Fusion users.
-3. **Warn when the Good-Turing slope is ≥ −1.** Output-neutral.
+   truth, comparing default and `--legacy`. The change only affects
+   `--chimMultimapNmax > 0`, which STAR-Fusion's published command sets (10);
+   Arriba's published command leaves it at 0 and is unaffected. Until then,
+   recommend `--legacy` to STAR-Fusion users and anyone using multimapping
+   chimeric detection, and port the acceptance test the cherry-pick plan deferred.
+3. **Warn when the Good-Turing fit is unusable** (slope ≥ −1). Output-neutral.
 4. **Setup randomization** for benchmark claims below about 5%.
 5. Optional features: a short-overhang count per junction (two-pass artifacts),
    and a repeat-mask filter for Velocyto. Both would be opt-in so existing
@@ -87,6 +90,17 @@ Deviations from Lun et al., all of which match CellRanger 3/4 (checked against
 | BH over candidates plus known cells (p = 0) | BH over candidates only |
 | p = (R_b + 1)/(R + 1), R_b counts L′ ≤ L | R_b counts L′ < L (CellRanger: `sim_loglk < obs_loglk`) |
 
+Checked against the primary sources:
+- **p-value** (Phipson & Smyth 2010): p = (b + 1)/(m + 1), where b counts
+  simulations "at least as extreme" as the observed one. That is `≤` in
+  likelihood. The strict `<` used by CellRanger and STAR differs only on exact
+  ties of the simulated log-likelihood, which a continuous-valued statistic
+  makes rare. The +1 in numerator and denominator is present, so no p-value is 0.
+- **FDR** (Benjamini & Hochberg 1995): the step-up rule rejects all hypotheses up
+  to the largest rank i with p₍ᵢ₎ ≤ i·q/m. STAR computes `padj = p·m/rank` and
+  takes the running minimum from the largest rank down, which is the standard
+  adjusted-p form of the same rule.
+
 No action needed: the mode is named and documented as the CellRanger variant.
 `test_EmptyDrops.cpp` pins the strict comparison.
 
@@ -100,6 +114,24 @@ between −1 and −2). The code does not check the slope. With a flat or rising
 r* can exceed r, and the ambient profile is distorted without notice. Suggested
 change: expose the slope from `SGT::analyse()` and log a warning in
 `emptyDrops_CR` when it is ≥ −1.
+
+Sampson (*Empirical Linguistics*, 2001, ch. 7) gives the procedure step by step,
+and `sgt.h` follows each step:
+- Z_r = 2·n_r/(t − q) for neighbouring nonzero frequencies q < r < t, with
+  t = 2r − q for the last row;
+- least-squares fit of log Z_r on log r;
+- the 1.96σ switch from raw (Turing) to smoothed (LGT) estimates, after which
+  smoothed values are used for all higher r;
+- a forced switch when n_{r+1} is missing, because the raw estimate is then
+  undefined;
+- P₀ = n₁/N for unseen items, then renormalisation of the seen probabilities.
+
+The chapter's footnote 14 states the risk directly: regression returns a line
+for any data, and the method is inappropriate if the frequency distribution is
+not roughly log-linear. This supports the warning above. STAR divides P₀ evenly
+among the genes with zero ambient count. The book gives only the total P₀ and
+calls an equal split the simple default that a model of the unseen items can
+beat, so this is a STAR choice, not a deviation.
 
 ### UMI deduplication
 
@@ -165,8 +197,8 @@ same-coordinate opposite-strand remap is practically impossible.
 STAR-Fusion uses `Chimeric.out.junction`. Haas et al. ran STAR with
 `--chimSegmentMin 12 --chimJunctionOverhangMin 12 --chimOutJunctionFormat 1
 --alignSJDBoverhangMin 10 --alignMatesGapMax 100000 --alignIntronMax 100000
---alignSJstitchMismatchNmax 5 -1 5 5 --outSAMstrandField intronMotif`. All these
-options still exist.
+--alignSJstitchMismatchNmax 5 -1 5 5 --outSAMstrandField intronMotif`, plus the
+multimapping options listed below. All these options still exist.
 
 STAR-Cross changed default chimeric scoring (commit `29be20a`; `--legacy`
 restores upstream 2.7.11b):
@@ -183,15 +215,37 @@ Observations:
   breakpoints) therefore keep the old selection, while inter-chromosomal ones
   get the new one. The comment is inaccurate; the behaviour is consistent but
   asymmetric.
+- The new scoring lives only in the multimapping path. `ReadAlign_chimericDetection.cpp`
+  calls `chimericDetectionOld()` when `--chimMultimapNmax 0` (the default) and
+  `chimericDetectionMult()` otherwise; `legacyScoring` is read only by
+  `ChimericAlign*` code used from the Mult path. With the default
+  `--chimMultimapNmax 0`, default and `--legacy` produce the same chimeric output.
+- STAR-Fusion's published command (Haas et al. 2019, Methods, STAR 2.6.1a) also
+  sets `--chimMultimapScoreRange 10 --chimMultimapNmax 10
+  --chimNonchimScoreDropMin 10 --twopassMode Basic`, so
+  STAR-Fusion runs the Mult path and **is affected** by the new default scoring.
+  Its published accuracy was measured with upstream scoring.
+- Arriba's published command (Uhrig et al. 2021, STAR 2.5.3a:
+  `--chimSegmentMin 10 --chimJunctionOverhangMin 10 --chimScoreDropMax 30
+  --chimScoreJunctionNonGTAG 0 --chimScoreSeparation 1 --chimSegmentReadGapMax 3
+  --chimMainSegmentMultNmax 10`) leaves `--chimMultimapNmax` at 0, so that
+  configuration uses the unchanged Old path. Arriba's later documentation adds
+  `--chimMultimapNmax`, which would reach the changed code.
+- Arriba reads chimeric alignments from `Chimeric.out.sam` or from the BAM
+  (`--chimOutType WithinBAM`), not from `Chimeric.out.junction`. A compatibility
+  check must cover the SAM/BAM chimeric records (supplementary flags, `SA` tags)
+  as well as the junction file.
 - No test compares default and `--legacy` outputs, or either against simulated
   fusions with known truth. `test_cpu_upstream.py` exercises chimeric output for
-  teardown only. STAR-Fusion's published accuracy was measured with upstream
-  scoring.
+  teardown only. The cherry-pick plan
+  (`.agentdocs/workflow/260413-ggpeti-chimscore-cherry-pick-plan.md`) lists an
+  acceptance-test port as phase 2; it was not done.
 
-Recommendation: run both scorings on a simulated fusion set with the parameters
-above and compare true/false fusion calls. Haas et al. published such sets
-alongside their benchmark (data, not a paper; see below). Until that is done,
-document `--legacy` as the STAR-Fusion-compatible setting.
+Recommendation: run both scorings with the STAR-Fusion command above (which
+sets `--chimMultimapNmax 10`) on a simulated fusion set and compare true/false
+fusion calls. Haas et al. published such sets alongside their benchmark (data, not a paper; see
+below). Port the planned acceptance test. Until then, document `--legacy` as the
+upstream-compatible setting for `--chimMultimapNmax > 0`.
 
 ### Alignment scoring
 
@@ -233,18 +287,18 @@ outliers, and 65k compaction stalls with no outlier runs on a KVM guest. See
 
 ## Missing material
 
-To download (identifiers checked against Crossref, Zenodo and Open Library on
-2026-11-01):
+Identifiers checked against Crossref, Zenodo and Open Library on 2026-11-01.
+Items 4–7 were received and are used above; items 1–3 are still to download.
 
 | # | Full title | Authors, venue, year | DOI / ISBN | Unblocks |
 |---|---|---|---|---|
 | 1 | Benchmarking Illumina RNA-seq fusion transcript detection methods – simulated 101 base PE reads (dataset) | Haas, Zenodo, 2019 | [10.5281/zenodo.13359589](https://doi.org/10.5281/zenodo.13359589) | Truth-based comparison of default vs `--legacy` chimeric scoring. 31.9 GB; one sample is enough to start: `sim1_reads.zip` (6.4 GB) plus `sim_101PE_metadata.zip` |
 | 2 | Benchmarking Illumina RNA-seq fusion transcript detection methods – simulated 50 base PE reads (dataset) | Haas, Zenodo, 2019 | [10.5281/zenodo.13354907](https://doi.org/10.5281/zenodo.13354907) | Optional short-read version of the same test (12.8 GB) |
 | 3 | Supplementary Material of "STAR: ultrafast universal RNA-seq aligner" | Dobin et al., *Bioinformatics*, 2013 | [10.1093/bioinformatics/bts635](https://doi.org/10.1093/bioinformatics/bts635) (supplement on the article page) | Original description of chimeric detection and stitching scores |
-| 4 | Accurate and efficient detection of gene fusions from RNA sequencing data (Arriba) | Uhrig et al., *Genome Research*, 2021 | [10.1101/gr.257246.119](https://doi.org/10.1101/gr.257246.119) | Second major user of STAR's chimeric output: which fields must stay compatible |
-| 5 | Permutation p-values should never be zero: calculating exact p-values when permutations are randomly drawn | Phipson & Smyth, *Stat. Appl. Genet. Mol. Biol.*, 2010 | [10.2202/1544-6115.1585](https://doi.org/10.2202/1544-6115.1585) | The p-value formula EmptyDrops cites (`<` vs `≤`) |
-| 6 | Controlling the false discovery rate: a practical and powerful approach to multiple testing | Benjamini & Hochberg, *J. R. Stat. Soc. B*, 1995 | [10.1111/j.2517-6161.1995.tb02031.x](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x) | EmptyDrops' FDR correction |
-| 7 | Empirical Linguistics | Geoffrey Sampson, Continuum, 2001 | ISBN 978-0-8264-5794-3 or 978-0-8264-4883-5 (two bindings) | Sampson's reference Good-Turing code and its slope check |
+| 4 (received) | Accurate and efficient detection of gene fusions from RNA sequencing data (Arriba) | Uhrig et al., *Genome Research*, 2021 | [10.1101/gr.257246.119](https://doi.org/10.1101/gr.257246.119) | Second major user of STAR's chimeric output: which fields must stay compatible |
+| 5 (received) | Permutation p-values should never be zero: calculating exact p-values when permutations are randomly drawn | Phipson & Smyth, *Stat. Appl. Genet. Mol. Biol.*, 2010 | [10.2202/1544-6115.1585](https://doi.org/10.2202/1544-6115.1585) | The p-value formula EmptyDrops cites (`<` vs `≤`) |
+| 6 (received) | Controlling the false discovery rate: a practical and powerful approach to multiple testing | Benjamini & Hochberg, *J. R. Stat. Soc. B*, 1995 | [10.1111/j.2517-6161.1995.tb02031.x](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x) | EmptyDrops' FDR correction |
+| 7 (received) | Empirical Linguistics | Geoffrey Sampson, Continuum, 2001 | ISBN 978-0-8264-5794-3 or 978-0-8264-4883-5 (two bindings) | Sampson's reference Good-Turing code and its slope check |
 
 The paper's original data link
 (`data.broadinstitute.org/Trinity/STAR_FUSION_PAPER/.../sim_reads/`) returns 404;
@@ -260,6 +314,6 @@ Public code, fetched directly when needed (no DOI):
   on GitHub), which holds the simulated truth sets.
 
 The books were used for the points above (Mäkinen ch. 16, Durbin ch. 2, Drepper
-ch. 4 and 6, and the sections already cited in
+ch. 4 and 6, Sampson ch. 7, and the sections already cited in
 [the literature optimization plan](LITERATURE_OPTIMIZATION_PLAN.md)). They were
 not reviewed cover to cover.
