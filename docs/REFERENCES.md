@@ -58,6 +58,22 @@ earlier online year (e.g. 2012 for the STAR paper).
 | 16 | Statistically rigorous Java performance evaluation | Georges | OOPSLA, 2007 | [10.1145/1297027.1297033](https://doi.org/10.1145/1297027.1297033) | Benchmark statistics |
 | 17 | Coordinated and Efficient Huge Page Management with Ingens | Kwon | OSDI, 2016 | none (USENIX; short version in *SIGOPS OSR* 2017, [10.1145/3139645.3139659](https://doi.org/10.1145/3139645.3139659)) | Huge-page latency spikes |
 
+## Methods cited by STAR's components
+
+| # | Title | First author | Venue, year | DOI / ISBN | Relevance |
+|---|---|---|---|---|---|
+| 1 | Accurate and efficient detection of gene fusions from RNA sequencing data (Arriba) | Uhrig | *Genome Research*, 2021 | [10.1101/gr.257246.119](https://doi.org/10.1101/gr.257246.119) | Second major user of chimeric output |
+| 2 | Permutation p-values should never be zero: calculating exact p-values when permutations are randomly drawn | Phipson | *Stat. Appl. Genet. Mol. Biol.*, 2010 | [10.2202/1544-6115.1585](https://doi.org/10.2202/1544-6115.1585) | EmptyDrops p-values |
+| 3 | Controlling the false discovery rate: a practical and powerful approach to multiple testing | Benjamini | *J. R. Stat. Soc. B*, 1995 | [10.1111/j.2517-6161.1995.tb02031.x](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x) | EmptyDrops FDR correction |
+| 4 | Empirical Linguistics | Sampson | Continuum, 2001 | ISBN 978-0-8264-5794-3 / 978-0-8264-4883-5 | Reference Simple Good-Turing code |
+
+## Datasets
+
+| # | Title | Creator | Publisher, year | DOI | Relevance |
+|---|---|---|---|---|---|
+| 1 | Benchmarking Illumina RNA-seq fusion transcript detection methods – simulated 101 base PE reads | Haas | Zenodo, 2019 | [10.5281/zenodo.13359589](https://doi.org/10.5281/zenodo.13359589) | Chimeric detection truth set (31.9 GB) |
+| 2 | Benchmarking Illumina RNA-seq fusion transcript detection methods – simulated 50 base PE reads | Haas | Zenodo, 2019 | [10.5281/zenodo.13354907](https://doi.org/10.5281/zenodo.13354907) | Same, 50-base reads (12.8 GB) |
+
 Not found on Crossref: the **PLA-index** and **mm2-plus** papers used in
 [the literature optimization plan](LITERATURE_OPTIMIZATION_PLAN.md). Take their
 titles and DOIs from the local copies that plan refers to.

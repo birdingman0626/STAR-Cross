@@ -233,13 +233,31 @@ outliers, and 65k compaction stalls with no outlier runs on a KVM guest. See
 
 ## Missing material
 
-These would let the open points be closed:
-- **Simulated fusion reads with truth** (STAR-Fusion / Haas et al. benchmark
-  data), for the chimeric scoring comparison.
-- **velocyto.py source** at the version STAR targets: its `Permissive10X` logic
-  differs from the paper's text in details. This is public code, not a download
-  request.
-- **UMI-tools source** (`network.py`), to confirm the multi-parent case.
+To download (identifiers checked against Crossref, Zenodo and Open Library on
+2026-11-01):
+
+| # | Full title | Authors, venue, year | DOI / ISBN | Unblocks |
+|---|---|---|---|---|
+| 1 | Benchmarking Illumina RNA-seq fusion transcript detection methods – simulated 101 base PE reads (dataset) | Haas, Zenodo, 2019 | [10.5281/zenodo.13359589](https://doi.org/10.5281/zenodo.13359589) | Truth-based comparison of default vs `--legacy` chimeric scoring. 31.9 GB; one sample is enough to start: `sim1_reads.zip` (6.4 GB) plus `sim_101PE_metadata.zip` |
+| 2 | Benchmarking Illumina RNA-seq fusion transcript detection methods – simulated 50 base PE reads (dataset) | Haas, Zenodo, 2019 | [10.5281/zenodo.13354907](https://doi.org/10.5281/zenodo.13354907) | Optional short-read version of the same test (12.8 GB) |
+| 3 | Supplementary Material of "STAR: ultrafast universal RNA-seq aligner" | Dobin et al., *Bioinformatics*, 2013 | [10.1093/bioinformatics/bts635](https://doi.org/10.1093/bioinformatics/bts635) (supplement on the article page) | Original description of chimeric detection and stitching scores |
+| 4 | Accurate and efficient detection of gene fusions from RNA sequencing data (Arriba) | Uhrig et al., *Genome Research*, 2021 | [10.1101/gr.257246.119](https://doi.org/10.1101/gr.257246.119) | Second major user of STAR's chimeric output: which fields must stay compatible |
+| 5 | Permutation p-values should never be zero: calculating exact p-values when permutations are randomly drawn | Phipson & Smyth, *Stat. Appl. Genet. Mol. Biol.*, 2010 | [10.2202/1544-6115.1585](https://doi.org/10.2202/1544-6115.1585) | The p-value formula EmptyDrops cites (`<` vs `≤`) |
+| 6 | Controlling the false discovery rate: a practical and powerful approach to multiple testing | Benjamini & Hochberg, *J. R. Stat. Soc. B*, 1995 | [10.1111/j.2517-6161.1995.tb02031.x](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x) | EmptyDrops' FDR correction |
+| 7 | Empirical Linguistics | Geoffrey Sampson, Continuum, 2001 | ISBN 978-0-8264-5794-3 or 978-0-8264-4883-5 (two bindings) | Sampson's reference Good-Turing code and its slope check |
+
+The paper's original data link
+(`data.broadinstitute.org/Trinity/STAR_FUSION_PAPER/.../sim_reads/`) returns 404;
+the Zenodo records are named in the README of the Broad server's
+`CTAT_FUSIONTRANS_BENCHMARKING/on_simulated_data/` directory. The paper used the
+GRCh37 / GENCODE v19 reference.
+
+Public code, fetched directly when needed (no DOI):
+- **velocyto.py** at the version STAR targets: its `Permissive10X` logic differs
+  from the paper's text in details;
+- **UMI-tools** (`network.py`), to confirm the multi-parent case;
+- **STAR-Fusion benchmarking repository** (`STAR-Fusion/STAR-Fusion_benchmarking_data`
+  on GitHub), which holds the simulated truth sets.
 
 The books were used for the points above (Mäkinen ch. 16, Durbin ch. 2, Drepper
 ch. 4 and 6, and the sections already cited in
