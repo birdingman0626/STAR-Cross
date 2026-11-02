@@ -81,7 +81,7 @@ int bam_cat(int nfn, char * const *fn, const bam_hdr_t *h, const char* outbam)
         fprintf(stderr, "[%s] ERROR: fail to open output file '%s'.\n", __func__, outbam);
         return 1;
     }
-    bool writeFailed = false; // any failed write leaves the merged BAM unusable
+    bool writeFailed = false; // any failed read, write or close leaves the merged BAM unusable
     if (h && bam_hdr_write(fp, h) < 0) writeFailed = true;
 
     buf = (uint8_t*) malloc(BUF_SIZE);
@@ -98,6 +98,12 @@ int bam_cat(int nfn, char * const *fn, const bam_hdr_t *h, const char* outbam)
         if (in->is_write) return -1;
 
         old = bam_hdr_read(in);
+        if (old == NULL) {
+            fprintf(stderr, "[%s] ERROR: could not read the BAM header of '%s'.\n", __func__, fn[i]);
+            bgzf_close(in);
+            writeFailed = true;
+            break;
+        }
         if (h == 0 && i == 0 && bam_hdr_write(fp, old) < 0) writeFailed = true;
 
         if (in->block_offset < in->block_length) {
@@ -124,6 +130,10 @@ int bam_cat(int nfn, char * const *fn, const bam_hdr_t *h, const char* outbam)
             }
             j=1;
         }
+        if (len < 0) {// read error: the rest of this input would be silently missing from the output
+            fprintf(stderr, "[%s] ERROR: could not read '%s'.\n", __func__, fn[i]);
+            writeFailed = true;
+        }
 
         /* check final gzip block */
         {
@@ -137,7 +147,10 @@ int bam_cat(int nfn, char * const *fn, const bam_hdr_t *h, const char* outbam)
             }
         }
         bam_hdr_destroy(old);
-        bgzf_close(in);
+        if (bgzf_close(in) < 0) {
+            fprintf(stderr, "[%s] ERROR: could not close '%s'.\n", __func__, fn[i]);
+            writeFailed = true;
+        }
     }
     free(buf);
     if (bgzf_close(fp) < 0) writeFailed = true;
