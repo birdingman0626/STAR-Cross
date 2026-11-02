@@ -49,6 +49,12 @@ private:
     void superTranscriptJunctions(const SuperTranscriptLayout &layout);
     void superTranscriptReplaceGenome(const SuperTranscriptLayout &layout);
     void superTranscriptWriteConversion(const SuperTranscriptLayout &layout);
+    //transcriptGeneSJ steps (GTF_transcriptGeneSJ.cpp)
+    void transcriptGeneSJwriteExonGeneInfo(const std::string &dirOutArg);
+    void transcriptGeneSJwriteTranscriptInfo(const std::string &dirOutArg);
+    uint64 transcriptGeneSJjunctions(uint64 *sjLoci);
+    void transcriptGeneSJcollapse(const uint64 *sjLoci, uint64 sjN);
+    void transcriptGeneSJwriteList(const std::string &dirOutArg, uint64 sjdbN1);
 };
 
 #endif
