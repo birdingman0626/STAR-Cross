@@ -280,4 +280,8 @@ typedef uint64 uiWA[WA_SIZE];
 
 // #define DEBUG_NreadStart 500000
 
+// Explicitly ignore a warn_unused_result/[[nodiscard]] value. GCC does not
+// accept a (void) cast for this, but passing the value to a function does.
+template <class T> inline void discardResult(const T&) {}
+
 #endif

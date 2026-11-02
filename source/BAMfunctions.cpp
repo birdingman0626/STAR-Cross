@@ -11,7 +11,7 @@ string bam_cigarString (bam1_t *b) {//output CIGAR string
     string cigarString("");
     if ( c->n_cigar > 0 ) {
       uint32_t *cigar = bam_get_cigar(b);
-      for (int i = 0; i < c->n_cigar; ++i) {
+      for (uint32_t i = 0; i < c->n_cigar; ++i) {
         cigarString+=to_string((uint64)bam_cigar_oplen(cigar[i]))+bam_cigar_opchr(cigar[i]);
       };
     };
@@ -40,7 +40,7 @@ int bam_read1_fromArray(char *bamChar, bam1_t *b) //modified from samtools bam_r
 	if (b->l_data < 0 || c->l_qseq < 0) return -4;
 	if ((char *)bam_get_aux(b) - (char *)b->data > b->l_data)
 		return -4;
-	if (b->m_data < b->l_data) {
+	if (b->m_data < (uint32_t) b->l_data) {//l_data>=0 checked above
 		b->m_data = b->l_data;
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -59,20 +59,20 @@ int bam_read1_fromArray(char *bamChar, bam1_t *b) //modified from samtools bam_r
 
 
 void outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint64> &chrl) {
-    bgzf_write(fp,"BAM\001",4);
+    discardResult(bgzf_write(fp,"BAM\001",4));
     int32 hlen=samh.size();
     bamWriteInt32LE(fp,hlen);
-    bgzf_write(fp,samh.c_str(),hlen);
+    discardResult(bgzf_write(fp,samh.c_str(),hlen));
     int32 nchr=(int32) chrn.size();
     bamWriteInt32LE(fp,nchr);
     for (int32 ii=0;ii<nchr;ii++) {
         int32 rlen = (int32) (chrn.at(ii).size()+1);
         int32 slen = (int32) chrl[ii];
         bamWriteInt32LE(fp,rlen);
-        bgzf_write(fp,chrn.at(ii).data(),rlen); //this includes \0 at the end of the string
+        discardResult(bgzf_write(fp,chrn.at(ii).data(),rlen)); //this includes \0 at the end of the string
         bamWriteInt32LE(fp,slen);
     };
-    bgzf_flush(fp);
+    discardResult(bgzf_flush(fp));
 };
 
 // calculate bin given an alignment covering [beg,end) (zero-based, half-close-half-open)

@@ -157,7 +157,7 @@ void findInsertionPoints(SjdbInsertion &s, const char *G1c, uint64 nIndicesSJ1)
         seq1[0]=s.Gsj+isj*mapGen.sjdbLength;
         seq1[1]=(char*) G1c+isj*mapGen.sjdbLength;
 
-        uint64 isj1=isj<mapGen.sjdbN ? isj : 2*mapGen.sjdbN-1-isj;
+        uint64 isj1=(uint64)isj<mapGen.sjdbN ? isj : 2*mapGen.sjdbN-1-isj;
         int sjdbInd = mapGen1.sjdbN==0 ? -1 : binarySearch2(mapGen.sjdbStart[isj1],mapGen.sjdbEnd[isj1],mapGen1.sjdbStart,mapGen1.sjdbEnd,mapGen1.sjdbN);
         if (sjdbInd<0)
         {//count new junctions

@@ -222,7 +222,7 @@ void SeedBatchExecutor::run(std::vector<PreparedRead>& reads,unsigned worker) {
     }
     stats.reads+=reads.size();stats.elapsed+=seconds(start);
 }
-size_t SeedBatchExecutor::project(std::vector<PreparedRead>& reads,unsigned worker,size_t first) {
+size_t SeedBatchExecutor::project([[maybe_unused]] std::vector<PreparedRead>& reads,[[maybe_unused]] unsigned worker,[[maybe_unused]] size_t first) {
 #ifdef STAR_HAVE_CUDA_SEEDS
     auto start=Clock::now();auto& s=*state;auto& stats=s.stats.at(worker);
     if(!s.gpu) throw std::logic_error("GPU projection without device owner");

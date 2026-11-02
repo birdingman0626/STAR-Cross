@@ -18,7 +18,8 @@ TEST_CASE("PackedArray ownership survives borrowed snapshots and moves") {
     PackedArray moved=std::move(owner);
     CHECK(owner.charArray == nullptr);
     CHECK(moved[0] == 42);
-    moved=std::move(moved);
+    PackedArray& self=moved; // self-move through an alias, so the compiler does not flag it
+    moved=std::move(self);
     CHECK(moved[0] == 42);
 }
 

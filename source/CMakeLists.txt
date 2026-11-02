@@ -443,7 +443,7 @@ set(STAR_SOURCES
     Parameters_openReadsFiles.cpp
     Parameters_closeReadsFiles.cpp
     Parameters_readSAMheader.cpp
-    bam_cat.c  # compiled as C++ despite .c extension
+    bam_cat.cpp
     serviceFuns.cpp
     GlobalVariables.cpp
     BAMoutput.cpp
@@ -461,9 +461,6 @@ set(STAR_SOURCES
 
 # Prepend source directory
 list(TRANSFORM STAR_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
-
-# bam_cat.c uses C++ headers despite .c extension - compile as C++
-set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/bam_cat.c PROPERTIES LANGUAGE CXX)
 
 add_executable(STAR ${STAR_SOURCES})
 add_dependencies(STAR generate_xxd)

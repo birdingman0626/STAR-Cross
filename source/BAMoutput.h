@@ -29,7 +29,6 @@ private:
     uint64 bamArraySize; //this size will be allocated
     std::unique_ptr<char[]> bamArray; //uninitialized storage; no extra full-buffer zero fill
     uint64 binSize, binSize1;//storage size of each bin
-    uint64 binGlen;//bin genomic length
     std::unique_ptr<char*[]> binStart; //borrowed interior pointers, not allocation owners
     std::unique_ptr<uint64[]> binBytes;
     uint64 binBytes1;//number of bytes currently written to each bin

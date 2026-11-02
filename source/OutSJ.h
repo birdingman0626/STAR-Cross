@@ -50,7 +50,6 @@ public:
 
 private:
     Parameters &P;
-    Genome &genOut;
 };
 
 int compareSJ(const void* i1, const void* i2); //external functions

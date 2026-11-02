@@ -124,13 +124,13 @@ void readSamRecord(Parameters& P,char** chunkIn,ChunkSizes& chunkInSizeBytesTota
 
             //read ID or number
             if (P.outSAMreadID=="Number") {
-                chunkInSizeBytesTotal[imate1] += sprintf(chunkIn[imate1] + chunkInSizeBytesTotal[imate1], "@%llu", P.iReadAll);
+                chunkInSizeBytesTotal[imate1] += snprintf(chunkIn[imate1] + chunkInSizeBytesTotal[imate1], P.chunkInSizeBytesArray - chunkInSizeBytesTotal[imate1], "@%llu", P.iReadAll);
             } else {
-                chunkInSizeBytesTotal[imate1] += sprintf(chunkIn[imate1] + chunkInSizeBytesTotal[imate1], "@%s", str1.c_str());
+                chunkInSizeBytesTotal[imate1] += snprintf(chunkIn[imate1] + chunkInSizeBytesTotal[imate1], P.chunkInSizeBytesArray - chunkInSizeBytesTotal[imate1], "@%s", str1.c_str());
             };
 
             //iReadAll, passFilterIllumina, passFilterIllumina
-            chunkInSizeBytesTotal[imate1] += sprintf(chunkIn[imate1] + chunkInSizeBytesTotal[imate1], " %llu %c %i", P.iReadAll, passFilterIllumina, P.readFilesIndex);
+            chunkInSizeBytesTotal[imate1] += snprintf(chunkIn[imate1] + chunkInSizeBytesTotal[imate1], P.chunkInSizeBytesArray - chunkInSizeBytesTotal[imate1], " %llu %c %i", P.iReadAll, passFilterIllumina, P.readFilesIndex);
 
             string dummy;
             for (int ii=3; ii<=9; ii++)
@@ -145,7 +145,7 @@ void readSamRecord(Parameters& P,char** chunkIn,ChunkSizes& chunkInSizeBytesTota
 
             string attrs;
             getline(P.inOut->readIn[0], attrs); //rest of the SAM line: str1 is now all SAM attributes - it's added to the read ID line (1st "fastq" line)
-            chunkInSizeBytesTotal[imate1] += sprintf(chunkIn[imate1] + chunkInSizeBytesTotal[imate1], "%s\n%s\n+\n%s\n", attrs.c_str(), seq1.c_str(), qual1.c_str());
+            chunkInSizeBytesTotal[imate1] += snprintf(chunkIn[imate1] + chunkInSizeBytesTotal[imate1], P.chunkInSizeBytesArray - chunkInSizeBytesTotal[imate1], "%s\n%s\n+\n%s\n", attrs.c_str(), seq1.c_str(), qual1.c_str());
         };
     };
 }
@@ -219,7 +219,7 @@ void readFastaRecord(Parameters& P,char** chunkIn,ChunkSizes& chunkInSizeBytesTo
         if (P.outFilterBySJoutStage!=2) {//not the 2nd stage of the 2-stage mapping
 
             if (P.outSAMreadID=="Number") {
-                chunkInSizeBytesTotal[imate] += sprintf(chunkIn[imate] + chunkInSizeBytesTotal[imate], ">%llu", P.iReadAll);
+                chunkInSizeBytesTotal[imate] += snprintf(chunkIn[imate] + chunkInSizeBytesTotal[imate], P.chunkInSizeBytesArray - chunkInSizeBytesTotal[imate], ">%llu", P.iReadAll);
             } else {
                 string fastaReadID;
                 P.inOut->readIn[imate] >> fastaReadID;
@@ -233,7 +233,7 @@ void readFastaRecord(Parameters& P,char** chunkIn,ChunkSizes& chunkInSizeBytesTo
 
             P.inOut->readIn[imate].ignore(DEF_readNameSeqLengthMax,'\n');
 
-            chunkInSizeBytesTotal[imate] += sprintf(chunkIn[imate] + chunkInSizeBytesTotal[imate], " %llu %c %i \n", P.iReadAll, 'N', P.readFilesIndex);
+            chunkInSizeBytesTotal[imate] += snprintf(chunkIn[imate] + chunkInSizeBytesTotal[imate], P.chunkInSizeBytesArray - chunkInSizeBytesTotal[imate], " %llu %c %i \n", P.iReadAll, 'N', P.readFilesIndex);
         };
 
         //read multi-line fasta

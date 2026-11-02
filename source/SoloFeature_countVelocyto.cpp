@@ -46,11 +46,11 @@ void SoloFeature::countVelocyto()
                 continue;
             };
 
-            uint32 nTr;
+            uint32 nTr=0;
             readNumber(*streamReads, nTr);
             vector<trTypeStruct> trT(nTr);
             for (auto & tt: trT) {
-                uint32 ty;
+                uint32 ty=0;
                 readNumber(*streamReads, tt.tr); readNumber(*streamReads, ty);
                 tt.type=(uint8) ty;
             };

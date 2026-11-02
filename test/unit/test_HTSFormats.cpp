@@ -11,7 +11,14 @@
 using namespace std;
 namespace frequency_model {
 #define NSYM 256
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter" // vendored htscodecs header
+#endif
 #include "htslib/htscodecs/htscodecs/c_simple_model.h"
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #undef NSYM
 }
 

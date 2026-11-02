@@ -27,7 +27,7 @@ void Parameters::readSAMheader(const string commandString, const vector<string> 
     for (uint32 ii=0; ii<fileNames.size(); ii++) {
         remove(tmpFile.c_str());
         string com1=commandString + "   " + fileNames.at(ii) + " > \"" + tmpFile + "\"";
-        system(com1.c_str());
+        discardResult(system(com1.c_str()));
         tmpFileIn.open(tmpFile);
         while (tmpFileIn.good() && tmpFileIn.peek()=='@') {
             string str1;
@@ -53,7 +53,7 @@ void Parameters::readSAMheader(const string commandString, const vector<string> 
     ifstream tmpFifoIn;
     for (uint32 ii=0; ii<fileNames.size(); ii++) {
         string com1=commandString + "   " + fileNames.at(ii) + " > " + tmpFifo + "&";
-        system(com1.c_str());
+        discardResult(system(com1.c_str()));
         tmpFifoIn.open(tmpFifo);
         while (tmpFifoIn.peek()=='@') {
             string str1;

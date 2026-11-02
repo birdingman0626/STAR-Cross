@@ -1,11 +1,11 @@
 /*
  * Created by Fahimeh Mirhaj on 6/10/19.
 */
-using namespace std;
 
 #include "SpliceGraph.h"
 #include "GTF.h"
 #include "uninitArray.h"
+using namespace std;
 SpliceGraph::SpliceGraph (SuperTranscriptome &superTrome, Parameters &P, ReadAlign *RA) : superTrome(superTrome), P(P), RA(RA)
 {
     //find candidate superTr

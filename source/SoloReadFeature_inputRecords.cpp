@@ -16,7 +16,7 @@ void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32
     uint32 feature;
     uint64 umi, iread, prevIread=(uint64)-1;
     int32 cbmatch;
-    int64 cb;
+    int64 cb=0;
     vector<uint32> trIdDist;
     
     while (soloInputFeatureUMI(streamReads, featureType, readIndexYes, P.sjAll, iread, cbmatch, feature, umi, trIdDist, readFlagCounts)) {
@@ -73,7 +73,7 @@ void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32
 
             for (uint32 ii=0; ii<(uint32)cbmatch; ii++) {
                 uint32 cbin;
-                char  qin;
+                char  qin=0;
                 readNumber(*streamReads, cbin); readChar(*streamReads, qin);
                 if (cbReadCountTotal[cbin]>0) {//otherwise this cbin does not work
                     qin -= pSolo.QSbase;

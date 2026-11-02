@@ -11,7 +11,7 @@ int Transcript::variationAdjust(const Genome &mapGen, char *R)
     };
 
     int dScore=0;//change in the score
-    uint64 nMM1=0;
+    [[maybe_unused]] uint64 nMM1=0;//used only without VAR_noScoreCorrection
 
     //for each block, check whether it overlaps one or more SNPs
     for (uint64 ie=0; ie<nExons; ie++)

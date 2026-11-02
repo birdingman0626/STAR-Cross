@@ -80,6 +80,6 @@ void BAMbinSortByCoordinate(uint32 iBin, uint64 binN, uint64 binS, uint64 nThrea
             exitWithError("EXITING: sorted BAM output write error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
 
-    bgzf_flush(bgzfBin);
+    discardResult(bgzf_flush(bgzfBin));
     bgzf_close(bgzfBin);
 };

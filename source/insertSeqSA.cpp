@@ -56,7 +56,7 @@ uint64 findInsertionPoints(PackedArray &SA, char *seq1[2], uint64 *indArray, uin
             indArray[ii*2]=(uint64) -1;
         } else
         {
-            indArray[ii*2] =  suffixArraySearch1(mapGen, seq1, ii, 10000, nG, (ii<nG1 ? true:false), 0, SA.length-1, 0) ;
+            indArray[ii*2] =  suffixArraySearch1(mapGen, seq1, ii, 10000, nG, ((uint64)ii<nG1 ? true:false), 0, SA.length-1, 0) ;
             indArray[ii*2+1] = ii;
         };
     };

@@ -21,15 +21,16 @@ bool soloInputFeatureUMI(fstream *strIn, int32 featureType, bool readInfoYes, ar
             readNumber(*strIn, feature);
             break;
 
-        case SoloFeatureTypes::SJ :
-            uint64 sj[2];
+        case SoloFeatureTypes::SJ : {
+            uint64 sj[2]={0,0};
             readNumber(*strIn, sj[0]); readNumber(*strIn, sj[1]);
             feature=(uint32) binarySearch2(sj[0],sj[1],sjAll[0].data(),sjAll[1].data(),sjAll[0].size());
             break;
+        };
 
         case SoloFeatureTypes::Transcript3p :
             feature=0;
-            uint32 ntr, in1;
+            uint32 ntr=0, in1=0;
             readNumber(*strIn, ntr);
             featVecU32.resize(2*ntr);
             for (uint32 ii=0; ii<2*ntr; ii++) {

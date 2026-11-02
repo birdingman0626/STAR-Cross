@@ -81,7 +81,7 @@ void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Paramet
         startPos.erase(startPos.begin());
     };
 
-    bgzf_flush(bgzfBin);
+    discardResult(bgzf_flush(bgzfBin));
     bgzf_close(bgzfBin);
 
 
