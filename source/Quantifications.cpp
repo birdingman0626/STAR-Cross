@@ -1,4 +1,5 @@
 #include "Quantifications.h"
+#include "uninitArray.h"
 using namespace std;
 Quantifications::Quantifications (uint32 nGeIn) {
 
@@ -14,7 +15,7 @@ Quantifications::Quantifications (uint32 nGeIn) {
     {
         geneCounts.cAmbig[itype]=0;
         geneCounts.cNone[itype]=0;
-        counts[itype].reset(new uintQ [geneCounts.nGe]);
+        counts[itype]=makeUninitArray<uintQ>(geneCounts.nGe);
         geneCounts.gCount[itype] = counts[itype].get();
         for (uint32 ii=0; ii<geneCounts.nGe; ii++)
         {
