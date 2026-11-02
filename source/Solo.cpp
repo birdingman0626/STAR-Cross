@@ -1,6 +1,7 @@
 #include "Solo.h"
 #include "TimeFunctions.h"
 #include "streamFuns.h"
+#include "uninitArray.h"
 using namespace std;
 Solo::Solo(ReadAlignChunk **RAchunkIn, Parameters &Pin, Transcriptome &inTrans)
                        :  RAchunk(RAchunkIn), P(Pin), Trans(inTrans), pSolo(P.pSolo)
@@ -14,7 +15,7 @@ Solo::Solo(ReadAlignChunk **RAchunkIn, Parameters &Pin, Transcriptome &inTrans)
     if ( pSolo.type == pSolo.SoloTypes::CB_samTagOut )
         return;
 
-    featureViews.reset(new SoloFeature*[pSolo.nFeatures]);
+    featureViews=makeUninitArray<SoloFeature*>(pSolo.nFeatures);
     soloFeat=featureViews.get();
     featureStorage.reserve(pSolo.nFeatures);
     for (uint32 ii=0; ii<pSolo.nFeatures; ii++) {
@@ -36,7 +37,7 @@ Solo::Solo(Parameters &Pin, Transcriptome &inTrans)
     time( &timeCurrent);
     *P.inOut->logStdOut << timeMonthDayTime(timeCurrent) << " ..... starting SoloCellFiltering" <<endl;
     
-    featureViews.reset(new SoloFeature*[1]);
+    featureViews=makeUninitArray<SoloFeature*>(1);
     soloFeat=featureViews.get();
     
     featureStorage.emplace_back(new SoloFeature(P, NULL, Trans, -1, NULL, soloFeat));

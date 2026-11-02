@@ -3,6 +3,7 @@
 #include "TimeFunctions.h"
 #include "SequenceFuns.h"
 #include "systemFunctions.h"
+#include "uninitArray.h"
 using namespace std;
 void SoloFeature::countCBgeneUMI()
 {    
@@ -18,11 +19,11 @@ void SoloFeature::countCBgeneUMI()
         P.inOut->logMain << timeMonthDayTime(rawTime) << " ... Allocated and initialized readInfo array, nReadsInput = " << nReadsInput <<endl;        
     };
 
-    std::unique_ptr<uint32[]> recordsStorage(new uint32[rguStride*nReadsMapped]);
+    auto recordsStorage=makeUninitArray<uint32>(rguStride*nReadsMapped);
     rGeneUMI=recordsStorage.get(); // mutable algorithm view, allocation base never changes
-    std::unique_ptr<uint32*[]> barcodePointers(new uint32*[nCB+1]);
+    auto barcodePointers=makeUninitArray<uint32*>(nCB+1);
     rCBp=barcodePointers.get();
-    std::unique_ptr<uint32*[]> whitelistPointers(new uint32*[pSolo.cbWLsize+1]);
+    auto whitelistPointers=makeUninitArray<uint32*>(pSolo.cbWLsize+1);
     uint32 **rCBpa=whitelistPointers.get();
     
     rCBp[0]=rGeneUMI;

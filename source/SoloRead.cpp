@@ -1,4 +1,5 @@
 #include "SoloRead.h"
+#include "uninitArray.h"
 using namespace std;
 SoloRead::SoloRead(Parameters &Pin, int32 iChunkIn) :  iChunk(iChunkIn), P(Pin), pSolo(P.pSolo)
 {
@@ -9,7 +10,7 @@ SoloRead::SoloRead(Parameters &Pin, int32 iChunkIn) :  iChunk(iChunkIn), P(Pin),
     if (pSolo.type==pSolo.SoloTypes::CB_samTagOut)
         return;
     
-    featurePointers.reset(new SoloReadFeature*[pSolo.nFeatures]); readFeat=featurePointers.get();
+    featurePointers=makeUninitArray<SoloReadFeature*>(pSolo.nFeatures); readFeat=featurePointers.get();
     featureStorage.resize(pSolo.nFeatures);
 
     for (uint32 ii=0; ii<pSolo.nFeatures; ii++)

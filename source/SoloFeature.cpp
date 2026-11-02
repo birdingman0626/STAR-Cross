@@ -1,5 +1,6 @@
 #include "SoloFeature.h"
 #include "streamFuns.h"
+#include "uninitArray.h"
 using namespace std;
 SoloFeature::SoloFeature(Parameters &Pin, ReadAlignChunk **RAchunk, Transcriptome &inTrans, int32 feTy, SoloReadBarcode *readBarSumIn, SoloFeature **soloFeatAll)
             : P(Pin), RAchunk(RAchunk), Trans(inTrans), soloFeatAll(soloFeatAll), pSolo(P.pSolo), readBarSum(readBarSumIn), featureType(feTy)
@@ -7,7 +8,7 @@ SoloFeature::SoloFeature(Parameters &Pin, ReadAlignChunk **RAchunk, Transcriptom
     if (featureType>=0) {//otherwise we do not need these arrays - e.g. with --runMode soloCellFiltering 
         summaryStorage.reset(new SoloReadFeature(featureType,P,-1));
         readFeatSum=summaryStorage.get();
-        threadFeatureViews.reset(new SoloReadFeature*[P.runThreadN]);
+        threadFeatureViews=makeUninitArray<SoloReadFeature*>(P.runThreadN);
         readFeatAll=threadFeatureViews.get();
     };
     
