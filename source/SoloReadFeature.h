@@ -12,6 +12,7 @@
 #include <memory>
 
 class SoloFeature;
+class ReadSoloFeatures; //per-read features, SoloReadFeature_record.cpp
 
 class SoloReadFeature {
 public:
@@ -47,6 +48,14 @@ private:
 
     Parameters &P;
     ParametersSolo &pSolo;
+
+    //record steps (SoloReadFeature_record.cpp)
+    void recordReadFlags(SoloReadBarcode &soloBar, uint64 nTr, Transcript **alignOut, ReadAnnotations &readAnnot);
+    uint32 recordGene(SoloReadBarcode &soloBar, uint64 nTr, uint64 iRead, ReadAnnotations &readAnnot, ReadSoloFeatures &reFe);
+    uint32 recordSJ(SoloReadBarcode &soloBar, uint64 nTr, Transcript **alignOut, uint64 iRead, ReadAnnotations &readAnnot, ReadSoloFeatures &reFe);
+    uint32 recordTranscript3p(SoloReadBarcode &soloBar, uint64 iRead, ReadAnnotations &readAnnot, ReadSoloFeatures &reFe);
+    uint32 recordVelocyto(uint64 iRead, ReadAnnotations &readAnnot);
+    void addCBreadCount(SoloReadBarcode &soloBar, uint32 nFeat);
 };
 
 #endif
