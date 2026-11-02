@@ -15,6 +15,16 @@
 #endif
 using namespace std;
 
+namespace {
+// Lines are batched: per-line << is slow with some standard libraries (see SoloTextIO.h).
+void writeBatch(std::string &outBatch, std::ostream &out, bool force) {
+    if (force || outBatch.size() >= (1u<<20)) {
+        out.write(outBatch.data(), (std::streamsize) outBatch.size());
+        outBatch.clear();
+    };
+};
+} // namespace
+
 void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
 {    
     //make directories   
@@ -27,7 +37,20 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
     };
     */
     
-    /////////////////////////////////////////////////////////////
+    outputFeatures(outputPrefixMat);
+    uint64 nCellGeneEntries=outputBarcodes(cellFilterYes, outputPrefixMat);//total number of non-zero cell/gene combinations (entries in the output matrix)
+    outputCountMatrices(cellFilterYes, outputPrefixMat, nCellGeneEntries);
+    
+    //////////////////////////////////////////// output unique+multimappers
+    if (pSolo.multiMap.yes.multi && !cellFilterYes
+        && (featureType == SoloFeatureTypes::Gene || featureType == SoloFeatureTypes::GeneFull
+         || featureType == SoloFeatureTypes::GeneFull_ExonOverIntron || featureType == SoloFeatureTypes::GeneFull_Ex50pAS) ) {
+        outputUniqueAndMultMatrices(outputPrefixMat);
+    };
+};
+
+void SoloFeature::outputFeatures(const string &outputPrefixMat)
+{
     //write features.tsv
     switch (featureType) {
         case SoloFeatureTypes::Gene :
@@ -63,43 +86,42 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
                       + "\nSOLUTION: check the path and permisssions\n",
                        std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
+};
 
-    ////////////////////////////////////////////////////////////////////////////
+uint64 SoloFeature::outputBarcodes(bool cellFilterYes, const string &outputPrefixMat)
+{
     //write barcodes.tsv
     ofstream &cbStr=ofstrOpen(outputPrefixMat+pSolo.outFileNames[2],ERROR_OUT, P);
     std::unique_ptr<ofstream> barcodeStreamStorage(&cbStr);
     uint64 nCellGeneEntries=0;//total number of non-zero cell/gene combinations (entries in the output matrix)
-    // Lines are batched: per-line << is slow with some standard libraries (see SoloTextIO.h).
     std::string outBatch;
-    auto writeBatch = [&outBatch](std::ostream &out, bool force) {
-        if (force || outBatch.size() >= (1u<<20)) {
-            out.write(outBatch.data(), (std::streamsize) outBatch.size());
-            outBatch.clear();
-        };
-    };
     if (cellFilterYes) {//filtered cells
         for (uint32 icb=0; icb<nCB; icb++) {
             if (filteredCells.filtVecBool[icb]) {
                 outBatch += pSolo.cbWLstr[indCB[icb]]; outBatch += '\n';
-                writeBatch(cbStr, false);
+                writeBatch(outBatch, cbStr, false);
                 nCellGeneEntries += nGenePerCB[icb];
             };
         };
     } else {//unfiltered cells
         for (uint64 ii=0; ii<pSolo.cbWLsize; ii++) {
             outBatch += pSolo.cbWLstr[ii]; outBatch += '\n';
-            writeBatch(cbStr, false);
+            writeBatch(outBatch, cbStr, false);
         };
         for (uint32 icb=0; icb<nCB; icb++) {
             nCellGeneEntries += nGenePerCB[icb];
         };
     };
-    writeBatch(cbStr, true);
+    writeBatch(outBatch, cbStr, true);
     cbStr.flush();   
+    return nCellGeneEntries;
+};
 
-    /////////////////////////////////////////////////////////////
+void SoloFeature::outputCountMatrices(bool cellFilterYes, const string &outputPrefixMat, uint64 nCellGeneEntries)
+{
     //output counting matrix
     
+    std::string outBatch;
     for (uint32 iCol=1; iCol<countMatStride; iCol++) {
 
         string matrixFileName=outputPrefixMat;
@@ -143,117 +165,121 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
                 appendNumber(outBatch, countCellGeneUMI[indG1]+1); outBatch += ' ';
                 appendNumber(outBatch, cbInd1); outBatch += ' ';
                 appendNumber(outBatch, countCellGeneUMI[indG1+iCol]); outBatch += '\n';
-                writeBatch(countMatrixStream, false);
+                writeBatch(outBatch, countMatrixStream, false);
             };
         };
-        writeBatch(countMatrixStream, true);
+        writeBatch(outBatch, countMatrixStream, true);
 
         countMatrixStream.close();
     };
-    
-    //////////////////////////////////////////// output unique+multimappers
-    if (pSolo.multiMap.yes.multi && !cellFilterYes
-        && (featureType == SoloFeatureTypes::Gene || featureType == SoloFeatureTypes::GeneFull
-         || featureType == SoloFeatureTypes::GeneFull_ExonOverIntron || featureType == SoloFeatureTypes::GeneFull_Ex50pAS) ) {
-                          //skipping unique
-        nUMIperCBmulti.resize(nCB);
-        nGenePerCBmulti.resize(nCB);
-        bool nGeneUMIperCBmultiFill = true; //if true, need to fill the arrays
+};
 
-        for (const auto &iMult: pSolo.multiMap.types) {               
-            for (uint32 iDed=0; iDed<pSolo.umiDedup.yes.N; iDed++) {
-                string matrixFileName=outputPrefixMat + "UniqueAndMult-" + pSolo.multiMap.typeNames[iMult];
-                if (pSolo.umiDedup.types.size()>1) {
-                    matrixFileName += "_umiDedup-" + pSolo.umiDedup.typeNames[pSolo.umiDedup.types[iDed]];
-                };
-                matrixFileName += ".mtx";
+void SoloFeature::outputUniqueAndMultMatrices(const string &outputPrefixMat)
+{
+    //skipping unique
+    nUMIperCBmulti.resize(nCB);
+    nGenePerCBmulti.resize(nCB);
+    bool nGeneUMIperCBmultiFill = true; //if true, need to fill the arrays
 
-                uint32 mIndex = pSolo.multiMap.countInd.I[iMult] + iDed;
-                    
-                std::ostringstream matOutStringStream;//(matOutString);
-                    
-                nCellGeneEntries = 0;
-                    
-                uint32  cbInd1=0;
-                for (uint32 icb=0; icb<nCB; icb++) {
-                    cbInd1=indCB[icb]+1;
-                    
-                    /* just unique
-                    for (uint32 igm=countCellGeneUMIindex[icb]; igm<countCellGeneUMIindex[icb+1]; igm+=countMatStride) {
-                                               
-                        //feature index, CB index, count
-                        matOutString += to_string(countCellGeneUMI[igm]+1) +' '+ to_string(cbInd1) +' '+ to_string(countCellGeneUMI[igm+iDed]) + '\n';
-                        
-                        ++nCellGeneEntries;
-                    };
-                    */
-                    
-                    /*//just multiple
-                    for (uint32 igm=countMatMult.i[icb]; igm<countMatMult.i[icb+1]; igm+=countMatMult.s) {                      
-                        matOutStringStream << int(countMatMult.m[igm])+1 <<' '<< cbInd1 <<' '<< countMatMult.m[igm+mIndex] <<'\n';
-                        ++nCellGeneEntries;
-                    };
-                    */
-                    
-                    //if (false)
-                    {//sum unique+multiple: go over sorted lists. TODO: use a map to combine (check efficiency)
-                        auto igm1 = countCellGeneUMIindex[icb];
-                        auto igm2 = countMatMult.i[icb];
-                        while ( igm1<countCellGeneUMIindex[icb+1] || igm2<countMatMult.i[icb+1] ) {
-                            uint32 g1,c1=0,g2;
-                            double c2=0;
-                            
-                            if (igm1<countCellGeneUMIindex[icb+1]) {
-                                g1 = countCellGeneUMI[igm1];
-                                c1 = countCellGeneUMI[igm1+1+iDed];
-                            } else {
-                                g1 = (uint32)-1;
-                            };
-                            
-                            if (igm2<countMatMult.i[icb+1]) {
-                                g2 = countMatMult.m[igm2];
-                                c2 = countMatMult.m[igm2+mIndex];                                
-                            } else {
-                                g2 = (uint32)-1;
-                            };
-                            
-                            if (g1<g2) {//only unique counts for this gene
-                                matOutStringStream << g1+1 <<' '<< cbInd1 <<' '<< c1 <<'\n';
-                                igm1 += countMatStride;
-                            } else if (g1>g2) {//only multiple counts for this gene
-                                matOutStringStream << g2+1 <<' '<< cbInd1 <<' '<< c2 <<'\n';
-                                igm2 += countMatMult.s;
-                                if (nGeneUMIperCBmultiFill) {
-                                    nUMIperCBmulti[icb] += c2;
-                                    nGenePerCBmulti[icb]++;
-                                };
-                            } else {//unique and multiple counts for this gene
-                                matOutStringStream << g1+1 <<' '<< cbInd1 <<' '<< c1+c2 <<'\n';
-                                igm1 += countMatStride;
-                                igm2 += countMatMult.s;
-                                if (nGeneUMIperCBmultiFill) {
-                                    nUMIperCBmulti[icb] += c2;
-                                };                                
-                            };
-                            
-                            ++nCellGeneEntries;
-                        };
-                    };
-                };
-                nGeneUMIperCBmultiFill = false; //arrays were filled - only do it once
-
-
-                ofstream &countMatrixStream=ofstrOpen(matrixFileName, ERROR_OUT, P);
-                std::unique_ptr<ofstream> matrixStreamStorage(&countMatrixStream);
-                
-                //header
-                countMatrixStream <<"%%MatrixMarket matrix coordinate real general\n";
-                countMatrixStream <<"%\n";
-                countMatrixStream << featuresNumber <<' '<< pSolo.cbWLsize <<' '<< nCellGeneEntries << '\n';
-                countMatrixStream << matOutStringStream.str();
-
-                countMatrixStream.close();
+    for (const auto &iMult: pSolo.multiMap.types) {               
+        for (uint32 iDed=0; iDed<pSolo.umiDedup.yes.N; iDed++) {
+            string matrixFileName=outputPrefixMat + "UniqueAndMult-" + pSolo.multiMap.typeNames[iMult];
+            if (pSolo.umiDedup.types.size()>1) {
+                matrixFileName += "_umiDedup-" + pSolo.umiDedup.typeNames[pSolo.umiDedup.types[iDed]];
             };
+            matrixFileName += ".mtx";
+
+            uint32 mIndex = pSolo.multiMap.countInd.I[iMult] + iDed;
+                
+            std::ostringstream matOutStringStream;//(matOutString);
+                
+            uint64 nCellGeneEntries = 0;
+                
+            for (uint32 icb=0; icb<nCB; icb++)
+                nCellGeneEntries += uniqueAndMultCellCounts(icb, iDed, mIndex, nGeneUMIperCBmultiFill, matOutStringStream);
+            nGeneUMIperCBmultiFill = false; //arrays were filled - only do it once
+
+
+            ofstream &countMatrixStream=ofstrOpen(matrixFileName, ERROR_OUT, P);
+            std::unique_ptr<ofstream> matrixStreamStorage(&countMatrixStream);
+            
+            //header
+            countMatrixStream <<"%%MatrixMarket matrix coordinate real general\n";
+            countMatrixStream <<"%\n";
+            countMatrixStream << featuresNumber <<' '<< pSolo.cbWLsize <<' '<< nCellGeneEntries << '\n';
+            countMatrixStream << matOutStringStream.str();
+
+            countMatrixStream.close();
         };
     };
+};
+
+//unique+multiple counts of one cell, appended to matOut; returns the number of matrix entries
+uint64 SoloFeature::uniqueAndMultCellCounts(uint32 icb, uint32 iDed, uint32 mIndex, bool nGeneUMIperCBmultiFill, std::ostringstream &matOutStringStream)
+{
+    uint64 nCellGeneEntries = 0;
+    uint32  cbInd1=indCB[icb]+1;
+    
+    /* just unique
+    for (uint32 igm=countCellGeneUMIindex[icb]; igm<countCellGeneUMIindex[icb+1]; igm+=countMatStride) {
+                               
+        //feature index, CB index, count
+        matOutString += to_string(countCellGeneUMI[igm]+1) +' '+ to_string(cbInd1) +' '+ to_string(countCellGeneUMI[igm+iDed]) + '\n';
+        
+        ++nCellGeneEntries;
+    };
+    */
+    
+    /*//just multiple
+    for (uint32 igm=countMatMult.i[icb]; igm<countMatMult.i[icb+1]; igm+=countMatMult.s) {                      
+        matOutStringStream << int(countMatMult.m[igm])+1 <<' '<< cbInd1 <<' '<< countMatMult.m[igm+mIndex] <<'\n';
+        ++nCellGeneEntries;
+    };
+    */
+    
+    //if (false)
+    {//sum unique+multiple: go over sorted lists. TODO: use a map to combine (check efficiency)
+        auto igm1 = countCellGeneUMIindex[icb];
+        auto igm2 = countMatMult.i[icb];
+        while ( igm1<countCellGeneUMIindex[icb+1] || igm2<countMatMult.i[icb+1] ) {
+            uint32 g1,c1=0,g2;
+            double c2=0;
+            
+            if (igm1<countCellGeneUMIindex[icb+1]) {
+                g1 = countCellGeneUMI[igm1];
+                c1 = countCellGeneUMI[igm1+1+iDed];
+            } else {
+                g1 = (uint32)-1;
+            };
+            
+            if (igm2<countMatMult.i[icb+1]) {
+                g2 = countMatMult.m[igm2];
+                c2 = countMatMult.m[igm2+mIndex];                                
+            } else {
+                g2 = (uint32)-1;
+            };
+            
+            if (g1<g2) {//only unique counts for this gene
+                matOutStringStream << g1+1 <<' '<< cbInd1 <<' '<< c1 <<'\n';
+                igm1 += countMatStride;
+            } else if (g1>g2) {//only multiple counts for this gene
+                matOutStringStream << g2+1 <<' '<< cbInd1 <<' '<< c2 <<'\n';
+                igm2 += countMatMult.s;
+                if (nGeneUMIperCBmultiFill) {
+                    nUMIperCBmulti[icb] += c2;
+                    nGenePerCBmulti[icb]++;
+                };
+            } else {//unique and multiple counts for this gene
+                matOutStringStream << g1+1 <<' '<< cbInd1 <<' '<< c1+c2 <<'\n';
+                igm1 += countMatStride;
+                igm2 += countMatMult.s;
+                if (nGeneUMIperCBmultiFill) {
+                    nUMIperCBmulti[icb] += c2;
+                };                                
+            };
+            
+            ++nCellGeneEntries;
+        };
+    };
+    return nCellGeneEntries;
 };

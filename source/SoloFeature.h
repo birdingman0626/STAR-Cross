@@ -118,6 +118,12 @@ public:
     uint32 umiArrayCorrect_Graph      (const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, std::unordered_map <uintUMI,uintUMI> &umiCorr);
 
     void outputResults(bool cellFilterYes, std::string outputPrefixMat);
+    //outputResults steps (SoloFeature_outputResults.cpp)
+    void outputFeatures(const std::string &outputPrefixMat);
+    uint64 outputBarcodes(bool cellFilterYes, const std::string &outputPrefixMat);
+    void outputCountMatrices(bool cellFilterYes, const std::string &outputPrefixMat, uint64 nCellGeneEntries);
+    void outputUniqueAndMultMatrices(const std::string &outputPrefixMat);
+    uint64 uniqueAndMultCellCounts(uint32 icb, uint32 iDed, uint32 mIndex, bool nGeneUMIperCBmultiFill, std::ostringstream &matOutStringStream);
     void addBAMtags(char *&bam0, uint32 &size0, char* bam1);
     void statsOutput();
     void redistributeReadsByCB();
