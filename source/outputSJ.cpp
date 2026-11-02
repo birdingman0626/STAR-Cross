@@ -3,6 +3,7 @@
 #include "OutSJ.h"
 #include <limits.h>
 #include "ErrorWarning.h"
+#include "uninitArray.h"
 using namespace std;
 int compareUint(const void* i1, const void* i2) {//compare uint64 arrays
     uint64 s1=loadUnaligned<uint64>(i1);
@@ -20,7 +21,7 @@ int compareUint(const void* i1, const void* i2) {//compare uint64 arrays
 void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions from all therads/chunks; outputs junctions to file
 
     Junction oneSJ(RAchunk[0]->RA->genOut);
-    std::unique_ptr<char*[]> sjChunks(new char* [P.runThreadN+1]);
+    auto sjChunks=makeUninitArray<char*>(P.runThreadN+1);
     #define OUTSJ_limitScale 2
     OutSJ allSJ (P.limit.outSJcollapsed*OUTSJ_limitScale, P, RAchunk[0]->RA->genOut);
 
@@ -82,10 +83,11 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
         sjChunks[icOut] += oneSJ.dataSize;//shift icOut-chunk by one junction
     };
 
-    std::unique_ptr<bool[]> sjFilter(new bool[allSJ.N]);
+    auto sjFilter=makeUninitArray<bool>(allSJ.N);
     if (P.outFilterBySJoutStage!=2) {
         //filter non-canonical junctions that are close to canonical
-        uint64* sjA = new uint64 [allSJ.N*3];
+        auto sjAStorage=makeUninitArray<uint64>(allSJ.N*3);
+        uint64* sjA=sjAStorage.get();
         for (uint64 ii=0;ii<allSJ.N;ii++) {//scan through all junctions, filter by the donor ditance to a nearest donor, fill acceptor array
             oneSJ.junctionPointer(allSJ.data,ii);
 
@@ -117,7 +119,6 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
                 sjFilter[sjA[ii*3+1]] = sjFilter[sjA[ii*3+1]] && ( minDist >= (uint64) P.outSJfilter.distToOtherSJmin[(sjA[ii*3+2]+1)/2] );
             };
         };
-        delete[] sjA; // fix memory leak (upstream PR #2676)
     };
 
     //output junctions
@@ -143,8 +144,8 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
                 if (*oneSJ.annot==0) P.sjNovelN++;
             };
         };
-        P.sjNovelStartStorage.reset(new uint64 [P.sjNovelN]);
-        P.sjNovelEndStorage.reset(new uint64 [P.sjNovelN]);
+        P.sjNovelStartStorage=makeUninitArray<uint64>(P.sjNovelN);
+        P.sjNovelEndStorage=makeUninitArray<uint64>(P.sjNovelN);
         P.sjNovelStart = P.sjNovelStartStorage.get();
         P.sjNovelEnd = P.sjNovelEndStorage.get();
         P.inOut->logMain <<"Detected " <<P.sjNovelN<<" novel junctions that passed filtering, will proceed to filter reads that contained unannotated junctions"<<endl;
