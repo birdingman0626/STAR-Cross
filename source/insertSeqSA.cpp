@@ -14,6 +14,7 @@
 #include <cmath>
 #include <memory>
 #include "genomeSAindex.h"
+#include "uninitArray.h"
 using namespace std;
 
 namespace {
@@ -127,7 +128,7 @@ uint64 insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char 
 
     //new sequence and its reverse complement; ends are filled with spacers to mark boundaries
     char* seq1[2]; // stack array (fix: memory leak)
-    std::unique_ptr<char[]> sequenceStorage(new char[4*nG1+3*GENOME_endFillL]);
+    auto sequenceStorage=makeUninitArray<char>(4*nG1+3*GENOME_endFillL);
     char* seqq=sequenceStorage.get();
 
     seq1[0]=seqq+GENOME_endFillL;//TODO: avoid defining an extra array, use reverse search
@@ -144,7 +145,7 @@ uint64 insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char 
     };
     complementSeqNumbers(seq1[0], seq1[1], 2*nG1);//complement
 
-    std::unique_ptr<uint64[]> insertionStorage(new uint64[nG1*2*2+2]);
+    auto insertionStorage=makeUninitArray<uint64>(nG1*2*2+2);
     uint64* indArray=insertionStorage.get();// insertion place and index for both strands
     const uint64 nInd=findInsertionPoints(SA, seq1, indArray, nG, nG1, P, mapGen);
 

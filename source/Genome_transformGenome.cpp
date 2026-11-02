@@ -96,8 +96,7 @@ void Genome::transformGenome(GTF *gtf)
 
         nGenome1=chrStart1.back();
         P.inOut->logMain << "Old/new genome sizes: " << nGenome <<" "<< nGenome1 <<endl;        
-        genomeSequenceAllocate(nGenome1, nG1allocNew, Gnew, G1new);
-        transformedStorage.reset(G1new);
+        transformedStorage=genomeSequenceAllocate(nGenome1, nG1allocNew, Gnew, G1new);
 
         vector<array<uint64,3>> transformBlocks;
         transformGandBlocks(vcfVariants[0], chrStart1, chrLength1, transformBlocks, Gnew);
@@ -119,8 +118,7 @@ void Genome::transformGenome(GTF *gtf)
         
         nGenome1=chrStart1[1].back();
         P.inOut->logMain << "Old/new genome sizes: " << nGenome <<" "<< nGenome1 <<endl;        
-        genomeSequenceAllocate(nGenome1, nG1allocNew, Gnew, G1new);
-        transformedStorage.reset(G1new);
+        transformedStorage=genomeSequenceAllocate(nGenome1, nG1allocNew, Gnew, G1new);
 
         //genome sequence and transform blocks
         vector<array<uint64,3>> transformBlocks[2];

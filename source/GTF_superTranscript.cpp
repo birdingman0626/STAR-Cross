@@ -243,7 +243,7 @@ void Genome::concatenateChromosomes(const vector<vector<uint8>> &vecSeq, const v
 
     nGenome=chrStart.back();
     //re-allocate G and copy the sequences
-    genomeSequenceAllocate(nGenome, nG1alloc, G, G1);
+    sequenceStorage=genomeSequenceAllocate(nGenome, nG1alloc, G, G1);
     for (uint32 ii=0; ii<nChrReal; ii++) {
         memcpy(G+chrStart[ii],vecSeq[ii].data(),vecSeq[ii].size());
     };

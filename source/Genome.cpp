@@ -15,6 +15,7 @@
     #include <unistd.h>
 #endif
 #include <sys/stat.h>
+#include "uninitArray.h"
 using namespace std;
 Genome::Genome (Parameters &P, ParametersGenome &pGe): shmStart(NULL), P(P), pGe(pGe), sharedMemory(NULL)
 {
@@ -249,7 +250,7 @@ void Genome::chrInfoLoad() {//find chrStart,Length,nChr from Genome G
 //////////////////////////////////////////////////////////
 void Genome::chrBinFill() {
     chrBinN = chrStart[nChrReal]/genomeChrBinNbases+1;
-    chromosomeBinStorage.emplace_back(new uint64 [chrBinN]);
+    chromosomeBinStorage.emplace_back(makeUninitArray<uint64>(chrBinN));
     chrBin = chromosomeBinStorage.back().get();
     for (uint64 ii=0, ichr=1; ii<chrBinN; ++ii) {
         if (ii*genomeChrBinNbases>=chrStart[ichr]) ichr++;
@@ -264,19 +265,19 @@ void Genome::initializeVariation(bool enabled) {
 }
 
 void Genome::allocateSAindexStarts(uint64 count) {
-    suffixIndexStartStorage.emplace_back(new uint64[count]);
+    suffixIndexStartStorage.emplace_back(makeUninitArray<uint64>(count));
     genomeSAindexStart = suffixIndexStartStorage.back().get();
 }
 
 void Genome::allocateJunctionAnnotations(uint64 count) {
     // Retain prior tables while insertion-time snapshots still borrow them.
     auto storage = std::make_unique<JunctionStorage>();
-    storage->start.reset(new uint64[count]);
-    storage->end.reset(new uint64[count]);
-    storage->motif.reset(new uint8[count]);
-    storage->shiftLeft.reset(new uint8[count]);
-    storage->shiftRight.reset(new uint8[count]);
-    storage->strand.reset(new uint8[count]);
+    storage->start=makeUninitArray<uint64>(count);
+    storage->end=makeUninitArray<uint64>(count);
+    storage->motif=makeUninitArray<uint8>(count);
+    storage->shiftLeft=makeUninitArray<uint8>(count);
+    storage->shiftRight=makeUninitArray<uint8>(count);
+    storage->strand=makeUninitArray<uint8>(count);
     junctionStorage.push_back(std::move(storage));
     auto& current = *junctionStorage.back();
     sjdbStart=current.start.get(); sjdbEnd=current.end.get();
@@ -286,11 +287,11 @@ void Genome::allocateJunctionAnnotations(uint64 count) {
 
 void Genome::allocateJunctionCoordinates(uint64 count) {
     auto& current = *junctionStorage.back();
-    current.donor.reset(new uint64[count]); current.acceptor.reset(new uint64[count]);
+    current.donor=makeUninitArray<uint64>(count); current.acceptor=makeUninitArray<uint64>(count);
     sjDstart=current.donor.get(); sjAstart=current.acceptor.get();
 }
 
-void Genome::genomeSequenceAllocate(uint64 nGenomeIn, uint64 &nG1allocOut, char*& Gout, char*& G1out)
+std::unique_ptr<char[]> Genome::genomeSequenceAllocate(uint64 nGenomeIn, uint64 &nG1allocOut, char*& Gout, char*& G1out)
 {
     nG1allocOut=(nGenomeIn + 100)*2; //extra 100 bytes at the beginning, just in case
     
@@ -301,10 +302,10 @@ void Genome::genomeSequenceAllocate(uint64 nGenomeIn, uint64 &nG1allocOut, char*
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
     };    
     
-    G1out=new char[nG1allocOut];
-    if (&G1out == &G1)
-        sequenceStorage.reset(G1out);
+    auto storage=makeUninitArray<char>(nG1allocOut);
+    G1out=storage.get();
     Gout=G1out+100;
 
     memset(G1out,GENOME_spacingChar,nG1allocOut);//initialize to K-1 all bytes
+    return storage;
 };

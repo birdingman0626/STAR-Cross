@@ -1,6 +1,7 @@
 # include "PackedArray.h"
 #include "HugePages.h"
 #include <stdexcept>
+#include "uninitArray.h"
 using namespace std;
 PackedArray::PackedArray() {
     charArray=NULL;
@@ -71,7 +72,7 @@ void PackedArray::allocateArray() {
         throw std::logic_error("PackedArray must be defined before allocation");
     if (storage)
         throw std::logic_error("PackedArray already owns storage");
-    storage.reset(new char[lengthByte]);
+    storage=makeUninitArray<char>(lengthByte);
     charArray=storage.get();
     adviseHugePages(charArray,lengthByte); // before the first write below
     memset(charArray+lengthByte-sizeof(uint64),0,sizeof(uint64));//set the last 8 bytes to zero, since some of them may lnever be written

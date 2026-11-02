@@ -2,6 +2,7 @@
 #include "TimeFunctions.h"
 #include "SuffixArrayFuns.h"
 #include "ErrorWarning.h"
+#include "uninitArray.h"
 using namespace std;
 struct SAindexEvent {
     uint64 isa;
@@ -195,7 +196,8 @@ void genomeSAindexChunk(char * G, PackedArray & SA, Parameters & P, PackedArray 
 
     P.inOut->logMain << "SAindex traversal strategy: " << (parallelEvents ? "parallel-events" : "skip-search") << "\n" << flush;
 
-    uint64* ind0=new uint64[mapGen.pGe.gSAindexNbases];
+    auto ind0Storage=makeUninitArray<uint64>(mapGen.pGe.gSAindexNbases);
+    uint64* ind0=ind0Storage.get();
 
     for (uint64 ii=0; ii<mapGen.pGe.gSAindexNbases; ii++) {
         ind0[ii]=-1;//this is needed in case "AAA...AAA",i.e. indPref=0 is not present in the genome for some lengths
@@ -229,9 +231,6 @@ void genomeSAindexChunk(char * G, PackedArray & SA, Parameters & P, PackedArray 
     		SAi.writePacked(ii, mapGen.nSA | mapGen.SAiMarkAbsentMaskC);
     	};
     };
-
-    delete [] ind0;
-
  };
 
 void funSAiFindNextIndex(char * G, PackedArray & SA, uint64 isaStep, uint64 & isa, uint64 & indFull, int & iL4, Genome &mapGen)

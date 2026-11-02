@@ -3,6 +3,7 @@
 #include "PackedArray.h"
 #include "ErrorWarning.h"
 #include "streamFuns.h"
+#include "uninitArray.h"
 using namespace std;
 
 void Genome::genomeOutLoad(){//allocate and load *output* Genome
@@ -27,8 +28,8 @@ void Genome::genomeOutLoad(){//allocate and load *output* Genome
     
     ifstream GenomeIn;
     nGenome = OpenStream("Genome", GenomeIn, 0);
-    G=new char[nGenome];
-    sequenceStorage.reset(G);
+    sequenceStorage=makeUninitArray<char>(nGenome);
+    G=sequenceStorage.get();
     //uint64 genomeReadBytesN = 
     fstreamReadBig(GenomeIn,G,nGenome);
     GenomeIn.close();

@@ -4,6 +4,7 @@
 #include "TimeFunctions.h"
 #include "serviceFuns.cpp"
 #include "ErrorWarning.h"
+#include "uninitArray.h"
 using namespace std;
 Variation::Variation (Parameters &Pin, vector <uint64> &chrStartIn, map <string,uint64> &chrNameIndexIn, bool yesVar) : P(Pin), chrStart(chrStartIn), chrNameIndex(chrNameIndexIn) {
     if (yesVar) {
@@ -84,7 +85,7 @@ void Variation::loadVCF(string fileIn) {
     std::unique_ptr<ifstream> vcfStorage(&vcf);
     scanVCF(vcf, P, snp, chrStart, chrNameIndex);
 
-    snpLociStorage.reset(new uint64[snp.N]);
+    snpLociStorage=makeUninitArray<uint64>(snp.N);
     snp.loci=snpLociStorage.get();
     for (uint64 ii=0;ii<snp.N;ii++)
         snp.loci[ii]=snp.lociV[ii];
@@ -101,7 +102,7 @@ void Variation::loadVCF(string fileIn) {
     };
 
 
-    std::unique_ptr<uint64[]> sortStorage(new uint64[2*snp.N]);
+    auto sortStorage=makeUninitArray<uint64>(2*snp.N);
     uint64 *s1=sortStorage.get();
     for (uint64 ii=0;ii<snp.N; ii++) {
         s1[2*ii]=snp.loci[ii];

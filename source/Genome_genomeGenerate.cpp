@@ -25,6 +25,7 @@
 #include "serviceFuns.cpp"
 #include "streamFuns.h"
 #include "SequenceFuns.h"
+#include "uninitArray.h"
 using namespace std;
 
 char* globalG;
@@ -226,7 +227,7 @@ void Genome::genomeGenerate() {
     genomeChrBinNbases=1LLU << pGe.gChrBinNbits;
 
     nGenome = genomeScanFastaFiles(P,NULL,false,*this);//first scan the fasta file to find all the sizes
-    genomeSequenceAllocate(nGenome, nG1alloc, G, G1);
+    sequenceStorage=genomeSequenceAllocate(nGenome, nG1alloc, G, G1);
     genomeScanFastaFiles(P,G,true,*this);    //load the genome sequence
 
     uint64 nGenomeTrue=0;
@@ -487,7 +488,7 @@ void Genome::chooseSAchunkStorage(SAsortPlan &plan)
         logSAsortPlan(plan);
 
     if (plan.inMemory) {
-        plan.inMemoryChunks.reset(new (nothrow) uint64 [nSA]);
+        plan.inMemoryChunks=makeUninitArrayNoThrow<uint64>(nSA);
         if (!plan.inMemoryChunks) {
             plan.inMemory=false;
             P.inOut->logMain << "SA chunk storage fallback: disk-backed after RAM allocation failure\n" <<flush;
@@ -550,7 +551,10 @@ void Genome::sortSAchunkBatch(SAsortPlan &plan, SAsortProfile &prof, uint64 iChu
     const bool saSortProfile=plan.profile;
     const bool saChunksInMemoryActive=plan.inMemory;
     const uint64 batchChunkN=iChunkBatchNext-iChunkBatch;
-    uint64* saBatch=saChunksInMemoryActive ? plan.inMemoryChunks.get()+plan.chunkStart[iChunkBatch] : new uint64 [saBatchN];
+    std::unique_ptr<uint64[]> saBatchStorage;//owned only when chunks are not retained in RAM
+    if (!saChunksInMemoryActive)
+        saBatchStorage=makeUninitArray<uint64>(saBatchN);
+    uint64* saBatch=saChunksInMemoryActive ? plan.inMemoryChunks.get()+plan.chunkStart[iChunkBatch] : saBatchStorage.get();
     vector<uint64> saBatchStart(batchChunkN+1);
     saBatchStart[0]=0;
     for (uint64 iChunk=0;iChunk<batchChunkN;iChunk++) {
@@ -666,10 +670,6 @@ void Genome::sortSAchunkBatch(SAsortPlan &plan, SAsortProfile &prof, uint64 iChu
     if (saSortProfile) {
         prof.finalizeSeconds += omp_get_wtime()-saProfileTime0;
     };
-
-    if (!saChunksInMemoryActive) {
-        delete [] saBatch;
-    };
 };
 
 void Genome::collectSAsortRanges(const SAsortPlan &plan, SAsortProfile &prof, uint64 *saBatch, const vector<uint64> &saPrefStart, uint64 batchPrefStart,
@@ -716,11 +716,11 @@ void Genome::collectSAsortRanges(const SAsortPlan &plan, SAsortProfile &prof, ui
                 };
             };
 
-            uint64* saPrefTmp=NULL;
+            std::unique_ptr<uint64[]> saPrefTmp;
             if (saSubBinNonEmptyN>1) {
-                saPrefTmp=new (nothrow) uint64 [saPrefN];
+                saPrefTmp=makeUninitArrayNoThrow<uint64>(saPrefN);
             };
-            if (saPrefTmp!=NULL) {
+            if (saPrefTmp) {
                 uint64 saSubBinCursor[saSubBinN];
                 memcpy(saSubBinCursor,saSubBinStart,sizeof(saSubBinCursor));
                 for (uint64 ii=0; ii<saPrefN; ii++) {
@@ -728,8 +728,8 @@ void Genome::collectSAsortRanges(const SAsortPlan &plan, SAsortProfile &prof, ui
                     saPrefTmp[saSubBinCursor[iSub]]=saPref[ii];
                     saSubBinCursor[iSub]++;
                 };
-                memcpy(saPref,saPrefTmp,saPrefN*sizeof(saPref[0]));
-                delete [] saPrefTmp;
+                memcpy(saPref,saPrefTmp.get(),saPrefN*sizeof(saPref[0]));
+                saPrefTmp.reset();
 
                 uint64 saSubBinSortRangeN=0;
                 for (uint64 iSub=0; iSub<saSubBinN; iSub++) {
@@ -766,7 +766,10 @@ void Genome::sortSAchunksSeparately(SAsortPlan &plan, SAsortProfile &prof)
     #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,1) reduction(+:fillScatterSeconds,sortSeconds,finalizeSeconds)
     for (int iChunk=0; iChunk < (int) plan.chunkN; iChunk++) {//start the chunk cycle: sort each chunk with qsort and write to a file
         const uint64 chunkCount=plan.chunkCount[iChunk];
-        uint64* saChunk=saChunksInMemoryActive ? plan.inMemoryChunks.get()+plan.chunkStart[iChunk] : new uint64 [chunkCount];//allocate local array for each chunk
+        std::unique_ptr<uint64[]> saChunkStorage;//local array for each chunk unless chunks are retained in RAM
+        if (!saChunksInMemoryActive)
+            saChunkStorage=makeUninitArray<uint64>(chunkCount);
+        uint64* saChunk=saChunksInMemoryActive ? plan.inMemoryChunks.get()+plan.chunkStart[iChunk] : saChunkStorage.get();
         double saProfileTime0=omp_get_wtime();
         for (uint64 ii=0,jj=0;ii<2*nGenome;ii+=pGe.gSAsparseD) {//fill the chunk with SA indices
             if (G[ii]<4) {
@@ -792,9 +795,7 @@ void Genome::sortSAchunksSeparately(SAsortPlan &plan, SAsortProfile &prof)
 
         saProfileTime0=omp_get_wtime();
         finishSAchunk(plan, saChunk, (uint64) iChunk);
-        if (!saChunksInMemoryActive) {
-            delete [] saChunk;
-        };
+        saChunkStorage.reset();
         if (saSortProfile) {
             finalizeSeconds += omp_get_wtime()-saProfileTime0;
         };
@@ -834,7 +835,7 @@ void Genome::packSuffixArray(SAsortPlan &plan)
         plan.inMemoryChunks.reset();
     } else {//disk-backed fallback: load chunk files one by one and convert to packed
         constexpr uint64 saChunkBlockSize=10000000;
-        unique_ptr<uint64[]> saIn(new uint64[saChunkBlockSize]);
+        auto saIn=makeUninitArray<uint64>(saChunkBlockSize);
 
         for (uint64 iChunk=0;iChunk<plan.chunkN;iChunk++) {//load files one by one and convert to packed
             string chunkFileName=pGe.gDir+"/SA_"+to_string(iChunk);

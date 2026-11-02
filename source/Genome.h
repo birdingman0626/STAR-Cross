@@ -123,7 +123,8 @@ public:
     void allocateJunctionAnnotations(uint64 count);
     void allocateJunctionCoordinates(uint64 count); // after annotations, same junction set
     void chrInfoLoad();
-    void genomeSequenceAllocate(uint64 nGenomeIn, uint64 &nG1allocOut, char*& Gout, char*& G1out);
+    // Returns the owner of the new sequence buffer; Gout/G1out are views into it.
+    [[nodiscard]] std::unique_ptr<char[]> genomeSequenceAllocate(uint64 nGenomeIn, uint64 &nG1allocOut, char*& Gout, char*& G1out);
     void loadSJDB(std::string &genDir);
 
     void insertSequences();

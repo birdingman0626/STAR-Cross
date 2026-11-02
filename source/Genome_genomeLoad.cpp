@@ -9,6 +9,7 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include "uninitArray.h"
 using namespace std;
 
 // Size fields at the start of the shared genome are written by the loading job
@@ -373,8 +374,8 @@ void Genome::allocatePrivateGenome(uint64 L)
                 nSApass2+=2*P.limit.sjdbInsertNsj*sjdbLength;
             };
 
-            G1=new char[nGenomePass2+L+L];
-            sequenceStorage.reset(G1);
+            sequenceStorage=makeUninitArray<char>(nGenomePass2+L+L);
+            G1=sequenceStorage.get();
             adviseHugePages(G1,nGenomePass2+L+L);
 
             SApass2.defineBits(GstrandBit+1,nSApass2);
@@ -389,13 +390,13 @@ void Genome::allocatePrivateGenome(uint64 L)
             SA.pointArray(SAinsert.charArray+SAinsert.lengthByte-SA.lengthByte);
         } else {//no sjdb insertions
             if (genomeInsertL==0) {// no sequence insertion, simple allocation
-                G1=new char[nGenome+L+L];
-                sequenceStorage.reset(G1);
+                sequenceStorage=makeUninitArray<char>(nGenome+L+L);
+                G1=sequenceStorage.get();
                 adviseHugePages(G1,nGenome+L+L);
                 SA.allocateArray();
             } else {
-                G1=new char[nGenome+L+L+genomeInsertL];
-                sequenceStorage.reset(G1);
+                sequenceStorage=makeUninitArray<char>(nGenome+L+L+genomeInsertL);
+                G1=sequenceStorage.get();
                 adviseHugePages(G1,nGenome+L+L+genomeInsertL);
                 SAinsert.defineBits(GstrandBit+1,nSA+2*genomeInsertL);//TODO: re-define GstrandBit if necessary
                 SAinsert.allocateArray();
