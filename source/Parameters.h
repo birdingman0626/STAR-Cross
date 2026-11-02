@@ -418,5 +418,10 @@ private:
     void logInitialCommandLine();
     void readParametersFiles();
     void logFinalParameters(const char *executable);
+    // samAttributes stages, in call order
+    void samAttributesReset();
+    void samAttributeAdd(const std::string &attr);
+    void samAttributesImplied();
+    void samAttributesRequireBAM();
 };
 #endif  // Parameters.h
