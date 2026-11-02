@@ -1,6 +1,10 @@
 #ifndef H_GTF
 #define H_GTF
 
+#include <fstream>
+#include <map>
+#include <sstream>
+
 #include "IncludeDefine.h"
 #include "Parameters.h"
 #include "SjdbClass.h"
@@ -49,6 +53,11 @@ private:
     void superTranscriptJunctions(const SuperTranscriptLayout &layout);
     void superTranscriptReplaceGenome(const SuperTranscriptLayout &layout);
     void superTranscriptWriteConversion(const SuperTranscriptLayout &layout);
+    //constructor steps (GTF.cpp)
+    void gtfCountExons(std::ifstream &sjdbStreamIn);
+    void gtfLoadExons(std::ifstream &sjdbStreamIn);
+    void gtfAddExon(const std::string &oneLine, std::istringstream &oneLineStream, std::string chr1,
+                    std::map <std::string,uint64> &transcriptIDnumber, std::map <std::string,uint64> &geneIDnumber);
     //transcriptGeneSJ steps (GTF_transcriptGeneSJ.cpp)
     void transcriptGeneSJwriteExonGeneInfo(const std::string &dirOutArg);
     void transcriptGeneSJwriteTranscriptInfo(const std::string &dirOutArg);
