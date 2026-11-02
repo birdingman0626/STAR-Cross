@@ -32,29 +32,29 @@ intScore Transcript::alignScore(char **Read1, char *G, Parameters &P) {//re-calc
                 case -3: //mate pair, no scoring
                     break;
                 case -2: //insertion
-                    maxScore += (exons[iex+1][EX_R]-exons[iex][EX_R]-exons[iex][EX_L])*P.scoreInsBase + P.scoreInsOpen;
+                    maxScore += (exons[iex+1][EX_R]-exons[iex][EX_R]-exons[iex][EX_L])*P.score.insBase + P.score.insOpen;
                     break;
                 case -1: //deletion
-                    maxScore += (exons[iex+1][EX_G]-exons[iex][EX_G]-exons[iex][EX_L])*P.scoreDelBase + P.scoreDelOpen;
+                    maxScore += (exons[iex+1][EX_G]-exons[iex][EX_G]-exons[iex][EX_L])*P.score.delBase + P.score.delOpen;
                     break;
                 case 0: //non-canonical
-                    maxScore += P.scoreGapNoncan+P.scoreGap;
+                    maxScore += P.score.gapNoncan+P.score.gap;
                     break;
                 case 1: case 2: //GTAG
-                    maxScore += P.scoreGap;
+                    maxScore += P.score.gap;
                     break;
                 case 3: case 4: //GCAG
-                    maxScore += P.scoreGapGCAG+P.scoreGap;
+                    maxScore += P.score.gapGCAG+P.score.gap;
                     break;
                 case 5: case 6: //ATAC
-                    maxScore += P.scoreGapATAC+P.scoreGap;
+                    maxScore += P.score.gapATAC+P.score.gap;
                     break;
             };
         };
     };
-    if (P.scoreGenomicLengthLog2scale!=0) {//add gap length score
+    if (P.score.genomicLengthLog2scale!=0) {//add gap length score
         maxScore += int(ceil( log2( (double) ( max(1LLU,exons[nExons-1][EX_G]+exons[nExons-1][EX_L] - exons[0][EX_G]) ) ) \
-                 * P.scoreGenomicLengthLog2scale - 0.5));
+                 * P.score.genomicLengthLog2scale - 0.5));
     };
     return maxScore;
 };

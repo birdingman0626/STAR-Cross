@@ -32,7 +32,7 @@ uint64 ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, ui
         if (iExMate==trOut.nExons-1) {//single mate
             if (mateChr>genOut.nChrReal) samFlagCommon+=0x0008; //not mapped as pair
         } else {//paired align
-            if (P.alignEndsProtrude.concordantPair ||
+            if (P.align.endsProtrude.concordantPair ||
                 ( (trOut.exons[0][EX_G] <= trOut.exons[iExMate+1][EX_G]+trOut.exons[0][EX_R]) &&
                    (trOut.exons[iExMate][EX_G]+trOut.exons[iExMate][EX_L] <= trOut.exons[trOut.nExons-1][EX_G]+Lread-trOut.exons[trOut.nExons-1][EX_R]) )  ) {//properly paired
                 samFlagCommon+=0x0002;
@@ -124,7 +124,7 @@ uint64 ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, ui
 
         samAttributes(trOut, nTrOut, iTrOut, imate, nMates, SJmotif, SJintron, tagNM, tagMD, outStream);
 
-        if (P.readFilesTypeN==10 && !readNameExtra[imate].empty()) {//SAM files as input - output extra attributes
+        if (P.readFiles.typeN==10 && !readNameExtra[imate].empty()) {//SAM files as input - output extra attributes
              *outStream << "\t" << readNameExtra.at(imate);
         };
 
@@ -170,7 +170,7 @@ void ReadAlign::samUnmappedMates(Transcript const &trOut, int unmapType, bool *m
                 <<"\tNH:i:0" <<"\tHI:i:0" <<"\tAS:i:"<<trOut.maxScore <<"\tnM:i:"<<trOut.nMM<<"\tuT:A:" <<unmapType;
         if (!P.outSAMattrRG.empty()) *outStream<< "\tRG:Z:" <<P.outSAMattrRG.at(readFilesIndex);
 
-        if (P.readFilesTypeN==10 && !readNameExtra[imate].empty()) {//SAM files as input - output extra attributes
+        if (P.readFiles.typeN==10 && !readNameExtra[imate].empty()) {//SAM files as input - output extra attributes
             *outStream << "\t" <<readNameExtra[imate];
         };
         *outStream <<"\n";

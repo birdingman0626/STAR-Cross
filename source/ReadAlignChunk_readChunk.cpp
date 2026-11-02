@@ -81,7 +81,7 @@ void fillInputChunk(Parameters& P,char** chunkIn,std::array<uint64,MAX_N_MATES>&
                     break;
 
                 ///////////////////////////////////////////////////////////////////////////////////// SAM
-                } else if (P.readFilesTypeN==10 && P.inOut->readIn[0].good() && P.outFilterBySJoutStage!=2) {//SAM input && not eof && not 2nd stage
+                } else if (P.readFiles.typeN==10 && P.inOut->readIn[0].good() && P.outFilterBySJoutStage!=2) {//SAM input && not eof && not 2nd stage
 
 
                     if (nextChar=='@') {//with SAM input linest that start with @ are headers
@@ -288,8 +288,8 @@ void fillInputChunk(Parameters& P,char** chunkIn,std::array<uint64,MAX_N_MATES>&
                         P.inOut->readIn[0] >> P.readFilesIndex;
                         pthread_mutex_lock(&g_threadChunks.mutexLogMain);
                         P.inOut->logMain << "Starting to map file # " << P.readFilesIndex<<"\n";
-                        for (uint64 imate=0; imate<P.readFilesNames.size(); imate++) {
-                            P.inOut->logMain << "mate " <<imate+1 <<":   "<<P.readFilesNames.at(imate).at(P.readFilesIndex) <<"\n";
+                        for (uint64 imate=0; imate<P.readFiles.names.size(); imate++) {
+                            P.inOut->logMain << "mate " <<imate+1 <<":   "<<P.readFiles.names.at(imate).at(P.readFilesIndex) <<"\n";
                             P.inOut->readIn[imate].ignore(numeric_limits<streamsize>::max(),'\n');
                         };
                         P.inOut->logMain<<flush;

@@ -45,8 +45,6 @@ class Parameters {
         int runRNGseed; //random number generator seed
         std::string legacyIn; //legacy algorithm selection
         std::string gpuSjdbRemapMode; //experimental packed SA remap, default off
-        std::string seedSearchBackend; //off/cpu/auto/required, experimental batched seeding
-        uint64 seedBatchSize;
 
         struct {
             std::string host;
@@ -69,25 +67,15 @@ class Parameters {
         char genomeNumToNT[6];
         ParametersGenome pGe, pGeOut;
 
-        //binning,windows,anchors
-        uint64 winBinChrNbits, winBinNbits, winAnchorDistNbins, winFlankNbins, winBinN;
-        uint64 winAnchorMultimapNmax; //max number of alignments for anchors
-        double winReadCoverageRelativeMin;
-        uint64 winReadCoverageBasesMin;
+        struct {//--win*: binning, windows, anchors
+            uint64 binChrNbits, binNbits, anchorDistNbins, flankNbins, binN;
+            uint64 anchorMultimapNmax; //max number of alignments for anchors
+            double readCoverageRelativeMin;
+            uint64 readCoverageBasesMin;
+        } win;
 
         //read parameters
-        std::vector <std::string> readFilesType;
-        int readFilesTypeN;
-        std::string readFilesPrefix, readFilesPrefixFinal;
-        std::vector <std::string> readFilesIn, readFilesInTmp;
-        uint32 readFilesN;
-        std::vector <std::vector <std::string> > readFilesNames;
-        std::vector <std::string> readFilesCommand;
-        std::vector <std::string> readFilesManifest;
-               
-        std::string readFilesCommandString; //actual command string
         int readFilesIndex;
-        pid_t readFilesCommandPID[MAX_N_MATES]{};
 
         uint64 readMapNumber;
         uint64 iReadAll;
@@ -101,8 +89,18 @@ class Parameters {
         std::string outSAMreadID;
         bool outSAMreadIDnumber;
         
-        //new: structure for readFiles parameters
-        struct {
+        struct {//--readFiles*
+            std::vector <std::string> type;
+            int typeN;
+            std::string prefix, prefixFinal;
+            std::vector <std::string> in, inTmp;
+            uint32 N;
+            std::vector <std::vector <std::string> > names;
+            std::vector <std::string> command;
+            std::vector <std::string> manifest;
+            std::string commandString; //actual command string
+            pid_t commandPID[MAX_N_MATES]{};
+
             std::vector<std::string> samAttrKeepIn; //input vector of SAM tags to keep, if readFilesType=SAMtag
             std::unordered_set<uint16_t> samAttrKeep;
             bool samAttrKeepAll, samAttrKeepNone;
@@ -110,53 +108,51 @@ class Parameters {
 
         ParametersClip pClip;
 
-        //align parameters
-        uint64 alignSJoverhangMin,alignSJDBoverhangMin,alignSplicedMateMapLmin; //min SJ donor/acceptor length
-        double alignSplicedMateMapLminOverLmate;
-        uint64 alignWindowsPerReadNmax; //max number of alignment windows per read
-        uint64 alignTranscriptsPerWindowNmax; //maximum number of transcripts recorded per window
-        uint64 alignTranscriptsPerReadNmax;   //max number of alignments per read
-        uint64 alignIntronMin;//min length to call a gap an intron
-        uint64 alignIntronMax;//max length to call
-        uint64 alignMatesGapMax;//max gap between the mates (if paired-end)
-        std::vector <int32> alignSJstitchMismatchNmax;
+        struct {//--align*
+            uint64 SJoverhangMin,SJDBoverhangMin,splicedMateMapLmin; //min SJ donor/acceptor length
+            double splicedMateMapLminOverLmate;
+            uint64 windowsPerReadNmax; //max number of alignment windows per read
+            uint64 transcriptsPerWindowNmax; //maximum number of transcripts recorded per window
+            uint64 transcriptsPerReadNmax;   //max number of alignments per read
+            uint64 intronMin;//min length to call a gap an intron
+            uint64 intronMax;//max length to call
+            uint64 matesGapMax;//max gap between the mates (if paired-end)
+            std::vector <int32> SJstitchMismatchNmax;
 
-        //         struct {
-        //             string strandString;
-        //             int32 strand;
-        //         } pReads;
+            struct {
+                std::string in;
+                bool yes;
+            } softClipAtReferenceEnds;
 
-        struct {
-            std::string in;
-            bool yes;
-        } alignSoftClipAtReferenceEnds;
+            struct {
+                std::string in;
+                bool ext[2][2];
+            } endsType;
 
-        struct {
-            std::string in;
-            bool ext[2][2];
-        } alignEndsType;
+            struct {
+                std::vector<std::string> in;
+                int nBasesMax;
+                bool concordantPair;
+            } endsProtrude;
 
-        struct {
-            std::vector<std::string> in;
-            int nBasesMax;
-            bool concordantPair;
-        } alignEndsProtrude;
+            struct {
+                std::string in;
+                bool flushRight;
+            } insertionFlush;
+        } align;
 
-        struct {
-            std::string in;
-            bool flushRight;
-        } alignInsertionFlush;
-
-
-        //seed parameters
-        uint64 seedMultimapNmax; //max number of multiple alignments per piece
-        uint64 seedSearchLmax; //max length of the seed
-        uint64 seedPerReadNmax; //max number of pieces per Read
-        uint64 seedPerWindowNmax; //max number of aligns per window
-        uint64 seedNoneLociPerWindow; //max number of aligns from one piece per window
-        uint64 seedSearchStartLmax;
-        double seedSearchStartLmaxOverLread; //length of split start points
-        uint64 seedSplitMin, seedMapMin;
+        struct {//--seed*
+            uint64 multimapNmax; //max number of multiple alignments per piece
+            uint64 searchLmax; //max length of the seed
+            uint64 perReadNmax; //max number of pieces per Read
+            uint64 perWindowNmax; //max number of aligns per window
+            uint64 noneLociPerWindow; //max number of aligns from one piece per window
+            uint64 searchStartLmax;
+            double searchStartLmaxOverLread; //length of split start points
+            uint64 splitMin, mapMin;
+            std::string searchBackend; //off/cpu/auto/required, experimental batched seeding
+            uint64 batchSize;
+        } seed;
 
         //chunk parameters
         uint64 chunkInSizeBytes,chunkInSizeBytesArray,chunkOutBAMsizeBytes;
@@ -248,12 +244,13 @@ class Parameters {
             bool yes;
         } outSJ;
         
-        //output filtering SJs
-        std::string outSJfilterReads;
-        std::vector <int32> outSJfilterCountUniqueMin, outSJfilterCountTotalMin;
-        std::vector <int32> outSJfilterOverhangMin;
-        std::vector <int32> outSJfilterDistToOtherSJmin; //min allowed distance to other SJ's donor/acceptor
-        std::vector <int32> outSJfilterIntronMaxVsReadN;
+        struct {//--outSJfilter*: output filtering of junctions
+            std::string reads;
+            std::vector <int32> countUniqueMin, countTotalMin;
+            std::vector <int32> overhangMin;
+            std::vector <int32> distToOtherSJmin; //min allowed distance to other SJ's donor/acceptor
+            std::vector <int32> intronMaxVsReadN;
+        } outSJfilter;
 
         //wiggle output
         std::vector <std::string> outWigType, outWigStrand, outWigNorm;
@@ -287,19 +284,21 @@ class Parameters {
             std::string outDir;
         } sjdbInsert;
 
-        //storage limits
-        uint64 limitGenomeGenerateRAM;
-        std::vector<uint64> limitIObufferSize; //max size of the in/out buffer, bytes
-        uint64 limitOutSAMoneReadBytes;
-        uint64 limitOutSJoneRead, limitOutSJcollapsed;
-        uint64 limitBAMsortRAM;
-        uint64 limitSjdbInsertNsj;
-        uint64 limitNreadsSoft;
+        struct {//--limit*: storage limits
+            uint64 genomeGenerateRAM;
+            std::vector<uint64> IObufferSize; //max size of the in/out buffer, bytes
+            uint64 outSAMoneReadBytes;
+            uint64 outSJoneRead, outSJcollapsed;
+            uint64 BAMsortRAM;
+            uint64 sjdbInsertNsj;
+            uint64 nreadsSoft;
+        } limit;
 
-        // penalties
-        intScore scoreGap, scoreGapNoncan, scoreGapGCAG, scoreGapATAC, scoreDelBase, scoreDelOpen, scoreInsBase, scoreInsOpen;
-        intScore scoreStitchSJshift;//Max negative score when
-        double scoreGenomicLengthLog2scale;
+        struct {//--score*: penalties
+            intScore gap, gapNoncan, gapGCAG, gapATAC, delBase, delOpen, insBase, insOpen;
+            intScore stitchSJshift;//max negative score when shifting the stitching junction
+            double genomicLengthLog2scale;
+        } score;
 
         //quantification parameters
         //input
@@ -386,7 +385,7 @@ class Parameters {
     void openReadsFiles();
     void readFilesInit();
     void closeReadsFiles();
-    void readSAMheader(const std::string readFilesCommandString, const std::vector<std::string> readFilesNames);
+    void readSAMheader(const std::string commandString, const std::vector<std::string> fileNames);
     void samAttributes();
     void samAttrRequiresBAM(bool attrYes, std::string attrTag);
 

@@ -5,7 +5,7 @@
 using namespace std;
 void ReadAlign::assignAlignToWindow(uint64 a1, uint64 aLength, uint64 aStr, uint64 aNrep, uint64 aFrag, uint64 aRstart, bool aAnchor, uint64 sjA) {
 
-    uint64 iW=winBin[aStr][a1>>P.winBinNbits];
+    uint64 iW=winBin[aStr][a1>>P.win.binNbits];
 
     if (iW==uintWinBinMax || (!aAnchor && aLength < WALrec[iW]) ) return; //alignment does not belong to any window, or it's shorter than rec-length
 
@@ -65,7 +65,7 @@ void ReadAlign::assignAlignToWindow(uint64 a1, uint64 aLength, uint64 aStr, uint
         };
     };
 
-    if (nWA[iW]==P.seedPerWindowNmax) {//too many aligns per window,  re-calcualte min-length, remove the shortest one,
+    if (nWA[iW]==P.seed.perWindowNmax) {//too many aligns per window,  re-calcualte min-length, remove the shortest one,
 
         WALrec[iW]=Lread+1;
         for (uint64 iA=0; iA<nWA[iW]; iA++) {//find the new min-length
@@ -99,7 +99,7 @@ void ReadAlign::assignAlignToWindow(uint64 a1, uint64 aLength, uint64 aStr, uint
     };
 
     if ( aAnchor || aLength > WALrec[iW] ) {
-        if (nWA[iW]>=P.seedPerWindowNmax) {
+        if (nWA[iW]>=P.seed.perWindowNmax) {
             exitWithError("BUG: iA>=P.seedPerWindowNmax in stitchPieces, exiting",std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
         };
 

@@ -26,7 +26,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
             unmappedReadsN += RAchunk[it]->chunkOutBAMcoord->binTotalN[nBins-1];
 
         P.inOut->logMain << "Max memory needed for sorting = "<<maxMem<<endl;
-        if (maxMem>P.limitBAMsortRAM) {
+        if (maxMem>P.limit.BAMsortRAM) {
             ostringstream errOut;
             errOut <<"EXITING because of fatal ERROR: not enough memory for BAM sorting: \n";
             errOut <<"SOLUTION: re-run STAR with at least --limitBAMsortRAM " <<maxMem+1000000000;
@@ -66,7 +66,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
                     while (boolWait) {
                         #pragma omp critical
                         // Match the inclusive preflight limit; subtract to avoid overflow.
-                        if (totalMem<=P.limitBAMsortRAM && newMem<=P.limitBAMsortRAM-totalMem) {
+                        if (totalMem<=P.limit.BAMsortRAM && newMem<=P.limit.BAMsortRAM-totalMem) {
                             boolWait=false;
                             totalMem+=newMem;
                         };

@@ -50,7 +50,7 @@ ReadAlign::ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, in
     rngUniformReal0to1=std::uniform_real_distribution<double> (0.0, 1.0);
     //transcriptome
     if ( P.quant.trSAM.yes ) {
-        storage->alignTrAll.reset(new Transcript [P.alignTranscriptsPerReadNmax]);
+        storage->alignTrAll.reset(new Transcript [P.align.transcriptsPerReadNmax]);
         alignTrAll=storage->alignTrAll.get();
     };
 
@@ -58,8 +58,8 @@ ReadAlign::ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, in
         storage->splGraph.reset(new SpliceGraph(*mapGen.superTr, P, this));
         splGraph=storage->splGraph.get();
     } else {//standard map algorithm:
-        winBin[0].resize(P.winBinN, uintWinBinMax);
-        winBin[1].resize(P.winBinN, uintWinBinMax);
+        winBin[0].resize(P.win.binN, uintWinBinMax);
+        winBin[1].resize(P.win.binN, uintWinBinMax);
         //split
         storage->splitR.reset(new uint64*[3]);
         splitR=storage->splitR.get();
@@ -68,37 +68,37 @@ ReadAlign::ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, in
             splitR[i]=storage->split[i].get();
         }
         //alignments
-        storage->PC.reset(new uiPC[P.seedPerReadNmax]); PC=storage->PC.get();
-        storage->WC.reset(new uiWC[P.alignWindowsPerReadNmax]); WC=storage->WC.get();
-        storage->nWA.reset(new uint64[P.alignWindowsPerReadNmax]); nWA=storage->nWA.get();
-        storage->nWAP.reset(new uint64[P.alignWindowsPerReadNmax]); nWAP=storage->nWAP.get();
-        storage->WALrec.reset(new uint64[P.alignWindowsPerReadNmax]); WALrec=storage->WALrec.get();
-        storage->WlastAnchor.reset(new uint64[P.alignWindowsPerReadNmax]); WlastAnchor=storage->WlastAnchor.get();
+        storage->PC.reset(new uiPC[P.seed.perReadNmax]); PC=storage->PC.get();
+        storage->WC.reset(new uiWC[P.align.windowsPerReadNmax]); WC=storage->WC.get();
+        storage->nWA.reset(new uint64[P.align.windowsPerReadNmax]); nWA=storage->nWA.get();
+        storage->nWAP.reset(new uint64[P.align.windowsPerReadNmax]); nWAP=storage->nWAP.get();
+        storage->WALrec.reset(new uint64[P.align.windowsPerReadNmax]); WALrec=storage->WALrec.get();
+        storage->WlastAnchor.reset(new uint64[P.align.windowsPerReadNmax]); WlastAnchor=storage->WlastAnchor.get();
     
-        storage->WA.reset(new uiWA*[P.alignWindowsPerReadNmax]); WA=storage->WA.get();
-        storage->windows.resize(P.alignWindowsPerReadNmax);
-        for (uint64 ii=0;ii<P.alignWindowsPerReadNmax;ii++) {
-            storage->windows[ii].reset(new uiWA[P.seedPerWindowNmax]);
+        storage->WA.reset(new uiWA*[P.align.windowsPerReadNmax]); WA=storage->WA.get();
+        storage->windows.resize(P.align.windowsPerReadNmax);
+        for (uint64 ii=0;ii<P.align.windowsPerReadNmax;ii++) {
+            storage->windows[ii].reset(new uiWA[P.seed.perWindowNmax]);
             WA[ii]=storage->windows[ii].get();
         }
-        storage->WAincl.reset(new bool [P.seedPerWindowNmax]); WAincl=storage->WAincl.get();
+        storage->WAincl.reset(new bool [P.seed.perWindowNmax]); WAincl=storage->WAincl.get();
 
         #ifdef COMPILE_FOR_LONG_READS
-        storage->swWinCov.reset(new uint64[P.alignWindowsPerReadNmax]); swWinCov=storage->swWinCov.get();
-        storage->scoreSeedToSeed.reset(new intScore [P.seedPerWindowNmax*(P.seedPerWindowNmax+1)/2]); scoreSeedToSeed=storage->scoreSeedToSeed.get();
-        storage->scoreSeedBest.reset(new intScore [P.seedPerWindowNmax]); scoreSeedBest=storage->scoreSeedBest.get();
-        storage->scoreSeedBestInd.reset(new uint64 [P.seedPerWindowNmax]); scoreSeedBestInd=storage->scoreSeedBestInd.get();
-        storage->scoreSeedBestMM.reset(new uint64 [P.seedPerWindowNmax]); scoreSeedBestMM=storage->scoreSeedBestMM.get();
-        storage->seedChain.reset(new uint64 [P.seedPerWindowNmax]); seedChain=storage->seedChain.get();
+        storage->swWinCov.reset(new uint64[P.align.windowsPerReadNmax]); swWinCov=storage->swWinCov.get();
+        storage->scoreSeedToSeed.reset(new intScore [P.seed.perWindowNmax*(P.seed.perWindowNmax+1)/2]); scoreSeedToSeed=storage->scoreSeedToSeed.get();
+        storage->scoreSeedBest.reset(new intScore [P.seed.perWindowNmax]); scoreSeedBest=storage->scoreSeedBest.get();
+        storage->scoreSeedBestInd.reset(new uint64 [P.seed.perWindowNmax]); scoreSeedBestInd=storage->scoreSeedBestInd.get();
+        storage->scoreSeedBestMM.reset(new uint64 [P.seed.perWindowNmax]); scoreSeedBestMM=storage->scoreSeedBestMM.get();
+        storage->seedChain.reset(new uint64 [P.seed.perWindowNmax]); seedChain=storage->seedChain.get();
         #endif
     };
 
     //aligns a.k.a. transcripts
-    storage->trAll.reset(new Transcript**[P.alignWindowsPerReadNmax+1]); trAll=storage->trAll.get();
-    storage->nWinTr.reset(new uint64[P.alignWindowsPerReadNmax]); nWinTr=storage->nWinTr.get();
-    storage->trArray.reset(new Transcript[P.alignTranscriptsPerReadNmax]); trArray=storage->trArray.get();
-    storage->trArrayPointer.reset(new Transcript*[P.alignTranscriptsPerReadNmax]); trArrayPointer=storage->trArrayPointer.get();
-    for (uint64 ii=0;ii<P.alignTranscriptsPerReadNmax;ii++)
+    storage->trAll.reset(new Transcript**[P.align.windowsPerReadNmax+1]); trAll=storage->trAll.get();
+    storage->nWinTr.reset(new uint64[P.align.windowsPerReadNmax]); nWinTr=storage->nWinTr.get();
+    storage->trArray.reset(new Transcript[P.align.transcriptsPerReadNmax]); trArray=storage->trArray.get();
+    storage->trArrayPointer.reset(new Transcript*[P.align.transcriptsPerReadNmax]); trArrayPointer=storage->trArrayPointer.get();
+    for (uint64 ii=0;ii<P.align.transcriptsPerReadNmax;ii++)
         trArrayPointer[ii]= &(trArray[ii]);
     storage->trInit.reset(new Transcript); trInit=storage->trInit.get();
     

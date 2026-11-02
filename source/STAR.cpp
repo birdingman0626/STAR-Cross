@@ -341,9 +341,9 @@ try
     closeBgzfOutput(P, P.inOut->outBAMfileUnsorted, P.inOut->unsortedWriter, "EXITING because of fatal BAM output close error");
     closeBgzfOutput(P, P.inOut->outQuantBAMfile, P.inOut->quantWriter, "EXITING because of fatal transcriptome BAM close error");
 
-    if (P.outBAMcoord && P.limitBAMsortRAM == 0)
+    if (P.outBAMcoord && P.limit.BAMsortRAM == 0)
     { // make it equal ot the genome size
-        P.limitBAMsortRAM = genomeMain.nGenome + genomeMain.SA.lengthByte + genomeMain.SAi.lengthByte;
+        P.limit.BAMsortRAM = genomeMain.nGenome + genomeMain.SA.lengthByte + genomeMain.SAi.lengthByte;
     };
 
     logTiming(P, "map_end");

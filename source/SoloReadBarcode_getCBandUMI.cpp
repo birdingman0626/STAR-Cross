@@ -168,7 +168,7 @@ void SoloReadBarcode::getCBandUMI(char **readSeq, char **readQual, uint64 *readL
     cbMatchString="";
     cbMatchInd.clear();
 
-    if (P.readFilesTypeN != 10) {//not SAM: barcode seq/qual are the barcode read
+    if (P.readFiles.typeN != 10) {//not SAM: barcode seq/qual are the barcode read
         bSeq=std::string(readSeq[pSolo.barcodeRead], readLen[pSolo.barcodeRead]);
         bQual=std::string(readQual[pSolo.barcodeRead], readLen[pSolo.barcodeRead]);
     } else {//SAM: barcode seq/qual is collected from SAM tags

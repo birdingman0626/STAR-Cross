@@ -47,7 +47,7 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
                 uint64 imate=trA.exons[0][EX_iFrag];
                 if ( extendAlign(R, mapGen.G, trA.rStart-1, trA.gStart-1, -1, -1, trA.rStart, tR2-trA.rStart+1, \
                                  trA.nMM, context.mismatchLimit, P.alignFilter.mismatchOverLengthMax, \
-                                 P.alignEndsType.ext[imate][(int)(trA.Str!=imate)], &trAstep1) ) {//if could extend
+                                 P.align.endsType.ext[imate][(int)(trA.Str!=imate)], &trAstep1) ) {//if could extend
 
                     trA.add(&trAstep1);
                     Score += trAstep1.maxScore;
@@ -68,7 +68,7 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
                 uint64 imate=trA.exons[trA.nExons-1][EX_iFrag];
                 if ( extendAlign(R, mapGen.G, tR2+1, tG2+1, +1, +1, Lread-tR2-1, tR2-trA.rStart+1, \
                                  trA.nMM, context.mismatchLimit,  P.alignFilter.mismatchOverLengthMax, \
-                                 P.alignEndsType.ext[imate][(int)(imate==trA.Str)], &trAstep1) ) {//if could extend
+                                 P.align.endsType.ext[imate][(int)(imate==trA.Str)], &trAstep1) ) {//if could extend
 
                     trA.add(&trAstep1);
                     Score += trAstep1.maxScore;
@@ -84,7 +84,7 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
         };
         };
 
-        if (!P.alignSoftClipAtReferenceEnds.yes &&  \
+        if (!P.align.softClipAtReferenceEnds.yes &&  \
                 ( (trA.exons[trA.nExons-1][EX_G] + Lread-trA.exons[trA.nExons-1][EX_R]) > (mapGen.chrStart[trA.Chr]+mapGen.chrLength[trA.Chr]) || \
                    trA.exons[0][EX_G]<(mapGen.chrStart[trA.Chr]+trA.exons[0][EX_R]) ) ) {
             return; //no soft clipping past the ends of the chromosome
@@ -101,15 +101,15 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
         for (uint64 isj=0;isj<trA.nExons-1;isj++) {//check exons for min length, if they are not annotated and precede a junction
             if ( trA.canonSJ[isj]>=0 ) {//junction
                 if (trA.sjAnnot[isj]==1) {//sjdb
-                    if (  ( trA.exons[isj][EX_L]   < P.alignSJDBoverhangMin && (isj==0            || trA.canonSJ[isj-1]==-3 || (trA.sjAnnot[isj-1]==0 && trA.canonSJ[isj-1]>=0) ) )\
-                       || ( trA.exons[isj+1][EX_L] < P.alignSJDBoverhangMin && (isj==trA.nExons-2 || trA.canonSJ[isj+1]==-3 || (trA.sjAnnot[isj+1]==0 && trA.canonSJ[isj+1]>=0) ) ) )return;
+                    if (  ( trA.exons[isj][EX_L]   < P.align.SJDBoverhangMin && (isj==0            || trA.canonSJ[isj-1]==-3 || (trA.sjAnnot[isj-1]==0 && trA.canonSJ[isj-1]>=0) ) )\
+                       || ( trA.exons[isj+1][EX_L] < P.align.SJDBoverhangMin && (isj==trA.nExons-2 || trA.canonSJ[isj+1]==-3 || (trA.sjAnnot[isj+1]==0 && trA.canonSJ[isj+1]>=0) ) ) )return;
                 } else {//non-sjdb
-                    if (  trA.exons[isj][EX_L] < P.alignSJoverhangMin + trA.shiftSJ[isj][0] \
-                       || trA.exons[isj+1][EX_L] < P.alignSJoverhangMin + trA.shiftSJ[isj][1]   ) return;
+                    if (  trA.exons[isj][EX_L] < P.align.SJoverhangMin + trA.shiftSJ[isj][0] \
+                       || trA.exons[isj+1][EX_L] < P.align.SJoverhangMin + trA.shiftSJ[isj][1]   ) return;
                 };
             };
         };
-        if (trA.nExons>1 && trA.sjAnnot[trA.nExons-2]==1 && trA.exons[trA.nExons-1][EX_L] < P.alignSJDBoverhangMin) return; //this exon was not checkedin the cycle above
+        if (trA.nExons>1 && trA.sjAnnot[trA.nExons-2]==1 && trA.exons[trA.nExons-1][EX_L] < P.align.SJDBoverhangMin) return; //this exon was not checkedin the cycle above
 
         //filter strand consistency
         uint64 sjN=0;
@@ -160,7 +160,7 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
             for (uint64 iex=0;iex<trA.nExons;iex++) {//
                 exl+=trA.exons[iex][EX_L];
                 if (iex==trA.nExons-1 || trA.canonSJ[iex]==-3) {//mate is completed, make the checks
-                    if (nsj>0 && (exl<P.alignSplicedMateMapLmin || exl < (uint64) (P.alignSplicedMateMapLminOverLmate*context.readLength[trA.exons[iex][EX_iFrag]])) ) {
+                    if (nsj>0 && (exl<P.align.splicedMateMapLmin || exl < (uint64) (P.align.splicedMateMapLminOverLmate*context.readLength[trA.exons[iex][EX_iFrag]])) ) {
                         return; //do not record this transcript
                     };
                     exl=0;nsj=0;
@@ -193,9 +193,9 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
             if ( trA.exons[iexM2-1][EX_G] + trA.exons[iexM2-1][EX_L] > trA.exons[iexM2][EX_G] ) {//mates overlap - check consistency of junctions
 
                 if (trA.exons[0][EX_G] > \
-                    trA.exons[iexM2][EX_G]+trA.exons[0][EX_R]+P.alignEndsProtrude.nBasesMax) return; //LeftMateStart > RightMateStart + allowance
+                    trA.exons[iexM2][EX_G]+trA.exons[0][EX_R]+P.align.endsProtrude.nBasesMax) return; //LeftMateStart > RightMateStart + allowance
                 if (trA.exons[iexM2-1][EX_G]+trA.exons[iexM2-1][EX_L] > \
-                   trA.exons[trA.nExons-1][EX_G]+Lread-trA.exons[trA.nExons-1][EX_R]+P.alignEndsProtrude.nBasesMax) return; //LeftMateEnd   > RightMateEnd +allowance
+                   trA.exons[trA.nExons-1][EX_G]+Lread-trA.exons[trA.nExons-1][EX_R]+P.align.endsProtrude.nBasesMax) return; //LeftMateEnd   > RightMateEnd +allowance
 
                 //check for junctions consistency
                 uint64 iex1=1, iex2=iexM2+1; //last exons of the junction
@@ -222,9 +222,9 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
             };//mates overlap - check consistency of junctions
         };//check for correct overlap between mates
 
-        if (P.scoreGenomicLengthLog2scale!=0) {//add gap length score
+        if (P.score.genomicLengthLog2scale!=0) {//add gap length score
             Score += int(ceil( log2( (double) ( trA.exons[trA.nExons-1][EX_G]+trA.exons[trA.nExons-1][EX_L] - trA.exons[0][EX_G]) ) \
-                     * P.scoreGenomicLengthLog2scale - 0.5));
+                     * P.score.genomicLengthLog2scale - 0.5));
             Score = max(0,Score);
         };
 
@@ -299,7 +299,7 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
                 };
                 wTr[iTr]=pTr; //the new transcript pointer is now at *nWinTr+1, move it into the iTr
                 *(wTr[iTr])=trA;
-                if (*nWinTr<P.alignTranscriptsPerWindowNmax) {
+                if (*nWinTr<P.align.transcriptsPerWindowNmax) {
                     (*nWinTr)++; //increment number of transcripts per window;
                 } else {
                         //"WARNING: too many recorded transcripts per window: iRead="<<RA->iRead<< "\n";

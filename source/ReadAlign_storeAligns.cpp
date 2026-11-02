@@ -14,7 +14,7 @@ void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, u
         return;
     #endif
 
-    if ( Nrep > P.seedMultimapNmax ) {// if a piece maps too many times, do not store it
+    if ( Nrep > P.seed.multimapNmax ) {// if a piece maps too many times, do not store it
         if ( Nrep < seedStats.multNmin || seedStats.multNmin==0 ) {seedStats.multNmin=Nrep; seedStats.multNminL=L;};
         return;
     };
@@ -43,7 +43,7 @@ void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, u
 
     nP++; //now nP is the new number of elements
 //
-    if (nP > P.seedPerReadNmax) {
+    if (nP > P.seed.perReadNmax) {
         ostringstream errOut;
         errOut <<"EXITING because of FATAL error: too many pieces pere read\n" ;
         errOut <<"SOLUTION: increase input parameter --seedPerReadNmax";
@@ -106,7 +106,7 @@ void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, u
 //     };
 
     if (nRemove==0) {//add piece
-        if (nP == P.seedPerReadNmax) {
+        if (nP == P.seed.perReadNmax) {
             ostringstream errOut;
             errOut <<"EXITING because of FATAL error: too many pieces pere read\n" ;
             errOut <<"SOLUTION: increase input parameter --seedPerReadNmax";

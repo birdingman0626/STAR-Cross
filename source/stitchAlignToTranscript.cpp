@@ -66,19 +66,19 @@ inline int intronMotif(const char *G, uint64 gAend, uint64 gBstart1, int jR1, co
     } else if ( G[gAend+jR1+1]==1 && G[gAend+jR1+2]==3 && G[gBstart1+jR1-1]==0 && G[gBstart1+jR1]==1 ) {//CTAC
         return 2;
     } else if ( G[gAend+jR1+1]==2 && G[gAend+jR1+2]==1 && G[gBstart1+jR1-1]==0 && G[gBstart1+jR1]==2 ) {//GCAG
-        jPen1=P.scoreGapGCAG;
+        jPen1=P.score.gapGCAG;
         return 3;
     } else if ( G[gAend+jR1+1]==1 && G[gAend+jR1+2]==3 && G[gBstart1+jR1-1]==2 && G[gBstart1+jR1]==1 ) {//CTGC
-        jPen1=P.scoreGapGCAG;
+        jPen1=P.score.gapGCAG;
         return 4;
     } else if ( G[gAend+jR1+1]==0 && G[gAend+jR1+2]==3 && G[gBstart1+jR1-1]==0 && G[gBstart1+jR1]==1 ) {//ATAC
-        jPen1=P.scoreGapATAC;
+        jPen1=P.score.gapATAC;
         return 5;
     } else if ( G[gAend+jR1+1]==2 && G[gAend+jR1+2]==3 && G[gBstart1+jR1-1]==0 && G[gBstart1+jR1]==3 ) {//GTAT
-        jPen1=P.scoreGapATAC;
+        jPen1=P.score.gapATAC;
         return 6;
     };
-    jPen1=P.scoreGapNoncan;
+    jPen1=P.score.gapNoncan;
     return 0;
 }
 
@@ -90,7 +90,7 @@ int stitchDeletion(GapStitch &s, const char *R, const char *G, uint64 rAend, uin
     s.nDel=1;
     s.Del=gGap-rGap; //gGap>0 here
 
-    if (s.Del>P.alignIntronMax && P.alignIntronMax>0) {
+    if (s.Del>P.align.intronMax && P.align.intronMax>0) {
         return -1000003; //large gaps not allowed
     };
 
@@ -99,7 +99,7 @@ int stitchDeletion(GapStitch &s, const char *R, const char *G, uint64 rAend, uin
     do { // 1. move left, until the score for MM is less than canonical advantage
         jR1--;
         if ( R[rAend+jR1]!=G[gBstart1+jR1] && G[gBstart1+jR1]<4 && R[rAend+jR1]==G[gAend+jR1]) Score1 -= scoreMatch;
-    }  while ( Score1+P.scoreStitchSJshift >= 0 && int(trA->exons[trA->nExons-1][EX_L]) + jR1 > 1);//also check that we are still within the exon
+    }  while ( Score1+P.score.stitchSJshift >= 0 && int(trA->exons[trA->nExons-1][EX_L]) + jR1 > 1);//also check that we are still within the exon
 
     int maxScore2=-999999;
     Score1=0;
@@ -112,7 +112,7 @@ int stitchDeletion(GapStitch &s, const char *R, const char *G, uint64 rAend, uin
         int jPen1=0;
         int Score2=Score1;
 
-        if (s.Del>=P.alignIntronMin) {//only check intron motif for large gaps= non-Dels
+        if (s.Del>=P.align.intronMin) {//only check intron motif for large gaps= non-Dels
             jCan1=intronMotif(G, gAend, gBstart1, jR1, P, jPen1);
             Score2 += jPen1;
         };
@@ -168,10 +168,10 @@ int stitchDeletion(GapStitch &s, const char *R, const char *G, uint64 rAend, uin
         uint64 jS=gAend+jR+1, jE=gBstart1+jR;//intron start/end
         int sjdbInd=binarySearch2(jS,jE,mapGen.sjdbStart,mapGen.sjdbEnd,mapGen.sjdbN);
         if (sjdbInd<0) {
-            if (s.Del>=P.alignIntronMin) {
-                s.Score += P.scoreGap + jPen; //genome gap penalty + non-canonical penalty
+            if (s.Del>=P.align.intronMin) {
+                s.Score += P.score.gap + jPen; //genome gap penalty + non-canonical penalty
             } else {//deletion
-                s.Score += s.Del*P.scoreDelBase + P.scoreDelOpen;
+                s.Score += s.Del*P.score.delBase + P.score.delOpen;
                 s.jCan=-1;
                 trA->sjAnnot[trA->nExons-1]=0;
             };
@@ -195,10 +195,10 @@ int stitchDeletion(GapStitch &s, const char *R, const char *G, uint64 rAend, uin
             s.Score += P.pGe.sjdbScore;
         };
     } else {//no annotation
-        if (s.Del>=P.alignIntronMin) {//junction, not short deletion
-            s.Score += P.scoreGap + jPen;
+        if (s.Del>=P.align.intronMin) {//junction, not short deletion
+            s.Score += P.score.gap + jPen;
         } else {
-            s.Score += s.Del*P.scoreDelBase + P.scoreDelOpen;
+            s.Score += s.Del*P.score.delBase + P.score.delOpen;
             s.jCan=-1;
             trA->sjAnnot[trA->nExons-1]=0;
         };
@@ -240,7 +240,7 @@ int stitchInsertion(GapStitch &s, const char *R, const char *G, uint64 rAend, ui
                 Score1+=( R[rAend+Ins+jR1]==G[gAend+jR1] ) ? -scoreMatch:+scoreMatch;
             };
 
-            if (Score1>maxScore1 || (Score1==maxScore1 && P.alignInsertionFlush.flushRight)) {//equal sign (>=) flushes insertions to the right
+            if (Score1>maxScore1 || (Score1==maxScore1 && P.align.insertionFlush.flushRight)) {//equal sign (>=) flushes insertions to the right
                 maxScore1=Score1;
                 jR=jR1;
             };
@@ -259,7 +259,7 @@ int stitchInsertion(GapStitch &s, const char *R, const char *G, uint64 rAend, ui
         };
     };
 
-    if (P.alignInsertionFlush.flushRight) {
+    if (P.align.insertionFlush.flushRight) {
         for (; jR<(int)rBend-(int)rAend-(int)s.Ins; jR++ ){//flush the indel to the right as much as possible
             if (R[rAend+jR+1]!=G[gAend+jR+1] || G[gAend+jR+1]==4) {
                 break;
@@ -269,7 +269,7 @@ int stitchInsertion(GapStitch &s, const char *R, const char *G, uint64 rAend, ui
             return -1000009;
         };
     };
-    s.Score += s.Ins*P.scoreInsBase + P.scoreInsOpen;
+    s.Score += s.Ins*P.score.insBase + P.score.insOpen;
     s.jCan=-2; //marks insertion though it's not used below
     return 0;
 }
@@ -320,13 +320,13 @@ int stitchSameFragment(int &Score, uint64 rAend, uint64 gAend, uint64 rBstart, u
     if ( (trA->nMM + s.nMM)<=outFilterMismatchNmaxTotal )
 #else
     if ( (trA->nMM + s.nMM)<=outFilterMismatchNmaxTotal
-                 && ( s.jCan<0 || (s.jCan<7 && s.nMM<= (uint64) P.alignSJstitchMismatchNmax[(s.jCan+1)/2]) ) )
+                 && ( s.jCan<0 || (s.jCan<7 && s.nMM<= (uint64) P.align.SJstitchMismatchNmax[(s.jCan+1)/2]) ) )
 #endif
     {//stitching worked only if there no mis-matches for non-GT/AG junctions
         trA->nMM += s.nMM;
         trA->nMatch += s.nMatch;
 
-        if (s.Del>=P.alignIntronMin) {
+        if (s.Del>=P.align.intronMin) {
             trA->nGap += s.nDel;
             trA->lGap += s.Del;
         } else {
@@ -366,7 +366,7 @@ int stitchMates(int &Score, uint64 rAend, uint64 gAend, uint64 rBstart, uint64 g
                 Parameters& P, char* R, Genome &mapGen, Transcript *trA, const uint64 outFilterMismatchNmaxTotal)
 {
     char *G=mapGen.G;
-    if (P.alignMatesGapMax>0 && gBstart > trA->exons[trA->nExons-1][EX_G] + trA->exons[trA->nExons-1][EX_L] + P.alignMatesGapMax) {
+    if (P.align.matesGapMax>0 && gBstart > trA->exons[trA->nExons-1][EX_G] + trA->exons[trA->nExons-1][EX_L] + P.align.matesGapMax) {
         return -1000004; //gap between mates too large
     };
     //extend the fragments inside
@@ -386,7 +386,7 @@ int stitchMates(int &Score, uint64 rAend, uint64 gAend, uint64 rBstart, uint64 g
 
     trExtend.reset();
     if ( extendAlign(R, G, rAend+1, gAend+1, 1, 1, DEF_readSeqLengthMax, trA->nMatch, trA->nMM, outFilterMismatchNmaxTotal, P.alignFilter.mismatchOverLengthMax,
-                     P.alignEndsType.ext[trA->exons[trA->nExons-1][EX_iFrag]][1], &trExtend) ) {
+                     P.align.endsType.ext[trA->exons[trA->nExons-1][EX_iFrag]][1], &trExtend) ) {
         trA->add(&trExtend);
         Score += trExtend.maxScore;
         trA->exons[trA->nExons-1][EX_L] += trExtend.extendL;
@@ -399,9 +399,9 @@ int stitchMates(int &Score, uint64 rAend, uint64 gAend, uint64 rBstart, uint64 g
 
     trExtend.reset();
     //if end extension needs to be forced, use large length. Otherwise, only extend until the beginning of the transcript
-    uint64 extlen=P.alignEndsType.ext[iFragB][1] ? DEF_readSeqLengthMax : gBstart-trA->exons[0][EX_G]+trA->exons[0][EX_R];
+    uint64 extlen=P.align.endsType.ext[iFragB][1] ? DEF_readSeqLengthMax : gBstart-trA->exons[0][EX_G]+trA->exons[0][EX_R];
     if ( extendAlign(R, G, rBstart-1, gBstart-1, -1, -1, extlen, trA->nMatch, trA->nMM, outFilterMismatchNmaxTotal, P.alignFilter.mismatchOverLengthMax,
-                     P.alignEndsType.ext[iFragB][1], &trExtend) ) {
+                     P.align.endsType.ext[iFragB][1], &trExtend) ) {
         trA->add(&trExtend);
         Score += trExtend.maxScore;
         trA->exons[trA->nExons][EX_R] -= trExtend.extendL;
@@ -437,7 +437,7 @@ intScore stitchAlignToTranscript(uint64 rAend, uint64 gAend, uint64 rBstart, uin
         int status;
         if (trA->exons[trA->nExons-1][EX_iFrag]==iFragB) {//stitch aligns on the same fragment
             status=stitchSameFragment(Score, rAend, gAend, rBstart, gBstart, L, iFragB, P, R, mapGen, trA, outFilterMismatchNmaxTotal);
-        } else if (gBstart+trA->exons[0][EX_R]+P.alignEndsProtrude.nBasesMax >= trA->exons[0][EX_G] || trA->exons[0][EX_G] < trA->exons[0][EX_R]){//stitch aligns from different fragments
+        } else if (gBstart+trA->exons[0][EX_R]+P.align.endsProtrude.nBasesMax >= trA->exons[0][EX_G] || trA->exons[0][EX_G] < trA->exons[0][EX_R]){//stitch aligns from different fragments
             //CHECK: this second condition does not make sense
             status=stitchMates(Score, rAend, gAend, rBstart, gBstart, L, iFragB, P, R, mapGen, trA, outFilterMismatchNmaxTotal);
         } else {//no stitching possible

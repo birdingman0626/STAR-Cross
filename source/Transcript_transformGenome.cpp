@@ -139,7 +139,7 @@ bool Transcript::transformGenome(Genome &genOut, Transcript & A)
                 if (gapR>0) {//insertion
                     A.canonSJ[ia]=-2;
                     
-                } else if (gapG>=genOut.P.alignIntronMin) {//junction
+                } else if (gapG>=genOut.P.align.intronMin) {//junction
                     A.canonSJ[ia]=0;
                     if        ( genOut.G[jS]==2 && genOut.G[jS+1]==3 && genOut.G[jE-1]==0 && genOut.G[jE]==2 ) {//GTAG
                         A.canonSJ[ia]=1;

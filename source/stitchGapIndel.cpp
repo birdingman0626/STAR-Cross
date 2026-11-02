@@ -37,7 +37,7 @@ int stitchGapIndel (uint64 rAend, uint64 gAend, uint64 rBstart, uint64 gBstart, 
 
         //score the alignment with inDel at iRbest
         nMM=0;
-        score2= L - inDel*P.scoreDelBase - P.scoreDelOpen; //score B and deletion
+        score2= L - inDel*P.score.delBase - P.score.delOpen; //score B and deletion
         for (uint64 iR=1; iR<rBstart-rAend; iR++) {//scan to find the best position iR of the indel
             uint64 iG=gAend+iR;
             if (iR>iRbest) iG += (uint64) inDel;

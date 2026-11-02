@@ -113,7 +113,7 @@ bool ReadAlign::chimericDetectionOld() {
 
     //final check
     if ( chimOld.tr[0].Str!=chimOld.tr[1].Str ||  chimOld.tr[0].Chr!=chimOld.tr[1].Chr
-            || (chimOld.tr[0].Str==0 ? chimOld.j1-chimOld.j0+1LLU : chimOld.j0-chimOld.j1+1LLU) > (chimOld.motif>=0 ? P.alignIntronMax :  P.alignMatesGapMax) ) {
+            || (chimOld.tr[0].Str==0 ? chimOld.j1-chimOld.j0+1LLU : chimOld.j0-chimOld.j1+1LLU) > (chimOld.motif>=0 ? P.align.intronMax :  P.align.matesGapMax) ) {
         //chimera has to bw from different chr/strand, or far away
 
         if (chimOld.motif>=0 &&

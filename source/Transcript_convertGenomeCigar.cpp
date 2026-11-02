@@ -101,7 +101,7 @@ using namespace std;
         for (auto c1=A.cigar.begin(); c1!=A.cigar.end(); c1++) {
             nOp[(*c1)[0]] += (*c1)[1];
             if ( (*c1)[0] == BAM_CIGAR_M ) {
-                if (nOp[BAM_CIGAR_M] >= genOut.P.alignSJDBoverhangMin) //TODO Transcript class should have P
+                if (nOp[BAM_CIGAR_M] >= genOut.P.align.SJDBoverhangMin) //TODO Transcript class should have P
                     break; //overhang is long enough
             } else if ( (*c1)[0]==BAM_CIGAR_N ) {//short overhang for this junction
                 //find the next M
@@ -125,7 +125,7 @@ using namespace std;
         for (auto c1=A.cigar.end()-1; c1!=A.cigar.begin(); c1--) {
             nOp[(*c1)[0]] += (*c1)[1];
             if ( (*c1)[0] == BAM_CIGAR_M ) {
-                if (nOp[BAM_CIGAR_M] >= genOut.P.alignSJDBoverhangMin) //TODO Transcript class should have P
+                if (nOp[BAM_CIGAR_M] >= genOut.P.align.SJDBoverhangMin) //TODO Transcript class should have P
                     break; //overhang is long enough
             } else if ( (*c1)[0]==BAM_CIGAR_N ) {//short overhang for this junction
                 //find the next M

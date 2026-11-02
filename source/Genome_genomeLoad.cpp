@@ -362,15 +362,15 @@ void Genome::allocatePrivateGenome(uint64 L)
             nGenomePass1=nGenomeInsert;
             nSApass1=nSAinsert;
             if (P.sjdbInsert.pass1) {
-                nGenomePass1+=P.limitSjdbInsertNsj*sjdbLength;
-                nSApass1+=2*P.limitSjdbInsertNsj*sjdbLength;
+                nGenomePass1+=P.limit.sjdbInsertNsj*sjdbLength;
+                nSApass1+=2*P.limit.sjdbInsertNsj*sjdbLength;
             };
 
             nGenomePass2=nGenomePass1;
             nSApass2=nSApass1;
             if (P.sjdbInsert.pass2) {
-                nGenomePass2+=P.limitSjdbInsertNsj*sjdbLength;
-                nSApass2+=2*P.limitSjdbInsertNsj*sjdbLength;
+                nGenomePass2+=P.limit.sjdbInsertNsj*sjdbLength;
+                nSApass2+=2*P.limit.sjdbInsertNsj*sjdbLength;
             };
 
             G1=new char[nGenomePass2+L+L];
@@ -443,33 +443,33 @@ void Genome::readIndexFiles(ifstream &GenomeIn, ifstream &SAin, ifstream &SAiIn,
 
 void Genome::adjustWindowParameters()
 {//window bin sizes follow the max intron / mate gap and the genome size
-    if (P.alignIntronMax==0 && P.alignMatesGapMax==0) {
+    if (P.align.intronMax==0 && P.align.matesGapMax==0) {
         P.inOut->logMain << "alignIntronMax=alignMatesGapMax=0, the max intron size will be approximately determined by (2^winBinNbits)*winAnchorDistNbins=" \
-                << (1LLU<<P.winBinNbits)*P.winAnchorDistNbins <<endl;
+                << (1LLU<<P.win.binNbits)*P.win.anchorDistNbins <<endl;
     } else {
         //redefine winBinNbits
-        P.winBinNbits = (uint64) floor( log2( max( max(4LLU,P.alignIntronMax), (P.alignMatesGapMax==0 ? 1000LLU : P.alignMatesGapMax) ) /4 ) + 0.5);
-        P.winBinNbits = max( P.winBinNbits, (uint64) floor(log2(nGenome/40000+1)+0.5) );
+        P.win.binNbits = (uint64) floor( log2( max( max(4LLU,P.align.intronMax), (P.align.matesGapMax==0 ? 1000LLU : P.align.matesGapMax) ) /4 ) + 0.5);
+        P.win.binNbits = max( P.win.binNbits, (uint64) floor(log2(nGenome/40000+1)+0.5) );
         //ISSUE - to be fixed in STAR3: if alignIntronMax>0 but alignMatesGapMax==0, winBinNbits will be defined by alignIntronMax
-        P.inOut->logMain << "To accommodate alignIntronMax="<<P.alignIntronMax<<" redefined winBinNbits="<< P.winBinNbits <<endl;
+        P.inOut->logMain << "To accommodate alignIntronMax="<<P.align.intronMax<<" redefined winBinNbits="<< P.win.binNbits <<endl;
     };
 
-    if (P.winBinNbits > pGe.gChrBinNbits) {
-       P.inOut->logMain << "winBinNbits=" <<P.winBinNbits <<" > " << "pGe.gChrBinNbits=" << pGe.gChrBinNbits << "   redefining:\n";
-       P.winBinNbits=pGe.gChrBinNbits;
-       P.inOut->logMain << "winBinNbits=" <<P.winBinNbits <<endl;
+    if (P.win.binNbits > pGe.gChrBinNbits) {
+       P.inOut->logMain << "winBinNbits=" <<P.win.binNbits <<" > " << "pGe.gChrBinNbits=" << pGe.gChrBinNbits << "   redefining:\n";
+       P.win.binNbits=pGe.gChrBinNbits;
+       P.inOut->logMain << "winBinNbits=" <<P.win.binNbits <<endl;
     };
 
-    if (!(P.alignIntronMax==0 && P.alignMatesGapMax==0)) {
+    if (!(P.align.intronMax==0 && P.align.matesGapMax==0)) {
         //redefine winFlankNbins,winAnchorDistNbins
-        P.winFlankNbins=max(P.alignIntronMax,P.alignMatesGapMax)/(1LLU<<P.winBinNbits)+1;
-        P.winAnchorDistNbins=2*P.winFlankNbins;
-        P.inOut->logMain << "To accommodate alignIntronMax="<<P.alignIntronMax<<" and alignMatesGapMax="<<P.alignMatesGapMax<<\
-                ", redefined winFlankNbins="<<P.winFlankNbins<<" and winAnchorDistNbins="<<P.winAnchorDistNbins<<endl;
+        P.win.flankNbins=max(P.align.intronMax,P.align.matesGapMax)/(1LLU<<P.win.binNbits)+1;
+        P.win.anchorDistNbins=2*P.win.flankNbins;
+        P.inOut->logMain << "To accommodate alignIntronMax="<<P.align.intronMax<<" and alignMatesGapMax="<<P.align.matesGapMax<<\
+                ", redefined winFlankNbins="<<P.win.flankNbins<<" and winAnchorDistNbins="<<P.win.anchorDistNbins<<endl;
     };
 
-    P.winBinChrNbits=pGe.gChrBinNbits-P.winBinNbits;
-    P.winBinN = nGenome/(1LLU << P.winBinNbits)+1;//this may be changed later
+    P.win.binChrNbits=pGe.gChrBinNbits-P.win.binNbits;
+    P.win.binN = nGenome/(1LLU << P.win.binNbits)+1;//this may be changed later
 };
 
 void Genome::loadOutputGenome(Parameters &P1)

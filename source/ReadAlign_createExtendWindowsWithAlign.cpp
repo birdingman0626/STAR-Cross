@@ -7,7 +7,7 @@ using namespace std;
 int ReadAlign::createExtendWindowsWithAlign(uint64 a1, uint64 aStr) {
 
 
-    uint64 aBin = (a1 >> P.winBinNbits); //align's bin
+    uint64 aBin = (a1 >> P.win.binNbits); //align's bin
     uint64 iBinLeft=aBin, iBinRight=aBin;
     auto &wB=winBin[aStr];
     uint64 iBin=-1, iWin=-1, iWinRight=-1;
@@ -18,14 +18,14 @@ int ReadAlign::createExtendWindowsWithAlign(uint64 a1, uint64 aStr) {
 
         bool flagMergeLeft=false;
         if (aBin>0) {//merge left only if there are bins on the left
-            for (iBin=aBin-1;  iBin >= ( aBin>P.winAnchorDistNbins ? aBin-P.winAnchorDistNbins : 0 );  --iBin) {//go left, find windows in Anchor range
+            for (iBin=aBin-1;  iBin >= ( aBin>P.win.anchorDistNbins ? aBin-P.win.anchorDistNbins : 0 );  --iBin) {//go left, find windows in Anchor range
                 if (wB[iBin]<uintWinBinMax) {
                     flagMergeLeft=true;
                     break;
                 };
                 if (iBin==0) break;
             };
-            flagMergeLeft = flagMergeLeft && (mapGen.chrBin[iBin>>P.winBinChrNbits]==mapGen.chrBin[aBin>>P.winBinChrNbits]);
+            flagMergeLeft = flagMergeLeft && (mapGen.chrBin[iBin>>P.win.binChrNbits]==mapGen.chrBin[aBin>>P.win.binChrNbits]);
             if (flagMergeLeft) {//this align can be merged into the existing window
                 iWin=wB[iBin];
                 iBinLeft=WC[iWin][WC_gStart];
@@ -36,15 +36,15 @@ int ReadAlign::createExtendWindowsWithAlign(uint64 a1, uint64 aStr) {
         };
 
         bool flagMergeRight=false;
-        if (aBin+1<P.winBinN) {//merge left only if there are bins on the right
-            for (iBin=aBin+1;  iBin<min(aBin+P.winAnchorDistNbins+1,P.winBinN);  ++iBin) {//go right, find windows in Anchor range
+        if (aBin+1<P.win.binN) {//merge left only if there are bins on the right
+            for (iBin=aBin+1;  iBin<min(aBin+P.win.anchorDistNbins+1,P.win.binN);  ++iBin) {//go right, find windows in Anchor range
                 if (wB[iBin]<uintWinBinMax) {
                     flagMergeRight=true;
                     break;
                 };
             };
 
-            flagMergeRight = flagMergeRight && (mapGen.chrBin[iBin>>P.winBinChrNbits]==mapGen.chrBin[aBin>>P.winBinChrNbits]);
+            flagMergeRight = flagMergeRight && (mapGen.chrBin[iBin>>P.win.binChrNbits]==mapGen.chrBin[aBin>>P.win.binChrNbits]);
             if (flagMergeRight) {//this align can be merged into the existing window
                 while (wB[iBin]==wB[iBin+1]) ++iBin; //extend through all bins of the right window
                 iBinRight=iBin;
@@ -64,12 +64,12 @@ int ReadAlign::createExtendWindowsWithAlign(uint64 a1, uint64 aStr) {
         if (!flagMergeLeft && !flagMergeRight) {//no merging, a new window was added
             wB.set(aBin, (uintWinBin)nW);
             iWin=nW; //add new window ID for now, may change it later
-            WC[iWin][WC_Chr]=mapGen.chrBin[aBin >> P.winBinChrNbits];
+            WC[iWin][WC_Chr]=mapGen.chrBin[aBin >> P.win.binChrNbits];
             WC[iWin][WC_Str]=aStr;
             WC[iWin][WC_gEnd]=WC[iWin][WC_gStart]=aBin;
             ++nW;
-            if (nW>=P.alignWindowsPerReadNmax) {
-                nW=P.alignWindowsPerReadNmax-1;
+            if (nW>=P.align.windowsPerReadNmax) {
+                nW=P.align.windowsPerReadNmax-1;
                 return EXIT_createExtendWindowsWithAlign_TOO_MANY_WINDOWS; //too many windows, do not record TODO: record a marker
             };
         } else {//record windows after merging

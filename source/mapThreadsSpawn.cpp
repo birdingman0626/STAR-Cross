@@ -15,7 +15,7 @@
 using namespace std;
 void mapThreadsSpawn (Parameters &P, ReadAlignChunk** RAchunk) {
     std::unique_ptr<SeedBatchExecutor> seeds;
-    if(P.seedSearchBackend!="off") seeds=std::make_unique<SeedBatchExecutor>(P,RAchunk[0]->mapGen);
+    if(P.seed.searchBackend!="off") seeds=std::make_unique<SeedBatchExecutor>(P,RAchunk[0]->mapGen);
     for(int i=0;i<P.runThreadN;++i) RAchunk[i]->seedBatch=seeds.get();
     P.inOut->logMain<<"TIMING executor_built t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
     if (const char* enabled=std::getenv("STAR_CHUNK_PIPELINE")) {

@@ -7,9 +7,9 @@
 #include "wincompat.h"
 #endif
 using namespace std;
-void Parameters::readSAMheader(const string readFilesCommandString, const vector<string> readFilesNames) {
+void Parameters::readSAMheader(const string commandString, const vector<string> fileNames) {
 
-    if (readFilesCommandString=="") {//simply read from file
+    if (commandString=="") {//simply read from file
         while (inOut->readIn[0].peek()=='@') {
             string str1;
             getline(inOut->readIn[0],str1);
@@ -24,9 +24,9 @@ void Parameters::readSAMheader(const string readFilesCommandString, const vector
     // Windows: use temp file instead of FIFO
     string tmpFile=outFileTmp+"tmp.header";
     ifstream tmpFileIn;
-    for (uint32 ii=0; ii<readFilesNames.size(); ii++) {
+    for (uint32 ii=0; ii<fileNames.size(); ii++) {
         remove(tmpFile.c_str());
-        string com1=readFilesCommandString + "   " + readFilesNames.at(ii) + " > \"" + tmpFile + "\"";
+        string com1=commandString + "   " + fileNames.at(ii) + " > \"" + tmpFile + "\"";
         system(com1.c_str());
         tmpFileIn.open(tmpFile);
         while (tmpFileIn.good() && tmpFileIn.peek()=='@') {
@@ -51,8 +51,8 @@ void Parameters::readSAMheader(const string readFilesCommandString, const vector
     };
 
     ifstream tmpFifoIn;
-    for (uint32 ii=0; ii<readFilesNames.size(); ii++) {
-        string com1=readFilesCommandString + "   " + readFilesNames.at(ii) + " > " + tmpFifo + "&";
+    for (uint32 ii=0; ii<fileNames.size(); ii++) {
+        string com1=commandString + "   " + fileNames.at(ii) + " > " + tmpFifo + "&";
         system(com1.c_str());
         tmpFifoIn.open(tmpFifo);
         while (tmpFifoIn.peek()=='@') {

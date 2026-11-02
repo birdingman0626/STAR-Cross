@@ -37,30 +37,30 @@ namespace stitchcore {
 Params paramsFrom(const Parameters& P) {
     Params p;
     p.mismatchOverLengthMax=P.alignFilter.mismatchOverLengthMax;
-    p.splicedMateMapLminOverLmate=P.alignSplicedMateMapLminOverLmate;
-    p.genomicLengthLog2scale=P.scoreGenomicLengthLog2scale;
-    p.sjdbOverhangMin=P.alignSJDBoverhangMin; p.sjOverhangMin=P.alignSJoverhangMin;
-    p.splicedMateMapLmin=P.alignSplicedMateMapLmin;
-    p.transcriptsPerWindowNmax=P.alignTranscriptsPerWindowNmax;
-    p.transcriptsPerReadNmax=P.alignTranscriptsPerReadNmax;
-    p.intronMin=P.alignIntronMin; p.intronMax=P.alignIntronMax; p.matesGapMax=P.alignMatesGapMax;
-    p.endsProtrudeNbasesMax=P.alignEndsProtrude.nBasesMax;
+    p.splicedMateMapLminOverLmate=P.align.splicedMateMapLminOverLmate;
+    p.genomicLengthLog2scale=P.score.genomicLengthLog2scale;
+    p.sjdbOverhangMin=P.align.SJDBoverhangMin; p.sjOverhangMin=P.align.SJoverhangMin;
+    p.splicedMateMapLmin=P.align.splicedMateMapLmin;
+    p.transcriptsPerWindowNmax=P.align.transcriptsPerWindowNmax;
+    p.transcriptsPerReadNmax=P.align.transcriptsPerReadNmax;
+    p.intronMin=P.align.intronMin; p.intronMax=P.align.intronMax; p.matesGapMax=P.align.matesGapMax;
+    p.endsProtrudeNbasesMax=P.align.endsProtrude.nBasesMax;
     p.multimapScoreRange=P.alignFilter.multimapScoreRange;
     p.sjdbScore=P.pGe.sjdbScore;
-    p.scoreStitchSJshift=P.scoreStitchSJshift; p.scoreGapGCAG=P.scoreGapGCAG; p.scoreGapATAC=P.scoreGapATAC;
-    p.scoreGapNoncan=P.scoreGapNoncan; p.scoreGap=P.scoreGap;
-    p.scoreDelBase=P.scoreDelBase; p.scoreDelOpen=P.scoreDelOpen; p.scoreInsBase=P.scoreInsBase; p.scoreInsOpen=P.scoreInsOpen;
-    if(P.alignSJstitchMismatchNmax.size()!=4) throw std::invalid_argument("alignSJstitchMismatchNmax must have 4 values");
-    for(int i=0;i<4;++i) p.sjStitchMismatchNmax[i]=P.alignSJstitchMismatchNmax[i];
+    p.scoreStitchSJshift=P.score.stitchSJshift; p.scoreGapGCAG=P.score.gapGCAG; p.scoreGapATAC=P.score.gapATAC;
+    p.scoreGapNoncan=P.score.gapNoncan; p.scoreGap=P.score.gap;
+    p.scoreDelBase=P.score.delBase; p.scoreDelOpen=P.score.delOpen; p.scoreInsBase=P.score.insBase; p.scoreInsOpen=P.score.insOpen;
+    if(P.align.SJstitchMismatchNmax.size()!=4) throw std::invalid_argument("alignSJstitchMismatchNmax must have 4 values");
+    for(int i=0;i<4;++i) p.sjStitchMismatchNmax[i]=P.align.SJstitchMismatchNmax[i];
     p.strandFieldType=P.outSAMstrandField.type;
     if(P.outFilterIntronMotifs=="None") p.intronMotifs=0;
     else if(P.outFilterIntronMotifs=="RemoveNoncanonical") p.intronMotifs=1;
     else if(P.outFilterIntronMotifs=="RemoveNoncanonicalUnannotated") p.intronMotifs=2;
     else throw std::invalid_argument("unsupported outFilterIntronMotifs for StitchCore");
-    for(int i=0;i<2;++i) for(int j=0;j<2;++j) p.extEnds[i][j]=P.alignEndsType.ext[i][j];
-    p.softClipAtReferenceEnds=P.alignSoftClipAtReferenceEnds.yes;
+    for(int i=0;i<2;++i) for(int j=0;j<2;++j) p.extEnds[i][j]=P.align.endsType.ext[i][j];
+    p.softClipAtReferenceEnds=P.align.softClipAtReferenceEnds.yes;
     p.removeInconsistentStrands=P.outFilterIntronStrands=="RemoveInconsistentStrands";
-    p.flushRight=P.alignInsertionFlush.flushRight;
+    p.flushRight=P.align.insertionFlush.flushRight;
     return p;
 }
 GenomeView genomeFrom(const Genome& g) {

@@ -143,7 +143,7 @@ void ParametersSolo::initBarcodeRead()
     barcodeRead=-1; 
     barcodeReadSeparate=false;
     
-    if (pP->readFilesTypeN != 10) {//input from FASTQ
+    if (pP->readFiles.typeN != 10) {//input from FASTQ
         if (type==SoloTypes::SmartSeq) {//no barcode read
             //TODO: a lot of parameters should not be defined for SmartSeq option - check it here
         } else {//all other types require barcode read
@@ -175,7 +175,7 @@ void ParametersSolo::initBarcodeRead()
                 };
             };
         };
-    } else if (pP->readFilesTypeN == 10) {//input from SAM
+    } else if (pP->readFiles.typeN == 10) {//input from SAM
         if (typeStr=="SmartSeq") {
             exitWithError("EXITING because of fatal PARAMETERS error: --readFilesType SAM SE/PE cannot be used with --soloType SmartSeq\n"
                           "SOLUTION: for Smart-seq input from BAM files, use --soloType CB_UMI_Simple , create whitelist of SmartSeq file names, and specify the SAM tag that records these file names in --soloInputSAMattrBarcodeSeq"

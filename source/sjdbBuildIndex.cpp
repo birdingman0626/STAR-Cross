@@ -49,7 +49,7 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint64 nInd
 
     const uint64 indBytes=2*nInd*sizeof(uint64);
     const uint64 auxBytes=indBytes + (uint64) P.runThreadN*bucketN*2*sizeof(uint64) + (bucketN+1)*sizeof(uint64);
-    if (P.limitGenomeGenerateRAM>0 && auxBytes>P.limitGenomeGenerateRAM/4) {
+    if (P.limit.genomeGenerateRAM>0 && auxBytes>P.limit.genomeGenerateRAM/4) {
         qsort((void*) indArray, nInd, 2*sizeof(uint64), funCompareUintAndSuffixes);
         return false;
     };

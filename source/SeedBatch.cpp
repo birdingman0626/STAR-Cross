@@ -45,14 +45,14 @@ struct SeedBatchExecutor::State {
     State(Parameters& parameters,Genome& genome):p(parameters),
         index{static_cast<SeedIndexView>(genome),genome.SAi,genome.genomeSAindexStart,p.pGe.gSAindexNbases,p.pGe.gSAsparseD,
               genome.SAiMarkAbsentMaskC,genome.SAiMarkNmaskC,genome.SAiMarkNmask},
-        config{p.maxNsplit,p.seedSplitMin,p.seedMapMin,p.seedSearchStartLmax,p.seedSearchLmax,p.seedSearchStartLmaxOverLread,
-               p.seedMultimapNmax,p.seedPerReadNmax},
+        config{p.maxNsplit,p.seed.splitMin,p.seed.mapMin,p.seed.searchStartLmax,p.seed.searchLmax,p.seed.searchStartLmaxOverLread,
+               p.seed.multimapNmax,p.seed.perReadNmax},
         stats(2*size_t(p.runThreadN)) {} // two seed slots per worker
 };
 SeedBatchExecutor::SeedBatchExecutor(Parameters& p,Genome& genome):state(std::make_unique<State>(p,genome)) {
-    if(p.seedSearchBackend!="cpu" && p.seedSearchBackend!="auto" && p.seedSearchBackend!="required")
+    if(p.seed.searchBackend!="cpu" && p.seed.searchBackend!="auto" && p.seed.searchBackend!="required")
         throw std::invalid_argument("seedSearchBackend must be off, cpu, auto or required");
-    if(!p.seedBatchSize || p.seedBatchSize>65536)
+    if(!p.seed.batchSize || p.seed.batchSize>65536)
         throw std::invalid_argument("seedBatchSize must be in [1,65536]");
     if(p.twoPass.yes || p.outFilterBySJoutStage!=0 || p.wasp.yes || p.peOverlap.yes || p.pGe.gType==101 || p.pCh.segmentMin>0)
         throw std::invalid_argument("batched seeds currently support fixed-index one-pass mapping without WASP, BySJout, overlap or chimeric remapping");
@@ -60,7 +60,7 @@ SeedBatchExecutor::SeedBatchExecutor(Parameters& p,Genome& genome):state(std::ma
         throw std::invalid_argument("batched seeds with random multimapper ordering require one logical worker");
     if(std::getenv("STAR_SEED_TRACE_DIR"))
         throw std::invalid_argument("capture the original CPU path; legacy seed tracing does not cover batched searches");
-    if(p.seedSearchBackend!="cpu") {
+    if(p.seed.searchBackend!="cpu") {
 #ifdef STAR_HAVE_CUDA_SEEDS
       state->settled=false;
       state->setup=std::thread([this,&p,&genome]{
@@ -71,9 +71,9 @@ SeedBatchExecutor::SeedBatchExecutor(Parameters& p,Genome& genome):state(std::ma
             // Projected hits per device round; a batch whose hits exceed it is projected in several rounds.
             const char* hitEnv=std::getenv("STAR_GPU_HIT_CAPACITY");
             const size_t hitCapacity=hitEnv ? std::strtoull(hitEnv,nullptr,10)
-                : std::min<size_t>(4194304,std::max<size_t>(262144,512*size_t(p.seedBatchSize))); // ~1 round per batch
+                : std::min<size_t>(4194304,std::max<size_t>(262144,512*size_t(p.seed.batchSize))); // ~1 round per batch
             state->gpu=std::make_unique<GpuSeedIndex>(genome.G,genome.nGenome,genome.SA.charArray,genome.SA.lengthByte,
-                genome.nSA,genome.GstrandBit,p.seedBatchSize,4*1024*1024,2*size_t(p.runThreadN));
+                genome.nSA,genome.GstrandBit,p.seed.batchSize,4*1024*1024,2*size_t(p.runThreadN));
             state->gpu->configureAdaptive(genome.SAi.charArray,genome.SAi.lengthByte,genome.SAi.length,
                 genome.SAi.wordLength,genome.genomeSAindexStart,p.pGe.gSAindexNbases,p.pGe.gSAsparseD,
                 genome.SAiMarkAbsentMaskC,genome.SAiMarkNmaskC,genome.SAiMarkNmask,state->config,131072,hitCapacity);
@@ -81,11 +81,11 @@ SeedBatchExecutor::SeedBatchExecutor(Parameters& p,Genome& genome):state(std::ma
             state->windowFilter=!(filter && std::string(filter)=="0");
             if(state->windowFilter)
                 state->gpu->configureWindowFilter(genome.sjDstart,genome.sjAstart,genome.sjdbN,genome.sjGstart,
-                    genome.sjdbLength,genome.sjdbOverhang,static_cast<unsigned>(p.winBinNbits),p.winAnchorDistNbins,
-                    p.winFlankNbins,p.winAnchorMultimapNmax);
+                    genome.sjdbLength,genome.sjdbOverhang,static_cast<unsigned>(p.win.binNbits),p.win.anchorDistNbins,
+                    p.win.flankNbins,p.win.anchorMultimapNmax);
         } catch(const std::exception& error) {
             state->gpu.reset();
-            if(p.seedSearchBackend=="required") throw;
+            if(p.seed.searchBackend=="required") throw;
             log<<"SEED_BATCH preflight_cpu_fallback="<<error.what()<<'\n';
         }
         const char* stitchEnv=std::getenv("STAR_GPU_STITCH");
@@ -101,10 +101,10 @@ SeedBatchExecutor::SeedBatchExecutor(Parameters& p,Genome& genome):state(std::ma
                 g.sjdbMotif=genome.sjdbMotif; g.sjdbShiftLeft=genome.sjdbShiftLeft;
                 g.sjdbShiftRight=genome.sjdbShiftRight; g.sjdbStrand=genome.sjdbStrand;
                 state->stitcher=std::make_unique<GpuStitcher>(g,stitchcore::paramsFrom(p),2*size_t(p.runThreadN), // two batches in flight per worker
-                    static_cast<unsigned>(p.seedPerWindowNmax+1));
+                    static_cast<unsigned>(p.seed.perWindowNmax+1));
             } catch(const std::exception& error) {
                 state->stitcher.reset();
-                if(p.seedSearchBackend=="required") throw;
+                if(p.seed.searchBackend=="required") throw;
                 log<<"SEED_BATCH stitch_cpu_fallback="<<error.what()<<'\n';
             }
         }
@@ -114,20 +114,20 @@ SeedBatchExecutor::SeedBatchExecutor(Parameters& p,Genome& genome):state(std::ma
                 state->clipper=std::make_unique<GpuClipper>(size_t(p.runThreadN));
             } catch(const std::exception& error) {
                 state->clipper.reset();
-                if(p.seedSearchBackend=="required") throw;
+                if(p.seed.searchBackend=="required") throw;
                 log<<"SEED_BATCH clip_cpu_fallback="<<error.what()<<'\n';
             }
         }
         const char* barcodeEnv=std::getenv("STAR_GPU_BARCODE");
         const auto& solo=p.pSolo;
         if(state->gpu && !(barcodeEnv && std::string(barcodeEnv)=="0") && solo.type==solo.SoloTypes::CB_UMI_Simple
-           && solo.cbWLyes && solo.CBtype.type==1 && p.readFilesTypeN!=10 && !solo.cbWL.empty()
+           && solo.cbWLyes && solo.CBtype.type==1 && p.readFiles.typeN!=10 && !solo.cbWL.empty()
            && solo.cbL>0 && solo.cbL<=GpuWhitelist::kMaxLength) {
             try {
                 state->whitelist=std::make_unique<GpuWhitelist>(solo.cbWL.data(),solo.cbWL.size(),solo.cbL,2*size_t(p.runThreadN));
             } catch(const std::exception& error) {
                 state->whitelist.reset();
-                if(p.seedSearchBackend=="required") throw;
+                if(p.seed.searchBackend=="required") throw;
                 log<<"SEED_BATCH barcode_cpu_fallback="<<error.what()<<'\n';
             }
         }
@@ -141,7 +141,7 @@ SeedBatchExecutor::SeedBatchExecutor(Parameters& p,Genome& genome):state(std::ma
       state->settled.store(true,std::memory_order_release);
       });
 #else
-        if(p.seedSearchBackend=="required") throw std::runtime_error("CUDA seed backend unavailable in this CPU-only build");
+        if(p.seed.searchBackend=="required") throw std::runtime_error("CUDA seed backend unavailable in this CPU-only build");
         p.inOut->logMain<<"SEED_BATCH preflight_cpu_fallback=CPU-only build\n";
 #endif
     }
@@ -164,7 +164,7 @@ bool SeedBatchExecutor::deviceSettled() const {
     // CPU warm-up while the device sets up only in auto mode: required means every read is seeded on the device.
     // STAR_GPU_SETUP_OVERLAP=0 also disables it (tests that must exercise the device).
     static const bool overlapEnv=[]{const char* v=std::getenv("STAR_GPU_SETUP_OVERLAP"); return !(v && std::string(v)=="0");}();
-    const bool overlap=overlapEnv && state->p.seedSearchBackend=="auto";
+    const bool overlap=overlapEnv && state->p.seed.searchBackend=="auto";
     if(!overlap) while(!state->settled.load(std::memory_order_acquire)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
     if(!state->settled.load(std::memory_order_acquire)) return false;
     if(state->setupError) std::rethrow_exception(state->setupError);
@@ -178,7 +178,7 @@ void SeedBatchExecutor::run(std::vector<PreparedRead>& reads,unsigned worker) {
     for(const auto& read:reads) { offsets.push_back(pool.size());pool.insert(pool.end(),read.sequence.begin(),read.sequence.end()); }
     if(pool.size()>4*1024*1024) throw std::runtime_error("seed read pool budget exceeded");
 #ifdef STAR_HAVE_CUDA_SEEDS
-    if(s.gpu && (s.p.seedSearchBackend=="required" || reads.size()>=256)) {
+    if(s.gpu && (s.p.seed.searchBackend=="required" || reads.size()>=256)) {
         std::vector<SeedReadRange> ranges;
         for(size_t i=0;i<reads.size();++i) ranges.push_back({offsets[i],reads[i].sequence.size()});
         // The barcode lookup needs only the reads: queue it first, so its round trip overlaps the seed search.

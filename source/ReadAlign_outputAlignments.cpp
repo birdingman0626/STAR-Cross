@@ -87,7 +87,7 @@ void ReadAlign::recordSJ(uint64 nTrO, Transcript **trO, OutSJ *cSJ)
     if (!P.outSJ.yes)
         return; //no SJ output
     
-    if ( P.outSJfilterReads=="All" || nTrO==1 ) {
+    if ( P.outSJfilter.reads=="All" || nTrO==1 ) {
         uint64 sjReadStartN=cSJ->N;
         for (uint64 iTr=0; iTr<nTrO; iTr++) {//write all transcripts junctions
             outputTranscriptSJ (*(trO[iTr]), nTrO, cSJ, sjReadStartN);

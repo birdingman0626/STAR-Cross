@@ -328,15 +328,15 @@ void Genome::defineSuffixArray(uint64 sjdbLociN)
     };
 
     // GstrandBit
-    GstrandBit = (char) (uint64) floor(log(nGenome+P.limitSjdbInsertNsj*sjdbLength)/log(2))+1; //GstrandBit uses P.limitSjdbInsertNsj even if no insertion requested, in case it will be requested at the mapping stage
+    GstrandBit = (char) (uint64) floor(log(nGenome+P.limit.sjdbInsertNsj*sjdbLength)/log(2))+1; //GstrandBit uses P.limitSjdbInsertNsj even if no insertion requested, in case it will be requested at the mapping stage
     if (GstrandBit<32) GstrandBit=32; //TODO: should not this be 31? Need to test for small genomes. TODO: use simple access function for SA
-    P.inOut->logMain <<"Estimated genome size with padding and SJs: total=genome+SJ="<<nGenome+P.limitSjdbInsertNsj*sjdbLength<<" = "<<nGenome<<" + "<<P.limitSjdbInsertNsj*sjdbLength<<"\n";
+    P.inOut->logMain <<"Estimated genome size with padding and SJs: total=genome+SJ="<<nGenome+P.limit.sjdbInsertNsj*sjdbLength<<" = "<<nGenome<<" + "<<P.limit.sjdbInsertNsj*sjdbLength<<"\n";
     P.inOut->logMain << "GstrandBit=" << int(GstrandBit) <<"\n";
     GstrandMask = ~(1LLU<<GstrandBit);
     SA.defineBits(GstrandBit+1,nSA);
 
     if (P.sjdbInsert.yes) {//reserve space for junction insertion
-        SApass1.defineBits( GstrandBit+1, nSA+2*sjdbLength*min(sjdbLociN,P.limitSjdbInsertNsj) );//TODO: this allocation is wasteful, get a better estimate of the number of junctions
+        SApass1.defineBits( GstrandBit+1, nSA+2*sjdbLength*min(sjdbLociN,P.limit.sjdbInsertNsj) );//TODO: this allocation is wasteful, get a better estimate of the number of junctions
     } else {//same as SA
         SApass1.defineBits(GstrandBit+1,nSA);
     };
@@ -398,7 +398,7 @@ void Genome::sortSuffixArray()
 void Genome::planSAchunks(SAsortPlan &plan)
 {//count indices per sort prefix and group prefixes into chunks
     // Count sort prefixes over STAR's 0..5 genome alphabet.
-    const uint64 saAvailableBytesForPrefix=P.limitGenomeGenerateRAM>nG1alloc ? P.limitGenomeGenerateRAM-nG1alloc : 0;
+    const uint64 saAvailableBytesForPrefix=P.limit.genomeGenerateRAM>nG1alloc ? P.limit.genomeGenerateRAM-nG1alloc : 0;
     if (P.runThreadN>=16 && nGenome>=50000000) {
         uint64 indPrefN8=1;
         for (uint64 ii=0;ii<8;ii++) indPrefN8 *= 6;
@@ -421,7 +421,7 @@ void Genome::planSAchunks(SAsortPlan &plan)
         };
     };
 
-    uint64 saChunkSize=(P.limitGenomeGenerateRAM-nG1alloc)/8/P.runThreadN; //number of SA indexes per chunk
+    uint64 saChunkSize=(P.limit.genomeGenerateRAM-nG1alloc)/8/P.runThreadN; //number of SA indexes per chunk
     saChunkSize=saChunkSize*6/10; //allow extra space for qsort
     if (P.runThreadN>1) saChunkSize=min(saChunkSize,nSA/(P.runThreadN-1));
     uint64 saChunkN = nSA / saChunkSize + 1;//estimate
@@ -456,7 +456,7 @@ void Genome::chooseSAchunkStorage(SAsortPlan &plan)
 {//pick batched vs per-chunk fill and RAM vs disk chunk storage
     const uint64 saChunkN=plan.chunkN;
     plan.genomeScanN=(2*nGenome+pGe.gSAsparseD-1)/pGe.gSAsparseD;
-    const uint64 saAvailableBytes=P.limitGenomeGenerateRAM>nG1alloc ? P.limitGenomeGenerateRAM-nG1alloc : 0;
+    const uint64 saAvailableBytes=P.limit.genomeGenerateRAM>nG1alloc ? P.limit.genomeGenerateRAM-nG1alloc : 0;
     const uint64 saAllChunkScatterBytes=nSA*sizeof(uint64) + (uint64) P.runThreadN*plan.indPrefN*2*sizeof(uint64) + (plan.indPrefN+1)*sizeof(uint64) + (saChunkN+1)*sizeof(uint64);
     plan.batchSize=max(plan.chunkSize*(uint64) P.runThreadN,plan.chunkSize);
     plan.batchFill=P.runThreadN>=16 && saChunkN>1;

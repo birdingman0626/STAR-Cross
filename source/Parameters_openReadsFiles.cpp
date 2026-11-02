@@ -27,12 +27,12 @@ static char s_readInBuf[MAX_N_MATES][4 * 1024 * 1024]; // 4MB per mate
 
 void Parameters::openReadsFiles()
 {
-    if (readFilesCommandString=="") {//read from file
-        for (uint64 ii=0;ii<readFilesIn.size();ii++) {//open readIn files
-            readFilesCommandPID[ii]=0;//no command process IDs
+    if (readFiles.commandString=="") {//read from file
+        for (uint64 ii=0;ii<readFiles.in.size();ii++) {//open readIn files
+            readFiles.commandPID[ii]=0;//no command process IDs
             if ( inOut->readIn[ii].is_open() ) inOut->readIn[ii].close();
 
-            string rfName=readFilesPrefixFinal + readFilesIn.at(ii);
+            string rfName=readFiles.prefixFinal + readFiles.in.at(ii);
 
             inOut->readIn[ii].open(rfName.c_str()); //try to open the Sequences file right away, exit if failed
             inOut->readIn[ii].rdbuf()->pubsetbuf(s_readInBuf[ii], sizeof(s_readInBuf[ii])); // 4MB read buffer
@@ -46,24 +46,24 @@ void Parameters::openReadsFiles()
 
          vector<string> readsCommandFileName;
 
-         for (uint64 imate=0;imate<readFilesNames.size();imate++) {//open readIn files
+         for (uint64 imate=0;imate<readFiles.names.size();imate++) {//open readIn files
 
 #ifdef _WIN32
             // Windows: use temp files + system() instead of FIFO + vfork/exec
             ostringstream sysCom;
             sysCom << outFileTmp << "tmp.read" << imate+1;
-            readFilesInTmp.push_back(sysCom.str());
-            remove(readFilesInTmp.at(imate).c_str());
+            readFiles.inTmp.push_back(sysCom.str());
+            remove(readFiles.inTmp.at(imate).c_str());
 
             inOut->logMain << "\n   Input read files for mate "<< imate+1 <<" :\n";
 
             // Match POSIX file-boundary markers and retain every file's output.
-            for (uint32 ifile=0; ifile<readFilesN; ifile++) {
+            for (uint32 ifile=0; ifile<readFiles.N; ifile++) {
                 {//try to open the files - throw an error if a file cannot be opened
-                    ifstream rftry(readFilesNames[imate][ifile].c_str());
+                    ifstream rftry(readFiles.names[imate][ifile].c_str());
                     if (!rftry.good()){
                         exitWithError("EXITING: because of fatal INPUT file error: could not open read file: " + \
-                                       readFilesNames[imate][ifile] + \
+                                       readFiles.names[imate][ifile] + \
                                        "\nSOLUTION: check that this file exists and has read permision.\n", \
                                        std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
                     };
@@ -71,8 +71,8 @@ void Parameters::openReadsFiles()
                 };
 
                 string fullCommand = "(echo FILE " + std::to_string(ifile) + " & "
-                    + readFilesCommandString + "   \"" + readFilesNames[imate][ifile]
-                    + "\") " + (ifile == 0 ? ">" : ">>") + " \"" + readFilesInTmp.at(imate) + "\"";
+                    + readFiles.commandString + "   \"" + readFiles.names[imate][ifile]
+                    + "\") " + (ifile == 0 ? ">" : ">>") + " \"" + readFiles.inTmp.at(imate) + "\"";
                 inOut->logMain << "\n   readsCommand: " << fullCommand << endl;
                 int sysRet = system(fullCommand.c_str());
                 if (sysRet != 0) {
@@ -81,17 +81,17 @@ void Parameters::openReadsFiles()
                     exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
                 };
             };
-            readFilesCommandPID[imate]=0;
+            readFiles.commandPID[imate]=0;
 
-            inOut->readIn[imate].open(readFilesInTmp.at(imate).c_str());
+            inOut->readIn[imate].open(readFiles.inTmp.at(imate).c_str());
 #else
             // POSIX: use FIFO + vfork/exec
             ostringstream sysCom;
             sysCom << outFileTmp <<"tmp.fifo.read"<<imate+1;
-            readFilesInTmp.push_back(sysCom.str());
-            remove(readFilesInTmp.at(imate).c_str());
-            if (mkfifo(readFilesInTmp.at(imate).c_str(), S_IRUSR | S_IWUSR ) != 0) {
-                exitWithError("Exiting because of *FATAL ERROR*: could not create FIFO file " + readFilesInTmp.at(imate) + "\n"
+            readFiles.inTmp.push_back(sysCom.str());
+            remove(readFiles.inTmp.at(imate).c_str());
+            if (mkfifo(readFiles.inTmp.at(imate).c_str(), S_IRUSR | S_IWUSR ) != 0) {
+                exitWithError("Exiting because of *FATAL ERROR*: could not create FIFO file " + readFiles.inTmp.at(imate) + "\n"
                             + "SOLUTION: check the if run directory supports FIFO files.\n"
                             + "If run partition does not support FIFO (e.g. Windows partitions FAT, NTFS), "
                             + "re-run on a Linux partition, or point --outTmpDir to a Linux partition.\n"
@@ -109,21 +109,21 @@ void Parameters::openReadsFiles()
                 readsCommandFile << "#!" <<sysShell <<"\n";
             };
             readsCommandFile << "set -e\n"; // do not conceal an earlier input-command failure
-            readsCommandFile << "exec > \""<<readFilesInTmp.at(imate)<<"\"\n" ; // redirect stdout to temp fifo files
+            readsCommandFile << "exec > \""<<readFiles.inTmp.at(imate)<<"\"\n" ; // redirect stdout to temp fifo files
 
-            for (uint32 ifile=0; ifile<readFilesN; ifile++) {
+            for (uint32 ifile=0; ifile<readFiles.N; ifile++) {
 
-                if ( system(("ls -lL " + readFilesNames[imate][ifile] + " > "+ outFileTmp+"/readFilesIn.info 2>&1").c_str()) !=0 )
-                    warningMessage(" Could not ls " + readFilesNames[imate][ifile], std::cerr, inOut->logMain, *this);
+                if ( system(("ls -lL " + readFiles.names[imate][ifile] + " > "+ outFileTmp+"/readFilesIn.info 2>&1").c_str()) !=0 )
+                    warningMessage(" Could not ls " + readFiles.names[imate][ifile], std::cerr, inOut->logMain, *this);
 
                 ifstream readFilesIn_info((outFileTmp+"/readFilesIn.info").c_str());
                 inOut->logMain <<readFilesIn_info.rdbuf();
 
                 {//try to open the files - throw an error if a file cannot be opened
-					ifstream rftry(readFilesNames[imate][ifile].c_str());
+					ifstream rftry(readFiles.names[imate][ifile].c_str());
 					if (!rftry.good()){
 						exitWithError("EXITING: because of fatal INPUT file error: could not open read file: " + \
-									   readFilesNames[imate][ifile] + \
+									   readFiles.names[imate][ifile] + \
 									   "\nSOLUTION: check that this file exists and has read permision.\n", \
 									   std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
 					};
@@ -131,7 +131,7 @@ void Parameters::openReadsFiles()
                 };
 
                 readsCommandFile <<"echo FILE "<< ifile << "\n";
-                readsCommandFile << readFilesCommandString <<"   "<< ("\""+readFilesNames[imate][ifile]+"\"") <<"\n";
+                readsCommandFile << readFiles.commandString <<"   "<< ("\""+readFiles.names[imate][ifile]+"\"") <<"\n";
             };
 
             readsCommandFile.flush();
@@ -141,7 +141,7 @@ void Parameters::openReadsFiles()
 
             chmod(readsCommandFileName.at(imate).c_str(),S_IXUSR | S_IRUSR | S_IWUSR);
 
-            readFilesCommandPID[imate]=0;
+            readFiles.commandPID[imate]=0;
 
             // Run the generated readsCommand script through a shell using
             // posix_spawnp. Invoking it explicitly as "<shell> <script>" means
@@ -167,17 +167,17 @@ void Parameters::openReadsFiles()
                 errOut << spawnErr << ": " << strerror(spawnErr) << "\n";
                 exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
             };
-            readFilesCommandPID[imate]=PID; //record PID of the child
+            readFiles.commandPID[imate]=PID; //record PID of the child
 
-            inOut->readIn[imate].open(readFilesInTmp.at(imate).c_str());
+            inOut->readIn[imate].open(readFiles.inTmp.at(imate).c_str());
 #endif
         };
 
     };
     readFilesIndex=0;
 
-    if (readFilesTypeN==10) {//SAM file - skip header lines
-        readSAMheader(readFilesCommandString, readFilesNames.at(0));
+    if (readFiles.typeN==10) {//SAM file - skip header lines
+        readSAMheader(readFiles.commandString, readFiles.names.at(0));
     };
 
 };

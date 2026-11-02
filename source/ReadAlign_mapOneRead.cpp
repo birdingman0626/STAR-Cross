@@ -24,7 +24,7 @@ int ReadAlign::mapOneRead() {
         Nsplit=preparedSeedSummary->splits;
         if(!Nsplit) splitR[1][0]=preparedSeedSummary->longestSplit;
     } else if (Lread>0) {
-        Nsplit=qualitySplit(Read1[0], Lread, P.maxNsplit, P.seedSplitMin, splitR);
+        Nsplit=qualitySplit(Read1[0], Lread, P.maxNsplit, P.seed.splitMin, splitR);
         // splitR[0][fragnum] => good region start position   (from SequenceFuns.cpp)
         // splitR[1][fragnum] => good reagion length
         // splitR[2][fragnum] => fragnum ?
@@ -56,7 +56,7 @@ int ReadAlign::mapOneRead() {
             seedStats.multLmax=summary->multLmax;seedStats.multLmaxN=summary->multLmaxN;
             seedStats.multNmin=summary->multNmin;seedStats.multNminL=summary->multNminL;
             seedStats.multNmax=summary->multNmax;seedStats.multNmaxL=summary->multNmaxL;
-            if(nP!=seeds->size() || nP>P.seedPerReadNmax) throw std::logic_error("invalid consolidated GPU seeds");
+            if(nP!=seeds->size() || nP>P.seed.perReadNmax) throw std::logic_error("invalid consolidated GPU seeds");
             for(size_t i=0;i<seeds->size();++i) {
                 const auto& seed=(*seeds)[i];
                 PC[i][PC_rStart]=seed.direction==0 ? seed.start : seed.start+1-seed.match.length;
@@ -69,14 +69,14 @@ int ReadAlign::mapOneRead() {
             storeAligns(seed.direction,seed.start,seed.match.multiplicity,seed.match.length,bounds,seed.fragment);
         }
     } else {
-    uint64 seedSearchStartLmax=min(P.seedSearchStartLmax, // 50
-                                  (uint64) (P.seedSearchStartLmaxOverLread*(Lread-1))); // read length
+    uint64 searchStartLmax=min(P.seed.searchStartLmax, // 50
+                                  (uint64) (P.seed.searchStartLmaxOverLread*(Lread-1))); // read length
     // align all good pieces
     for (uint64 ip=0; ip<Nsplit; ip++) {
 
 
         // if the good piece is long, then try multiple times to map it
-        uint64 Nstart = P.seedSearchStartLmax>0 && seedSearchStartLmax<splitR[1][ip] ? splitR[1][ip]/seedSearchStartLmax+1 : 1;
+        uint64 Nstart = P.seed.searchStartLmax>0 && searchStartLmax<splitR[1][ip] ? splitR[1][ip]/searchStartLmax+1 : 1;
         uint64 Lstart = splitR[1][ip]/Nstart;  // length of segment to map.
         bool flagDirMap=true;
 
@@ -93,7 +93,7 @@ int ReadAlign::mapOneRead() {
                     Lmapped=0;  // length of segment mapped so far.
 
                     // begin mapping starting from segment start position (istart*Lstart)
-                    while ( istart*Lstart + Lmapped + P.seedMapMin < splitR[1][ip] ) {//map until unmapped portion is <=minLmap (default: 5)
+                    while ( istart*Lstart + Lmapped + P.seed.mapMin < splitR[1][ip] ) {//map until unmapped portion is <=minLmap (default: 5)
 
                         // Shift is the position in the read to begin mapping from.
                         uint64 Shift = iDir==0 ? ( splitR[0][ip] + istart*Lstart + Lmapped ) : \
@@ -109,11 +109,11 @@ int ReadAlign::mapOneRead() {
                     };//while ( istart*Lstart + Lmapped + P.minLmap < splitR[1][ip] )
                 };//if (flagDirMap || istart>0)
 
-                if (P.seedSearchLmax>0) {//search fixed length. Not very efficient, need to improve
+                if (P.seed.searchLmax>0) {//search fixed length. Not very efficient, need to improve
                     // off by default.
                     uint64 Shift = iDir==0 ? ( splitR[0][ip] + istart*Lstart ) : \
                                    ( splitR[0][ip] + splitR[1][ip] - istart*Lstart-1); //choose Shift for forward or reverse
-                    uint64 seedLength = min(P.seedSearchLmax, iDir==0 ? (splitR[0][ip] + splitR[1][ip]-Shift):(Shift+1) );
+                    uint64 seedLength = min(P.seed.searchLmax, iDir==0 ? (splitR[0][ip] + splitR[1][ip]-Shift):(Shift+1) );
                     maxMappableLength2strands(Shift, seedLength, iDir, 0, mapGen.nSA-1, L, splitR[2][ip]);//L=max mappable length, unique or multiple
                 };
 

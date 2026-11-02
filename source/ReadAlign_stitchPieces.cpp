@@ -126,7 +126,7 @@ bool ReadAlign::takeInjectedTranscripts()
     for (unsigned k=0; k<rr.windowCount; k++) {//same steps as stitchAllWindows, minus window building
         const StitchWindowResult& wr=stitchInject->windows.at(rr.windowBegin+k);
         trAll[iW1]=trArrayPointer+trNtotal;
-        if (trNtotal+P.alignTranscriptsPerWindowNmax >= P.alignTranscriptsPerReadNmax) {
+        if (trNtotal+P.align.transcriptsPerWindowNmax >= P.align.transcriptsPerReadNmax) {
             warnTranscriptSpace();
             break;
         };
@@ -186,7 +186,7 @@ void ReadAlign::createWindowsFromAnchors(uint64 Lread)
 {// each anchor piece (maps few times) creates or extends windows at its loci
     nW=0; //number of windows
     for (uint64 iP=0; iP<nP; iP++) {
-        if (PC[iP][PC_Nrep]>P.winAnchorMultimapNmax) continue;
+        if (PC[iP][PC_Nrep]>P.win.anchorMultimapNmax) continue;
         const uint64 aLength=PC[iP][PC_Length];
         const uint64 nHits=pieceHitCount(preparedHits, PC[iP], iP);
         for (uint64 iHit=0; iHit<nHits; iHit++) {
@@ -209,14 +209,14 @@ void ReadAlign::extendWindowFlanks()
     for (uint64 iWin=0;iWin<nW;iWin++) {
         if (WC[iWin][WC_gStart]<=WC[iWin][WC_gEnd]) {//otherwise the window is dead
             uint64 wb=WC[iWin][WC_gStart];
-            for (uint64 ii=0; ii<P.winFlankNbins && wb>0 && mapGen.chrBin[(wb-1) >> P.winBinChrNbits]==WC[iWin][WC_Chr];ii++) {
+            for (uint64 ii=0; ii<P.win.flankNbins && wb>0 && mapGen.chrBin[(wb-1) >> P.win.binChrNbits]==WC[iWin][WC_Chr];ii++) {
                 wb--;
                 winBin[ WC[iWin][WC_Str] ].set(wb, (uintWinBin) iWin);
             };
             WC[iWin][WC_gStart] = wb;
 
             wb=WC[iWin][WC_gEnd];
-            for (uint64 ii=0; ii<P.winFlankNbins && wb+1<P.winBinN && mapGen.chrBin[(wb+1) >> P.winBinChrNbits]==WC[iWin][WC_Chr];ii++) {
+            for (uint64 ii=0; ii<P.win.flankNbins && wb+1<P.win.binN && mapGen.chrBin[(wb+1) >> P.win.binChrNbits]==WC[iWin][WC_Chr];ii++) {
                 wb++;
                 winBin[ WC[iWin][WC_Str] ].set(wb, (uintWinBin) iWin);
             };
@@ -234,7 +234,7 @@ void ReadAlign::assignAlignsToWindows(uint64 Lread)
         const uint64 aNrep=PC[iP][PC_Nrep];
         const uint64 aFrag=PC[iP][PC_iFrag];
         const uint64 aLength=PC[iP][PC_Length];
-        const bool aAnchor=(aNrep<=P.winAnchorMultimapNmax); //this align is an anchor or not
+        const bool aAnchor=(aNrep<=P.win.anchorMultimapNmax); //this align is an anchor or not
 
         for (uint64 ii=0;ii<nW;ii++) nWAP[ii]=0;
 
@@ -278,7 +278,7 @@ void ReadAlign::filterWindowsByCoverage()
     };
 
     for (uint64 iW=0;iW<nW;iW++) {
-        if (swWinCov[iW]<swWinCovMax*P.winReadCoverageRelativeMin || swWinCov[iW]<P.winReadCoverageBasesMin) {//remove windows that are not good enough
+        if (swWinCov[iW]<swWinCovMax*P.win.readCoverageRelativeMin || swWinCov[iW]<P.win.readCoverageBasesMin) {//remove windows that are not good enough
             nWA[iW]=0;
             continue;
         };
@@ -358,7 +358,7 @@ void ReadAlign::stitchAllWindows(char **R, uint64 Lread)
         trA.maxScore=0;
 
         trAll[iW1]=trArrayPointer+trNtotal;
-        if (trNtotal+P.alignTranscriptsPerWindowNmax >= P.alignTranscriptsPerReadNmax) {
+        if (trNtotal+P.align.transcriptsPerWindowNmax >= P.align.transcriptsPerReadNmax) {
             warnTranscriptSpace();
             break;
         };

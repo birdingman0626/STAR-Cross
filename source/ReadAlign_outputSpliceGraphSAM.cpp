@@ -22,7 +22,7 @@ uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint64 nTrOut, u
                 <<"\tNH:i:0" <<"\tHI:i:0" <<"\tAS:i:"<<trOut.maxScore <<"\tnM:i:"<<trOut.nMM<<"\tuT:A:" <<unmapType;
         if (!P.outSAMattrRG.empty()) *outStream<< "\tRG:Z:" <<P.outSAMattrRG.at(readFilesIndex);
 
-        if (P.readFilesTypeN==10 && !readNameExtra[0].empty()) {//SAM files as input - output extra attributes
+        if (P.readFiles.typeN==10 && !readNameExtra[0].empty()) {//SAM files as input - output extra attributes
             *outStream << "\t" <<readNameExtra[0];
         };
         *outStream <<"\n";
@@ -154,7 +154,7 @@ uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint64 nTrOut, u
             };
         };
 
-    if (P.readFilesTypeN==10 && !readNameExtra[0].empty()) {//SAM files as input - output extra attributes
+    if (P.readFiles.typeN==10 && !readNameExtra[0].empty()) {//SAM files as input - output extra attributes
          *outStream << "\t" << readNameExtra.at(0);
     };
 

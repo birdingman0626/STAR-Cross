@@ -134,7 +134,7 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, u
             bamMappedAttributes(c, m, imate, outSAMattrOrder);
         };
 
-        if (P.readFilesTypeN==10 && !P.readFiles.samAttrKeepNone) {
+        if (P.readFiles.typeN==10 && !P.readFiles.samAttrKeepNone) {
             if (m.attrN > BAM_ATTR_MaxSize)
                 exitWithError("EXITING: BAM attributes exceed buffer capacity\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
             m.attrN+=bamAttrArrayWriteSAMtags(readNameExtra[m.Mate], m.attrOutArray+m.attrN, BAM_ATTR_MaxSize-m.attrN, P);

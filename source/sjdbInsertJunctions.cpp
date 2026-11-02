@@ -51,10 +51,10 @@ void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, Sjdb
     time ( &rawtime );
     P.inOut->logMain  << timeMonthDayTime(rawtime) << "   Finished preparing junctions" <<endl;
 
-    if (mapGen.sjdbN>P.limitSjdbInsertNsj)
+    if (mapGen.sjdbN>P.limit.sjdbInsertNsj)
     {
         ostringstream errOut;
-        errOut << "Fatal LIMIT error: the number of junctions to be inserted on the fly ="<<mapGen.sjdbN<<" is larger than the limitSjdbInsertNsj="<<P.limitSjdbInsertNsj<<"\n";                errOut << "Fatal LIMIT error: the number of junctions to be inserted on the fly ="<<mapGen.sjdbN<<" is larger than the limitSjdbInsertNsj="<<P.limitSjdbInsertNsj<<"\n";
+        errOut << "Fatal LIMIT error: the number of junctions to be inserted on the fly ="<<mapGen.sjdbN<<" is larger than the limitSjdbInsertNsj="<<P.limit.sjdbInsertNsj<<"\n";                errOut << "Fatal LIMIT error: the number of junctions to be inserted on the fly ="<<mapGen.sjdbN<<" is larger than the limitSjdbInsertNsj="<<P.limit.sjdbInsertNsj<<"\n";
         errOut << "SOLUTION: re-run with at least --limitSjdbInsertNsj "<<mapGen.sjdbN<<"\n";
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
     };
@@ -98,5 +98,5 @@ void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, Sjdb
     };
 
     //re-calculate genome-related parameters
-    P.winBinN = mapGen.nGenome/(1LLU << P.winBinNbits)+1;
+    P.win.binN = mapGen.nGenome/(1LLU << P.win.binNbits)+1;
 };

@@ -22,7 +22,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
     Junction oneSJ(RAchunk[0]->RA->genOut);
     std::unique_ptr<char*[]> sjChunks(new char* [P.runThreadN+1]);
     #define OUTSJ_limitScale 2
-    OutSJ allSJ (P.limitOutSJcollapsed*OUTSJ_limitScale, P, RAchunk[0]->RA->genOut);
+    OutSJ allSJ (P.limit.outSJcollapsed*OUTSJ_limitScale, P, RAchunk[0]->RA->genOut);
 
     if (P.outFilterBySJoutStage!=1) {//chunkOutSJ
         for (int ic=0;ic<P.runThreadN;ic++) {//populate sjChunks with links to data
@@ -58,11 +58,11 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
         //filter the junction
         bool sjFilter;
         sjFilter=*oneSJ.annot>0 \
-                || ( ( *oneSJ.countUnique>=(uint64) P.outSJfilterCountUniqueMin[(*oneSJ.motif+1)/2] \
-                    || (*oneSJ.countMultiple+*oneSJ.countUnique)>=(uint64) P.outSJfilterCountTotalMin[(*oneSJ.motif+1)/2] )\
-                && *oneSJ.overhangLeft >= (uint64) P.outSJfilterOverhangMin[(*oneSJ.motif+1)/2] \
-                && *oneSJ.overhangRight >= (uint64) P.outSJfilterOverhangMin[(*oneSJ.motif+1)/2] \
-                && ( (*oneSJ.countMultiple+*oneSJ.countUnique)>P.outSJfilterIntronMaxVsReadN.size() || *oneSJ.gap<=(uint64) P.outSJfilterIntronMaxVsReadN[*oneSJ.countMultiple+*oneSJ.countUnique-1]) );
+                || ( ( *oneSJ.countUnique>=(uint64) P.outSJfilter.countUniqueMin[(*oneSJ.motif+1)/2] \
+                    || (*oneSJ.countMultiple+*oneSJ.countUnique)>=(uint64) P.outSJfilter.countTotalMin[(*oneSJ.motif+1)/2] )\
+                && *oneSJ.overhangLeft >= (uint64) P.outSJfilter.overhangMin[(*oneSJ.motif+1)/2] \
+                && *oneSJ.overhangRight >= (uint64) P.outSJfilter.overhangMin[(*oneSJ.motif+1)/2] \
+                && ( (*oneSJ.countMultiple+*oneSJ.countUnique)>P.outSJfilter.intronMaxVsReadN.size() || *oneSJ.gap<=(uint64) P.outSJfilter.intronMaxVsReadN[*oneSJ.countMultiple+*oneSJ.countUnique-1]) );
 
         if (sjFilter) {//record the junction in all SJ
             memcpy(allSJ.data+allSJ.N*oneSJ.dataSize,sjChunks[icOut],oneSJ.dataSize);
@@ -94,7 +94,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
             if (ii>0)         x1=loadUnaligned<uint64>(allSJ.data+(ii-1)*oneSJ.dataSize); //previous junction donor
             if (ii+1<allSJ.N) x2=loadUnaligned<uint64>(allSJ.data+(ii+1)*oneSJ.dataSize); //next junction donor
             uint64 minDist=min(*oneSJ.start-x1, x2-*oneSJ.start);
-            sjFilter[ii]= minDist >= (uint64) P.outSJfilterDistToOtherSJmin[(*oneSJ.motif+1)/2];
+            sjFilter[ii]= minDist >= (uint64) P.outSJfilter.distToOtherSJmin[(*oneSJ.motif+1)/2];
             sjA[ii*3]=*oneSJ.start+(uint64)*oneSJ.gap;//acceptor
             sjA[ii*3+1]=ii;
 
@@ -114,7 +114,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
                 if (ii>0)         x1=sjA[ii*3-3]; //previous junction donor
                 if (ii+1<allSJ.N) x2=sjA[ii*3+3]; //next junction donor
                 uint64 minDist=min(sjA[ii*3]-x1, x2-sjA[ii*3]);
-                sjFilter[sjA[ii*3+1]] = sjFilter[sjA[ii*3+1]] && ( minDist >= (uint64) P.outSJfilterDistToOtherSJmin[(sjA[ii*3+2]+1)/2] );
+                sjFilter[sjA[ii*3+1]] = sjFilter[sjA[ii*3+1]] && ( minDist >= (uint64) P.outSJfilter.distToOtherSJmin[(sjA[ii*3+2]+1)/2] );
             };
         };
         delete[] sjA; // fix memory leak (upstream PR #2676)

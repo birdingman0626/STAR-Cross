@@ -70,14 +70,14 @@ ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome 
     };
 
     if (P.outSJ.yes) {
-        junctionStorage.reset(new OutSJ (P.limitOutSJcollapsed, P, mapGen)); chunkOutSJ=junctionStorage.get();
+        junctionStorage.reset(new OutSJ (P.limit.outSJcollapsed, P, mapGen)); chunkOutSJ=junctionStorage.get();
         RA->chunkOutSJ  = chunkOutSJ;
     } else {
         RA->chunkOutSJ  = NULL;
     };
 
     if (P.outFilterBySJoutStage == 1) {
-        filteredJunctionStorage.reset(new OutSJ (P.limitOutSJcollapsed, P, mapGen)); chunkOutSJ1=filteredJunctionStorage.get();
+        filteredJunctionStorage.reset(new OutSJ (P.limit.outSJcollapsed, P, mapGen)); chunkOutSJ1=filteredJunctionStorage.get();
         RA->chunkOutSJ1 = chunkOutSJ1;
     } else {
         RA->chunkOutSJ1  = NULL;

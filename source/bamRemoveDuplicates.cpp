@@ -162,7 +162,7 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
         if (length>0 && bgzf_write(bgzfOut, data, length)!=(ssize_t)length) outputFailure("write");
     };
 
-    uint64 bamLengthMax=P.limitBAMsortRAM; //max length to load
+    uint64 bamLengthMax=P.limit.BAMsortRAM; //max length to load
     if (bamLengthMax==0) bamLengthMax=16000000000;
     uint64 grNmax=1000000;//max number of alignments
 

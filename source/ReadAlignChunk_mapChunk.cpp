@@ -101,7 +101,7 @@ private:
     void loadBatch(std::vector<PreparedRead>& reads)
     {// Reuse the previous batch's strings and vectors: savePreparedRead overwrites every field.
         size_t n=0, bytes=0;
-        while(n<P.seedBatchSize && bytes<16*1024*1024) { // host memory per batch; reads also bound by seedBatchSize
+        while(n<P.seed.batchSize && bytes<16*1024*1024) { // host memory per batch; reads also bound by seedBatchSize
             auto t0=PhaseClock::now();
             const int loaded=RA->loadRead();
             RA->alignPhaseSeconds[10]+=since(t0);
@@ -198,7 +198,7 @@ private:
     {// load the next batch, seed it on the device and, with device stitching, stitch all its reads
         prepared.clear(); preparedNext=0; preparedProjectedEnd=0;
         size_t bytes=0;
-        while(prepared.size()<P.seedBatchSize && bytes<4*1024*1024) {
+        while(prepared.size()<P.seed.batchSize && bytes<4*1024*1024) {
             if(RA->loadRead()<0) { preparedEof=true; break; }
             prepared.emplace_back();
             RA->savePreparedRead(prepared.back());
@@ -263,7 +263,7 @@ private:
 void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be setup in RA->readInStream[ii]
 
     // While the device index is still uploading, map whole chunks with the original CPU path.
-    SeedBatchExecutor* batch = (seedBatch && (P.seedSearchBackend=="cpu" || seedBatch->deviceSettled())) ? seedBatch : nullptr;
+    SeedBatchExecutor* batch = (seedBatch && (P.seed.searchBackend=="cpu" || seedBatch->deviceSettled())) ? seedBatch : nullptr;
     if(seedBatch && !batch) ++cpuWarmupChunks;
     clipChunkMates(batch);
     RA->statsRA.resetN();
@@ -301,7 +301,7 @@ void ReadAlignChunk::clipChunkMates(SeedBatchExecutor* batch)
 {// clip the whole chunk before mapping; on the device path the clip runs in batches on the device
     auto clipStart=PhaseClock::now();
     for (uint32 im=0; im<1; im++) {//hardcoded mate 1 5p only for now
-        if (batch && P.seedSearchBackend!="cpu")
+        if (batch && P.seed.searchBackend!="cpu")
             RA->clipMates[im][0].clipChunk(chunkIn[im], chunkInSizeBytesTotal[im],
                 [&](const ClipBatch& b) {return batch->clip(b,iThread);});
         else
@@ -318,7 +318,7 @@ void ReadAlignChunk::flushChunkSAM(bool lastRead)
         errOut <<"Solution: increase input parameter --limitOutSAMoneReadBytes\n";
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
     };
-    if ( chunkOutBAMtotal + P.limitOutSAMoneReadBytes <= P.chunkOutBAMsizeBytes && !lastRead ) return;
+    if ( chunkOutBAMtotal + P.limit.outSAMoneReadBytes <= P.chunkOutBAMsizeBytes && !lastRead ) return;
 
     if ( P.outSAMorder == "PairedKeepInputOrder" && P.runThreadN>1 ) {//output chunks into separate files
         chunkOutBAMfile.write(chunkOutBAM,chunkOutBAMtotal);
@@ -343,10 +343,10 @@ void ReadAlignChunk::collapseChunkSJ(OutSJ *sj, const char *name, bool lastRead)
         errOut <<"Solution: increase input parameter --limitOutSJoneRead\n";
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
     };
-    if ( sj->N + P.limitOutSJoneRead <= sj->Nstore && !lastRead ) return;
+    if ( sj->N + P.limit.outSJoneRead <= sj->Nstore && !lastRead ) return;
 
     sj->collapseSJ();
-    if ( sj->N + 2*P.limitOutSJoneRead > sj->Nstore ) {
+    if ( sj->N + 2*P.limit.outSJoneRead > sj->Nstore ) {
         sj->dataSizeIncrease();//grow this store itself; growing chunkOutSJ for chunkOutSJ1 let the latter overrun its array
         OptionalMutexLock logLock(g_threadChunks.mutexLogMain, P.runThreadN>1);
         P.inOut->logMain << "Increased the size of " << name << " to " << sj->Nstore <<'\n';

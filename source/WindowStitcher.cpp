@@ -66,7 +66,7 @@ bool WindowStitcher::scoreSeedChains(uint64 iW, bool *WAexcl, char *R)
                 };
 
                 //check the length of the iS2 exon. TODO: build the transcripts vs iS1, check the actual exon length
-                bool exonLongEnough = trA1.exons[0][EX_L] >= ( trA1.sjAnnot[0]==0 ? P.alignSJoverhangMin : P.alignSJDBoverhangMin );
+                bool exonLongEnough = trA1.exons[0][EX_L] >= ( trA1.sjAnnot[0]==0 ? P.align.SJoverhangMin : P.align.SJDBoverhangMin );
 
                 if (exonLongEnough && score2>0 && score2+scoreSeedBest[iS2] > scoreSeedBest[iS1] ) {
                     scoreSeedBest[iS1]=score2+scoreSeedBest[iS2];
@@ -77,11 +77,11 @@ bool WindowStitcher::scoreSeedChains(uint64 iW, bool *WAexcl, char *R)
                 score2=WA[iW][iS1][WA_Length];
                 if ( WA[iW][iS1][WA_rStart]>0
                      && extendAlign(R, mapGen.G, WA[iW][iS1][WA_rStart]-1, WA[iW][iS1][WA_gStart]-1, -1, -1, WA[iW][iS1][WA_rStart], 100000, 0, outFilterMismatchNmaxTotal, P.alignFilter.mismatchOverLengthMax,
-                                    P.alignEndsType.ext[WA[iW][iS1][WA_iFrag]][trA.Str], &trA1) ) {//if could extend
+                                    P.align.endsType.ext[WA[iW][iS1][WA_iFrag]][trA.Str], &trA1) ) {//if could extend
                     score2 += trA1.maxScore;
                 };
 
-                bool exonLongEnough = (WA[iW][iS1][WA_Length]+trA1.extendL) >= P.alignSJoverhangMin; //TODO new parameter to control end exons length
+                bool exonLongEnough = (WA[iW][iS1][WA_Length]+trA1.extendL) >= P.align.SJoverhangMin; //TODO new parameter to control end exons length
 
                 if (exonLongEnough && score2 > scoreSeedBest[iS1] ) {
                     scoreSeedBest[iS1]=score2;
@@ -103,11 +103,11 @@ uint64 WindowStitcher::bestChainEnd(uint64 iW, char *R)
         uint64 tG2=WA[iW][iS1][WA_gStart]+WA[iW][iS1][WA_Length];
         if ( tR2 < Lread-1
             && extendAlign(R, mapGen.G, tR2, tG2, +1, +1, Lread-tR2, 100000, scoreSeedBestMM[iS1], outFilterMismatchNmaxTotal, P.alignFilter.mismatchOverLengthMax,
-                           P.alignEndsType.ext[WA[iW][iS1][WA_iFrag]][1-trA.Str], &trA1) ) {//extend to the right
+                           P.align.endsType.ext[WA[iW][iS1][WA_iFrag]][1-trA.Str], &trA1) ) {//extend to the right
             scoreSeedBest[iS1]+=trA1.maxScore;
         };
 
-        bool exonLongEnough = (WA[iW][iS1][WA_Length]+trA1.extendL) >= P.alignSJoverhangMin; //TODO new parameter to control end exons length
+        bool exonLongEnough = (WA[iW][iS1][WA_Length]+trA1.extendL) >= P.align.SJoverhangMin; //TODO new parameter to control end exons length
 
         if (exonLongEnough && scoreSeedBest[iS1]>scoreBest) {//record new best transcript
             scoreBest=scoreSeedBest[iS1];
@@ -163,7 +163,7 @@ void WindowStitcher::buildChainTranscript(uint64 iW, uint64 seedN, char *R)
         trA1=*trInit;
         if ( trA.exons[0][EX_R]>0
              && extendAlign(R, mapGen.G, trA.exons[0][EX_R]-1, trA.exons[0][EX_G]-1, -1, -1, trA.exons[0][EX_R], 100000, 0, outFilterMismatchNmaxTotal, P.alignFilter.mismatchOverLengthMax,
-                P.alignEndsType.ext[trA.exons[0][EX_iFrag]][trA.Str], &trA1) ) {//if could extend
+                P.align.endsType.ext[trA.exons[0][EX_iFrag]][trA.Str], &trA1) ) {//if could extend
 
             trA.add(&trA1);
 
@@ -182,7 +182,7 @@ void WindowStitcher::buildChainTranscript(uint64 iW, uint64 seedN, char *R)
         uint64 tG2=WA[iW][iS1][WA_gStart]+WA[iW][iS1][WA_Length];
         if ( tR2 < Lread
             && extendAlign(R, mapGen.G, tR2, tG2, +1, +1, Lread-tR2, 100000, scoreSeedBestMM[iS1], outFilterMismatchNmaxTotal, P.alignFilter.mismatchOverLengthMax,
-                P.alignEndsType.ext[trA.exons[trA.nExons-1][EX_iFrag]][1-trA.Str], &trA1) ) {//if could extend
+                P.align.endsType.ext[trA.exons[trA.nExons-1][EX_iFrag]][1-trA.Str], &trA1) ) {//if could extend
                 trA.add(&trA1);
                 trA.exons[trA.nExons-1][EX_L] += trA1.extendL;//extend the length of the last exon
         };
@@ -206,9 +206,9 @@ bool WindowStitcher::finishTranscript()
         trA.iFrag=-1;
     };
 
-    if (P.scoreGenomicLengthLog2scale!=0) {//add gap length score
+    if (P.score.genomicLengthLog2scale!=0) {//add gap length score
         trA.maxScore += int(ceil( log2( (double) ( trA.exons[trA.nExons-1][EX_G]+trA.exons[trA.nExons-1][EX_L] - trA.exons[0][EX_G]) )
-                 * P.scoreGenomicLengthLog2scale - 0.5));
+                 * P.score.genomicLengthLog2scale - 0.5));
         trA.maxScore = max(0,trA.maxScore);
     };
 

@@ -82,20 +82,20 @@ void Parameters::validateRunParameters()
     };
     //SJ filtering
     for (int ii=0;ii<4;ii++) {
-        if (outSJfilterOverhangMin.at(ii)<0) outSJfilterOverhangMin.at(ii)=numeric_limits<int32>::max();
-        if (outSJfilterCountUniqueMin.at(ii)<0) outSJfilterCountUniqueMin.at(ii)=numeric_limits<int32>::max();
-        if (outSJfilterCountTotalMin.at(ii)<0) outSJfilterCountTotalMin.at(ii)=numeric_limits<int32>::max();
-        if (outSJfilterDistToOtherSJmin.at(ii)<0) outSJfilterDistToOtherSJmin.at(ii)=numeric_limits<int32>::max();
+        if (outSJfilter.overhangMin.at(ii)<0) outSJfilter.overhangMin.at(ii)=numeric_limits<int32>::max();
+        if (outSJfilter.countUniqueMin.at(ii)<0) outSJfilter.countUniqueMin.at(ii)=numeric_limits<int32>::max();
+        if (outSJfilter.countTotalMin.at(ii)<0) outSJfilter.countTotalMin.at(ii)=numeric_limits<int32>::max();
+        if (outSJfilter.distToOtherSJmin.at(ii)<0) outSJfilter.distToOtherSJmin.at(ii)=numeric_limits<int32>::max();
 
-        if (alignSJstitchMismatchNmax.at(ii)<0) alignSJstitchMismatchNmax.at(ii)=numeric_limits<int32>::max();
+        if (align.SJstitchMismatchNmax.at(ii)<0) align.SJstitchMismatchNmax.at(ii)=numeric_limits<int32>::max();
     };
 
-    if (limitGenomeGenerateRAM==0) {//must be >0
+    if (limit.genomeGenerateRAM==0) {//must be >0
         inOut->logMain <<"EXITING because of FATAL PARAMETER ERROR: limitGenomeGenerateRAM=0\n";
         inOut->logMain <<"SOLUTION: please specify a >0 value for limitGenomeGenerateRAM\n"<<flush;
         exit(1);
-    } else if (limitGenomeGenerateRAM>1000000000000) {//
-        inOut->logMain <<"WARNING: specified limitGenomeGenerateRAM="<<limitGenomeGenerateRAM<<" bytes appears to be too large, if you do not have enough memory the code will crash!\n"<<flush;
+    } else if (limit.genomeGenerateRAM>1000000000000) {//
+        inOut->logMain <<"WARNING: specified limitGenomeGenerateRAM="<<limit.genomeGenerateRAM<<" bytes appears to be too large, if you do not have enough memory the code will crash!\n"<<flush;
     };
 
     outSAMfilter.KeepOnlyAddedReferences=false;
@@ -330,28 +330,28 @@ void Parameters::validateQuantification()
 void Parameters::validateAlignEnds()
 {//alignEndsType extension flags
     //alignEnds
-    alignEndsType.ext[0][0]=false;
-    alignEndsType.ext[0][1]=false;
-    alignEndsType.ext[1][0]=false;
-    alignEndsType.ext[1][1]=false;
+    align.endsType.ext[0][0]=false;
+    align.endsType.ext[0][1]=false;
+    align.endsType.ext[1][0]=false;
+    align.endsType.ext[1][1]=false;
 
-    if (alignEndsType.in=="EndToEnd") {
-        alignEndsType.ext[0][0]=true;
-        alignEndsType.ext[0][1]=true;
-        alignEndsType.ext[1][0]=true;
-        alignEndsType.ext[1][1]=true;
-    } else if (alignEndsType.in=="Extend5pOfRead1" ) {
-        alignEndsType.ext[0][0]=true;
-    } else if (alignEndsType.in=="Extend5pOfReads12" ) {
-        alignEndsType.ext[0][0]=true;
-        alignEndsType.ext[1][0]=true;
-    } else if (alignEndsType.in=="Extend3pOfRead1" ) {
-        alignEndsType.ext[0][1]=true;
-    } else if (alignEndsType.in=="Local") {
+    if (align.endsType.in=="EndToEnd") {
+        align.endsType.ext[0][0]=true;
+        align.endsType.ext[0][1]=true;
+        align.endsType.ext[1][0]=true;
+        align.endsType.ext[1][1]=true;
+    } else if (align.endsType.in=="Extend5pOfRead1" ) {
+        align.endsType.ext[0][0]=true;
+    } else if (align.endsType.in=="Extend5pOfReads12" ) {
+        align.endsType.ext[0][0]=true;
+        align.endsType.ext[1][0]=true;
+    } else if (align.endsType.in=="Extend3pOfRead1" ) {
+        align.endsType.ext[0][1]=true;
+    } else if (align.endsType.in=="Local") {
         //nothing to do for now
     } else {
         ostringstream errOut;
-        errOut <<"EXITING because of FATAL INPUT ERROR: unknown/unimplemented value for --alignEndsType: "<<alignEndsType.in <<"\n";
+        errOut <<"EXITING because of FATAL INPUT ERROR: unknown/unimplemented value for --alignEndsType: "<<align.endsType.in <<"\n";
         errOut <<"SOLUTION: re-run STAR with --alignEndsType Local OR EndToEnd OR Extend5pOfRead1 OR Extend3pOfRead1\n";
         exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
@@ -397,7 +397,7 @@ void Parameters::validateSjdbInsert()
         };
     };
 
-    if (outBAMcoord && limitBAMsortRAM==0) {//check limitBAMsortRAM
+    if (outBAMcoord && limit.BAMsortRAM==0) {//check limitBAMsortRAM
         if (pGe.gLoad!="NoSharedMemory") {
             ostringstream errOut;
             errOut <<"EXITING because of fatal PARAMETERS error: limitBAMsortRAM=0 (default) cannot be used with --genomeLoad="<<pGe.gLoad <<", or any other shared memory options\n";
@@ -447,28 +447,28 @@ void Parameters::validateReadAndAlignOptions()
         exitWithError(errOut.str(),std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
 
-    alignEndsProtrude.nBasesMax=stoi(alignEndsProtrude.in.at(0),nullptr);
-    alignEndsProtrude.concordantPair=false;
-    if (alignEndsProtrude.nBasesMax>0) {//allow ends protrusion
-        if (alignEndsProtrude.in.at(1)=="ConcordantPair") {
-            alignEndsProtrude.concordantPair=true;
-        } else if (alignEndsProtrude.in.at(1)=="DiscordantPair") {
-            alignEndsProtrude.concordantPair=false;
+    align.endsProtrude.nBasesMax=stoi(align.endsProtrude.in.at(0),nullptr);
+    align.endsProtrude.concordantPair=false;
+    if (align.endsProtrude.nBasesMax>0) {//allow ends protrusion
+        if (align.endsProtrude.in.at(1)=="ConcordantPair") {
+            align.endsProtrude.concordantPair=true;
+        } else if (align.endsProtrude.in.at(1)=="DiscordantPair") {
+            align.endsProtrude.concordantPair=false;
         } else  {
             ostringstream errOut;
-            errOut << "EXITING because of fatal PARAMETERS error: unrecognized option in of --alignEndsProtrude="<<alignEndsProtrude.in.at(1)<<"\n";
+            errOut << "EXITING because of fatal PARAMETERS error: unrecognized option in of --alignEndsProtrude="<<align.endsProtrude.in.at(1)<<"\n";
             errOut << "SOLUTION: use allowed option: ConcordantPair or DiscordantPair";
             exitWithError(errOut.str(),std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
         };
     };
 
-    if (alignInsertionFlush.in=="None") {
-        alignInsertionFlush.flushRight=false;
-    } else if (alignInsertionFlush.in=="Right") {
-        alignInsertionFlush.flushRight=true;
+    if (align.insertionFlush.in=="None") {
+        align.insertionFlush.flushRight=false;
+    } else if (align.insertionFlush.in=="Right") {
+        align.insertionFlush.flushRight=true;
     } else  {
         ostringstream errOut;
-        errOut << "EXITING because of fatal PARAMETERS error: unrecognized option in of --alignInsertionFlush="<<alignInsertionFlush.in<<"\n";
+        errOut << "EXITING because of fatal PARAMETERS error: unrecognized option in of --alignInsertionFlush="<<align.insertionFlush.in<<"\n";
         errOut << "SOLUTION: use allowed option: None or Right";
         exitWithError(errOut.str(),std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
@@ -481,13 +481,13 @@ void Parameters::validateReadAndAlignOptions()
     };
 
     //alignSoftClipAtReferenceEnds.in
-    if (alignSoftClipAtReferenceEnds.in=="Yes") {
-        alignSoftClipAtReferenceEnds.yes=true;
-    } else if (alignSoftClipAtReferenceEnds.in=="No") {
-        alignSoftClipAtReferenceEnds.yes=false;
+    if (align.softClipAtReferenceEnds.in=="Yes") {
+        align.softClipAtReferenceEnds.yes=true;
+    } else if (align.softClipAtReferenceEnds.in=="No") {
+        align.softClipAtReferenceEnds.yes=false;
     } else {
         ostringstream errOut;
-        errOut << "EXITING because of fatal PARAMETERS error: unrecognized option in --alignSoftClipAtReferenceEnds   "<<alignSoftClipAtReferenceEnds.in<<"\n";
+        errOut << "EXITING because of fatal PARAMETERS error: unrecognized option in --alignSoftClipAtReferenceEnds   "<<align.softClipAtReferenceEnds.in<<"\n";
         errOut << "SOLUTION: use allowed option: Yes or No";
         exitWithError(errOut.str(),std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
@@ -500,24 +500,24 @@ void Parameters::validateReadAndAlignOptions()
 
 void Parameters::validateBuffersAndOutSJ()
 {//I/O buffer sizes, outSJ and outFilterType
-    if (limitIObufferSize.size() != 2)
+    if (limit.IObufferSize.size() != 2)
         exitWithError("EXITING because of FATAL input ERROR: --limitIObufferSize requires 2 numbers since 2.7.9a.\n"
                       "SOLUTION: specify 2 numbers in --limitIObufferSize : size of input and output buffers in bytes.\n"
                         , std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
 
-    chunkInSizeBytesArray = limitIObufferSize[0]/readNends; //array size
+    chunkInSizeBytesArray = limit.IObufferSize[0]/readNends; //array size
     {//the array must hold the fill limit plus one maximal read; a smaller buffer made the unsigned limit wrap and the chunk copy overrun the array
         const uint64 oneReadReserve = 2*(DEF_readSeqLengthMax+1)+2*DEF_readNameLengthMax;
         if (chunkInSizeBytesArray <= oneReadReserve) {
             ostringstream errOut;
-            errOut << "EXITING because of FATAL INPUT ERROR: --limitIObufferSize input buffer " << limitIObufferSize[0]
+            errOut << "EXITING because of FATAL INPUT ERROR: --limitIObufferSize input buffer " << limit.IObufferSize[0]
                    << " is too small for " << readNends << " read end(s)\n"
                    << "SOLUTION: use --limitIObufferSize with the first value of at least " << readNends*(oneReadReserve+1) << '\n';
             exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
         };
     };
     chunkInSizeBytes = chunkInSizeBytesArray-2*(DEF_readSeqLengthMax+1)-2*DEF_readNameLengthMax; //to prevent overflow - array is bigger to allow loading one read
-    chunkOutBAMsizeBytes = limitIObufferSize[1];
+    chunkOutBAMsizeBytes = limit.IObufferSize[1];
 
 
     ///////////////////////////////////////////////////////// outSJ

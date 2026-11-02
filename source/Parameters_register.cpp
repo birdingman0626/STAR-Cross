@@ -23,8 +23,8 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoScalar <int> (-1, -1, "runRNGseed", &runRNGseed));
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "legacy", &legacyIn));
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "gpuSjdbRemap", &gpuSjdbRemapMode));
-    parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "seedSearchBackend", &seedSearchBackend));
-    parArray.push_back(new ParameterInfoScalar <uint64> (-1, -1, "seedBatchSize", &seedBatchSize));
+    parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "seedSearchBackend", &seed.searchBackend));
+    parArray.push_back(new ParameterInfoScalar <uint64> (-1, -1, "seedBatchSize", &seed.batchSize));
 
     //webui
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "webuiHost",    &webui.host));
@@ -49,16 +49,16 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "genomeChrSetMitochondrial", &pGe.chrSet.mitoStrings));
 
     //read
-    parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesType", &readFilesType));
-    parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesIn", &readFilesIn));
-    parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "readFilesPrefix", &readFilesPrefix));
-    parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesCommand", &readFilesCommand));
+    parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesType", &readFiles.type));
+    parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesIn", &readFiles.in));
+    parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "readFilesPrefix", &readFiles.prefix));
+    parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesCommand", &readFiles.command));
 
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "readMatesLengthsIn", &readMatesLengthsIn));
     parArray.push_back(new ParameterInfoScalar <uint64> (-1, -1, "readMapNumber", &readMapNumber));
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readNameSeparator", &readNameSeparator));
     parArray.push_back(new ParameterInfoScalar <uint32> (-1, -1, "readQualityScoreBase", &readQualityScoreBase));
-    parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesManifest", &readFilesManifest));
+    parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesManifest", &readFiles.manifest));
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesSAMattrKeep", &readFiles.samAttrKeepIn));
 
     //parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "readStrand", &pReads.strandString));
@@ -72,14 +72,14 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "bamRemoveDuplicatesMate2basesN", &removeDuplicates.mate2basesN));
 
     //limits
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitGenomeGenerateRAM", &limitGenomeGenerateRAM));
-    parArray.push_back(new ParameterInfoVector <uint64>   (-1, -1, "limitIObufferSize", &limitIObufferSize));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitOutSAMoneReadBytes", &limitOutSAMoneReadBytes));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitOutSJcollapsed", &limitOutSJcollapsed));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitOutSJoneRead", &limitOutSJoneRead));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitBAMsortRAM", &limitBAMsortRAM));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitSjdbInsertNsj", &limitSjdbInsertNsj));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitNreadsSoft", &limitNreadsSoft));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitGenomeGenerateRAM", &limit.genomeGenerateRAM));
+    parArray.push_back(new ParameterInfoVector <uint64>   (-1, -1, "limitIObufferSize", &limit.IObufferSize));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitOutSAMoneReadBytes", &limit.outSAMoneReadBytes));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitOutSJcollapsed", &limit.outSJcollapsed));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitOutSJoneRead", &limit.outSJoneRead));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitBAMsortRAM", &limit.BAMsortRAM));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitSjdbInsertNsj", &limit.sjdbInsertNsj));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "limitNreadsSoft", &limit.nreadsSoft));
 
     //output
     parArray.push_back(new ParameterInfoScalar <string>     (-1, 2, "outFileNamePrefix", &outFileNamePrefix));
@@ -118,12 +118,12 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoVector <string>     (-1, -1, "outSJtype", &outSJ.type));
 
     //output SJ filtering
-    parArray.push_back(new ParameterInfoScalar <string>  (-1, -1, "outSJfilterReads", &outSJfilterReads));
-    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterCountUniqueMin", &outSJfilterCountUniqueMin));
-    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterCountTotalMin", &outSJfilterCountTotalMin));
-    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterOverhangMin", &outSJfilterOverhangMin));
-    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterDistToOtherSJmin", &outSJfilterDistToOtherSJmin));
-    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterIntronMaxVsReadN", &outSJfilterIntronMaxVsReadN));
+    parArray.push_back(new ParameterInfoScalar <string>  (-1, -1, "outSJfilterReads", &outSJfilter.reads));
+    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterCountUniqueMin", &outSJfilter.countUniqueMin));
+    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterCountTotalMin", &outSJfilter.countTotalMin));
+    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterOverhangMin", &outSJfilter.overhangMin));
+    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterDistToOtherSJmin", &outSJfilter.distToOtherSJmin));
+    parArray.push_back(new ParameterInfoVector <int32>   (-1, -1, "outSJfilterIntronMaxVsReadN", &outSJfilter.intronMaxVsReadN));
 
     //output wiggle
     parArray.push_back(new ParameterInfoVector <string>   (-1, -1, "outWigType", &outWigType));
@@ -161,56 +161,56 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoVector <double> (-1, -1, "clip3pAdapterMMp", &pClip.in[1].adMMp));
 
     //binning, anchors, windows
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winBinNbits", &winBinNbits));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winAnchorDistNbins", &winAnchorDistNbins));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winFlankNbins", &winFlankNbins));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winAnchorMultimapNmax", &winAnchorMultimapNmax));
-    parArray.push_back(new ParameterInfoScalar <double>   (-1, -1, "winReadCoverageRelativeMin", &winReadCoverageRelativeMin));
-    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winReadCoverageBasesMin", &winReadCoverageBasesMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winBinNbits", &win.binNbits));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winAnchorDistNbins", &win.anchorDistNbins));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winFlankNbins", &win.flankNbins));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winAnchorMultimapNmax", &win.anchorMultimapNmax));
+    parArray.push_back(new ParameterInfoScalar <double>   (-1, -1, "winReadCoverageRelativeMin", &win.readCoverageRelativeMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>   (-1, -1, "winReadCoverageBasesMin", &win.readCoverageBasesMin));
 
     //scoring
-    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreGap", &scoreGap));
-    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreGapNoncan", &scoreGapNoncan));
-    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreGapGCAG", &scoreGapGCAG));
-    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreGapATAC", &scoreGapATAC));
-    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreStitchSJshift", &scoreStitchSJshift));
-    parArray.push_back(new ParameterInfoScalar <double>     (-1, -1, "scoreGenomicLengthLog2scale", &scoreGenomicLengthLog2scale));
+    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreGap", &score.gap));
+    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreGapNoncan", &score.gapNoncan));
+    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreGapGCAG", &score.gapGCAG));
+    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreGapATAC", &score.gapATAC));
+    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreStitchSJshift", &score.stitchSJshift));
+    parArray.push_back(new ParameterInfoScalar <double>     (-1, -1, "scoreGenomicLengthLog2scale", &score.genomicLengthLog2scale));
 
-    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreDelBase", &scoreDelBase));
-    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreDelOpen", &scoreDelOpen));
-    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreInsOpen", &scoreInsOpen));
-    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreInsBase", &scoreInsBase));
+    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreDelBase", &score.delBase));
+    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreDelOpen", &score.delOpen));
+    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreInsOpen", &score.insOpen));
+    parArray.push_back(new ParameterInfoScalar <intScore>   (-1, -1, "scoreInsBase", &score.insBase));
 
     //alignment
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedSearchLmax", &seedSearchLmax));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedSearchStartLmax", &seedSearchStartLmax));
-    parArray.push_back(new ParameterInfoScalar <double>     (-1, -1, "seedSearchStartLmaxOverLread", &seedSearchStartLmaxOverLread));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedSearchLmax", &seed.searchLmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedSearchStartLmax", &seed.searchStartLmax));
+    parArray.push_back(new ParameterInfoScalar <double>     (-1, -1, "seedSearchStartLmaxOverLread", &seed.searchStartLmaxOverLread));
 
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedPerReadNmax", &seedPerReadNmax));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedPerWindowNmax", &seedPerWindowNmax));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedNoneLociPerWindow", &seedNoneLociPerWindow));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedMultimapNmax", &seedMultimapNmax));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedSplitMin", &seedSplitMin));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedMapMin", &seedMapMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedPerReadNmax", &seed.perReadNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedPerWindowNmax", &seed.perWindowNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedNoneLociPerWindow", &seed.noneLociPerWindow));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedMultimapNmax", &seed.multimapNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedSplitMin", &seed.splitMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "seedMapMin", &seed.mapMin));
 
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignIntronMin", &alignIntronMin));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignIntronMax", &alignIntronMax));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignMatesGapMax", &alignMatesGapMax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignIntronMin", &align.intronMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignIntronMax", &align.intronMax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignMatesGapMax", &align.matesGapMax));
 
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignTranscriptsPerReadNmax", &alignTranscriptsPerReadNmax));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignSJoverhangMin", &alignSJoverhangMin));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignSJDBoverhangMin", &alignSJDBoverhangMin));
-    parArray.push_back(new ParameterInfoVector <int32>      (-1, -1, "alignSJstitchMismatchNmax", &alignSJstitchMismatchNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignTranscriptsPerReadNmax", &align.transcriptsPerReadNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignSJoverhangMin", &align.SJoverhangMin));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignSJDBoverhangMin", &align.SJDBoverhangMin));
+    parArray.push_back(new ParameterInfoVector <int32>      (-1, -1, "alignSJstitchMismatchNmax", &align.SJstitchMismatchNmax));
 
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignSplicedMateMapLmin", &alignSplicedMateMapLmin));
-    parArray.push_back(new ParameterInfoScalar <double>     (-1, -1, "alignSplicedMateMapLminOverLmate", &alignSplicedMateMapLminOverLmate));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignWindowsPerReadNmax", &alignWindowsPerReadNmax));
-    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignTranscriptsPerWindowNmax", &alignTranscriptsPerWindowNmax));
-    parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "alignEndsType", &alignEndsType.in));
-    parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "alignSoftClipAtReferenceEnds", &alignSoftClipAtReferenceEnds.in));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignSplicedMateMapLmin", &align.splicedMateMapLmin));
+    parArray.push_back(new ParameterInfoScalar <double>     (-1, -1, "alignSplicedMateMapLminOverLmate", &align.splicedMateMapLminOverLmate));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignWindowsPerReadNmax", &align.windowsPerReadNmax));
+    parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "alignTranscriptsPerWindowNmax", &align.transcriptsPerWindowNmax));
+    parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "alignEndsType", &align.endsType.in));
+    parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "alignSoftClipAtReferenceEnds", &align.softClipAtReferenceEnds.in));
 
-    parArray.push_back(new ParameterInfoVector <string>     (-1, -1, "alignEndsProtrude", &alignEndsProtrude.in));
-    parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "alignInsertionFlush", &alignInsertionFlush.in));
+    parArray.push_back(new ParameterInfoVector <string>     (-1, -1, "alignEndsProtrude", &align.endsProtrude.in));
+    parArray.push_back(new ParameterInfoScalar <string>     (-1, -1, "alignInsertionFlush", &align.insertionFlush.in));
 
     //peOverlap
     parArray.push_back(new ParameterInfoScalar <uint64>       (-1, -1, "peOverlapNbasesMin", &peOverlap.NbasesMin));

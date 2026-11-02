@@ -8,7 +8,7 @@ void SpliceGraph::findSuperTr(const char *readSeq, const char *readSeqRevCompl, 
 	//hardcoded for now
 	float seedCoverageThreshold = 0.02;
 	float seedCoverageMinToMax = 0.5;
-	uint32 seedMultMax = P.seedMultimapNmax;
+	uint32 seedMultMax = P.seed.multimapNmax;
     uint32 seedSpacing = 1;
 	uint32 seedLen=mapGen.pGe.gSAindexNbases; //TODO: make user-definable	vector<uint32> seedSuperTr;
     
