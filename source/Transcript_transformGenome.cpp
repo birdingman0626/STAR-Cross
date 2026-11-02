@@ -1,8 +1,12 @@
 #include "Transcript.h"
 #include "binarySearch2.h"
 using namespace std;
-bool Transcript::transformGenome(Genome &genOut, Transcript & A)
+namespace {
+//convert the blocks of T into output-genome blocks of A; returns their number
+uint32 convertBlocks(const Transcript &T, Genome &genOut, Transcript &A)
 {
+    const auto &exons=T.exons;
+    const uint64 nExons=T.nExons;
     uint32 nB=0;//number of out blocks
     auto &coBl=genOut.genomeOut.convBlocks;
     
@@ -65,98 +69,117 @@ bool Transcript::transformGenome(Genome &genOut, Transcript & A)
         };
         --cBit;
     };
+    return nB;
+};
+
+//merge exons w/o R/G gaps; returns the new number of exons
+uint32 mergeExonsWithoutGaps(Transcript &A, uint32 nB)
+{
+    uint32 nB1 = 1;
+    for ( uint32 ib=1; ib<nB; ib++) {
+        
+        if (nB1!=ib) {//copy ib into nB1
+            for (uint32 ii=0; ii<EX_SIZE; ii++)
+                A.exons[nB1][ii] = A.exons[ib][ii];
+        };
+        
+        if (A.exons[nB1][EX_iFrag]!=A.exons[nB1-1][EX_iFrag]) {//gap between mates, do not adjust
+            ++nB1;
+            continue;
+        };
+
+        uint64 gapR = A.exons[nB1][EX_R] - A.exons[nB1-1][EX_R] - A.exons[nB1-1][EX_L];
+        uint64 gapG = A.exons[nB1][EX_G] - A.exons[nB1-1][EX_G] - A.exons[nB1-1][EX_L]; 
+        
+        if ( gapR == gapG) {//eliminate both gaps by increasing previous exon length
+            A.exons[nB1-1][EX_L] += A.exons[nB1][EX_L] + gapR;
+
+        } else {//new exon
+            uint64 minGap = min(gapR, gapG);
+            if (minGap>0) {//flush the gap to the left
+                A.exons[nB1][EX_L] += minGap;
+                A.exons[nB1][EX_G] -= minGap;
+                A.exons[nB1][EX_R] -= minGap;
+            };
+            ++nB1;
+        };
+    };
+    nB = nB1;
+    return nB;
+};
+
+//recalculate canonSJ, sjAnnot; false if an annotated junction cannot be shifted
+bool recalculateJunctions(Genome &genOut, Transcript &A)
+{
+    for (uint64 ia=0; ia<A.nExons-1; ia++) {
+        A.sjAnnot[ia]=0;
+        
+        if (A.exons[ia+1][EX_iFrag]!=A.exons[ia][EX_iFrag]) {//mate gap
+            A.canonSJ[ia]=-3;
+            continue;
+        };
+        
+        uint64 jS=A.exons[ia][EX_G]+A.exons[ia][EX_L];
+        uint64 jE=A.exons[ia+1][EX_G]-1;//intron start/end
+        int sjdbInd=binarySearch2(jS, jE, genOut.sjdbStart, genOut.sjdbEnd, genOut.sjdbN);
+        if (sjdbInd>=0) {//annotated
+            A.sjAnnot[ia] = 1;
+            A.canonSJ[ia] = genOut.sjdbMotif[sjdbInd];
+            if (genOut.sjdbMotif[sjdbInd]==0) {//shift to match annotations
+                if (A.exons[ia][EX_L] <= genOut.sjdbShiftLeft[sjdbInd]) {
+                    return false; //this align is not allowed
+                };
+                A.exons[ia][EX_L] -= genOut.sjdbShiftLeft[sjdbInd];
+                A.exons[ia+1][EX_G] -= genOut.sjdbShiftLeft[sjdbInd];
+            };
+
+        } else {//unannotated
+            uint64 gapG=jE-jS+1;
+            uint64 gapR=A.exons[ia+1][EX_R]-A.exons[ia][EX_R]-A.exons[ia][EX_L];
+            if (gapR>0) {//insertion
+                A.canonSJ[ia]=-2;
+                
+            } else if (gapG>=genOut.P.align.intronMin) {//junction
+                A.canonSJ[ia]=0;
+                if        ( genOut.G[jS]==2 && genOut.G[jS+1]==3 && genOut.G[jE-1]==0 && genOut.G[jE]==2 ) {//GTAG
+                    A.canonSJ[ia]=1;
+                } else if ( genOut.G[jS]==1 && genOut.G[jS+1]==3 && genOut.G[jE-1]==0 && genOut.G[jE]==1 ) {//CTAC
+                    A.canonSJ[ia]=2;
+                } else if ( genOut.G[jS]==2 && genOut.G[jS+1]==1 && genOut.G[jE-1]==0 && genOut.G[jE]==2 ) {//GCAG
+                    A.canonSJ[ia]=3;
+                } else if ( genOut.G[jS]==1 && genOut.G[jS+1]==3 && genOut.G[jE-1]==2 && genOut.G[jE]==1 ) {//CTGC
+                    A.canonSJ[ia]=4;
+                } else if ( genOut.G[jS]==0 && genOut.G[jS+1]==3 && genOut.G[jE-1]==0 && genOut.G[jE]==1 ) {//ATAC
+                    A.canonSJ[ia]=5;
+                } else if ( genOut.G[jS]==2 && genOut.G[jS+1]==3 && genOut.G[jE-1]==0 && genOut.G[jE]==3 ) {//GTAT
+                    A.canonSJ[ia]=6;
+                };                
+                
+            } else {//deletion
+                A.canonSJ[ia]=-1;
+            };
+        };
+    };
+    return true;
+};
+} // namespace
+
+bool Transcript::transformGenome(Genome &genOut, Transcript & A)
+{
+    uint32 nB=convertBlocks(*this, genOut, A);//number of out blocks
 
     if (nB==0)
         return false; //transformation did not work
 
-    {//merge exons w/o R/G gaps
-        uint32 nB1 = 1;
-        for ( uint32 ib=1; ib<nB; ib++) {
-            
-            if (nB1!=ib) {//copy ib into nB1
-                for (uint32 ii=0; ii<EX_SIZE; ii++)
-                    A.exons[nB1][ii] = A.exons[ib][ii];
-            };
-            
-            if (A.exons[nB1][EX_iFrag]!=A.exons[nB1-1][EX_iFrag]) {//gap between mates, do not adjust
-                ++nB1;
-                continue;
-            };
+    nB=mergeExonsWithoutGaps(A, nB);
 
-            uint64 gapR = A.exons[nB1][EX_R] - A.exons[nB1-1][EX_R] - A.exons[nB1-1][EX_L];
-            uint64 gapG = A.exons[nB1][EX_G] - A.exons[nB1-1][EX_G] - A.exons[nB1-1][EX_L]; 
-            
-            if ( gapR == gapG) {//eliminate both gaps by increasing previous exon length
-                A.exons[nB1-1][EX_L] += A.exons[nB1][EX_L] + gapR;
-
-            } else {//new exon
-                uint64 minGap = min(gapR, gapG);
-                if (minGap>0) {//flush the gap to the left
-                    A.exons[nB1][EX_L] += minGap;
-                    A.exons[nB1][EX_G] -= minGap;
-                    A.exons[nB1][EX_R] -= minGap;
-                };
-                ++nB1;
-            };
-        };
-        nB = nB1;
-    };
     
     A.nExons=nB;   
     A.Str = Str;        
     A.Chr = genOut.chrBin[A.exons[0][EX_G] >> genOut.pGe.gChrBinNbits];
     
-    {//recalculate canonSJ, sjAnnot
-        for (uint64 ia=0; ia<A.nExons-1; ia++) {
-            A.sjAnnot[ia]=0;
-            
-            if (A.exons[ia+1][EX_iFrag]!=A.exons[ia][EX_iFrag]) {//mate gap
-                A.canonSJ[ia]=-3;
-                continue;
-            };
-            
-            uint64 jS=A.exons[ia][EX_G]+A.exons[ia][EX_L];
-            uint64 jE=A.exons[ia+1][EX_G]-1;//intron start/end
-            int sjdbInd=binarySearch2(jS, jE, genOut.sjdbStart, genOut.sjdbEnd, genOut.sjdbN);
-            if (sjdbInd>=0) {//annotated
-                A.sjAnnot[ia] = 1;
-                A.canonSJ[ia] = genOut.sjdbMotif[sjdbInd];
-                if (genOut.sjdbMotif[sjdbInd]==0) {//shift to match annotations
-                    if (A.exons[ia][EX_L] <= genOut.sjdbShiftLeft[sjdbInd]) {
-                        return false; //this align is not allowed
-                    };
-                    A.exons[ia][EX_L] -= genOut.sjdbShiftLeft[sjdbInd];
-                    A.exons[ia+1][EX_G] -= genOut.sjdbShiftLeft[sjdbInd];
-                };
-
-            } else {//unannotated
-                uint64 gapG=jE-jS+1;
-                uint64 gapR=A.exons[ia+1][EX_R]-A.exons[ia][EX_R]-A.exons[ia][EX_L];
-                if (gapR>0) {//insertion
-                    A.canonSJ[ia]=-2;
-                    
-                } else if (gapG>=genOut.P.align.intronMin) {//junction
-                    A.canonSJ[ia]=0;
-                    if        ( genOut.G[jS]==2 && genOut.G[jS+1]==3 && genOut.G[jE-1]==0 && genOut.G[jE]==2 ) {//GTAG
-                        A.canonSJ[ia]=1;
-                    } else if ( genOut.G[jS]==1 && genOut.G[jS+1]==3 && genOut.G[jE-1]==0 && genOut.G[jE]==1 ) {//CTAC
-                        A.canonSJ[ia]=2;
-                    } else if ( genOut.G[jS]==2 && genOut.G[jS+1]==1 && genOut.G[jE-1]==0 && genOut.G[jE]==2 ) {//GCAG
-                        A.canonSJ[ia]=3;
-                    } else if ( genOut.G[jS]==1 && genOut.G[jS+1]==3 && genOut.G[jE-1]==2 && genOut.G[jE]==1 ) {//CTGC
-                        A.canonSJ[ia]=4;
-                    } else if ( genOut.G[jS]==0 && genOut.G[jS+1]==3 && genOut.G[jE-1]==0 && genOut.G[jE]==1 ) {//ATAC
-                        A.canonSJ[ia]=5;
-                    } else if ( genOut.G[jS]==2 && genOut.G[jS+1]==3 && genOut.G[jE-1]==0 && genOut.G[jE]==3 ) {//GTAT
-                        A.canonSJ[ia]=6;
-                    };                
-                    
-                } else {//deletion
-                    A.canonSJ[ia]=-1;
-                };
-            };
-        };
-    };
+    if (!recalculateJunctions(genOut, A))
+        return false; //this align is not allowed
     
     return true;
 };
