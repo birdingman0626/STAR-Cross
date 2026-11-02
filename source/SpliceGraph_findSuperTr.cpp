@@ -6,7 +6,7 @@ void SpliceGraph::findSuperTr(const char *readSeq, const char *readSeqRevCompl, 
 {//find the candidate superTranscripts: seed-and-rank algorithm implemented
 		
 	//hardcoded for now
-	float seedCoverageThreshold = 0.02;
+	float seedCoverageThreshold = 0.02f;
 	float seedCoverageMinToMax = 0.5;
 	uint32 seedMultMax = P.seed.multimapNmax;
     uint32 seedSpacing = 1;

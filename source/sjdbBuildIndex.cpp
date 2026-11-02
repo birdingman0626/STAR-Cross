@@ -176,7 +176,7 @@ void findInsertionPoints(SjdbInsertion &s, const char *G1c, uint64 nIndicesSJ1)
             {
                 //-1LLU results in suffixes for the new junctions to be always included in SA *after* the suffixes of the old junctions
                 //for identical suffixes, this may result in unstable ordering
-                s.indArray[ind1] =  suffixArraySearch1(mapGen, seq1, istart, 10000, -1LLU, true, 0, mapGen.nSA-1, 0) ;
+                s.indArray[ind1] =  suffixArraySearch1(mapGen, seq1, istart, 10000, (uint64) -1, true, 0, mapGen.nSA-1, 0) ;
                 s.indArray[ind1+1] = isj*mapGen.sjdbLength+istart;
             };
         };

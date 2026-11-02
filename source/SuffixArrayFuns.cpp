@@ -245,7 +245,7 @@ int compareRefEnds (const SeedIndexView &mapGen, uint64 SAstr, uint64 gInsert, b
        return strR ? (SAstr < gInsert ? 1:-1) : 1;
     } else
     {// - strand g
-       return strR ? -1 : ( gInsert==-1LLU ? -1 : ( SAstr < mapGen.nGenome-gInsert ? 1:-1) );
+       return strR ? -1 : ( gInsert==(uint64) -1 ? -1 : ( SAstr < mapGen.nGenome-gInsert ? 1:-1) );
     };
 };
 
@@ -352,7 +352,7 @@ uint64 suffixArraySearch1(const SeedIndexView &mapGen, const char* const* s, uin
     if (compRes>0)
     {//the sequence is bigger than the last SA index, return a huge number
         L=L2;
-        return -2llu;
+        return (uint64) -2;
     };
 
     L=min(L1,L2);

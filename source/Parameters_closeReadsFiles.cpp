@@ -13,7 +13,7 @@ using namespace std;
 void Parameters::closeReadsFiles() {
     // A manifest can specify fewer ends than the default readFilesIn placeholders.
     for (uint64 imate=0; imate<readFiles.names.size(); imate++) {
-        const bool reachedEof = inOut->readIn[imate].eof();
+        [[maybe_unused]] const bool reachedEof = inOut->readIn[imate].eof();
         if ( inOut->readIn[imate].is_open() )
             inOut->readIn[imate].close();
         if (readFiles.commandPID[imate]>0) {

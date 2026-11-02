@@ -135,7 +135,7 @@ void SoloFeature::collapseGeneUMIs(uint32 iCB, uint32 iG, uint32 *rGU, const vec
     qsort(rGU1, nR0, rguStride*sizeof(uint32), funCompareTypeShift<uint32,rguU>);
 
     //exact collapse
-    uint32 iR1=-umiArrayStride; //number of distinct UMIs for this gene
+    uint32 iR1=0-umiArrayStride; //number of distinct UMIs for this gene
     uint32 u1=(uint32) -1;
     for (uint32 iR=rguU; iR<gReadS[iG+1]-gReadS[iG]; iR+=rguStride) {//count and collapse identical UMIs
         if (pSolo.umiFiltering.MultiGeneUMI && umiGeneMapCount[rGU1[iR]][gID[iG]]==0) {//multigene UMI is not recorded

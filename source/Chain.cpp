@@ -104,7 +104,7 @@ void Chain::liftOverGTF(string gtfFileName, string outFileName)
                 };
             };
         };
-        if (c2[0]!=-1llu && c2[1]!=-1llu && c2[1]>=c2[0])
+        if (c2[0]!=(uint64) -1 && c2[1]!=(uint64) -1 && c2[1]>=c2[0])
         {//good conversion
             streamOut << ch1->chr2 <<"\t"<< str1 <<"\t"<< str2 <<"\t"<<c2[0] <<"\t"<< c2[1] << line1str.rdbuf() << "\n";
         } else {

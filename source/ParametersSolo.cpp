@@ -323,7 +323,7 @@ void ParametersSolo::initOutputDirAndMasks()
 
     QSbase=33;//TODO make these user-definable
     QSmax=33;
-    cbMinP=0.975;
+    cbMinP=0.975f;
 
     umiMaskLow=(uint32) ( (((uint64)1)<<umiL) - 1);
     umiMaskHigh=~umiMaskLow;

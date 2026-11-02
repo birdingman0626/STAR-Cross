@@ -254,7 +254,7 @@ set(HTSLIB_SOURCES
 )
 
 add_library(hts STATIC ${HTSLIB_SOURCES})
-target_include_directories(hts PUBLIC ${HTSLIB_DIR} ${HTSLIB_DIR}/htslib ${HTSLIB_DIR}/htscodecs)
+target_include_directories(hts SYSTEM PUBLIC ${HTSLIB_DIR} ${HTSLIB_DIR}/htslib ${HTSLIB_DIR}/htscodecs)
 target_compile_definitions(hts PRIVATE SAMTOOLS=1)
 target_link_libraries(hts PRIVATE ZLIB::ZLIB)
 if(STAR_USE_LIBDEFLATE)
@@ -471,7 +471,6 @@ add_dependencies(STAR generate_xxd)
 target_include_directories(STAR PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}  # for parametersDefault.xxd
-    ${HTSLIB_DIR}
 )
 
 # SYSTEM suppresses third-party compiler warnings. It is not a substitute for
@@ -479,6 +478,7 @@ target_include_directories(STAR PRIVATE
 target_include_directories(STAR SYSTEM PRIVATE
     ${httplib_SOURCE_DIR}                # httplib.h (cpp-httplib)
     ${nlohmann_json_SOURCE_DIR}/include  # nlohmann/json.hpp
+    ${HTSLIB_DIR}                        # bundled htslib headers
 )
 
 target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB star_sjdb_remap)

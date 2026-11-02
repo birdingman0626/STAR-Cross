@@ -42,7 +42,14 @@ int bam_read1_fromArray(char *bamChar, bam1_t *b) //modified from samtools bam_r
 		return -4;
 	if (b->m_data < b->l_data) {
 		b->m_data = b->l_data;
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4146) // htslib kroundup32 negates an unsigned on purpose
+#endif
 		kroundup32(b->m_data);
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 // no need to realloc b->data, because it is overwritten later with bamChar
 	}
     b->data=(uint8_t*) bamChar+4*9;
