@@ -9,6 +9,24 @@
 #include <vector>
 #include <iostream>
 
+#ifdef COMPILE_FOR_LONG_READS
+// STARlong: the stitching core and device stitching are short-read only; these stubs keep
+// the shared call sites linking. Batched seeding and device stitching are rejected for STARlong.
+namespace stitchcore {
+[[noreturn]] static void unavailable() { throw std::logic_error("the stitching core is not available in STARlong"); }
+Params paramsFrom(const Parameters&) { unavailable(); }
+GenomeView genomeFrom(const Genome&) { unavailable(); }
+void toCore(const Transcript&, Tr&) { unavailable(); }
+void fromCore(const Tr&, Transcript&) { unavailable(); }
+void fromPacked(const TrHead&, const TrRow*, Transcript&) { unavailable(); }
+std::string compare(const Tr&, const Transcript&) { unavailable(); }
+bool verifyEnabled() { return false; }
+void verifyWindow(const Parameters&, const Genome&, const uint64 (*)[WA_SIZE], uint64, const Transcript&, const char*, uint64,
+                  const uint64*, uint64, const intScore*, const intScore*, Transcript* const*, uint64, uint64) { unavailable(); }
+void verifyDevice(const ::StitchWindowResult&, const ::StitchResults&, uint64, Transcript* const*, uint64, uint64) { unavailable(); }
+void verifyMate(int, intScore, uint64, uint64) { unavailable(); }
+} // namespace stitchcore
+#else
 static_assert(MAX_N_EXONS==stitchcore::maxExons, "StitchCore supports short-read builds only");
 static_assert(EX_SIZE==stitchcore::exSize && WA_SIZE==stitchcore::waSize, "layout mismatch");
 static_assert(MAX_N_MATES==stitchcore::maxMates && DEF_readSeqLengthMax==stitchcore::readSeqLengthMax, "limit mismatch");
@@ -203,3 +221,4 @@ void verifyMate(int device, intScore cpu, uint64 mate, uint64 readId) {
     }
 }
 } // namespace stitchcore
+#endif // COMPILE_FOR_LONG_READS

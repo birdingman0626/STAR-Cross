@@ -57,6 +57,12 @@ public:
 
     Genome &mapGen;
 private:
+    //mapChunk steps (ReadAlignChunk_mapChunk.cpp)
+    void clipChunkMates(SeedBatchExecutor* batch);
+    void flushChunkSAM(bool lastRead);
+    void collapseChunkSJ(OutSJ *sj, const char *name, bool lastRead);
+    void finishChunk();
+
     bool newFile=false;
     std::vector<std::string> headerExtra;
     std::unique_ptr<Transcriptome> transcriptomeStorage;

@@ -16,7 +16,7 @@ int reg2bin(int beg, int end);
 int bamAttrArrayWrite(int32 attr, const char* tagName, char* attrArray );
 int bamAttrArrayWrite(float attr, const char* tagName, char* attrArray );
 int bamAttrArrayWrite(char attr, const char* tagName, char* attrArray );
-int bamAttrArrayWrite(std::string &attr, const char* tagName, char* attrArray );
+int bamAttrArrayWrite(const std::string &attr, const char* tagName, char* attrArray );
 int bamAttrArrayWrite(const std::vector<char> &attr, const char* tagName, char* attrArray );
 int bamAttrArrayWrite(const std::vector<int32> &attr, const char* tagName, char* attrArray );
 int bamAttrArrayWriteSAMtags(std::string &attrStr, char *attrArray, size_t capacity, Parameters &P);

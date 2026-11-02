@@ -124,7 +124,7 @@ int bamAttrArrayWrite(char attr, const char* tagName, char* attrArray ) {
     attrArray[3]=attr;
     return 3+sizeof(char);
 };
-int bamAttrArrayWrite(string &attr, const char* tagName, char* attrArray ) {
+int bamAttrArrayWrite(const string &attr, const char* tagName, char* attrArray ) {
     attrArray[0]=tagName[0];attrArray[1]=tagName[1];
     attrArray[2]='Z';
     memcpy(attrArray+3,attr.c_str(),attr.size()+1);//copy string data including \0

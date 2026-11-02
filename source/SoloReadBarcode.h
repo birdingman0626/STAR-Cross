@@ -38,6 +38,13 @@ public:
     void statsOut(std::ofstream &streamOut);
     void matchCBtoWL(std::string &cbSeq1, std::string &cbQual1, std::vector<uint64> &cbWL, int32 &cbMatch1, std::vector<uint64> &cbMatchInd1, std::string &cbMatchString1);
     bool convertCheckUMI();
+    //getCBandUMI steps (SoloReadBarcode_getCBandUMI.cpp)
+    std::string samTagValue(const std::string &attributes, const std::string &tag, const char *what, const char *option, const char *readName);
+    void barcodeFromSAMtags(const std::string &readNameExtraIn, const char *readName);
+    void checkBarcodeLength(const char *readName);
+    bool cbUMIsimple();
+    void cbSamTagOut();
+    bool cbUMIcomplex();
     void addStats(const int32 cbMatch1);
     
 

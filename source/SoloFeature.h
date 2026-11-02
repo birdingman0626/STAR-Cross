@@ -2,6 +2,7 @@
 #define H_SoloFeature
 
 #include <fstream>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -97,6 +98,20 @@ public:
     void collapseUMI_CR(uint32 iCB, uint32 *umiArray);
     void collapseUMIall();
     void collapseUMIperCB(uint32 iCB, std::vector<uint32> &umiArray, std::vector<uint32> &gID,  std::vector<uint32> &gReadS);
+    //collapseUMIperCB steps (SoloFeature_collapseUMIall.cpp)
+    using UmiGeneCounts = std::unordered_map<uintUMI, std::unordered_map<uint32,uint32>>; //UMI -> gene -> read count
+    void groupReadsByGene(uint32 *rGU, uint32 rN, std::vector<uint32> &gID, std::vector<uint32> &gReadS, uint32 &nGenes, uint32 &nGenesMult);
+    void filterMultiGeneUMIs(const uint32 *rGU, uint32 uniqueEnd, UmiGeneCounts &umiGeneMapCount);
+    void collapseGeneUMIs(uint32 iCB, uint32 iG, uint32 *rGU, const std::vector<uint32> &gID, const std::vector<uint32> &gReadS, std::vector<uint32> &umiArray,
+                          UmiGeneCounts &umiGeneMapCount, UmiGeneCounts &umiGeneMapCount0, std::unordered_map<uintUMI,uintUMI> &umiCorrected);
+    void countMultiGeneUMI_CR(uint32 iCB, uint32 nGenes, uint32 *rGU, const std::vector<uint32> &gID, const std::vector<uint32> &gReadS,
+                              UmiGeneCounts &umiGeneMapCount, UmiGeneCounts &umiGeneMapCount0, std::vector<std::unordered_map<uintUMI,uintUMI>> &umiCorrected);
+    void collapseMultiGeneReads(uint32 iCB, uint32 *rGU, const std::vector<uint32> &gReadS, uint32 nGenes, uint32 nGenesMult, const UmiGeneCounts &umiGeneMapCount);
+    std::vector<std::vector<uint32>> multiGeneUMIgenes(uint32 *rGUm, uint32 nRm, const UmiGeneCounts &umiGeneMapCount);
+    std::vector<double> uniqueGeneCounts(uint32 iCB, const std::map<uint32,uint32> &genesM, uint32 indDedup);
+    static std::vector<double> multiGeneRescue(const std::vector<std::vector<uint32>> &umiGenes, const std::vector<double> &gEuniform, const std::vector<double> &gEu);
+    static std::vector<double> multiGenePropUnique(const std::vector<std::vector<uint32>> &umiGenes, const std::vector<double> &gEu);
+    static std::vector<double> multiGeneEM(const std::vector<std::vector<uint32>> &umiGenes, const std::vector<double> &gEuniform, const std::vector<double> &gEu);
 
     uint32 umiArrayCorrect_CR         (const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, std::unordered_map <uintUMI,uintUMI> &umiCorr);
     uint32 umiArrayCorrect_Directional(const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, std::unordered_map <uintUMI,uintUMI> &umiCorr, const int32 dirCountAdd);

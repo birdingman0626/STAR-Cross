@@ -22,5 +22,11 @@ struct WindowStitcher {
     Transcript*** trAll;
     uint64* nWinTr;
     void stitch(uint64 window,uint64 resultWindow,bool* excluded,char* read);
+private:
+    bool scoreSeedChains(uint64 iW, bool *WAexcl, char *R);
+    uint64 bestChainEnd(uint64 iW, char *R);
+    uint64 traceSeedChain(uint64 scoreBestInd);
+    void buildChainTranscript(uint64 iW, uint64 seedN, char *R);
+    bool finishTranscript();
 };
 #endif
