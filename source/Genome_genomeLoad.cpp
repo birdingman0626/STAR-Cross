@@ -17,14 +17,10 @@ static_assert(std::atomic_ref<uint64>::is_always_lock_free, "cross-process atomi
 static uint64 shmLoadAcquire(uint64 *p) {
     return std::atomic_ref<uint64>(*p).load(std::memory_order_acquire);
 }
-//addresses with respect to shmStart of several genome values
+///addresses with respect to shmStart of several genome values
 #define SHM_sizeG 0
 #define SHM_sizeSA 8
 #define SHM_startG 16
-// #define SHM_startSA 24
-//
-// //first available byt of the shm
-// #define SHM_startSHM 32
 
 void Genome::genomeLoad(){//allocate and load Genome
 
@@ -32,13 +28,106 @@ void Genome::genomeLoad(){//allocate and load Genome
     time ( &rawtime );
     *(P.inOut->logStdOut) << timeMonthDayTime(rawtime) << " ..... loading genome\n" <<flush;
 
-    uint64 *shmNG=NULL, *shmNSA=NULL;   //pointers to shm stored values , *shmSG, *shmSSA
-    uint64 shmSize=0;//, shmStartG=0; shmStartSA=0;
-
-    uint64 L=200,K=6;
+    uint64 *shmNG=NULL, *shmNSA=NULL;   //pointers to shm stored values
+    const uint64 L=200,K=6;
 
     Parameters P1(*P.inOut);
+    readGenomeParameters(P1);
 
+    P.inOut->logMain << "Started loading the genome: " << timeMonthDayTime(rawtime) <<"\n"<<flush;
+
+    ifstream GenomeIn, SAin, SAiIn;
+
+    if (pGe.gFileSizes.size() < 2) {//no size info available
+        pGe.gFileSizes.push_back(0);
+        pGe.gFileSizes.push_back(0);
+    };
+    nGenome = OpenStream("Genome",GenomeIn,pGe.gFileSizes.at(0));
+    nSAbyte = OpenStream("SA",SAin,pGe.gFileSizes.at(1));
+    OpenStream("SAindex",SAiIn,1); //we do not need SAiIn siz, using a dummy value here to prevent from reading its size from the disk
+
+    uint64 SAiInBytes=0;
+    SAiInBytes += fstreamReadBig(SAiIn,(char*) &pGe.gSAindexNbases, sizeof(pGe.gSAindexNbases));
+    allocateSAindexStarts(pGe.gSAindexNbases+1);
+    SAiInBytes += fstreamReadBig(SAiIn,(char*) genomeSAindexStart, sizeof(genomeSAindexStart[0])*(pGe.gSAindexNbases+1));
+    nSAi=genomeSAindexStart[pGe.gSAindexNbases];
+    P.inOut->logMain << "Read from SAindex: pGe.gSAindexNbases=" << pGe.gSAindexNbases <<"  nSAi="<< nSAi <<endl;
+
+    defineIndexBits();
+
+    uint64 shmSize=SA.lengthByte + nGenome+L+L+SHM_startG+8;
+    shmSize+= SAi.lengthByte;
+
+    if ((pGe.gLoad=="LoadAndKeep" ||
+         pGe.gLoad=="LoadAndRemove" ||
+         pGe.gLoad=="LoadAndExit" ||
+         pGe.gLoad=="Remove") && sharedMemory == NULL) {
+        attachSharedGenome(shmSize, L, shmNG, shmNSA);
+    } else if (pGe.gLoad=="NoSharedMemory") {// simply allocate memory, do not use shared memory
+        allocatePrivateGenome(L);
+    };
+
+    G=G1+L;
+
+    bool isAllocatorProcess = sharedMemory != NULL && sharedMemory->IsAllocator();
+
+    if (pGe.gLoad=="NoSharedMemory" || isAllocatorProcess) {//load genome and SAs from files
+        readIndexFiles(GenomeIn, SAin, SAiIn, SAiInBytes, L, K);
+    };
+
+    SAiIn.close();
+
+    if ((pGe.gLoad=="LoadAndKeep" ||
+         pGe.gLoad=="LoadAndRemove" ||
+         pGe.gLoad=="LoadAndExit") && isAllocatorProcess )
+    {
+        //record sizes. NG, stored last with release order, marks the end of genome loading
+        std::atomic_ref<uint64>(*shmNSA).store(nSAbyte, std::memory_order_relaxed);
+        std::atomic_ref<uint64>(*shmNG).store(nGenome, std::memory_order_release);
+        sharedMemory->LoaderFinished();
+    };
+
+    time ( &rawtime );
+    P.inOut->logMain << "Finished loading the genome: " << timeMonthDayTime(rawtime) <<"\n"<<flush;
+
+    #ifdef COMPILE_FOR_MAC
+    {
+        uint64 sum1=0;
+        for (uint64 ii=0;ii<nGenome; ii++) sum1 +=  (uint64) (unsigned char) G[ii];
+        P.inOut->logMain << "Sum of all Genome bytes: " <<sum1 <<"\n"<<flush;
+        sum1=0;
+        for (uint64 ii=0;ii<SA.lengthByte; ii++) sum1 +=  (uint64) (unsigned char) SA.charArray[ii];
+        P.inOut->logMain << "Sum of all SA bytes: " <<sum1 <<"\n"<<flush;
+        sum1=0;
+        for (uint64 ii=0;ii<SAi.lengthByte; ii++) sum1 +=  (uint64) (unsigned char) SAi.charArray[ii];
+        P.inOut->logMain << "Sum of all SAi bytes: " <<sum1 <<"\n"<<flush;
+    };
+    #endif
+
+    if (pGe.gLoad=="LoadAndExit") {
+	for (uint64 ii=0;ii<shmSize;ii++) (void)shmStart[ii]; // touch shared memory to verify accessibility
+        P.inOut->logMain << "pGe.gLoad=LoadAndExit: completed, the genome is loaded and kept in RAM, EXITING now.\n"<<flush;
+        releaseSharedMemory(); // the genome stays loaded; only this job detaches
+        exit(0); // returning would start mapping with no reads
+    };
+
+    Genome::insertSequences();
+
+    Genome::chrBinFill();
+
+    Genome::loadSJDB(pGe.gDir);
+
+    adjustWindowParameters();
+
+    loadOutputGenome(P1);
+
+    if (P.pGe.gLoad=="LoadAndExit" || P.pGe.gLoad=="Remove") {
+        exit(0);
+    };
+};
+
+void Genome::readGenomeParameters(Parameters &P1)
+{//genomeParameters.txt and chrInfo: check compatibility and copy generation-time parameters into P
     //some initializations before reading the parameters
     GstrandBit=0;
 
@@ -133,7 +222,7 @@ void Genome::genomeLoad(){//allocate and load Genome
     };
     sjdbOverhang = pGe.sjdbOverhang;
     sjdbLength = pGe.sjdbOverhang==0 ? 0 : pGe.sjdbOverhang*2+1;
-    
+
     pGe.gType=1;
     if (P1.pGe.gTypeString=="SuperTranscriptome")
         pGe.gType=101;
@@ -143,30 +232,13 @@ void Genome::genomeLoad(){//allocate and load Genome
                       "SOLUTION: use --outSAMtype None for experimental graph diagnostics, or a Full genome for supported BAM/CRAM mapping.\n",
                       std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     }
+};
 
-    P.inOut->logMain << "Started loading the genome: " << timeMonthDayTime(rawtime) <<"\n"<<flush;
-
-    ifstream GenomeIn, SAin, SAiIn;
-
-    if (pGe.gFileSizes.size() < 2) {//no size info available
-        pGe.gFileSizes.push_back(0);
-        pGe.gFileSizes.push_back(0);
-    };
-    nGenome = OpenStream("Genome",GenomeIn,pGe.gFileSizes.at(0));
-    nSAbyte = OpenStream("SA",SAin,pGe.gFileSizes.at(1));
-    OpenStream("SAindex",SAiIn,1); //we do not need SAiIn siz, using a dummy value here to prevent from reading its size from the disk
-
-    uint64 SAiInBytes=0;
-    SAiInBytes += fstreamReadBig(SAiIn,(char*) &pGe.gSAindexNbases, sizeof(pGe.gSAindexNbases));
-    allocateSAindexStarts(pGe.gSAindexNbases+1);
-    SAiInBytes += fstreamReadBig(SAiIn,(char*) genomeSAindexStart, sizeof(genomeSAindexStart[0])*(pGe.gSAindexNbases+1));
-    nSAi=genomeSAindexStart[pGe.gSAindexNbases];
-    P.inOut->logMain << "Read from SAindex: pGe.gSAindexNbases=" << pGe.gSAindexNbases <<"  nSAi="<< nSAi <<endl;
-
-    /////////////////////////////////// at this point all array sizes should be known: calculate packed array lengths
+void Genome::defineIndexBits()
+{//all array sizes are known: packed SA/SAi widths and SAi mark bits
     if (GstrandBit==0) {//not defined before
         GstrandBit = (uint64) floor(log(nGenome)/log(2))+1;
-        if (GstrandBit<32) 
+        if (GstrandBit<32)
             GstrandBit=32; //TODO: use simple access function for SA
     };
 
@@ -186,241 +258,191 @@ void Genome::genomeLoad(){//allocate and load Genome
 
     P.inOut->logMain << "nGenome=" << nGenome << ";  nSAbyte=" << nSAbyte <<endl<< flush;
     P.inOut->logMain <<"GstrandBit="<<int(GstrandBit)<<"   SA number of indices="<<nSA<<endl<<flush;
+};
 
-    shmSize=SA.lengthByte + nGenome+L+L+SHM_startG+8;
-    shmSize+= SAi.lengthByte;
+void Genome::attachSharedGenome(uint64 shmSize, uint64 L, uint64 *&shmNG, uint64 *&shmNSA)
+{//attach (or allocate) the shared-memory genome; non-allocators wait for the loader to publish the sizes
+    bool unloadLast = pGe.gLoad=="LoadAndRemove";
+    try {
+        sharedMemoryStorage.reset(new SharedMemory(shmKey, unloadLast));
+        sharedMemory = sharedMemoryStorage.get();
+        sharedMemory->SetErrorStream(P.inOut->logStdOut);
 
-    if ((pGe.gLoad=="LoadAndKeep" ||
-         pGe.gLoad=="LoadAndRemove" ||
-         pGe.gLoad=="LoadAndExit" ||
-         pGe.gLoad=="Remove") && sharedMemory == NULL) {
-
-        bool unloadLast = pGe.gLoad=="LoadAndRemove";
-        try {
-            sharedMemoryStorage.reset(new SharedMemory(shmKey, unloadLast));
-            sharedMemory = sharedMemoryStorage.get();
-            sharedMemory->SetErrorStream(P.inOut->logStdOut);
-
-            if (!sharedMemory->NeedsAllocation())
+        if (!sharedMemory->NeedsAllocation())
             P.inOut->logMain <<"Found genome in shared memory\n"<<flush;
 
-            if (pGe.gLoad=="Remove") {//kill the genome and exit
-                if (sharedMemory->NeedsAllocation()) {//did not find genome in shared memory, nothing to kill
+        if (pGe.gLoad=="Remove") {//kill the genome and exit
+            if (sharedMemory->NeedsAllocation()) {//did not find genome in shared memory, nothing to kill
                 ostringstream errOut;
                 errOut << "EXITING: Did not find the genome in memory, did not remove any genomes from shared memory\n";
                 releaseSharedMemory(); // drop this job's counter attachment before exit
                 exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_GENOME_FILES, P);
-                } else {
-                            sharedMemory->Clean();
-                    P.inOut->logMain <<"DONE: removed the genome from shared memory\n"<<flush;
-                    releaseSharedMemory();
-                    exit(0); // returning would start mapping with no reads
-                };
+            } else {
+                sharedMemory->Clean();
+                P.inOut->logMain <<"DONE: removed the genome from shared memory\n"<<flush;
+                releaseSharedMemory();
+                exit(0); // returning would start mapping with no reads
             };
-
-            if (sharedMemory->NeedsAllocation()){
-                P.inOut->logMain <<"Allocating shared memory for genome\n"<<flush;
-                sharedMemory->Allocate(shmSize);
-            };
-        } catch (const SharedMemoryException & exc){
-            HandleSharedMemoryException(exc, shmSize);
         };
 
-        shmStart = (char*) sharedMemory->GetMapped();
-        shmNG= (uint64*) (shmStart+SHM_sizeG);
-        shmNSA= (uint64*) (shmStart+SHM_sizeSA);
+        if (sharedMemory->NeedsAllocation()){
+            P.inOut->logMain <<"Allocating shared memory for genome\n"<<flush;
+            sharedMemory->Allocate(shmSize);
+        };
+    } catch (const SharedMemoryException & exc){
+        HandleSharedMemoryException(exc, shmSize);
+    };
 
-        if (!sharedMemory->IsAllocator()) {
-            // The genome is in shared memory or being loaded: wait until the
-            // loading job publishes the sizes (NG last, with release order).
-            // NG != 0 marks a finished load; an older STAR build stored NG
-            // before NSA, so wait for NSA too when NG already matches.
-            const uint64 pollSeconds=1, logEveryPolls=60, maxPolls=100*60;
-            for (uint64 iwait=0; ; iwait++) {
-                const uint64 ng = shmLoadAcquire(shmNG);
-                if (ng!=0 && (ng!=nGenome || shmLoadAcquire(shmNSA)!=0))
-                    break;
-                if (sharedMemory->GetLoaderState()==SharedMemory::LoaderState::Exited && shmLoadAcquire(shmNG)==0) {
-                    ostringstream errOut;
-                    errOut << "EXITING because of FATAL ERROR: the job that was loading this genome into shared memory exited before it finished\n";
-                    errOut << "SOLUTION: remove the incomplete shared memory genome by running STAR with --genomeDir " << pGe.gDir << " --genomeLoad Remove, and restart STAR" <<flush;
-                    exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_SHM, P);
-                };
-                if (iwait==maxPolls) {
-                    ostringstream errOut;
-                    errOut << "EXITING because of FATAL ERROR: waited too long for the other job to finish loading the genome\n";
-                    errOut << "SOLUTION: remove the shared memory chunk by running STAR with --genomeLoad Remove, and restart STAR" <<flush;
-                    exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_GENOME_LOADING_WAITED_TOO_LONG, P);
-                };
-                if (iwait%logEveryPolls==0)
-                    P.inOut->logMain <<"Another job is still loading the genome, waiting\n" <<flush;
-                std::this_thread::sleep_for(std::chrono::seconds(pollSeconds));
-            };
-            if (nGenome!=shmLoadAcquire(shmNG)) {
+    shmStart = (char*) sharedMemory->GetMapped();
+    shmNG= (uint64*) (shmStart+SHM_sizeG);
+    shmNSA= (uint64*) (shmStart+SHM_sizeSA);
+
+    if (!sharedMemory->IsAllocator()) {
+        // The genome is in shared memory or being loaded: wait until the
+        // loading job publishes the sizes (NG last, with release order).
+        // NG != 0 marks a finished load; an older STAR build stored NG
+        // before NSA, so wait for NSA too when NG already matches.
+        const uint64 pollSeconds=1, logEveryPolls=60, maxPolls=100*60;
+        for (uint64 iwait=0; ; iwait++) {
+            const uint64 ng = shmLoadAcquire(shmNG);
+            if (ng!=0 && (ng!=nGenome || shmLoadAcquire(shmNSA)!=0))
+                break;
+            if (sharedMemory->GetLoaderState()==SharedMemory::LoaderState::Exited && shmLoadAcquire(shmNG)==0) {
                 ostringstream errOut;
-                errOut << "EXITING because of FATAL ERROR: the genome size did not match what we found in shared memory" << "\n" << flush;
-                errOut << "SOLUTION: remove the shared memory chunk by running STAR with --genomeLoad Remove, and restart STAR" << flush;
-                exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INCONSISTENT_DATA, P);
+                errOut << "EXITING because of FATAL ERROR: the job that was loading this genome into shared memory exited before it finished\n";
+                errOut << "SOLUTION: remove the incomplete shared memory genome by running STAR with --genomeDir " << pGe.gDir << " --genomeLoad Remove, and restart STAR" <<flush;
+                exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_SHM, P);
             };
-            if (nSAbyte!=shmLoadAcquire(shmNSA)){
+            if (iwait==maxPolls) {
                 ostringstream errOut;
-                errOut << "EXITING because of FATAL ERROR: the SA file size did not match what we found in shared memory" << "\n" << flush;
-                errOut << "SOLUTION: remove the shared memory chunk by running STAR with --genomeLoad Remove, and restart STAR" << flush;
-                exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INCONSISTENT_DATA, P);
+                errOut << "EXITING because of FATAL ERROR: waited too long for the other job to finish loading the genome\n";
+                errOut << "SOLUTION: remove the shared memory chunk by running STAR with --genomeLoad Remove, and restart STAR" <<flush;
+                exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_GENOME_LOADING_WAITED_TOO_LONG, P);
             };
-            P.inOut->logMain << "Using shared memory for genome. key=0x" <<hex<<shmKey<<dec<< ";   shmid="<< sharedMemory->GetId() <<endl<<flush;
+            if (iwait%logEveryPolls==0)
+                P.inOut->logMain <<"Another job is still loading the genome, waiting\n" <<flush;
+            std::this_thread::sleep_for(std::chrono::seconds(pollSeconds));
         };
-        G1=shmStart+SHM_startG;
-        SA.pointArray(G1+nGenome+L+L);
-        char* shmNext=SA.charArray+nSAbyte;
-
-        SAi.pointArray(shmNext);
-        shmNext += SAi.lengthByte;
-    } else if (pGe.gLoad=="NoSharedMemory") {// simply allocate memory, do not use shared memory
-        genomeInsertL=0;
-        genomeInsertChrIndFirst=nChrReal;
-        if (pGe.gFastaFiles.at(0)!="-") {//will insert sequences in the genome, now estimate the extra size
-           uint64 oldlen=chrStart.back();//record the old length
-           genomeInsertL=genomeScanFastaFiles(P, G, false, *this)-oldlen;
-        };
-
-        try {
-            if (P.sjdbInsert.pass1 || P.sjdbInsert.pass2) {
-                //reserve extra memory for insertion at the 1st and/or 2nd step
-                nGenomeInsert=nGenome+genomeInsertL;
-                nSAinsert=nSA+2*genomeInsertL;
-
-                nGenomePass1=nGenomeInsert;
-                nSApass1=nSAinsert;
-                if (P.sjdbInsert.pass1) {
-                    nGenomePass1+=P.limitSjdbInsertNsj*sjdbLength;
-                    nSApass1+=2*P.limitSjdbInsertNsj*sjdbLength;
-                };
-
-                nGenomePass2=nGenomePass1;
-                nSApass2=nSApass1;
-                if (P.sjdbInsert.pass2) {
-                    nGenomePass2+=P.limitSjdbInsertNsj*sjdbLength;
-                    nSApass2+=2*P.limitSjdbInsertNsj*sjdbLength;
-                };
-
-                G1=new char[nGenomePass2+L+L];
-                sequenceStorage.reset(G1);
-                adviseHugePages(G1,nGenomePass2+L+L);
-
-                SApass2.defineBits(GstrandBit+1,nSApass2);
-                SApass2.allocateArray();
-
-                SApass1.defineBits(GstrandBit+1,nSApass1);
-                SApass1.pointArray(SApass2.charArray+SApass2.lengthByte-SApass1.lengthByte);
-
-                SAinsert.defineBits(GstrandBit+1,nSAinsert);
-                SAinsert.pointArray(SApass1.charArray+SApass1.lengthByte-SAinsert.lengthByte);
-
-                SA.pointArray(SAinsert.charArray+SAinsert.lengthByte-SA.lengthByte);
-            } else {//no sjdb insertions
-                if (genomeInsertL==0) {// no sequence insertion, simple allocation
-                    G1=new char[nGenome+L+L];
-                    sequenceStorage.reset(G1);
-                    adviseHugePages(G1,nGenome+L+L);
-                    SA.allocateArray();
-                } else {
-                    G1=new char[nGenome+L+L+genomeInsertL];
-                    sequenceStorage.reset(G1);
-                    adviseHugePages(G1,nGenome+L+L+genomeInsertL);
-                    SAinsert.defineBits(GstrandBit+1,nSA+2*genomeInsertL);//TODO: re-define GstrandBit if necessary
-                    SAinsert.allocateArray();
-                    SA.pointArray(SAinsert.charArray+SAinsert.lengthByte-SA.lengthByte);
-                };
-            };
-            SAi.allocateArray();
-            P.inOut->logMain <<"Shared memory is not used for genomes. Allocated a private copy of the genome.\n"<<flush;
-        } catch (exception & exc) {
+        if (nGenome!=shmLoadAcquire(shmNG)) {
             ostringstream errOut;
-            errOut <<"EXITING: fatal error trying to allocate genome arrays, exception thrown: "<<exc.what()<<endl;
-            errOut <<"Possible cause 1: not enough RAM. Check if you have enough RAM " << nGenome+L+L+SA.lengthByte+SAi.lengthByte+2000000000 << " bytes\n";
-            errOut <<"Possible cause 2: not enough virtual memory allowed with ulimit. SOLUTION: run ulimit -v " <<  nGenome+L+L+SA.lengthByte+SAi.lengthByte+2000000000<<endl <<flush;
-            exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_MEMORY_ALLOCATION, P);
+            errOut << "EXITING because of FATAL ERROR: the genome size did not match what we found in shared memory" << "\n" << flush;
+            errOut << "SOLUTION: remove the shared memory chunk by running STAR with --genomeLoad Remove, and restart STAR" << flush;
+            exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INCONSISTENT_DATA, P);
         };
-    };
-
-    G=G1+L;
-
-    bool isAllocatorProcess = sharedMemory != NULL && sharedMemory->IsAllocator();
-
-    if (pGe.gLoad=="NoSharedMemory" || isAllocatorProcess) {//load genome and SAs from files
-        //load genome
-        P.inOut->logMain <<"Genome file size: "<<nGenome <<" bytes; state: good=" <<GenomeIn.good()\
-                <<" eof="<<GenomeIn.eof()<<" fail="<<GenomeIn.fail()<<" bad="<<GenomeIn.bad()<<"\n"<<flush;
-        P.inOut->logMain <<"Loading Genome ... " << flush;
-        uint64 genomeReadBytesN=fstreamReadBig(GenomeIn,G,nGenome);
-        P.inOut->logMain <<"done! state: good=" <<GenomeIn.good()\
-                         <<" eof="<<GenomeIn.eof()<<" fail="<<GenomeIn.fail()<<" bad="<<GenomeIn.bad()<<"; loaded "<<genomeReadBytesN<<" bytes\n" << flush;
-        GenomeIn.close();
-
-        for (uint64 ii=0;ii<L;ii++) {// attach a tail with the largest symbol
-            G1[ii]=K-1;
-            G[nGenome+ii]=K-1;
+        if (nSAbyte!=shmLoadAcquire(shmNSA)){
+            ostringstream errOut;
+            errOut << "EXITING because of FATAL ERROR: the SA file size did not match what we found in shared memory" << "\n" << flush;
+            errOut << "SOLUTION: remove the shared memory chunk by running STAR with --genomeLoad Remove, and restart STAR" << flush;
+            exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INCONSISTENT_DATA, P);
         };
+        P.inOut->logMain << "Using shared memory for genome. key=0x" <<hex<<shmKey<<dec<< ";   shmid="<< sharedMemory->GetId() <<endl<<flush;
+    };
+    G1=shmStart+SHM_startG;
+    SA.pointArray(G1+nGenome+L+L);
+    char* shmNext=SA.charArray+nSAbyte;
 
-        //load SAs
-        P.inOut->logMain <<"SA file size: "<<SA.lengthByte <<" bytes; state: good=" <<SAin.good()\
-                <<" eof="<<SAin.eof()<<" fail="<<SAin.fail()<<" bad="<<SAin.bad()<<"\n"<<flush;
-        P.inOut->logMain <<"Loading SA ... " << flush;
-        genomeReadBytesN=fstreamReadBig(SAin,SA.charArray, SA.lengthByte);
-        P.inOut->logMain <<"done! state: good=" <<SAin.good()\
-                <<" eof="<<SAin.eof()<<" fail="<<SAin.fail()<<" bad="<<SAin.bad()<<"; loaded "<<genomeReadBytesN<<" bytes\n" << flush;
-        SAin.close();
+    SAi.pointArray(shmNext);
+};
 
-        P.inOut->logMain <<"Loading SAindex ... " << flush;
-        SAiInBytes +=fstreamReadBig(SAiIn,SAi.charArray, SAi.lengthByte);
-        P.inOut->logMain <<"done: "<<SAiInBytes<<" bytes\n" << flush;
+void Genome::allocatePrivateGenome(uint64 L)
+{//private genome copy, with room for sequence and junction insertion
+    genomeInsertL=0;
+    genomeInsertChrIndFirst=nChrReal;
+    if (pGe.gFastaFiles.at(0)!="-") {//will insert sequences in the genome, now estimate the extra size
+       uint64 oldlen=chrStart.back();//record the old length
+       genomeInsertL=genomeScanFastaFiles(P, G, false, *this)-oldlen;
     };
 
-    SAiIn.close();
+    try {
+        if (P.sjdbInsert.pass1 || P.sjdbInsert.pass2) {
+            //reserve extra memory for insertion at the 1st and/or 2nd step
+            nGenomeInsert=nGenome+genomeInsertL;
+            nSAinsert=nSA+2*genomeInsertL;
 
-    if ((pGe.gLoad=="LoadAndKeep" ||
-         pGe.gLoad=="LoadAndRemove" ||
-         pGe.gLoad=="LoadAndExit") && isAllocatorProcess )
-    {
-        //record sizes. NG, stored last with release order, marks the end of genome loading
-        std::atomic_ref<uint64>(*shmNSA).store(nSAbyte, std::memory_order_relaxed);
-        std::atomic_ref<uint64>(*shmNG).store(nGenome, std::memory_order_release);
-        sharedMemory->LoaderFinished();
+            nGenomePass1=nGenomeInsert;
+            nSApass1=nSAinsert;
+            if (P.sjdbInsert.pass1) {
+                nGenomePass1+=P.limitSjdbInsertNsj*sjdbLength;
+                nSApass1+=2*P.limitSjdbInsertNsj*sjdbLength;
+            };
+
+            nGenomePass2=nGenomePass1;
+            nSApass2=nSApass1;
+            if (P.sjdbInsert.pass2) {
+                nGenomePass2+=P.limitSjdbInsertNsj*sjdbLength;
+                nSApass2+=2*P.limitSjdbInsertNsj*sjdbLength;
+            };
+
+            G1=new char[nGenomePass2+L+L];
+            sequenceStorage.reset(G1);
+            adviseHugePages(G1,nGenomePass2+L+L);
+
+            SApass2.defineBits(GstrandBit+1,nSApass2);
+            SApass2.allocateArray();
+
+            SApass1.defineBits(GstrandBit+1,nSApass1);
+            SApass1.pointArray(SApass2.charArray+SApass2.lengthByte-SApass1.lengthByte);
+
+            SAinsert.defineBits(GstrandBit+1,nSAinsert);
+            SAinsert.pointArray(SApass1.charArray+SApass1.lengthByte-SAinsert.lengthByte);
+
+            SA.pointArray(SAinsert.charArray+SAinsert.lengthByte-SA.lengthByte);
+        } else {//no sjdb insertions
+            if (genomeInsertL==0) {// no sequence insertion, simple allocation
+                G1=new char[nGenome+L+L];
+                sequenceStorage.reset(G1);
+                adviseHugePages(G1,nGenome+L+L);
+                SA.allocateArray();
+            } else {
+                G1=new char[nGenome+L+L+genomeInsertL];
+                sequenceStorage.reset(G1);
+                adviseHugePages(G1,nGenome+L+L+genomeInsertL);
+                SAinsert.defineBits(GstrandBit+1,nSA+2*genomeInsertL);//TODO: re-define GstrandBit if necessary
+                SAinsert.allocateArray();
+                SA.pointArray(SAinsert.charArray+SAinsert.lengthByte-SA.lengthByte);
+            };
+        };
+        SAi.allocateArray();
+        P.inOut->logMain <<"Shared memory is not used for genomes. Allocated a private copy of the genome.\n"<<flush;
+    } catch (exception & exc) {
+        ostringstream errOut;
+        errOut <<"EXITING: fatal error trying to allocate genome arrays, exception thrown: "<<exc.what()<<endl;
+        errOut <<"Possible cause 1: not enough RAM. Check if you have enough RAM " << nGenome+L+L+SA.lengthByte+SAi.lengthByte+2000000000 << " bytes\n";
+        errOut <<"Possible cause 2: not enough virtual memory allowed with ulimit. SOLUTION: run ulimit -v " <<  nGenome+L+L+SA.lengthByte+SAi.lengthByte+2000000000<<endl <<flush;
+        exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_MEMORY_ALLOCATION, P);
+    };
+};
+
+void Genome::readIndexFiles(ifstream &GenomeIn, ifstream &SAin, ifstream &SAiIn, uint64 SAiInBytes, uint64 L, uint64 K)
+{//read Genome, SA and the rest of SAindex into the allocated arrays
+    P.inOut->logMain <<"Genome file size: "<<nGenome <<" bytes; state: good=" <<GenomeIn.good()\
+            <<" eof="<<GenomeIn.eof()<<" fail="<<GenomeIn.fail()<<" bad="<<GenomeIn.bad()<<"\n"<<flush;
+    P.inOut->logMain <<"Loading Genome ... " << flush;
+    uint64 genomeReadBytesN=fstreamReadBig(GenomeIn,G,nGenome);
+    P.inOut->logMain <<"done! state: good=" <<GenomeIn.good()\
+                     <<" eof="<<GenomeIn.eof()<<" fail="<<GenomeIn.fail()<<" bad="<<GenomeIn.bad()<<"; loaded "<<genomeReadBytesN<<" bytes\n" << flush;
+    GenomeIn.close();
+
+    for (uint64 ii=0;ii<L;ii++) {// attach a tail with the largest symbol
+        G1[ii]=K-1;
+        G[nGenome+ii]=K-1;
     };
 
-    time ( &rawtime );
-    P.inOut->logMain << "Finished loading the genome: " << timeMonthDayTime(rawtime) <<"\n"<<flush;
+    P.inOut->logMain <<"SA file size: "<<SA.lengthByte <<" bytes; state: good=" <<SAin.good()\
+            <<" eof="<<SAin.eof()<<" fail="<<SAin.fail()<<" bad="<<SAin.bad()<<"\n"<<flush;
+    P.inOut->logMain <<"Loading SA ... " << flush;
+    genomeReadBytesN=fstreamReadBig(SAin,SA.charArray, SA.lengthByte);
+    P.inOut->logMain <<"done! state: good=" <<SAin.good()\
+            <<" eof="<<SAin.eof()<<" fail="<<SAin.fail()<<" bad="<<SAin.bad()<<"; loaded "<<genomeReadBytesN<<" bytes\n" << flush;
+    SAin.close();
 
-    #ifdef COMPILE_FOR_MAC
-    {
-        uint64 sum1=0;
-        for (uint64 ii=0;ii<nGenome; ii++) sum1 +=  (uint64) (unsigned char) G[ii];
-        P.inOut->logMain << "Sum of all Genome bytes: " <<sum1 <<"\n"<<flush;
-        sum1=0;
-        for (uint64 ii=0;ii<SA.lengthByte; ii++) sum1 +=  (uint64) (unsigned char) SA.charArray[ii];
-        P.inOut->logMain << "Sum of all SA bytes: " <<sum1 <<"\n"<<flush;
-        sum1=0;
-        for (uint64 ii=0;ii<SAi.lengthByte; ii++) sum1 +=  (uint64) (unsigned char) SAi.charArray[ii];
-        P.inOut->logMain << "Sum of all SAi bytes: " <<sum1 <<"\n"<<flush;
-    };
-    #endif
+    P.inOut->logMain <<"Loading SAindex ... " << flush;
+    SAiInBytes +=fstreamReadBig(SAiIn,SAi.charArray, SAi.lengthByte);
+    P.inOut->logMain <<"done: "<<SAiInBytes<<" bytes\n" << flush;
+};
 
-    if (pGe.gLoad=="LoadAndExit") {
-	for (uint64 ii=0;ii<shmSize;ii++) (void)shmStart[ii]; // touch shared memory to verify accessibility
-        P.inOut->logMain << "pGe.gLoad=LoadAndExit: completed, the genome is loaded and kept in RAM, EXITING now.\n"<<flush;
-        releaseSharedMemory(); // the genome stays loaded; only this job detaches
-        exit(0); // returning would start mapping with no reads
-    };
-
-    Genome::insertSequences();
-
-    Genome::chrBinFill();
-
-    Genome::loadSJDB(pGe.gDir);
-
-    //check and redefine some parameters
-    //max intron size
+void Genome::adjustWindowParameters()
+{//window bin sizes follow the max intron / mate gap and the genome size
     if (P.alignIntronMax==0 && P.alignMatesGapMax==0) {
         P.inOut->logMain << "alignIntronMax=alignMatesGapMax=0, the max intron size will be approximately determined by (2^winBinNbits)*winAnchorDistNbins=" \
                 << (1LLU<<P.winBinNbits)*P.winAnchorDistNbins <<endl;
@@ -438,9 +460,7 @@ void Genome::genomeLoad(){//allocate and load Genome
        P.inOut->logMain << "winBinNbits=" <<P.winBinNbits <<endl;
     };
 
-
-    if (P.alignIntronMax==0 && P.alignMatesGapMax==0) {
-    } else {
+    if (!(P.alignIntronMax==0 && P.alignMatesGapMax==0)) {
         //redefine winFlankNbins,winAnchorDistNbins
         P.winFlankNbins=max(P.alignIntronMax,P.alignMatesGapMax)/(1LLU<<P.winBinNbits)+1;
         P.winAnchorDistNbins=2*P.winFlankNbins;
@@ -450,47 +470,41 @@ void Genome::genomeLoad(){//allocate and load Genome
 
     P.winBinChrNbits=pGe.gChrBinNbits-P.winBinNbits;
     P.winBinN = nGenome/(1LLU << P.winBinNbits)+1;//this may be changed later
-    
+};
+
+void Genome::loadOutputGenome(Parameters &P1)
+{//SuperTranscriptome or transformed genome: load the genome that output coordinates are converted to
     if (pGe.gType==101) {//SuperTranscriptome
         superTranscriptomeStorage.reset(new SuperTranscriptome(P));
         superTr = superTranscriptomeStorage.get();
         superTr->load(G, chrStart, chrLength);
-        
+
         //genomeOut
         P.pGeOut.gDir=pGe.gDir+"/fullGenome/";
         genomeOut.convYes=true;
         genomeOut.gapsAreJunctions=true;
         genomeOut.convFile=pGe.gDir+"/fullGenome/conversionToFullGenome.tsv";
-        
+
         outputGenomeStorage.reset(new Genome(P,P.pGeOut));
         genomeOut.g = outputGenomeStorage.get();
         genomeOut.g->genomeOut=genomeOut;
         genomeOut.g->genomeOutLoad();
-        
-        //debug checks
-//         for (auto &b : genomeOut.g->genomeOut.convBlocks) {
-//             uint64 g1=*(genomeOut.g->G+b[2]);
-//             uint64 g2=*(G+b[0]);
-//             if (g1!=g2)
-//                 cout <<b[0]<<" "<<b[1]<<" "<<b[2]<<endl;
-//         };
     };
-    
-        
+
     if (P1.pGe.transform.typeString=="Haploid") {
         pGe.transform.type=1;
     } else if (P1.pGe.transform.typeString=="Diploid") {
         pGe.transform.type=2;
     } else {//TODO check for wrong values
         pGe.transform.type=0;
-    };    
-    
+    };
+
     if (pGe.transform.outYes) {
         if (pGe.transform.type == 0) {
             exitWithError("EXITING because of FATAL INPUT ERROR: outTransformOutput is set, but the genome " +pGe.gDir + " was generated without transformation\n"
                            + "SOLUTION: use the default--outTransformOutput None, or re-generate the genome with transformation options.\n"
                           ,std::cerr, P.inOut->logMain, EXIT_CODE_MEMORY_ALLOCATION, P);
-            
+
         } else {//transform genome coordinates
             //genomeOut
             P.pGeOut.gDir=pGe.gDir+"/OriginalGenome/";
@@ -498,21 +512,14 @@ void Genome::genomeLoad(){//allocate and load Genome
             genomeOut.gapsAreJunctions=false;
             genomeOut.convFile=pGe.gDir+"/transformGenomeBlocks.tsv";
 
-            
             outputGenomeStorage.reset(new Genome(P,P.pGeOut));
             genomeOut.g = outputGenomeStorage.get();
             genomeOut.g->genomeOut=genomeOut;
             genomeOut.g->genomeOutLoad();
         };
     };
-    
-    if (P.pGe.gLoad=="LoadAndExit" || P.pGe.gLoad=="Remove") {
-        exit(0);
-    };
 };
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// 
 void Genome::loadSJDB(string &genDir)
 {
     //splice junctions database

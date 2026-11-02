@@ -11,6 +11,43 @@ using namespace std;
 // Must be called after inputParameters_runtimeSetup().
 void Parameters::inputParameters_validate() {
 
+    validateRunParameters();
+
+    //read parameters
+    readFilesInit();
+
+    validateTwoPass();
+    openReadsAndUnmappedFiles();
+    validateMapqAndWASP();
+    validateQuantification();
+
+    //SAM attributes
+    samAttributes();
+
+    //solo
+    pSolo.initialize(this);
+
+    //clipping
+    pClip.initialize(this);
+
+    validateAlignEnds();
+
+    //open compilation-dependent streams
+    #ifdef OUTPUT_localChains
+            inOut->outLocalChains.open((outFileNamePrefix + "LocalChains.out.tab").c_str());
+    #endif
+
+    strcpy(genomeNumToNT,"ACGTN");
+
+    validateSjdbInsert();
+    validateReadAndAlignOptions();
+    validateBuffersAndOutSJ();
+
+    inOut->logMain << "Finished loading and checking parameters\n" <<flush;
+}
+
+void Parameters::validateRunParameters()
+{//version, run, SJ filter, SAM filter and multimapper order
     //versions
     for (uint64 ii=0;ii<1;ii++) {
         if (parArray[ii]->inputLevel>0) {
@@ -95,10 +132,10 @@ void Parameters::inputParameters_validate() {
         errOut <<"SOLUTION: specify one of the allowed values: Old_2.4 or SortedByCoordinate or Random\n";
         exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
+};
 
-    //read parameters
-    readFilesInit();
-
+void Parameters::validateTwoPass()
+{//2-pass mode and its pass1 directory
     //two-pass
     if (parArray.at(twoPass.pass1readsN_par)->inputLevel>0  && twoPass.mode=="None") {
         ostringstream errOut;
@@ -146,7 +183,10 @@ void Parameters::inputParameters_validate() {
             exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
         };
     };
+};
 
+void Parameters::openReadsAndUnmappedFiles()
+{//open read files (needs twoPass for the SAM header) and Unmapped.out.mate*
     // openReadFiles depends on twoPass for reading SAM header
     if (runMode=="alignReads" && pGe.gLoad!="Remove" && pGe.gLoad!="LoadAndExit") {//open reads files to check if they are present
         openReadsFiles();
@@ -166,7 +206,10 @@ void Parameters::inputParameters_validate() {
             };
         };
     };
+};
 
+void Parameters::validateMapqAndWASP()
+{//MAPQ range, variation and WASP
     if (output.uniqueMapq<0 || output.uniqueMapq>255) {
             ostringstream errOut;
             errOut <<"EXITING because of FATAL input ERROR: out of range value for outSAMmapqUnique=" << output.uniqueMapq <<"\n";
@@ -205,7 +248,10 @@ void Parameters::inputParameters_validate() {
 
     // WASP vW tag is now emitted for SAM as well as BAM/CRAM output (upstream PR #2617),
     // so --waspOutputMode no longer requires BAM.
+};
 
+void Parameters::validateQuantification()
+{//quantMode, transcriptome BAM and outSAMstrandField
     //quantification parameters
     quant.yes=false;
     quant.geCount.yes=false;
@@ -279,16 +325,10 @@ void Parameters::inputParameters_validate() {
         errOut << "SOLUTION: use one of the allowed values of --outSAMstrandField : None or intronMotif \n";
         exitWithError(errOut.str(),std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
+};
 
-    //SAM attributes
-    samAttributes();
-
-    //solo
-    pSolo.initialize(this);
-
-    //clipping
-    pClip.initialize(this);
-
+void Parameters::validateAlignEnds()
+{//alignEndsType extension flags
     //alignEnds
     alignEndsType.ext[0][0]=false;
     alignEndsType.ext[0][1]=false;
@@ -315,14 +355,10 @@ void Parameters::inputParameters_validate() {
         errOut <<"SOLUTION: re-run STAR with --alignEndsType Local OR EndToEnd OR Extend5pOfRead1 OR Extend3pOfRead1\n";
         exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
+};
 
-    //open compilation-dependent streams
-    #ifdef OUTPUT_localChains
-            inOut->outLocalChains.open((outFileNamePrefix + "LocalChains.out.tab").c_str());
-    #endif
-
-    strcpy(genomeNumToNT,"ACGTN");
-
+void Parameters::validateSjdbInsert()
+{//on-the-fly junction insertion and BAM sort RAM
    //sjdb insert on the fly
     sjdbInsert.pass1=false;
     sjdbInsert.pass2=false;
@@ -370,7 +406,10 @@ void Parameters::inputParameters_validate() {
         };
         inOut->logMain<<"WARNING: --limitBAMsortRAM=0, will use genome size as RAM limit for BAM sorting\n";
     };
+};
 
+void Parameters::validateReadAndAlignOptions()
+{//read name separators, unmapped output, end protrusion, flush, overlap, soft-clip, read ID
     for (uint64 ii=0; ii<readNameSeparator.size(); ii++) {
         if (readNameSeparator.at(ii)=="space") {
             readNameSeparatorChar.push_back(' ');
@@ -457,28 +496,10 @@ void Parameters::inputParameters_validate() {
     if (outSAMreadID=="Number") {
         outSAMreadIDnumber=true;
     };
+};
 
-
-    //////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////// these parameters do not depend on other parameters
-    /////////////////////////////////////////////////////////////////////////////////
-
-    ////////////////////////////////////////////////////////// limitIObufferSize
-    /* old before 2.7.9
-    // in/out buffers
-    #define BUFFER_InSizeFraction 0.5
-    if (limitIObufferSize<limitOutSJcollapsed*Junction::dataSize+1000000) {
-        ostringstream errOut;
-        errOut <<"EXITING because of FATAL INPUT ERROR: --limitIObufferSize="<<limitIObufferSize <<" is too small for ";
-        errOut << "--limitOutSJcollapsed*"<<Junction::dataSize<<"="<< limitOutSJcollapsed<<"*"<<Junction::dataSize<<"="<<limitOutSJcollapsed*Junction::dataSize<<"\n";
-        errOut <<"SOLUTION: re-run STAR with larger --limitIObufferSize or smaller --limitOutSJcollapsed\n";
-        exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
-    };
-    chunkInSizeBytesArray=(uint64) int((limitIObufferSize-limitOutSJcollapsed*Junction::dataSize)*BUFFER_InSizeFraction)/2;
-    chunkOutBAMsizeBytes= (uint64) int((1.0/BUFFER_InSizeFraction-1.0)*chunkInSizeBytesArray*2.0);
-    chunkInSizeBytes=chunkInSizeBytesArray-2*(DEF_readSeqLengthMax+1)-2*DEF_readNameLengthMax;//to prevent overflow
-    */
-
+void Parameters::validateBuffersAndOutSJ()
+{//I/O buffer sizes, outSJ and outFilterType
     if (limitIObufferSize.size() != 2)
         exitWithError("EXITING because of FATAL input ERROR: --limitIObufferSize requires 2 numbers since 2.7.9a.\n"
                       "SOLUTION: specify 2 numbers in --limitIObufferSize : size of input and output buffers in bytes.\n"
@@ -525,7 +546,4 @@ void Parameters::inputParameters_validate() {
         errOut <<"SOLUTION: specify one of the allowed values: Normal | BySJout\n";
         exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
-
-    ////////////////////////////////////////////////
-    inOut->logMain << "Finished loading and checking parameters\n" <<flush;
-}
+};

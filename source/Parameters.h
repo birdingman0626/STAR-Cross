@@ -399,5 +399,21 @@ private:
     void inputParameters_parseSources(int argInN, char* argIn[]); // Parameters_inputSources.cpp
     void inputParameters_runtimeSetup();              // Parameters_runtimeSetup.cpp
     void inputParameters_validate();                  // Parameters_validateInput.cpp
+    // inputParameters_runtimeSetup stages, in call order
+    void setupTempDirectory();
+    void initWigAndDuplicates();
+    void runBAMinputMode();
+    void openAlignmentOutput();
+    void openBAMoutput();
+    // inputParameters_validate stages, in call order
+    void validateRunParameters();
+    void validateTwoPass();
+    void openReadsAndUnmappedFiles();
+    void validateMapqAndWASP();
+    void validateQuantification();
+    void validateAlignEnds();
+    void validateSjdbInsert();
+    void validateReadAndAlignOptions();
+    void validateBuffersAndOutSJ();
 };
 #endif  // Parameters.h

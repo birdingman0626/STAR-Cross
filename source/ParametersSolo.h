@@ -216,5 +216,17 @@ public:
     void cellFiltering();
 
     void init_CBmatchWL();
+    // initialize() stages, in call order
+    bool initSoloType();
+    void initCBtype();
+    void initBarcodeRead();
+    void initStrand();
+    void initFeatures();
+    void initOutputDirAndMasks();
+    void loadCBwhitelist();
+    void initReadInfo();
+    void initReadStats();
+    void initUMIfiltering();
+    void initMultiMappers();
 };
 #endif

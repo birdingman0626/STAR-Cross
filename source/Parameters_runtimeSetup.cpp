@@ -25,6 +25,18 @@ void Parameters::inputParameters_runtimeSetup() {
 
     pGe.initialize(this);
 
+    setupTempDirectory();
+
+    //threaded or not
+    g_threadChunks.threadBool=(runThreadN>1);
+
+    initWigAndDuplicates();
+    runBAMinputMode(); // exits for --runMode inputAlignmentsFromBAM
+    openAlignmentOutput();
+}
+
+void Parameters::setupTempDirectory()
+{//directory permissions and the run temporary directory
     //directory permissions TODO: this needs to be done before outPrefixFileName is created
     if (runDirPermIn=="User_RWX") {
         runDirPerm=S_IRWXU;
@@ -64,10 +76,10 @@ void Parameters::inputParameters_runtimeSetup() {
         errOut <<"SOLUTION: (i) please check the path and writing permissions \n (ii) if you specified --outTmpDir, and this directory exists - please remove it before running STAR\n"<<flush;
         exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
+};
 
-    //threaded or not
-    g_threadChunks.threadBool=(runThreadN>1);
-
+void Parameters::initWigAndDuplicates()
+{//signal (wiggle/bedGraph) output and duplicate-removal options
     //wigOut parameters
     if (outWigType.at(0)=="None") {
         outWigFlags.yes=false;
@@ -138,7 +150,10 @@ void Parameters::inputParameters_runtimeSetup() {
             errOut << "SOLUTION: use allowed option: - or UniqueIdentical or UniqueIdenticalNotMulti";
             exitWithError(errOut.str(),std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
+};
 
+void Parameters::runBAMinputMode()
+{//--runMode inputAlignmentsFromBAM runs here and exits; alignReads opens Log.progress.out
     runMode=runModeIn[0];
     if (runMode=="alignReads") {
         inOut->logProgress.open((outFileNamePrefix + "Log.progress.out").c_str());
@@ -165,86 +180,17 @@ void Parameters::inputParameters_runtimeSetup() {
         sysRemoveDir (outFileTmp);
         exit(0);
     };
+};
 
+void Parameters::openAlignmentOutput()
+{//SAM/BAM/CRAM output type flags and output streams
     outSAMbool=false;
     outBAMunsorted=false;
     outBAMcoord=false;
     outCRAMbool=false;
     if (runMode=="alignReads" && outSAMmode != "None") {//open SAM file and write header
         if (outSAMtype.at(0)=="BAM" || outSAMtype.at(0)=="CRAM") {
-            //CRAM reuses the proven BAM output path and is transcoded to referenceless
-            //CRAM at finalization (see bamToCramReferenceless / STAR.cpp)
-            outCRAMbool = (outSAMtype.at(0)=="CRAM");
-            if (outCRAMbool && outStd!="Log") {
-                ostringstream errOut;
-                errOut <<"EXITING because of fatal PARAMETER error: --outSAMtype CRAM is not compatible with --outStd "<<outStd<<"\n";
-                errOut <<"SOLUTION: re-run STAR with --outStd Log (the default) when using --outSAMtype CRAM\n";
-                exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
-            };
-            if (outSAMtype.size()<2) {
-                ostringstream errOut;
-                errOut <<"EXITING because of fatal PARAMETER error: missing "<<outSAMtype.at(0)<<" option\n";
-                errOut <<"SOLUTION: re-run STAR with one of the allowed values of --outSAMtype "<<outSAMtype.at(0)<<" Unsorted OR SortedByCoordinate OR both\n";
-                exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
-            };
-            for (uint32 ii=1; ii<outSAMtype.size(); ii++) {
-                if (outSAMtype.at(ii)=="Unsorted") {
-                    outBAMunsorted=true;
-                } else if (outSAMtype.at(ii)=="SortedByCoordinate") {
-                    outBAMcoord=true;
-                } else {
-                    ostringstream errOut;
-                    errOut <<"EXITING because of fatal input ERROR: unknown value for the word " <<ii+1<<" of outSAMtype: "<< outSAMtype.at(ii) <<"\n";
-                    errOut <<"SOLUTION: re-run STAR with one of the allowed values of --outSAMtype "<<outSAMtype.at(0)<<" Unsorted or SortedByCoordinate or both\n";
-                    exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
-                };
-            };
-            //TODO check for conflicts
-            if (outBAMunsorted) {
-                if (outStd=="BAM_Unsorted") {
-                    outBAMfileUnsortedName="-";
-                } else {
-                    outBAMfileUnsortedName=outFileNamePrefix + "Aligned.out.bam";
-                };
-                if (outCRAMbool)
-                    outCRAMfileUnsortedName=outFileNamePrefix + "Aligned.out.cram";
-                inOut->outBAMfileUnsorted = bgzf_open(outBAMfileUnsortedName.c_str(),("w"+to_string((long long) output.bamCompression)).c_str());
-                // Experimental: compress BGZF blocks on an htslib thread pool instead of under the
-                // workers' shared output mutex. Same blocks, same compression level.
-                if (const char* threads=std::getenv("STAR_BAM_THREADS")) {
-                    const int n=atoi(threads);
-                    if (n>0 && inOut->outBAMfileUnsorted && bgzf_mt(inOut->outBAMfileUnsorted, n, 256)!=0)
-                        exitWithError("EXITING because of fatal error: could not start BAM compression threads\n", std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
-                }
-            };
-            if (outBAMcoord) {
-                if (outStd=="BAM_SortedByCoordinate") {
-                    outBAMfileCoordName="-";
-                } else {
-                    outBAMfileCoordName=outFileNamePrefix + "Aligned.sortedByCoord.out.bam";
-                };
-                if (outCRAMbool)
-                    outCRAMfileCoordName=outFileNamePrefix + "Aligned.sortedByCoord.out.cram";
-                // Sorting opens the final stream exactly once, after its bins
-                // are ready. An unused early BGZF handle leaks and duplicates
-                // file/stdout ownership.
-                if (outBAMsortingThreadN==0) {
-                    outBAMsortingThreadNactual=min(6, runThreadN);
-                } else {
-                    outBAMsortingThreadNactual=outBAMsortingThreadN;
-                };
-                outBAMcoordNbins=max((uint32)outBAMsortingThreadNactual*3,outBAMsortingBinsN);
-                outBAMsortingBinStart.resize(outBAMcoordNbins);
-                outBAMsortingBinStart[0]=1;//this initial value means that the bin sizes have not been determined yet
-
-                outBAMsortTmpDir=outFileTmp+"/BAMsort/";
-                if (mkdir(outBAMsortTmpDir.c_str(),runDirPerm)!=0 && errno != EEXIST) {
-                    ostringstream errOut;
-                    errOut <<"EXITING because of fatal ERROR: could not make BAMsort temporary directory: "<< outBAMsortTmpDir<<"\n";
-                    errOut <<"SOLUTION: please check the path and writing permissions\n"<<flush;
-                    exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
-                };
-            };
+            openBAMoutput();
         } else if (outSAMtype.at(0)=="SAM") {
             if (outSAMtype.size()>1)
             {
@@ -276,4 +222,82 @@ void Parameters::inputParameters_runtimeSetup() {
         errOut <<"SOLUTION: re-run STAR with with --outSAMtype BAM SortedByCoordinate, or, id you also need unsroted BAM, with --outSAMtype BAM SortedByCoordinate Unsorted\n";
         exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
-}
+};
+
+void Parameters::openBAMoutput()
+{//--outSAMtype BAM|CRAM Unsorted|SortedByCoordinate
+    //CRAM reuses the proven BAM output path and is transcoded to referenceless
+    //CRAM at finalization (see bamToCramReferenceless / STAR.cpp)
+    outCRAMbool = (outSAMtype.at(0)=="CRAM");
+    if (outCRAMbool && outStd!="Log") {
+        ostringstream errOut;
+        errOut <<"EXITING because of fatal PARAMETER error: --outSAMtype CRAM is not compatible with --outStd "<<outStd<<"\n";
+        errOut <<"SOLUTION: re-run STAR with --outStd Log (the default) when using --outSAMtype CRAM\n";
+        exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+    };
+    if (outSAMtype.size()<2) {
+        ostringstream errOut;
+        errOut <<"EXITING because of fatal PARAMETER error: missing "<<outSAMtype.at(0)<<" option\n";
+        errOut <<"SOLUTION: re-run STAR with one of the allowed values of --outSAMtype "<<outSAMtype.at(0)<<" Unsorted OR SortedByCoordinate OR both\n";
+        exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+    };
+    for (uint32 ii=1; ii<outSAMtype.size(); ii++) {
+        if (outSAMtype.at(ii)=="Unsorted") {
+            outBAMunsorted=true;
+        } else if (outSAMtype.at(ii)=="SortedByCoordinate") {
+            outBAMcoord=true;
+        } else {
+            ostringstream errOut;
+            errOut <<"EXITING because of fatal input ERROR: unknown value for the word " <<ii+1<<" of outSAMtype: "<< outSAMtype.at(ii) <<"\n";
+            errOut <<"SOLUTION: re-run STAR with one of the allowed values of --outSAMtype "<<outSAMtype.at(0)<<" Unsorted or SortedByCoordinate or both\n";
+            exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+        };
+    };
+    //TODO check for conflicts
+    if (outBAMunsorted) {
+        if (outStd=="BAM_Unsorted") {
+            outBAMfileUnsortedName="-";
+        } else {
+            outBAMfileUnsortedName=outFileNamePrefix + "Aligned.out.bam";
+        };
+        if (outCRAMbool)
+            outCRAMfileUnsortedName=outFileNamePrefix + "Aligned.out.cram";
+        inOut->outBAMfileUnsorted = bgzf_open(outBAMfileUnsortedName.c_str(),("w"+to_string((long long) output.bamCompression)).c_str());
+        // Experimental: compress BGZF blocks on an htslib thread pool instead of under the
+        // workers' shared output mutex. Same blocks, same compression level.
+        if (const char* threads=std::getenv("STAR_BAM_THREADS")) {
+            const int n=atoi(threads);
+            if (n>0 && inOut->outBAMfileUnsorted && bgzf_mt(inOut->outBAMfileUnsorted, n, 256)!=0)
+                exitWithError("EXITING because of fatal error: could not start BAM compression threads\n", std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+        }
+    };
+    if (outBAMcoord) {
+        if (outStd=="BAM_SortedByCoordinate") {
+            outBAMfileCoordName="-";
+        } else {
+            outBAMfileCoordName=outFileNamePrefix + "Aligned.sortedByCoord.out.bam";
+        };
+        if (outCRAMbool)
+            outCRAMfileCoordName=outFileNamePrefix + "Aligned.sortedByCoord.out.cram";
+        // Sorting opens the final stream exactly once, after its bins
+        // are ready. An unused early BGZF handle leaks and duplicates
+        // file/stdout ownership.
+        if (outBAMsortingThreadN==0) {
+            outBAMsortingThreadNactual=min(6, runThreadN);
+        } else {
+            outBAMsortingThreadNactual=outBAMsortingThreadN;
+        };
+        outBAMcoordNbins=max((uint32)outBAMsortingThreadNactual*3,outBAMsortingBinsN);
+        outBAMsortingBinStart.resize(outBAMcoordNbins);
+        outBAMsortingBinStart[0]=1;//this initial value means that the bin sizes have not been determined yet
+
+        outBAMsortTmpDir=outFileTmp+"/BAMsort/";
+        if (mkdir(outBAMsortTmpDir.c_str(),runDirPerm)!=0 && errno != EEXIST) {
+            ostringstream errOut;
+            errOut <<"EXITING because of fatal ERROR: could not make BAMsort temporary directory: "<< outBAMsortTmpDir<<"\n";
+            errOut <<"SOLUTION: please check the path and writing permissions\n"<<flush;
+            exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+        };
+    };
+};
+

@@ -19,12 +19,32 @@ void ParametersSolo::initialize(Parameters *pPin)
         umiDedup.initialize(this);
         return;
     };
-    
+
     //constants - may turn into parameters in the future
     redistrReadsNfiles = 3*pP->runThreadN;
-    
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////--soloType
+
+    if (!initSoloType())
+        return;
+    initCBtype();
+    initBarcodeRead();
+    initStrand();
+    initFeatures();
+
+    //initialize CB match to WL types
+    init_CBmatchWL();
+
+    umiDedup.initialize(this);
+
+    initOutputDirAndMasks();
+    loadCBwhitelist();
+    initReadInfo();
+    initReadStats();
+    initUMIfiltering();
+    initMultiMappers();
+};
+
+bool ParametersSolo::initSoloType()
+{//--soloType and barcode geometry; false for --soloType None (Solo off)
     barcodeStart=barcodeEnd=0; //this means that the entire barcodeRead is considered barcode. Will change it for simple barcodes.    
     yes = true;
     if (typeStr=="None" || typeStr=="SmartSeq") {//solo SAM attributes not allowed
@@ -45,7 +65,7 @@ void ParametersSolo::initialize(Parameters *pPin)
         type = SoloTypes::None;
         yes = false;
         samAttrYes = false;     
-        return;        
+        return false;        
     } else if (typeStr=="CB_UMI_Simple" || typeStr=="Droplet") {
         type=SoloTypes::CB_UMI_Simple;        
         if (umiL > 16) {
@@ -92,8 +112,11 @@ void ParametersSolo::initialize(Parameters *pPin)
         errOut << "Obsolete option Droplet should be replaced with CB_UMI_Simple";
         exitWithError(errOut.str(),std::cerr, pP->inOut->logMain, EXIT_CODE_PARAMETER, *pP);
     };
+    return true;
+};
 
-    /////////////////////////// CB type
+void ParametersSolo::initCBtype()
+{//--soloCBtype
     if (CBtype.typeString=="Sequence") {
         CBtype.type = 1;
     } else if (CBtype.typeString=="String") {
@@ -113,8 +136,10 @@ void ParametersSolo::initialize(Parameters *pPin)
         errOut << "SOLUTION: use allowed option: Sequence OR String\n";
         exitWithError(errOut.str(),std::cerr, pP->inOut->logMain, EXIT_CODE_PARAMETER, *pP);
     };
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////input read files
+};
+
+void ParametersSolo::initBarcodeRead()
+{//which input read carries the barcode (FASTQ) or which SAM tags (SAM input)
     barcodeRead=-1; 
     barcodeReadSeparate=false;
     
@@ -187,9 +212,10 @@ void ParametersSolo::initialize(Parameters *pPin)
             tag.insert(0,1,'\t');
         };        
     };
-    
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////////////////////// soloStrand
+};
+
+void ParametersSolo::initStrand()
+{//--soloStrand
     if (strandStr=="Unstranded") {
         strand=-1;
     } else if (strandStr=="Forward") {
@@ -202,9 +228,10 @@ void ParametersSolo::initialize(Parameters *pPin)
         errOut << "SOLUTION: use allowed option: Unstranded OR Forward OR Reverse";
         exitWithError(errOut.str(),std::cerr, pP->inOut->logMain, EXIT_CODE_PARAMETER, *pP);
     };
+};
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////// features
+void ParametersSolo::initFeatures()
+{//--soloFeatures and the quantification they switch on
     featureInd.fill(-1);
     featureYes.fill(false);
     featureFirst = -1;
@@ -279,16 +306,10 @@ void ParametersSolo::initialize(Parameters *pPin)
         pP->quant.gene.yes=true;
         pP->quant.yes=true;
     }
-    //initialize CB match to WL types
-    init_CBmatchWL();
+};
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////umiDedup
-    umiDedup.initialize(this);
-    
-    ///////////// finished parameters input
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    
+void ParametersSolo::initOutputDirAndMasks()
+{//Solo output directory, quality constants and UMI masks
     //make output directory if needed
     if ( outFileNames[0].find_last_of("/") < outFileNames[0].size() ) {//need to create dir
         string dir1=pP->outFileNamePrefix+outFileNames[0].substr(0,outFileNames[0].find_last_of("/"));
@@ -306,8 +327,10 @@ void ParametersSolo::initialize(Parameters *pPin)
 
     umiMaskLow=(uint32) ( (((uint64)1)<<umiL) - 1);
     umiMaskHigh=~umiMaskLow;
+};
 
-    //////////////////////////////////////////////////////CB whitelist
+void ParametersSolo::loadCBwhitelist()
+{//read, sort and deduplicate the CB whitelist(s)
     if (type==SoloTypes::CB_UMI_Simple || type==SoloTypes::CB_samTagOut) {//simple whitelist
         if (soloCBwhitelist.size()>1) {
             ostringstream errOut;
@@ -416,8 +439,10 @@ void ParametersSolo::initialize(Parameters *pPin)
     time_t rawTime;
     time(&rawTime);
     pP->inOut->logMain << timeMonthDayTime(rawTime) << " ... Finished reading, sorting and deduplicating CB whitelist sequences." <<endl;
+};
 
-    //////////////////////////////////////////////////////////////SAM attributes
+void ParametersSolo::initReadInfo()
+{//CB/UB SAM attributes and which feature fills readInfo
     samAttrYes=false;
     if ( (pP->outSAMattrPresent.CB || pP->outSAMattrPresent.UB) && type!=SoloTypes::CB_samTagOut) {
         samAttrYes=true;
@@ -451,8 +476,10 @@ void ParametersSolo::initialize(Parameters *pPin)
         readInfoYes[samAttrFeature]=true;
     };
     readIndexYes = readInfoYes;
+};
 
-    /////////////////////////////////////////////////////////////////// readFlag output
+void ParametersSolo::initReadStats()
+{//--soloCellReadStats
     readStats.yes = false;
     readStatsYes.fill(false);
     if (readStats.type == "Standard") {
@@ -469,8 +496,10 @@ void ParametersSolo::initialize(Parameters *pPin)
                       + "\nSOLUTION: use allowed options: None OR Standard \n",
                       std::cerr, pP->inOut->logMain, EXIT_CODE_PARAMETER, *pP);
     };
-       
-    ///////////////////////////////////////////////////////////////////umi filtering
+};
+
+void ParametersSolo::initUMIfiltering()
+{//--soloUMIfiltering
     if (umiFiltering.type[0]=="MultiGeneUMI") {
         umiFiltering.MultiGeneUMI = true;
         umiFiltering.yes = true;
@@ -490,11 +519,10 @@ void ParametersSolo::initialize(Parameters *pPin)
                       + "\nSOLUTION: use allowed options: - or MultiGeneUMI or MultiGeneUMI_CR \n",
                       std::cerr, pP->inOut->logMain, EXIT_CODE_PARAMETER, *pP);
     };
-    
+};
 
-    
-    //////////////////////////////////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////// MultiMappers
+void ParametersSolo::initMultiMappers()
+{//--soloMultiMappers
     multiMap.initialize(this);
     if (multiMap.yes.multi) {
         if (type==SoloTypes::CB_samTagOut || type==SoloTypes::SmartSeq) {
@@ -508,6 +536,7 @@ void ParametersSolo::initialize(Parameters *pPin)
         readIndexYes[SoloFeatureTypes::GeneFull_ExonOverIntron]=true;
     };
 };
+
 
 /////////////////////////////////
 void ParametersSolo::umiSwapHalves(uint32 &umi) {

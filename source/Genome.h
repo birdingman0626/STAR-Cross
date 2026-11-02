@@ -30,6 +30,32 @@ private:
     std::unique_ptr<Variation> variationStorage;
     std::unique_ptr<SuperTranscriptome> superTranscriptomeStorage;
     std::unique_ptr<Genome> outputGenomeStorage;
+
+    // genomeGenerate stages (Genome_genomeGenerate.cpp)
+    struct SAsortPlan;
+    struct SAsortProfile;
+    void checkGenerateParameters();
+    void defineSuffixArray(uint64 sjdbLociN);
+    void sortSuffixArray();
+    void planSAchunks(SAsortPlan &plan);
+    void chooseSAchunkStorage(SAsortPlan &plan);
+    void logSAsortPlan(const SAsortPlan &plan);
+    void sortSAchunkBatch(SAsortPlan &plan, SAsortProfile &prof, uint64 iChunkBatch, uint64 iChunkBatchNext, uint64 saBatchN);
+    void collectSAsortRanges(const SAsortPlan &plan, SAsortProfile &prof, uint64 *saBatch, const std::vector<uint64> &saPrefStart, uint64 batchPrefStart,
+                             std::vector<uint64*> &saSortRange, std::vector<uint64> &saSortRangeN, std::vector<char> &saSortRangeSkipFirstWord);
+    void sortSAchunksSeparately(SAsortPlan &plan, SAsortProfile &prof);
+    void finishSAchunk(const SAsortPlan &plan, uint64 *saChunk, uint64 iChunk);
+    void packSuffixArray(SAsortPlan &plan);
+    void writeGenomeIndex();
+
+    // genomeLoad stages (Genome_genomeLoad.cpp)
+    void readGenomeParameters(Parameters &P1);
+    void defineIndexBits();
+    void attachSharedGenome(uint64 shmSize, uint64 L, uint64 *&shmNG, uint64 *&shmNSA);
+    void allocatePrivateGenome(uint64 L);
+    void readIndexFiles(std::ifstream &GenomeIn, std::ifstream &SAin, std::ifstream &SAiIn, uint64 SAiInBytes, uint64 L, uint64 K);
+    void adjustWindowParameters();
+    void loadOutputGenome(Parameters &P1);
 public:
     operator SeedIndexView() const {
         return {G,SA,nGenome,GstrandBit,GstrandMask,nSA};

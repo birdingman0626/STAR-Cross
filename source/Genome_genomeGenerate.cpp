@@ -1,6 +1,9 @@
 #include <cmath>
 #include <cstdlib>
+#include <iomanip>
+#include <memory>
 #include <new>
+#include <vector>
 
 #include "Genome.h"
 
@@ -161,9 +164,126 @@ inline bool funSAsortPrefixFirstWordHas5(uint64 prefix, uint64 prefixLength) {
     return false;
 };
 
+namespace {
+
+void logStage(Parameters &P, const char *message)
+{//time-stamped progress line to Log.out and stdout
+    time_t rawTime;
+    time(&rawTime);
+    P.inOut->logMain     << timeMonthDayTime(rawTime) << message <<flush;
+    *P.inOut->logStdOut  << timeMonthDayTime(rawTime) << message <<flush;
+};
+
+void exitSAerror(Parameters &P, const string &problem)
+{
+    ostringstream errOut;
+    errOut << "EXITING because of FATAL problem while generating the suffix array\n";
+    errOut << problem;
+    errOut << "SOLUTION: try to re-run suffix array generation, if it still does not work, report this problem to the author\n"<<flush;
+    exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+};
+
+// Chunks [iChunk, return value) form one batch of at most batchSize indices (always at least one chunk).
+uint64 nextSAchunkBatch(const vector<uint64> &chunkCount, uint64 chunkN, uint64 iChunk, uint64 batchSize, uint64 &batchN)
+{
+    batchN=0;
+    while (iChunk<chunkN && (batchN==0 || batchN+chunkCount[iChunk]<=batchSize)) {
+        batchN += chunkCount[iChunk];
+        iChunk++;
+    };
+    return iChunk;
+};
+
+} // namespace
+
+// How the SA indices are partitioned by sort prefix into chunks, and where the sorted chunks live.
+struct Genome::SAsortPlan {
+    uint64 indPrefLen=6, indPrefN=1;
+    vector<uint64> prefCount;               //SA indices per sort prefix
+    vector<uint64> chunkPrefStart;          //first prefix of each chunk; [chunkN]=indPrefN+1
+    vector<uint64> chunkCount, chunkStart;  //indices per chunk and their running offsets
+    uint64 chunkN=0, chunkSize=0, batchSize=0;
+    bool batchFill=false;                   //batched fill trades one genome scan per chunk for two scans per batch
+    bool profile=false;                     //STAR_PROFILE_SA_SORT
+    bool inMemory=false;                    //sorted chunks retained in RAM rather than SA_* files
+    unique_ptr<uint64[]> inMemoryChunks;
+    uint64 genomeScanN=0;
+};
+
+struct Genome::SAsortProfile {
+    double fillCountSeconds=0.0, fillScatterSeconds=0.0, sortSeconds=0.0, finalizeSeconds=0.0;
+    uint64 skipFirstWordRangeN=0, skipFirstWordIndexN=0;
+    uint64 subBinPrefixN=0, subBinRangeN=0, subBinIndexN=0;
+};
+
 void Genome::genomeGenerate() {
 
-    //check parameters
+    checkGenerateParameters();
+
+    logStage(P," ... starting to generate Genome files\n");
+
+    //define some parameters from input parameters
+    genomeChrBinNbases=1LLU << pGe.gChrBinNbits;
+
+    nGenome = genomeScanFastaFiles(P,NULL,false,*this);//first scan the fasta file to find all the sizes
+    genomeSequenceAllocate(nGenome, nG1alloc, G, G1);
+    genomeScanFastaFiles(P,G,true,*this);    //load the genome sequence
+
+    uint64 nGenomeTrue=0;
+    for (auto &cl : chrLength)
+    	nGenomeTrue += cl; //nGenomeTrue = sum of chr lengths
+
+    P.inOut->logMain <<"Genome sequence total length = " << nGenomeTrue << "\n";
+    P.inOut->logMain <<"Genome size with padding = "<< nGenome <<"\n";
+
+    SjdbClass sjdbLoci; //will be filled in transcriptGeneSJ below
+    GTF mainGTF(*this, P, pGe.gDir, sjdbLoci); //this loads exonLoci and gene/transcript metadata only, sjdbLoci is not filled
+
+    Genome::transformGenome(&mainGTF);
+
+    mainGTF.superTranscript(); //this may change the genome into (Super)Transcriptome
+
+    chrBinFill();//chrBin is first used in the transcriptGeneSJ below
+    mainGTF.transcriptGeneSJ(pGe.gDir);
+
+    sjdbLoadFromFiles(P,sjdbLoci);//this will not be transformed. TODO prevent this parameter combination
+
+    if (pGe.gSAindexNbases > log2(nGenomeTrue)/2-1) {
+        ostringstream warnOut;
+        warnOut << "--genomeSAindexNbases " << pGe.gSAindexNbases << " is too large for the genome size=" << nGenomeTrue;
+        warnOut << ", which may cause seg-fault at the mapping step. Re-run genome generation with recommended --genomeSAindexNbases " << int(log2(nGenomeTrue)/2-1);
+        warningMessage(warnOut.str(),P.inOut->logMain,std::cerr,P);
+    };
+
+    //output genome metadata
+    writeChrInfo(pGe.gDir);
+
+    defineSuffixArray(sjdbLoci.chr.size());
+
+    logStage(P," ... starting to sort Suffix Array. This may take a long time...\n");
+    sortSuffixArray();
+    logStage(P," ... finished generating suffix array\n");
+
+    genomeSAindex(G, SA, P, SAi, *this);
+
+    sjdbN=0;
+    if (P.sjdbInsert.yes) {//insert junctions
+        P.sjdbInsert.outDir=pGe.gDir;
+        P.twoPass.pass2=false;
+
+        Genome genome1(*this, Genome::Snapshot::Borrowed); // insertion-time view; *this owns storage
+        sjdbInsertJunctions(P, *this, genome1, sjdbLoci);
+    };
+
+    writeGenomeIndex();
+
+    SApass1.deallocateArray();
+
+    logStage(P," ..... finished successfully\n");
+};
+
+void Genome::checkGenerateParameters()
+{
 	createDirectory(pGe.gDir, P.runDirPerm, "--genomeDir", P);
 
 	{//move Log.out file into genome directory
@@ -193,59 +313,13 @@ void Genome::genomeGenerate() {
         };
         sjdbOverhang=0;
     };
-    
-    //time
-    time_t rawTime;
-    string timeString;
+};
 
-    time(&rawTime);
-    P.inOut->logMain     << timeMonthDayTime(rawTime) <<" ... starting to generate Genome files\n" <<flush;
-    *P.inOut->logStdOut  << timeMonthDayTime(rawTime) <<" ... starting to generate Genome files\n" <<flush;
-
-    //define some parameters from input parameters
-    genomeChrBinNbases=1LLU << pGe.gChrBinNbits;
-
-    nGenome = genomeScanFastaFiles(P,NULL,false,*this);//first scan the fasta file to find all the sizes
-    genomeSequenceAllocate(nGenome, nG1alloc, G, G1);
-    genomeScanFastaFiles(P,G,true,*this);    //load the genome sequence
-
-    uint64 nGenomeTrue=0;
-    for (auto &cl : chrLength)
-    	nGenomeTrue += cl; //nGenomeTrue = sum of chr lengths
-
-    P.inOut->logMain <<"Genome sequence total length = " << nGenomeTrue << "\n";
-    P.inOut->logMain <<"Genome size with padding = "<< nGenome <<"\n";
-
-    //consensusSequence(); //replace with consensus allele DEPRECATED
-        
-    SjdbClass sjdbLoci; //will be filled in transcriptGeneSJ below
-    GTF mainGTF(*this, P, pGe.gDir, sjdbLoci); //this loads exonLoci and gene/transcript metadata only, sjdbLoci is not filled
-    
-    Genome::transformGenome(&mainGTF);
-    
-    mainGTF.superTranscript(); //this may change the genome into (Super)Transcriptome
-
-    chrBinFill();//chrBin is first used in the transcriptGeneSJ below
-    mainGTF.transcriptGeneSJ(pGe.gDir);
-    
-    sjdbLoadFromFiles(P,sjdbLoci);//this will not be transformed. TODO prevent this parameter combination
-
-    if (pGe.gSAindexNbases > log2(nGenomeTrue)/2-1) {
-        ostringstream warnOut; 
-        warnOut << "--genomeSAindexNbases " << pGe.gSAindexNbases << " is too large for the genome size=" << nGenomeTrue;
-        warnOut << ", which may cause seg-fault at the mapping step. Re-run genome generation with recommended --genomeSAindexNbases " << int(log2(nGenomeTrue)/2-1);
-        warningMessage(warnOut.str(),P.inOut->logMain,std::cerr,P);
-    };    
-    
-    //output genome metadata
-    writeChrInfo(pGe.gDir);
-
-    //preparing to generate SA
+void Genome::defineSuffixArray(uint64 sjdbLociN)
+{//fill the (-) strand, count SA indices and size the packed SA arrays
     for (uint64 ii=0;ii<nGenome;ii++) {//- strand
-        //if (G[ii]>5)
-        //    cerr << ii <<" "<< G[ii]<<"\n";
         G[2*nGenome-1-ii]=G[ii]<4 ? 3-G[ii] : G[ii];
-    };   
+    };
     nSA=0;
     for (uint64 ii=0;ii<2*nGenome;ii+=pGe.gSAsparseD) {
         if (G[ii]<4) {
@@ -261,617 +335,552 @@ void Genome::genomeGenerate() {
     GstrandMask = ~(1LLU<<GstrandBit);
     SA.defineBits(GstrandBit+1,nSA);
 
-    if (P.sjdbInsert.yes) {//reserve space for junction insertion       
-        SApass1.defineBits( GstrandBit+1, nSA+2*sjdbLength*min((uint64)sjdbLoci.chr.size(),P.limitSjdbInsertNsj) );//TODO: this allocation is wasteful, get a better estimate of the number of junctions
+    if (P.sjdbInsert.yes) {//reserve space for junction insertion
+        SApass1.defineBits( GstrandBit+1, nSA+2*sjdbLength*min(sjdbLociN,P.limitSjdbInsertNsj) );//TODO: this allocation is wasteful, get a better estimate of the number of junctions
     } else {//same as SA
         SApass1.defineBits(GstrandBit+1,nSA);
     };
 
     P.inOut->logMain  << "Number of SA indices: "<< nSA << "\n"<<flush;
+};
 
-    //sort SA
-    time ( &rawTime );
-    P.inOut->logMain     << timeMonthDayTime(rawTime) <<" ... starting to sort Suffix Array. This may take a long time...\n" <<flush;
-    *P.inOut->logStdOut  << timeMonthDayTime(rawTime) <<" ... starting to sort Suffix Array. This may take a long time...\n" <<flush;
+void Genome::sortSuffixArray()
+{
+    for (uint64 ii=0;ii<nGenome;ii++) {//re-fill the array backwards for sorting
+        swap(G[2*nGenome-1-ii],G[ii]);
+    };
+    globalG=G;
+    globalL=pGe.gSuffixLengthMax/sizeof(uint64);
 
+    SAsortPlan plan;
+    planSAchunks(plan);
 
-//     if (false)
-    {//sort SA chunks
+    logStage(P," ... sorting Suffix Array chunks...\n");
 
-        for (uint64 ii=0;ii<nGenome;ii++) {//re-fill the array backwards for sorting
-            swap(G[2*nGenome-1-ii],G[ii]);
+    chooseSAchunkStorage(plan);
+
+    SAsortProfile prof;
+    if (plan.batchFill) {
+        uint64 iChunkBatch=0;
+        while (iChunkBatch<plan.chunkN) {
+            uint64 saBatchN;
+            uint64 iChunkBatchNext=nextSAchunkBatch(plan.chunkCount, plan.chunkN, iChunkBatch, plan.batchSize, saBatchN);
+            sortSAchunkBatch(plan, prof, iChunkBatch, iChunkBatchNext, saBatchN);
+            iChunkBatch=iChunkBatchNext;
         };
-        globalG=G;
-        globalL=pGe.gSuffixLengthMax/sizeof(uint64);
-        // Count sort prefixes over STAR's 0..5 genome alphabet.
-        uint64 indPrefLen=6;
-        const uint64 saAvailableBytesForPrefix=P.limitGenomeGenerateRAM>nG1alloc ? P.limitGenomeGenerateRAM-nG1alloc : 0;
-        if (P.runThreadN>=16 && nGenome>=50000000) {
-            uint64 indPrefN8=1;
-            for (uint64 ii=0;ii<8;ii++) indPrefN8 *= 6;
-            const uint64 indPrefTempBytes8=(uint64) P.runThreadN*indPrefN8*2*sizeof(uint64) + (indPrefN8+1)*sizeof(uint64);
-            if (indPrefTempBytes8 < saAvailableBytesForPrefix/4) {
-                indPrefLen=8;
+    } else {
+        sortSAchunksSeparately(plan, prof);
+    };
+
+    if (plan.profile) {
+        ostringstream saProfileOut;
+        saProfileOut << fixed << setprecision(3);
+        saProfileOut << "SA sort profile phases: fill_count_seconds=" << prof.fillCountSeconds
+                     << "; fill_scatter_seconds=" << prof.fillScatterSeconds
+                     << "; sort_seconds=" << prof.sortSeconds
+                     << "; finalize_seconds=" << prof.finalizeSeconds;
+        P.inOut->logMain << saProfileOut.str() << "\n" <<flush;
+        P.inOut->logMain << "SA sort profile comparator: skip_first_word_ranges=" << prof.skipFirstWordRangeN
+                          << "; skip_first_word_indices=" << prof.skipFirstWordIndexN << "\n" <<flush;
+        P.inOut->logMain << "SA sort profile sub-bins: prefixes=" << prof.subBinPrefixN
+                          << "; ranges=" << prof.subBinRangeN
+                          << "; indices=" << prof.subBinIndexN << "\n" <<flush;
+    };
+
+    logStage(P, plan.inMemory ? " ... packing SA from RAM chunks...\n" : " ... loading chunks from disk, packing SA...\n");
+    packSuffixArray(plan);
+
+    for (uint64 ii=0;ii<nGenome;ii++) {//return to normal order for future use
+        swap(G[2*nGenome-1-ii],G[ii]);
+    };
+};
+
+void Genome::planSAchunks(SAsortPlan &plan)
+{//count indices per sort prefix and group prefixes into chunks
+    // Count sort prefixes over STAR's 0..5 genome alphabet.
+    const uint64 saAvailableBytesForPrefix=P.limitGenomeGenerateRAM>nG1alloc ? P.limitGenomeGenerateRAM-nG1alloc : 0;
+    if (P.runThreadN>=16 && nGenome>=50000000) {
+        uint64 indPrefN8=1;
+        for (uint64 ii=0;ii<8;ii++) indPrefN8 *= 6;
+        const uint64 indPrefTempBytes8=(uint64) P.runThreadN*indPrefN8*2*sizeof(uint64) + (indPrefN8+1)*sizeof(uint64);
+        if (indPrefTempBytes8 < saAvailableBytesForPrefix/4) {
+            plan.indPrefLen=8;
+        };
+    };
+    for (uint64 ii=0;ii<plan.indPrefLen;ii++) plan.indPrefN *= 6;
+    const uint64 indPrefN=plan.indPrefN;
+    vector<uint64> &indPrefCount=plan.prefCount;
+    indPrefCount.assign(indPrefN,0);
+    plan.profile=getenv("STAR_PROFILE_SA_SORT")!=NULL;
+    nSA=0;
+    for (uint64 ii=0;ii<2*nGenome;ii+=pGe.gSAsparseD) {
+        if (G[ii]<4) {
+            uint64 p1=funSAsortPrefix(G,ii,plan.indPrefLen);
+            indPrefCount[p1]++;
+            nSA++;
+        };
+    };
+
+    uint64 saChunkSize=(P.limitGenomeGenerateRAM-nG1alloc)/8/P.runThreadN; //number of SA indexes per chunk
+    saChunkSize=saChunkSize*6/10; //allow extra space for qsort
+    if (P.runThreadN>1) saChunkSize=min(saChunkSize,nSA/(P.runThreadN-1));
+    uint64 saChunkN = nSA / saChunkSize + 1;//estimate
+    plan.chunkPrefStart.assign(saChunkN*2,0); //start and stop, *2 just in case
+    plan.chunkCount.assign(saChunkN*2,0);
+    saChunkN=0;//start counting chunks
+    uint64 chunkSize1=indPrefCount[0];
+    for (uint64 ii=1; ii<indPrefN; ii++) {
+        chunkSize1 += indPrefCount[ii];
+        if (chunkSize1 > saChunkSize) {
+            saChunkN++;
+            plan.chunkPrefStart[saChunkN]=ii;
+            plan.chunkCount[saChunkN-1]=chunkSize1-indPrefCount[ii];
+            chunkSize1=indPrefCount[ii];
+        };
+    };
+    saChunkN++;
+    plan.chunkPrefStart[saChunkN]=indPrefN+1;
+    plan.chunkCount[saChunkN-1]=chunkSize1;
+
+    plan.chunkStart.assign(saChunkN+1,0);
+    for (uint64 iChunk=0; iChunk<saChunkN; iChunk++) {
+        plan.chunkStart[iChunk+1]=plan.chunkStart[iChunk]+plan.chunkCount[iChunk];
+    };
+    plan.chunkN=saChunkN;
+    plan.chunkSize=saChunkSize;
+
+    P.inOut->logMain  << "Number of chunks: " << saChunkN <<";   chunks size limit: " << saChunkSize*8 <<" bytes\n" <<flush;
+};
+
+void Genome::chooseSAchunkStorage(SAsortPlan &plan)
+{//pick batched vs per-chunk fill and RAM vs disk chunk storage
+    const uint64 saChunkN=plan.chunkN;
+    plan.genomeScanN=(2*nGenome+pGe.gSAsparseD-1)/pGe.gSAsparseD;
+    const uint64 saAvailableBytes=P.limitGenomeGenerateRAM>nG1alloc ? P.limitGenomeGenerateRAM-nG1alloc : 0;
+    const uint64 saAllChunkScatterBytes=nSA*sizeof(uint64) + (uint64) P.runThreadN*plan.indPrefN*2*sizeof(uint64) + (plan.indPrefN+1)*sizeof(uint64) + (saChunkN+1)*sizeof(uint64);
+    plan.batchSize=max(plan.chunkSize*(uint64) P.runThreadN,plan.chunkSize);
+    plan.batchFill=P.runThreadN>=16 && saChunkN>1;
+    uint64 saChunkBatchN=0;
+    if (plan.batchFill) {
+        for (uint64 iChunkBatch=0, saBatchN; iChunkBatch<saChunkN; saChunkBatchN++) {
+            iChunkBatch=nextSAchunkBatch(plan.chunkCount, saChunkN, iChunkBatch, plan.batchSize, saBatchN);
+        };
+    };
+
+    const uint64 saRetainedChunkBytes=nSA*sizeof(uint64);
+    const uint64 saRamPackPeakBytes=saRetainedChunkBytes+SApass1.lengthByte;
+    const uint64 saRamPeakBytes=max(saAllChunkScatterBytes,saRamPackPeakBytes);
+    const uint64 saRamHeadroomBytes=max(saRamPeakBytes/10,(uint64) 2000000000LLU);
+    const uint64 saRamRequiredBytes=saRamPeakBytes+saRamHeadroomBytes;
+    const uint64 systemAvailableBytes=systemAvailableMemoryBytes();
+    const bool saRamLimitOK=saAvailableBytes>=saRamRequiredBytes;
+    const bool saRamSystemOK=systemAvailableBytes>0 && systemAvailableBytes>=saRamRequiredBytes;
+    plan.inMemory=saRamLimitOK && saRamSystemOK;
+    P.inOut->logMain  << "SA chunk all-scatter available bytes: " << saAvailableBytes << "; required temporary bytes: " << saAllChunkScatterBytes << "\n" <<flush;
+    P.inOut->logMain  << "SA chunk estimated batched-fill batches: " << saChunkBatchN << "\n" <<flush;
+    P.inOut->logMain  << "SA chunk fill strategy: " << (plan.batchFill ? "batched" : "per-chunk") << "\n" <<flush;
+    P.inOut->logMain  << "SA chunk sort prefix length: " << plan.indPrefLen << "\n" <<flush;
+    P.inOut->logMain  << "SA chunk sort granularity: " << (plan.batchFill ? "prefix-bin" : "chunk") << "\n" <<flush;
+    P.inOut->logMain  << "SA chunk retained bytes: " << saRetainedChunkBytes << "; RAM peak bytes: " << saRamPeakBytes << "; RAM headroom bytes: " << saRamHeadroomBytes << "\n" <<flush;
+    P.inOut->logMain  << "SA chunk system available bytes: " << systemAvailableBytes << "; limit available bytes: " << saAvailableBytes << "\n" <<flush;
+    if (plan.profile)
+        logSAsortPlan(plan);
+
+    if (plan.inMemory) {
+        plan.inMemoryChunks.reset(new (nothrow) uint64 [nSA]);
+        if (!plan.inMemoryChunks) {
+            plan.inMemory=false;
+            P.inOut->logMain << "SA chunk storage fallback: disk-backed after RAM allocation failure\n" <<flush;
+        };
+    };
+    P.inOut->logMain  << "SA chunk storage strategy: " << (plan.inMemory ? "RAM-retained" : "disk-backed") << "\n" <<flush;
+};
+
+void Genome::logSAsortPlan(const SAsortPlan &plan)
+{//STAR_PROFILE_SA_SORT: prefix-bin and chunk size distribution
+    uint64 indPrefEmptyN=0, indPrefSingletonN=0, indPrefNonEmptyN=0, indPrefSortableN=0, indPrefMaxCount=0, indPrefMaxIndex=0;
+    for (uint64 ii=0; ii<plan.indPrefN; ii++) {
+        if (plan.prefCount[ii]==0) {
+            indPrefEmptyN++;
+        } else {
+            indPrefNonEmptyN++;
+            if (plan.prefCount[ii]==1) {
+                indPrefSingletonN++;
+            } else {
+                indPrefSortableN++;
+            };
+            if (plan.prefCount[ii]>indPrefMaxCount) {
+                indPrefMaxCount=plan.prefCount[ii];
+                indPrefMaxIndex=ii;
             };
         };
-        uint64 indPrefN=1;
-        for (uint64 ii=0;ii<indPrefLen;ii++) indPrefN *= 6;
-        uint64* indPrefCount = new uint64 [indPrefN];
-        memset(indPrefCount,0,indPrefN*sizeof(indPrefCount[0]));
-        const bool saSortProfile=getenv("STAR_PROFILE_SA_SORT")!=NULL;
-        nSA=0;
-        for (uint64 ii=0;ii<2*nGenome;ii+=pGe.gSAsparseD) {
+    };
+
+    uint64 saChunkMinCount=plan.chunkCount[0];
+    uint64 saChunkMaxCount=plan.chunkCount[0];
+    uint64 saChunkMaxIndex=0;
+    for (uint64 iChunk=1; iChunk<plan.chunkN; iChunk++) {
+        if (plan.chunkCount[iChunk]<saChunkMinCount) {
+            saChunkMinCount=plan.chunkCount[iChunk];
+        };
+        if (plan.chunkCount[iChunk]>saChunkMaxCount) {
+            saChunkMaxCount=plan.chunkCount[iChunk];
+            saChunkMaxIndex=iChunk;
+        };
+    };
+    P.inOut->logMain << "SA sort profile: enabled\n" <<flush;
+    P.inOut->logMain << "SA sort profile prefix bins: total=" << plan.indPrefN
+                      << "; empty=" << indPrefEmptyN
+                      << "; nonempty=" << indPrefNonEmptyN
+                      << "; singleton=" << indPrefSingletonN
+                      << "; sortable=" << indPrefSortableN
+                      << "; max_bin=" << indPrefMaxCount
+                      << "; max_prefix=" << indPrefMaxIndex << "\n" <<flush;
+    P.inOut->logMain << "SA sort profile chunks: count=" << plan.chunkN
+                      << "; min_indices=" << saChunkMinCount
+                      << "; max_indices=" << saChunkMaxCount
+                      << "; max_chunk=" << saChunkMaxIndex
+                      << "; mean_indices=" << (plan.chunkN>0 ? nSA/plan.chunkN : 0) << "\n" <<flush;
+};
+
+void Genome::sortSAchunkBatch(SAsortPlan &plan, SAsortProfile &prof, uint64 iChunkBatch, uint64 iChunkBatchNext, uint64 saBatchN)
+{//fill a batch of chunks with two genome scans, then sort and write each chunk
+    const uint64 indPrefLen=plan.indPrefLen;
+    const uint64 genomeScanN=plan.genomeScanN;
+    const bool saSortProfile=plan.profile;
+    const bool saChunksInMemoryActive=plan.inMemory;
+    const uint64 batchChunkN=iChunkBatchNext-iChunkBatch;
+    uint64* saBatch=saChunksInMemoryActive ? plan.inMemoryChunks.get()+plan.chunkStart[iChunkBatch] : new uint64 [saBatchN];
+    vector<uint64> saBatchStart(batchChunkN+1);
+    saBatchStart[0]=0;
+    for (uint64 iChunk=0;iChunk<batchChunkN;iChunk++) {
+        saBatchStart[iChunk+1]=saBatchStart[iChunk]+plan.chunkCount[iChunkBatch+iChunk];
+    };
+
+    const uint64 batchPrefStart=plan.chunkPrefStart[iChunkBatch];
+    const uint64 batchPrefEnd=min(plan.chunkPrefStart[iChunkBatchNext],plan.indPrefN);
+    const uint64 batchPrefN=batchPrefEnd-batchPrefStart;
+
+    vector<uint64> saPrefStart(batchPrefN+1);
+    saPrefStart[0]=0;
+    for (uint64 iPref=0;iPref<batchPrefN;iPref++) {
+        saPrefStart[iPref+1]=saPrefStart[iPref]+plan.prefCount[batchPrefStart+iPref];
+    };
+    if (saPrefStart[batchPrefN]!=saBatchN) {
+        exitSAerror(P, "The number of indices collected for suffix array batch " + to_string(iChunkBatch)
+                     + " = " + to_string(saPrefStart[batchPrefN]) + " is not equal to expected " + to_string(saBatchN) + "\n");
+    };
+
+    // pass 1: per-thread prefix counts
+    vector<uint64> saThreadPrefCount((uint64) P.runThreadN*batchPrefN,0);
+    double saProfileTime0=omp_get_wtime();
+    #pragma omp parallel num_threads(P.runThreadN)
+    {
+        int tid=omp_get_thread_num();
+        uint64* threadPrefCount=saThreadPrefCount.data()+(uint64) tid*batchPrefN;
+        #pragma omp for schedule(static)
+        for (int64 iScan=0;iScan<(int64)genomeScanN;iScan++) {//signed index: MSVC OpenMP 2.0
+            uint64 ii=(uint64)iScan*pGe.gSAsparseD;
             if (G[ii]<4) {
                 uint64 p1=funSAsortPrefix(G,ii,indPrefLen);
-                indPrefCount[p1]++;
-                nSA++;
-            };
-        };
-
-        uint64 indPrefEmptyN=0;
-        uint64 indPrefSingletonN=0;
-        uint64 indPrefNonEmptyN=0;
-        uint64 indPrefSortableN=0;
-        uint64 indPrefMaxCount=0;
-        uint64 indPrefMaxIndex=0;
-        if (saSortProfile) {
-            for (uint64 ii=0; ii<indPrefN; ii++) {
-                if (indPrefCount[ii]==0) {
-                    indPrefEmptyN++;
-                } else {
-                    indPrefNonEmptyN++;
-                    if (indPrefCount[ii]==1) {
-                        indPrefSingletonN++;
-                    } else {
-                        indPrefSortableN++;
-                    };
-                    if (indPrefCount[ii]>indPrefMaxCount) {
-                        indPrefMaxCount=indPrefCount[ii];
-                        indPrefMaxIndex=ii;
-                    };
+                if (p1>=batchPrefStart && p1<batchPrefEnd) {
+                    threadPrefCount[p1-batchPrefStart]++;
                 };
             };
         };
+    };
+    if (saSortProfile) {
+        prof.fillCountSeconds += omp_get_wtime()-saProfileTime0;
+    };
 
-        uint64 saChunkSize=(P.limitGenomeGenerateRAM-nG1alloc)/8/P.runThreadN; //number of SA indexes per chunk
-        saChunkSize=saChunkSize*6/10; //allow extra space for qsort
-        //uint64 saChunkN=((nSA/saChunkSize+1)/P.runThreadN+1)*P.runThreadN;//ensure saChunkN is divisible by P.runThreadN
-        //saChunkSize=nSA/saChunkN+100000;//final chunk size
-        if (P.runThreadN>1) saChunkSize=min(saChunkSize,nSA/(P.runThreadN-1));
-        uint64 saChunkN = nSA / saChunkSize + 1;//estimate
-        uint64* indPrefStart = new uint64 [saChunkN*2]; //start and stop, *2 just in case
-        uint64* indPrefChunkCount = new uint64 [saChunkN*2];
-        indPrefStart[0]=0;
-        saChunkN=0;//start counting chunks
-        uint64 chunkSize1=indPrefCount[0];
-        for (uint64 ii=1; ii<indPrefN; ii++) {
-            chunkSize1 += indPrefCount[ii];
-            if (chunkSize1 > saChunkSize) {
-                saChunkN++;
-                indPrefStart[saChunkN]=ii;
-                indPrefChunkCount[saChunkN-1]=chunkSize1-indPrefCount[ii];
-                chunkSize1=indPrefCount[ii];
+    vector<uint64> saThreadPrefStart((uint64) P.runThreadN*batchPrefN);
+    for (uint64 iPref=0;iPref<batchPrefN;iPref++) {
+        uint64 prefCount=0;
+        for (int iThread=0;iThread<P.runThreadN;iThread++) {
+            saThreadPrefStart[(uint64) iThread*batchPrefN+iPref]=saPrefStart[iPref]+prefCount;
+            prefCount += saThreadPrefCount[(uint64) iThread*batchPrefN+iPref];
+        };
+        if (prefCount!=plan.prefCount[batchPrefStart+iPref]) {
+            exitSAerror(P, "The number of indices collected for suffix array prefix " + to_string(batchPrefStart+iPref) + " = " + to_string(prefCount)
+                         + " is not equal to expected " + to_string(plan.prefCount[batchPrefStart+iPref]) + "\n");
+        };
+    };
+
+    // pass 2: scatter indices into their prefix bins
+    saProfileTime0=omp_get_wtime();
+    #pragma omp parallel num_threads(P.runThreadN)
+    {
+        int tid=omp_get_thread_num();
+        uint64* threadPrefStart=saThreadPrefStart.data()+(uint64) tid*batchPrefN;
+        #pragma omp for schedule(static)
+        for (int64 iScan=0;iScan<(int64)genomeScanN;iScan++) {//signed index: MSVC OpenMP 2.0
+            uint64 ii=(uint64)iScan*pGe.gSAsparseD;
+            if (G[ii]<4) {
+                uint64 p1=funSAsortPrefix(G,ii,indPrefLen);
+                if (p1>=batchPrefStart && p1<batchPrefEnd) {
+                    uint64 iPref=p1-batchPrefStart;
+                    saBatch[threadPrefStart[iPref]]=ii;
+                    threadPrefStart[iPref]++;
+                };
             };
         };
-        saChunkN++;
-        indPrefStart[saChunkN]=indPrefN+1;
-        indPrefChunkCount[saChunkN-1]=chunkSize1;
+    };
+    if (saSortProfile) {
+        prof.fillScatterSeconds += omp_get_wtime()-saProfileTime0;
+    };
 
-        uint64* saChunkStart = new uint64 [saChunkN+1];
-        saChunkStart[0]=0;
-        for (uint64 iChunk=0; iChunk<saChunkN; iChunk++) {
-            saChunkStart[iChunk+1]=saChunkStart[iChunk]+indPrefChunkCount[iChunk];
-        };
+    // sort every multi-index prefix bin (large bins are split into sub-bins first)
+    saProfileTime0=omp_get_wtime();
+    vector<uint64*> saSortRange;
+    vector<uint64> saSortRangeN;
+    vector<char> saSortRangeSkipFirstWord;
+    collectSAsortRanges(plan, prof, saBatch, saPrefStart, batchPrefStart, saSortRange, saSortRangeN, saSortRangeSkipFirstWord);
 
-        P.inOut->logMain  << "Number of chunks: " << saChunkN <<";   chunks size limit: " << saChunkSize*8 <<" bytes\n" <<flush;
-
-        time ( &rawTime );
-        P.inOut->logMain     << timeMonthDayTime(rawTime) <<" ... sorting Suffix Array chunks...\n" <<flush;
-        *P.inOut->logStdOut  << timeMonthDayTime(rawTime) <<" ... sorting Suffix Array chunks...\n" <<flush;
-
-        const uint64 genomeScanN=(2*nGenome+pGe.gSAsparseD-1)/pGe.gSAsparseD;
-        const uint64 saAvailableBytes=P.limitGenomeGenerateRAM>nG1alloc ? P.limitGenomeGenerateRAM-nG1alloc : 0;
-        const uint64 saAllChunkScatterBytes=nSA*sizeof(uint64) + (uint64) P.runThreadN*indPrefN*2*sizeof(uint64) + (indPrefN+1)*sizeof(uint64) + (saChunkN+1)*sizeof(uint64);
-        const uint64 saChunkBatchSize=max(saChunkSize*(uint64) P.runThreadN,saChunkSize);
-        uint64 saChunkBatchN=0;
-        if (P.runThreadN>=16 && saChunkN>1) {
-            uint64 iChunkBatch=0;
-            while (iChunkBatch<saChunkN) {
-                uint64 iChunkBatchNext=iChunkBatch;
-                uint64 saBatchN=0;
-                while (iChunkBatchNext<saChunkN && (saBatchN==0 || saBatchN+indPrefChunkCount[iChunkBatchNext]<=saChunkBatchSize)) {
-                    saBatchN += indPrefChunkCount[iChunkBatchNext];
-                    iChunkBatchNext++;
-                };
-                saChunkBatchN++;
-                iChunkBatch=iChunkBatchNext;
-            };
-        };
-
-        // Batched fill trades one genome scan per chunk for two scans per batch.
-        // It pays off once enough chunks are being sorted in parallel.
-        const bool saChunkBatchFill=P.runThreadN>=16 && saChunkN>1;
-        const uint64 saRetainedChunkBytes=nSA*sizeof(uint64);
-        const uint64 saRamPackPeakBytes=saRetainedChunkBytes+SApass1.lengthByte;
-        const uint64 saRamPeakBytes=max(saAllChunkScatterBytes,saRamPackPeakBytes);
-        const uint64 saRamHeadroomBytes=max(saRamPeakBytes/10,(uint64) 2000000000LLU);
-        const uint64 saRamRequiredBytes=saRamPeakBytes+saRamHeadroomBytes;
-        const uint64 systemAvailableBytes=systemAvailableMemoryBytes();
-        const bool saRamLimitOK=saAvailableBytes>=saRamRequiredBytes;
-        const bool saRamSystemOK=systemAvailableBytes>0 && systemAvailableBytes>=saRamRequiredBytes;
-        bool saChunksInMemoryActive=saRamLimitOK && saRamSystemOK;
-        P.inOut->logMain  << "SA chunk all-scatter available bytes: " << saAvailableBytes << "; required temporary bytes: " << saAllChunkScatterBytes << "\n" <<flush;
-        P.inOut->logMain  << "SA chunk estimated batched-fill batches: " << saChunkBatchN << "\n" <<flush;
-        P.inOut->logMain  << "SA chunk fill strategy: " << (saChunkBatchFill ? "batched" : "per-chunk") << "\n" <<flush;
-        P.inOut->logMain  << "SA chunk sort prefix length: " << indPrefLen << "\n" <<flush;
-        P.inOut->logMain  << "SA chunk sort granularity: " << (saChunkBatchFill ? "prefix-bin" : "chunk") << "\n" <<flush;
-        P.inOut->logMain  << "SA chunk retained bytes: " << saRetainedChunkBytes << "; RAM peak bytes: " << saRamPeakBytes << "; RAM headroom bytes: " << saRamHeadroomBytes << "\n" <<flush;
-        P.inOut->logMain  << "SA chunk system available bytes: " << systemAvailableBytes << "; limit available bytes: " << saAvailableBytes << "\n" <<flush;
-        if (saSortProfile) {
-            uint64 saChunkMinCount=indPrefChunkCount[0];
-            uint64 saChunkMaxCount=indPrefChunkCount[0];
-            uint64 saChunkMaxIndex=0;
-            for (uint64 iChunk=1; iChunk<saChunkN; iChunk++) {
-                if (indPrefChunkCount[iChunk]<saChunkMinCount) {
-                    saChunkMinCount=indPrefChunkCount[iChunk];
-                };
-                if (indPrefChunkCount[iChunk]>saChunkMaxCount) {
-                    saChunkMaxCount=indPrefChunkCount[iChunk];
-                    saChunkMaxIndex=iChunk;
-                };
-            };
-            P.inOut->logMain << "SA sort profile: enabled\n" <<flush;
-            P.inOut->logMain << "SA sort profile prefix bins: total=" << indPrefN
-                              << "; empty=" << indPrefEmptyN
-                              << "; nonempty=" << indPrefNonEmptyN
-                              << "; singleton=" << indPrefSingletonN
-                              << "; sortable=" << indPrefSortableN
-                              << "; max_bin=" << indPrefMaxCount
-                              << "; max_prefix=" << indPrefMaxIndex << "\n" <<flush;
-            P.inOut->logMain << "SA sort profile chunks: count=" << saChunkN
-                              << "; min_indices=" << saChunkMinCount
-                              << "; max_indices=" << saChunkMaxCount
-                              << "; max_chunk=" << saChunkMaxIndex
-                              << "; mean_indices=" << (saChunkN>0 ? nSA/saChunkN : 0) << "\n" <<flush;
-        };
-
-        uint64* saChunksInMemory=NULL;
-        if (saChunksInMemoryActive) {
-            saChunksInMemory=new (nothrow) uint64 [nSA];
-            if (saChunksInMemory==NULL) {
-                saChunksInMemoryActive=false;
-                P.inOut->logMain << "SA chunk storage fallback: disk-backed after RAM allocation failure\n" <<flush;
-            };
-        };
-        P.inOut->logMain  << "SA chunk storage strategy: " << (saChunksInMemoryActive ? "RAM-retained" : "disk-backed") << "\n" <<flush;
-
-        double saProfileFillCountSeconds=0.0;
-        double saProfileFillScatterSeconds=0.0;
-        double saProfileSortSeconds=0.0;
-        double saProfileFinalizeSeconds=0.0;
-        uint64 saProfileSkipFirstWordRangeN=0;
-        uint64 saProfileSkipFirstWordIndexN=0;
-        uint64 saProfileSubBinPrefixN=0;
-        uint64 saProfileSubBinRangeN=0;
-        uint64 saProfileSubBinIndexN=0;
-
-        if (saChunkBatchFill) {
-            uint64 iChunkBatch=0;
-            while (iChunkBatch<saChunkN) {//fill a batch of chunks with two genome scans, then sort and write each chunk
-                uint64 iChunkBatchNext=iChunkBatch;
-                uint64 saBatchN=0;
-                while (iChunkBatchNext<saChunkN && (saBatchN==0 || saBatchN+indPrefChunkCount[iChunkBatchNext]<=saChunkBatchSize)) {
-                    saBatchN += indPrefChunkCount[iChunkBatchNext];
-                    iChunkBatchNext++;
-                };
-                uint64 batchChunkN=iChunkBatchNext-iChunkBatch;
-                uint64* saBatch=saChunksInMemoryActive ? saChunksInMemory+saChunkStart[iChunkBatch] : new uint64 [saBatchN];
-                uint64* saBatchStart=new uint64 [batchChunkN+1];
-                saBatchStart[0]=0;
-                for (uint64 iChunk=0;iChunk<batchChunkN;iChunk++) {
-                    saBatchStart[iChunk+1]=saBatchStart[iChunk]+indPrefChunkCount[iChunkBatch+iChunk];
-                };
-
-                uint64 batchPrefStart=indPrefStart[iChunkBatch];
-                uint64 batchPrefEnd=min(indPrefStart[iChunkBatchNext],indPrefN);
-                uint64 batchPrefN=batchPrefEnd-batchPrefStart;
-
-                uint64* saPrefStart=new uint64 [batchPrefN+1];
-                saPrefStart[0]=0;
-                for (uint64 iPref=0;iPref<batchPrefN;iPref++) {
-                    saPrefStart[iPref+1]=saPrefStart[iPref]+indPrefCount[batchPrefStart+iPref];
-                };
-                if (saPrefStart[batchPrefN]!=saBatchN) {
-                    ostringstream errOut;
-                    errOut << "EXITING because of FATAL problem while generating the suffix array\n";
-                    errOut << "The number of indices collected for suffix array batch " << iChunkBatch;
-                    errOut << " = " << saPrefStart[batchPrefN] << " is not equal to expected " << saBatchN << "\n";
-                    errOut << "SOLUTION: try to re-run suffix array generation, if it still does not work, report this problem to the author\n"<<flush;
-                    exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
-                };
-
-                uint64* saThreadPrefCount=new uint64 [(uint64) P.runThreadN*batchPrefN];
-                memset(saThreadPrefCount,0,sizeof(saThreadPrefCount[0])*(uint64) P.runThreadN*batchPrefN);
-
-                double saProfileTime0=omp_get_wtime();
-                #pragma omp parallel num_threads(P.runThreadN)
-                {
-                    int tid=omp_get_thread_num();
-                    uint64* threadPrefCount=saThreadPrefCount+(uint64) tid*batchPrefN;
-                    #pragma omp for schedule(static)
-                    for (int64 iScan=0;iScan<(int64)genomeScanN;iScan++) {//signed index: MSVC OpenMP 2.0
-                        uint64 ii=(uint64)iScan*pGe.gSAsparseD;
-                        if (G[ii]<4) {
-                            uint64 p1=funSAsortPrefix(G,ii,indPrefLen);
-                            if (p1>=batchPrefStart && p1<batchPrefEnd) {
-                                threadPrefCount[p1-batchPrefStart]++;
-                            };
-                        };
-                    };
-                };
-                if (saSortProfile) {
-                    saProfileFillCountSeconds += omp_get_wtime()-saProfileTime0;
-                };
-
-                uint64* saThreadPrefStart=new uint64 [(uint64) P.runThreadN*batchPrefN];
-                for (uint64 iPref=0;iPref<batchPrefN;iPref++) {
-                    uint64 prefCount=0;
-                    for (int iThread=0;iThread<P.runThreadN;iThread++) {
-                        saThreadPrefStart[(uint64) iThread*batchPrefN+iPref]=saPrefStart[iPref]+prefCount;
-                        prefCount += saThreadPrefCount[(uint64) iThread*batchPrefN+iPref];
-                    };
-                    if (prefCount!=indPrefCount[batchPrefStart+iPref]) {
-                        ostringstream errOut;
-                        errOut << "EXITING because of FATAL problem while generating the suffix array\n";
-                        errOut << "The number of indices collected for suffix array prefix " << batchPrefStart+iPref << " = " << prefCount;
-                        errOut << " is not equal to expected " << indPrefCount[batchPrefStart+iPref] << "\n";
-                        errOut << "SOLUTION: try to re-run suffix array generation, if it still does not work, report this problem to the author\n"<<flush;
-                        exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
-                    };
-                };
-
-                saProfileTime0=omp_get_wtime();
-                #pragma omp parallel num_threads(P.runThreadN)
-                {
-                    int tid=omp_get_thread_num();
-                    uint64* threadPrefStart=saThreadPrefStart+(uint64) tid*batchPrefN;
-                    #pragma omp for schedule(static)
-                    for (int64 iScan=0;iScan<(int64)genomeScanN;iScan++) {//signed index: MSVC OpenMP 2.0
-                        uint64 ii=(uint64)iScan*pGe.gSAsparseD;
-                        if (G[ii]<4) {
-                            uint64 p1=funSAsortPrefix(G,ii,indPrefLen);
-                            if (p1>=batchPrefStart && p1<batchPrefEnd) {
-                                uint64 iPref=p1-batchPrefStart;
-                                saBatch[threadPrefStart[iPref]]=ii;
-                                threadPrefStart[iPref]++;
-                            };
-                        };
-                    };
-                };
-                if (saSortProfile) {
-                    saProfileFillScatterSeconds += omp_get_wtime()-saProfileTime0;
-                };
-
-                saProfileTime0=omp_get_wtime();
-                const bool saCanSkipFirstWord=indPrefLen>=(uint64) sizeof(uint64) && globalL>1;
-                const uint64 saSubBinExtraLen=3;
-                const uint64 saSubBinN=216; // 6^3
-                const uint64 saSubBinMinN=1000000;
-                vector<uint64*> saSortRange;
-                vector<uint64> saSortRangeN;
-                vector<char> saSortRangeSkipFirstWord;
-                saSortRange.reserve(batchPrefN);
-                saSortRangeN.reserve(batchPrefN);
-                saSortRangeSkipFirstWord.reserve(batchPrefN);
-                for (uint64 iPref=0; iPref < batchPrefN; iPref++) {
-                    uint64* saPref=saBatch+saPrefStart[iPref];
-                    uint64 saPrefN=saPrefStart[iPref+1]-saPrefStart[iPref];
-                    if (saPrefN>1) {
-                        bool skipFirstWord=saCanSkipFirstWord && !funSAsortPrefixFirstWordHas5(batchPrefStart+iPref,indPrefLen);
-                        bool subBinned=false;
-                        if (skipFirstWord && saPrefN>=saSubBinMinN) {
-                            uint64 saSubBinCount[saSubBinN];
-                            memset(saSubBinCount,0,sizeof(saSubBinCount));
-                            bool subBinOK=true;
-                            for (uint64 ii=0; ii<saPrefN; ii++) {
-                                if (saPref[ii]<indPrefLen+saSubBinExtraLen-1) {
-                                    subBinOK=false;
-                                    break;
-                                };
-                                saSubBinCount[funSAsortPrefixAtOffset(G,saPref[ii],indPrefLen,saSubBinExtraLen)]++;
-                            };
-
-                            uint64 saSubBinNonEmptyN=0;
-                            uint64 saSubBinStart[saSubBinN+1];
-                            saSubBinStart[0]=0;
-                            if (subBinOK) {
-                                for (uint64 ii=0; ii<saSubBinN; ii++) {
-                                    if (saSubBinCount[ii]>0) {
-                                        saSubBinNonEmptyN++;
-                                    };
-                                    saSubBinStart[ii+1]=saSubBinStart[ii]+saSubBinCount[ii];
-                                };
-                            };
-
-                            uint64* saPrefTmp=NULL;
-                            if (saSubBinNonEmptyN>1) {
-                                saPrefTmp=new (nothrow) uint64 [saPrefN];
-                            };
-                            if (saPrefTmp!=NULL) {
-                                uint64 saSubBinCursor[saSubBinN];
-                                memcpy(saSubBinCursor,saSubBinStart,sizeof(saSubBinCursor));
-                                for (uint64 ii=0; ii<saPrefN; ii++) {
-                                    uint64 iSub=funSAsortPrefixAtOffset(G,saPref[ii],indPrefLen,saSubBinExtraLen);
-                                    saPrefTmp[saSubBinCursor[iSub]]=saPref[ii];
-                                    saSubBinCursor[iSub]++;
-                                };
-                                memcpy(saPref,saPrefTmp,saPrefN*sizeof(saPref[0]));
-                                delete [] saPrefTmp;
-
-                                uint64 saSubBinSortRangeN=0;
-                                for (uint64 iSub=0; iSub<saSubBinN; iSub++) {
-                                    uint64 saSubN=saSubBinStart[iSub+1]-saSubBinStart[iSub];
-                                    if (saSubN>1) {
-                                        saSortRange.push_back(saPref+saSubBinStart[iSub]);
-                                        saSortRangeN.push_back(saSubN);
-                                        saSortRangeSkipFirstWord.push_back(1);
-                                        saSubBinSortRangeN++;
-                                    };
-                                };
-                                if (saSortProfile) {
-                                    saProfileSubBinPrefixN++;
-                                    saProfileSubBinRangeN += saSubBinSortRangeN;
-                                    saProfileSubBinIndexN += saPrefN;
-                                };
-                                subBinned=true;
-                            };
-                        };
-                        if (!subBinned) {
-                            saSortRange.push_back(saPref);
-                            saSortRangeN.push_back(saPrefN);
-                            saSortRangeSkipFirstWord.push_back(skipFirstWord ? 1 : 0);
-                        };
-                    };
-                };
-
-                #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,16) reduction(+:saProfileSkipFirstWordRangeN,saProfileSkipFirstWordIndexN)
-                for (int iRange=0; iRange < (int) saSortRangeN.size(); iRange++) {
-                    uint64* saRange=saSortRange[iRange];
-                    uint64 saRangeN=saSortRangeN[iRange];
-                    if (saSortRangeSkipFirstWord[iRange]) {
-                        qsort(saRange,saRangeN,sizeof(saRange[0]),funCompareSuffixesSkipFirstWord);
-                        if (saSortProfile) {
-                            saProfileSkipFirstWordRangeN++;
-                            saProfileSkipFirstWordIndexN += saRangeN;
-                        };
-                    } else {
-                        qsort(saRange,saRangeN,sizeof(saRange[0]),funCompareSuffixes);
-                    };
-                };
-                if (saSortProfile) {
-                    saProfileSortSeconds += omp_get_wtime()-saProfileTime0;
-                };
-
-                saProfileTime0=omp_get_wtime();
-                #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,1)
-                for (int iChunk=0; iChunk < (int) batchChunkN; iChunk++) {
-                    uint64 iChunkAbs=iChunkBatch+(uint64) iChunk;
-                    uint64* saChunk=saBatch+saBatchStart[iChunk];
-                    for (uint64 ii=0;ii<indPrefChunkCount[iChunkAbs];ii++) {
-                        saChunk[ii]=2*nGenome-1-saChunk[ii];
-                    };
-                    if (!saChunksInMemoryActive) {
-                        string chunkFileName=pGe.gDir+"/SA_"+to_string(iChunkAbs);
-                        ofstream saChunkFile = ofstrOpenOwned(chunkFileName,ERROR_OUT, P);
-                        fstreamWriteBig(saChunkFile, (char*) saChunk, sizeof(saChunk[0])*indPrefChunkCount[iChunkAbs],chunkFileName,ERROR_OUT,P);
-                        saChunkFile.close();
-                    };
-                };
-                if (saSortProfile) {
-                    saProfileFinalizeSeconds += omp_get_wtime()-saProfileTime0;
-                };
-
-                delete [] saThreadPrefStart;
-                delete [] saThreadPrefCount;
-                delete [] saPrefStart;
-                delete [] saBatchStart;
-                if (!saChunksInMemoryActive) {
-                    delete [] saBatch;
-                };
-                iChunkBatch=iChunkBatchNext;
+    uint64 skipFirstWordRangeN=0, skipFirstWordIndexN=0;
+    #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,16) reduction(+:skipFirstWordRangeN,skipFirstWordIndexN)
+    for (int iRange=0; iRange < (int) saSortRangeN.size(); iRange++) {
+        uint64* saRange=saSortRange[iRange];
+        uint64 saRangeN=saSortRangeN[iRange];
+        if (saSortRangeSkipFirstWord[iRange]) {
+            qsort(saRange,saRangeN,sizeof(saRange[0]),funCompareSuffixesSkipFirstWord);
+            if (saSortProfile) {
+                skipFirstWordRangeN++;
+                skipFirstWordIndexN += saRangeN;
             };
         } else {
-            #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,1) reduction(+:saProfileFillScatterSeconds,saProfileSortSeconds,saProfileFinalizeSeconds)
-            for (int iChunk=0; iChunk < (int) saChunkN; iChunk++) {//start the chunk cycle: sort each chunk with qsort and write to a file
-                uint64* saChunk=saChunksInMemoryActive ? saChunksInMemory+saChunkStart[iChunk] : new uint64 [indPrefChunkCount[iChunk]];//allocate local array for each chunk
-                double saProfileTime0=omp_get_wtime();
-                for (uint64 ii=0,jj=0;ii<2*nGenome;ii+=pGe.gSAsparseD) {//fill the chunk with SA indices
-                    if (G[ii]<4) {
-                        uint64 p1=funSAsortPrefix(G,ii,indPrefLen);
-                        if (p1>=indPrefStart[iChunk] && p1<indPrefStart[iChunk+1]) {
-                            saChunk[jj]=ii;
-                            jj++;
-                            if (jj==indPrefChunkCount[iChunk]) break;
-                        };
+            qsort(saRange,saRangeN,sizeof(saRange[0]),funCompareSuffixes);
+        };
+    };
+    prof.skipFirstWordRangeN += skipFirstWordRangeN;
+    prof.skipFirstWordIndexN += skipFirstWordIndexN;
+    if (saSortProfile) {
+        prof.sortSeconds += omp_get_wtime()-saProfileTime0;
+    };
+
+    saProfileTime0=omp_get_wtime();
+    #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,1)
+    for (int iChunk=0; iChunk < (int) batchChunkN; iChunk++) {
+        uint64 iChunkAbs=iChunkBatch+(uint64) iChunk;
+        finishSAchunk(plan, saBatch+saBatchStart[iChunk], iChunkAbs);
+    };
+    if (saSortProfile) {
+        prof.finalizeSeconds += omp_get_wtime()-saProfileTime0;
+    };
+
+    if (!saChunksInMemoryActive) {
+        delete [] saBatch;
+    };
+};
+
+void Genome::collectSAsortRanges(const SAsortPlan &plan, SAsortProfile &prof, uint64 *saBatch, const vector<uint64> &saPrefStart, uint64 batchPrefStart,
+                                 vector<uint64*> &saSortRange, vector<uint64> &saSortRangeN, vector<char> &saSortRangeSkipFirstWord)
+{//split the batch into independent qsort ranges, one per prefix bin or per 3-base sub-bin of a large bin
+    const uint64 indPrefLen=plan.indPrefLen;
+    const uint64 batchPrefN=saPrefStart.size()-1;
+    const bool saCanSkipFirstWord=indPrefLen>=(uint64) sizeof(uint64) && globalL>1;
+    const uint64 saSubBinExtraLen=3;
+    const uint64 saSubBinN=216; // 6^3
+    const uint64 saSubBinMinN=1000000;
+    saSortRange.reserve(batchPrefN);
+    saSortRangeN.reserve(batchPrefN);
+    saSortRangeSkipFirstWord.reserve(batchPrefN);
+    for (uint64 iPref=0; iPref < batchPrefN; iPref++) {
+        uint64* saPref=saBatch+saPrefStart[iPref];
+        uint64 saPrefN=saPrefStart[iPref+1]-saPrefStart[iPref];
+        if (saPrefN<=1)
+            continue;
+
+        bool skipFirstWord=saCanSkipFirstWord && !funSAsortPrefixFirstWordHas5(batchPrefStart+iPref,indPrefLen);
+        bool subBinned=false;
+        if (skipFirstWord && saPrefN>=saSubBinMinN) {
+            uint64 saSubBinCount[saSubBinN];
+            memset(saSubBinCount,0,sizeof(saSubBinCount));
+            bool subBinOK=true;
+            for (uint64 ii=0; ii<saPrefN; ii++) {
+                if (saPref[ii]<indPrefLen+saSubBinExtraLen-1) {
+                    subBinOK=false;
+                    break;
+                };
+                saSubBinCount[funSAsortPrefixAtOffset(G,saPref[ii],indPrefLen,saSubBinExtraLen)]++;
+            };
+
+            uint64 saSubBinNonEmptyN=0;
+            uint64 saSubBinStart[saSubBinN+1];
+            saSubBinStart[0]=0;
+            if (subBinOK) {
+                for (uint64 ii=0; ii<saSubBinN; ii++) {
+                    if (saSubBinCount[ii]>0) {
+                        saSubBinNonEmptyN++;
+                    };
+                    saSubBinStart[ii+1]=saSubBinStart[ii]+saSubBinCount[ii];
+                };
+            };
+
+            uint64* saPrefTmp=NULL;
+            if (saSubBinNonEmptyN>1) {
+                saPrefTmp=new (nothrow) uint64 [saPrefN];
+            };
+            if (saPrefTmp!=NULL) {
+                uint64 saSubBinCursor[saSubBinN];
+                memcpy(saSubBinCursor,saSubBinStart,sizeof(saSubBinCursor));
+                for (uint64 ii=0; ii<saPrefN; ii++) {
+                    uint64 iSub=funSAsortPrefixAtOffset(G,saPref[ii],indPrefLen,saSubBinExtraLen);
+                    saPrefTmp[saSubBinCursor[iSub]]=saPref[ii];
+                    saSubBinCursor[iSub]++;
+                };
+                memcpy(saPref,saPrefTmp,saPrefN*sizeof(saPref[0]));
+                delete [] saPrefTmp;
+
+                uint64 saSubBinSortRangeN=0;
+                for (uint64 iSub=0; iSub<saSubBinN; iSub++) {
+                    uint64 saSubN=saSubBinStart[iSub+1]-saSubBinStart[iSub];
+                    if (saSubN>1) {
+                        saSortRange.push_back(saPref+saSubBinStart[iSub]);
+                        saSortRangeN.push_back(saSubN);
+                        saSortRangeSkipFirstWord.push_back(1);
+                        saSubBinSortRangeN++;
                     };
                 };
-                if (saSortProfile) {
-                    saProfileFillScatterSeconds += omp_get_wtime()-saProfileTime0;
+                if (plan.profile) {
+                    prof.subBinPrefixN++;
+                    prof.subBinRangeN += saSubBinSortRangeN;
+                    prof.subBinIndexN += saPrefN;
                 };
+                subBinned=true;
+            };
+        };
+        if (!subBinned) {
+            saSortRange.push_back(saPref);
+            saSortRangeN.push_back(saPrefN);
+            saSortRangeSkipFirstWord.push_back(skipFirstWord ? 1 : 0);
+        };
+    };
+};
 
-                //sort the chunk
-                saProfileTime0=omp_get_wtime();
-                if (indPrefChunkCount[iChunk]>1) {
-                    qsort(saChunk,indPrefChunkCount[iChunk],sizeof(saChunk[0]),funCompareSuffixes);
-                };
-                if (saSortProfile) {
-                    saProfileSortSeconds += omp_get_wtime()-saProfileTime0;
-                };
-                saProfileTime0=omp_get_wtime();
-                for (uint64 ii=0;ii<indPrefChunkCount[iChunk];ii++) {
-                    saChunk[ii]=2*nGenome-1-saChunk[ii];
-                };
-                //write files
-                if (!saChunksInMemoryActive) {
-                    string chunkFileName=pGe.gDir+"/SA_"+to_string( (uint64) iChunk);
-                    ofstream saChunkFile = ofstrOpenOwned(chunkFileName,ERROR_OUT, P);
-                    fstreamWriteBig(saChunkFile, (char*) saChunk, sizeof(saChunk[0])*indPrefChunkCount[iChunk],chunkFileName,ERROR_OUT,P);
-                    saChunkFile.close();
-                    delete [] saChunk;
-                    saChunk=NULL;
-                };
-                if (saSortProfile) {
-                    saProfileFinalizeSeconds += omp_get_wtime()-saProfileTime0;
+void Genome::sortSAchunksSeparately(SAsortPlan &plan, SAsortProfile &prof)
+{//each thread scans the genome for its own chunk, sorts it and stores it
+    const uint64 indPrefLen=plan.indPrefLen;
+    const bool saSortProfile=plan.profile;
+    const bool saChunksInMemoryActive=plan.inMemory;
+    double fillScatterSeconds=0.0, sortSeconds=0.0, finalizeSeconds=0.0;
+    #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,1) reduction(+:fillScatterSeconds,sortSeconds,finalizeSeconds)
+    for (int iChunk=0; iChunk < (int) plan.chunkN; iChunk++) {//start the chunk cycle: sort each chunk with qsort and write to a file
+        const uint64 chunkCount=plan.chunkCount[iChunk];
+        uint64* saChunk=saChunksInMemoryActive ? plan.inMemoryChunks.get()+plan.chunkStart[iChunk] : new uint64 [chunkCount];//allocate local array for each chunk
+        double saProfileTime0=omp_get_wtime();
+        for (uint64 ii=0,jj=0;ii<2*nGenome;ii+=pGe.gSAsparseD) {//fill the chunk with SA indices
+            if (G[ii]<4) {
+                uint64 p1=funSAsortPrefix(G,ii,indPrefLen);
+                if (p1>=plan.chunkPrefStart[iChunk] && p1<plan.chunkPrefStart[iChunk+1]) {
+                    saChunk[jj]=ii;
+                    jj++;
+                    if (jj==chunkCount) break;
                 };
             };
         };
-
         if (saSortProfile) {
-            ostringstream saProfileOut;
-            saProfileOut << fixed << setprecision(3);
-            saProfileOut << "SA sort profile phases: fill_count_seconds=" << saProfileFillCountSeconds
-                         << "; fill_scatter_seconds=" << saProfileFillScatterSeconds
-                         << "; sort_seconds=" << saProfileSortSeconds
-                         << "; finalize_seconds=" << saProfileFinalizeSeconds;
-            P.inOut->logMain << saProfileOut.str() << "\n" <<flush;
-            P.inOut->logMain << "SA sort profile comparator: skip_first_word_ranges=" << saProfileSkipFirstWordRangeN
-                              << "; skip_first_word_indices=" << saProfileSkipFirstWordIndexN << "\n" <<flush;
-            P.inOut->logMain << "SA sort profile sub-bins: prefixes=" << saProfileSubBinPrefixN
-                              << "; ranges=" << saProfileSubBinRangeN
-                              << "; indices=" << saProfileSubBinIndexN << "\n" <<flush;
+            fillScatterSeconds += omp_get_wtime()-saProfileTime0;
         };
 
-        time ( &rawTime );
-        P.inOut->logMain     << timeMonthDayTime(rawTime) << (saChunksInMemoryActive ? " ... packing SA from RAM chunks...\n" : " ... loading chunks from disk, packing SA...\n") <<flush;
-        *P.inOut->logStdOut  << timeMonthDayTime(rawTime) << (saChunksInMemoryActive ? " ... packing SA from RAM chunks...\n" : " ... loading chunks from disk, packing SA...\n") <<flush;
+        saProfileTime0=omp_get_wtime();
+        if (chunkCount>1) {
+            qsort(saChunk,chunkCount,sizeof(saChunk[0]),funCompareSuffixes);
+        };
+        if (saSortProfile) {
+            sortSeconds += omp_get_wtime()-saProfileTime0;
+        };
 
-        //read chunks and pack into full SA
-        SApass1.allocateArray();
-        SA.pointArray(SApass1.charArray + SApass1.lengthByte-SA.lengthByte); //SA is shifted to have space for junction insertion
-        uint64 N2bit= 1LLU << GstrandBit;
-        uint64 packedInd=0;
+        saProfileTime0=omp_get_wtime();
+        finishSAchunk(plan, saChunk, (uint64) iChunk);
+        if (!saChunksInMemoryActive) {
+            delete [] saChunk;
+        };
+        if (saSortProfile) {
+            finalizeSeconds += omp_get_wtime()-saProfileTime0;
+        };
+    };
+    prof.fillScatterSeconds += fillScatterSeconds;
+    prof.sortSeconds += sortSeconds;
+    prof.finalizeSeconds += finalizeSeconds;
+};
 
-        #ifdef genenomeGenerate_SA_textOutput
-                ofstream SAtxtStream ((pGe.gDir + "/SAtxt").c_str());
-        #endif
+void Genome::finishSAchunk(const SAsortPlan &plan, uint64 *saChunk, uint64 iChunk)
+{//convert a sorted chunk from reversed-genome to forward coordinates; write it out unless retained in RAM
+    const uint64 chunkCount=plan.chunkCount[iChunk];
+    for (uint64 ii=0;ii<chunkCount;ii++) {
+        saChunk[ii]=2*nGenome-1-saChunk[ii];
+    };
+    if (!plan.inMemory) {
+        string chunkFileName=pGe.gDir+"/SA_"+to_string(iChunk);
+        ofstream saChunkFile = ofstrOpenOwned(chunkFileName,ERROR_OUT, P);
+        fstreamWriteBig(saChunkFile, (char*) saChunk, sizeof(saChunk[0])*chunkCount,chunkFileName,ERROR_OUT,P);
+        saChunkFile.close();
+    };
+};
 
-        if (saChunksInMemoryActive) {//pack directly from RAM-retained chunks (upstream PR #2687)
-            for (uint64 ii=0; ii<nSA; ii++) {
-                SA.writePacked( ii, (saChunksInMemory[ii]<nGenome) ? saChunksInMemory[ii] : ( (saChunksInMemory[ii]-nGenome) | N2bit ) );
+void Genome::packSuffixArray(SAsortPlan &plan)
+{//read the sorted chunks in order and pack them into the full SA
+    SApass1.allocateArray();
+    SA.pointArray(SApass1.charArray + SApass1.lengthByte-SA.lengthByte); //SA is shifted to have space for junction insertion
+    const uint64 N2bit= 1LLU << GstrandBit;
+    uint64 packedInd=0;
 
-                #ifdef genenomeGenerate_SA_textOutput
-                    SAtxtStream << saChunksInMemory[ii] << "\n";
-                #endif
-            };
-            packedInd=nSA;
-            delete [] saChunksInMemory;
-            saChunksInMemory=NULL;
-        } else {//disk-backed fallback: load chunk files one by one and convert to packed
-            #define SA_CHUNK_BLOCK_SIZE 10000000
-            uint64* saIn=new uint64[SA_CHUNK_BLOCK_SIZE]; //TODO make adjustable
+    if (plan.inMemory) {//pack directly from RAM-retained chunks (upstream PR #2687)
+        const uint64 *saChunks=plan.inMemoryChunks.get();
+        for (uint64 ii=0; ii<nSA; ii++) {
+            SA.writePacked( ii, (saChunks[ii]<nGenome) ? saChunks[ii] : ( (saChunks[ii]-nGenome) | N2bit ) );
+        };
+        packedInd=nSA;
+        plan.inMemoryChunks.reset();
+    } else {//disk-backed fallback: load chunk files one by one and convert to packed
+        constexpr uint64 saChunkBlockSize=10000000;
+        unique_ptr<uint64[]> saIn(new uint64[saChunkBlockSize]);
 
-            for (uint64 iChunk=0;iChunk<saChunkN;iChunk++) {//load files one by one and convert to packed
-                ostringstream saChunkFileNameStream("");
-                saChunkFileNameStream<< pGe.gDir << "/SA_" << iChunk;
-                ifstream saChunkFile(saChunkFileNameStream.str().c_str(), std::ios::binary);//binary mode: SA chunks are raw binary, must not be text-translated on Windows
-                while (! saChunkFile.eof()) {//read blocks from each file
-                    uint64 chunkBytesN=fstreamReadBig(saChunkFile,(char*) saIn,SA_CHUNK_BLOCK_SIZE*sizeof(saIn[0]));
-                    for (uint64 ii=0;ii<chunkBytesN/sizeof(saIn[0]);ii++) {
-                        SA.writePacked( packedInd+ii, (saIn[ii]<nGenome) ? saIn[ii] : ( (saIn[ii]-nGenome) | N2bit ) );
-
-                        #ifdef genenomeGenerate_SA_textOutput
-                            SAtxtStream << saIn[ii] << "\n";
-                        #endif
-                    };
-                    packedInd += chunkBytesN/sizeof(saIn[0]);
+        for (uint64 iChunk=0;iChunk<plan.chunkN;iChunk++) {//load files one by one and convert to packed
+            string chunkFileName=pGe.gDir+"/SA_"+to_string(iChunk);
+            ifstream saChunkFile(chunkFileName.c_str(), std::ios::binary);//binary mode: SA chunks are raw binary, must not be text-translated on Windows
+            while (! saChunkFile.eof()) {//read blocks from each file
+                uint64 chunkBytesN=fstreamReadBig(saChunkFile,(char*) saIn.get(),saChunkBlockSize*sizeof(saIn[0]));
+                for (uint64 ii=0;ii<chunkBytesN/sizeof(saIn[0]);ii++) {
+                    SA.writePacked( packedInd+ii, (saIn[ii]<nGenome) ? saIn[ii] : ( (saIn[ii]-nGenome) | N2bit ) );
                 };
-                saChunkFile.close();
-                remove(saChunkFileNameStream.str().c_str());//remove the chunk file
+                packedInd += chunkBytesN/sizeof(saIn[0]);
             };
-            delete [] saIn;
+            saChunkFile.close();
+            remove(chunkFileName.c_str());//remove the chunk file
         };
-
-        #ifdef genenomeGenerate_SA_textOutput
-                SAtxtStream.close();
-        #endif
-
-        if (packedInd != nSA ) {//
-            ostringstream errOut;
-            errOut << "EXITING because of FATAL problem while generating the suffix array\n";
-            errOut << "The number of indices read from chunks = "<<packedInd<<" is not equal to expected nSA="<<nSA<<"\n";
-            errOut << "SOLUTION: try to re-run suffix array generation, if it still does not work, report this problem to the author\n"<<flush;
-            exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
-        };
-
-        //DONE with suffix array generation
-
-        for (uint64 ii=0;ii<nGenome;ii++) {//return to normal order for future use
-            swap(G[2*nGenome-1-ii],G[ii]);
-        };
-        delete [] indPrefCount;
-        delete [] indPrefStart;
-        delete [] indPrefChunkCount;
-        delete [] saChunkStart;
     };
 
-    time ( &rawTime );
-    P.inOut->logMain     << timeMonthDayTime(rawTime) <<" ... finished generating suffix array\n" <<flush;
-    *P.inOut->logStdOut  << timeMonthDayTime(rawTime) <<" ... finished generating suffix array\n" <<flush;
-
-    genomeSAindex(G, SA, P, SAi, *this);
-
-    sjdbN=0;
-    if (P.sjdbInsert.yes) {//insert junctions
-        P.sjdbInsert.outDir=pGe.gDir;
-        P.twoPass.pass2=false;
-
-        Genome genome1(*this, Genome::Snapshot::Borrowed); // insertion-time view; *this owns storage
-        sjdbInsertJunctions(P, *this, genome1, sjdbLoci);
+    if (packedInd != nSA ) {
+        exitSAerror(P, "The number of indices read from chunks = "+to_string(packedInd)+" is not equal to expected nSA="+to_string(nSA)+"\n");
     };
+};
 
+void Genome::writeGenomeIndex()
+{//genomeParameters.txt, Genome, SA and SAindex
     pGe.gFileSizes.clear();
     pGe.gFileSizes.push_back(nGenome);
     pGe.gFileSizes.push_back(SA.lengthByte);
 
-    //write genome parameters file
     genomeParametersWrite(pGe.gDir+("/genomeParameters.txt"), P, ERROR_OUT, *this);
 
-    //write genome to disk
-    time ( &rawTime );
-    P.inOut->logMain     << timeMonthDayTime(rawTime) <<" ... writing Genome to disk ...\n" <<flush;
-    *P.inOut->logStdOut  << timeMonthDayTime(rawTime) <<" ... writing Genome to disk ...\n" <<flush;
-
+    logStage(P," ... writing Genome to disk ...\n");
     writeGenomeSequence(pGe.gDir);
 
-    //write SA
-    time ( &rawTime );
     P.inOut->logMain  << "SA size in bytes: "<<SA.lengthByte << "\n"<<flush;
-
-    P.inOut->logMain     << timeMonthDayTime(rawTime) <<" ... writing Suffix Array to disk ...\n" <<flush;
-    *P.inOut->logStdOut  << timeMonthDayTime(rawTime) <<" ... writing Suffix Array to disk ...\n" <<flush;
+    logStage(P," ... writing Suffix Array to disk ...\n");
 
     ofstream SAout = ofstrOpenOwned(pGe.gDir+"/SA",ERROR_OUT, P);
     fstreamWriteBig(SAout,(char*) SA.charArray, (streamsize) SA.lengthByte,pGe.gDir+"/SA",ERROR_OUT,P);
     SAout.close();
 
-    //write SAi
-    time(&rawTime);
-    P.inOut->logMain    << timeMonthDayTime(rawTime) <<" ... writing SAindex to disk\n" <<flush;
-    *P.inOut->logStdOut << timeMonthDayTime(rawTime) <<" ... writing SAindex to disk\n" <<flush;
+    logStage(P," ... writing SAindex to disk\n");
 
-    //write SAi to disk
     ofstream SAiOut = ofstrOpenOwned(pGe.gDir+"/SAindex",ERROR_OUT, P);
-
     fstreamWriteBig(SAiOut, (char*) &pGe.gSAindexNbases, sizeof(pGe.gSAindexNbases),pGe.gDir+"/SAindex",ERROR_OUT,P);
     fstreamWriteBig(SAiOut, (char*) genomeSAindexStart, sizeof(genomeSAindexStart[0])*(pGe.gSAindexNbases+1),pGe.gDir+"/SAindex",ERROR_OUT,P);
     fstreamWriteBig(SAiOut,  SAi.charArray, SAi.lengthByte,pGe.gDir+"/SAindex",ERROR_OUT,P);
     SAiOut.close();
-
-    SApass1.deallocateArray();
-
-    time(&rawTime);
-    P.inOut->logMain    << timeMonthDayTime(rawTime) << " ..... finished successfully\n" <<flush;
-    *P.inOut->logStdOut << timeMonthDayTime(rawTime) << " ..... finished successfully\n" <<flush;
 };
 
 void Genome::writeChrInfo(const string dirOut) 
