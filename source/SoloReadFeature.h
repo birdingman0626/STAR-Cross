@@ -13,6 +13,7 @@
 
 class SoloFeature;
 class ReadSoloFeatures; //per-read features, SoloReadFeature_record.cpp
+struct SoloInputRecord; //one temporary-file record, SoloReadFeature_inputRecords.cpp
 
 class SoloReadFeature {
 public:
@@ -56,6 +57,11 @@ private:
     uint32 recordTranscript3p(SoloReadBarcode &soloBar, uint64 iRead, ReadAnnotations &readAnnot, ReadSoloFeatures &reFe);
     uint32 recordVelocyto(uint64 iRead, ReadAnnotations &readAnnot);
     void addCBreadCount(SoloReadBarcode &soloBar, uint32 nFeat);
+    //inputRecords steps (SoloReadFeature_inputRecords.cpp)
+    bool inputSingleCB(SoloInputRecord &r, uint32 **cbP, uint32 cbPstride, std::vector<uint32> &cbReadCountTotal, std::vector<readInfoStruct> &readInfo);
+    void inputMultipleCB(SoloInputRecord &r, uint32 **cbP, uint32 cbPstride, std::vector<uint32> &cbReadCountTotal, std::vector<readInfoStruct> &readInfo);
+    void storeInputRecord(SoloInputRecord &r, uint32 **cbP, uint32 cbPstride, std::vector<readInfoStruct> &readInfo);
+    void countInputRead(const SoloInputRecord &r, SoloReadFlagClass &readFlagCounts, std::vector<uint32> &nReadPerCBunique1, std::vector<uint32> &nReadPerCBmulti1);
 };
 
 #endif
