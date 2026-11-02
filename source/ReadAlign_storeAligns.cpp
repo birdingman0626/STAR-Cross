@@ -15,7 +15,7 @@ void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, u
     #endif
 
     if ( Nrep > P.seedMultimapNmax ) {// if a piece maps too many times, do not store it
-        if ( Nrep < multNmin || multNmin==0 ) {multNmin=Nrep; multNminL=L;};
+        if ( Nrep < seedStats.multNmin || seedStats.multNmin==0 ) {seedStats.multNmin=Nrep; seedStats.multNminL=L;};
         return;
     };
 
@@ -145,16 +145,16 @@ void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, u
 
     //choose "best" alignment
 
-    if (L<storedLmin) L=storedLmin;
+    if (L<seedStats.storedLmin) L=seedStats.storedLmin;
 
     if (Nrep==1) {
-        if (L>uniqLmax) {
-            uniqLmax=L;
-            uniqLmaxInd=nP-1;
+        if (L>seedStats.uniqLmax) {
+            seedStats.uniqLmax=L;
+            seedStats.uniqLmaxInd=nP-1;
         };
     } else {
-        if ( Nrep < multNmin || multNmin==0 ) {multNmin=Nrep; multNminL=L;};
-        if ( L > multLmax ) {multLmax=L;multLmaxN=Nrep;};
-        if ( Nrep > multNmax ) {multNmax=Nrep; multNmaxL=L;};
+        if ( Nrep < seedStats.multNmin || seedStats.multNmin==0 ) {seedStats.multNmin=Nrep; seedStats.multNminL=L;};
+        if ( L > seedStats.multLmax ) {seedStats.multLmax=L;seedStats.multLmaxN=Nrep;};
+        if ( Nrep > seedStats.multNmax ) {seedStats.multNmax=Nrep; seedStats.multNmaxL=L;};
     };
 };

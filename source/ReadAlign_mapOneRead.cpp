@@ -52,10 +52,10 @@ int ReadAlign::mapOneRead() {
         const auto* seeds=std::exchange(preparedSeeds,nullptr);
         if(const auto* summary=std::exchange(preparedSeedSummary,nullptr)) {
             nP=summary->pieces;nA=summary->alignments;nUM[0]=summary->unique;nUM[1]=summary->multiple;
-            uniqLmax=summary->uniqLmax;uniqLmaxInd=summary->uniqLmaxInd;
-            multLmax=summary->multLmax;multLmaxN=summary->multLmaxN;
-            multNmin=summary->multNmin;multNminL=summary->multNminL;
-            multNmax=summary->multNmax;multNmaxL=summary->multNmaxL;
+            seedStats.uniqLmax=summary->uniqLmax;seedStats.uniqLmaxInd=summary->uniqLmaxInd;
+            seedStats.multLmax=summary->multLmax;seedStats.multLmaxN=summary->multLmaxN;
+            seedStats.multNmin=summary->multNmin;seedStats.multNminL=summary->multNminL;
+            seedStats.multNmax=summary->multNmax;seedStats.multNmaxL=summary->multNmaxL;
             if(nP!=seeds->size() || nP>P.seedPerReadNmax) throw std::logic_error("invalid consolidated GPU seeds");
             for(size_t i=0;i<seeds->size();++i) {
                 const auto& seed=(*seeds)[i];
@@ -143,7 +143,7 @@ int ReadAlign::mapOneRead() {
         nW=0;
     } else if (Nsplit>0 && nA==0) {
         mapMarker=MARKER_ALL_PIECES_EXCEED_seedMultimapNmax;
-        trBest->rLength=multNminL;
+        trBest->rLength=seedStats.multNminL;
         nW=0;
     } else if (Nsplit>0 && nA>0) {//otherwise there are no good pieces, or all pieces map too many times: read cannot be mapped
 //         qsort((void*) PC, nP, sizeof(uint64)*PC_SIZE, funCompareUint2);//sort PC by rStart and length

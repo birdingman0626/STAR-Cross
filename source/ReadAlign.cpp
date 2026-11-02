@@ -167,8 +167,8 @@ void ReadAlign::resetN () {//reset resets the counters to 0 for a new read
     nA=0; nP=0; nW=0;
     nTr=0;
     nUM[0]=0; nUM[1]=0;
-    storedLmin=0; uniqLmax=0; uniqLmaxInd=0; multLmax=0; multLmaxN=0; multNminL=0; multNmin=0; multNmax=0; multNmaxL=0;
-    chimN=0;
+    seedStats={};
+    chimOld.N=0;
 
     for (uint64 ii=0; ii<P.readNmates; ii++) {//not readNends: this is alignment
         maxScoreMate[ii]=0;

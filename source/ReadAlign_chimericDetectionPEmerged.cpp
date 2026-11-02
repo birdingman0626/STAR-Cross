@@ -21,7 +21,7 @@ void ReadAlign::chimericDetectionPEmerged(ReadAlign &seRA) {
             return;
         };
 
-        peOverlapChimericSEtoPE(&seRA.trChim[0], &seRA.trChim[1], &trChim[0], &trChim[1]);
+        peOverlapChimericSEtoPE(&seRA.chimOld.tr[0], &seRA.chimOld.tr[1], &chimOld.tr[0], &chimOld.tr[1]);
         chimericDetectionOldOutput();
 
     } else if (trBest->maxScore <= (int) (readLength[0]+readLength[1]) - (int) P.pCh.nonchimScoreDropMin) {//require big enough drop in the best score

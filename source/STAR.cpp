@@ -63,33 +63,15 @@ void usage(int usageType)
     exit(0);
 };
 
-int main(int argInN, char *argIn[])
-try
-{
-    // If no argument is given, or the first argument is either '-h' or '--help', run usage()
-    if (argInN == 1)
-    {
-        usage(0);
-    }
-    else if (argInN == 2 && (strcmp("-h", argIn[1]) == 0 || strcmp("--help", argIn[1]) == 0))
-    {
-        usage(1);
-    };
+namespace {
 
-    time(&g_statsAll.timeStart);
+void logTiming(Parameters &P, const char *label)
+{//wall-clock checkpoint in Log.out
+    P.inOut->logMain<<"TIMING "<<label<<" t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
+};
 
-    ///////////////////////////////////////////////////////////////////////
-    ///////////////////////////////////////////// Parameters
-    Parameters P; // all parameters
-    std::unique_ptr<InOutStreams> streamsOwner(P.inOut);
-    P.inputParameters(argInN, argIn);
-
-    *(P.inOut->logStdOut) << "\t" << P.commandLine << '\n';
-    *(P.inOut->logStdOut) << "\tSTAR version: " << STAR_VERSION << "   compiled: " << COMPILATION_TIME_PLACE << '\n';
-    *(P.inOut->logStdOut) << timeMonthDayTime(g_statsAll.timeStart) << " ..... started STAR run\n"
-                          << flush;
-
-    // runMode
+void runNonMappingModes(Parameters &P)
+{//genomeGenerate, liftOver and webui run here and exit; alignReads and soloCellFiltering return
     if (P.runMode == "alignReads" || P.runMode == "soloCellFiltering")
     {
         // continue
@@ -140,40 +122,10 @@ try
                          << flush;
         exit(1);
     };
+};
 
-    // transcripome placeholder
-    Transcriptome inactiveTranscriptome(P, false);
-    Transcriptome *transcriptomeMain = &inactiveTranscriptome;
-
-    // Successful standalone filtering returns normally and releases resources.
-    Solo soloCellFilter(P, *transcriptomeMain);
-    if (P.runMode == "soloCellFiltering") {
-        soloCellFilter.releaseStorage();
-        streamsOwner.reset();
-        return 0;
-    }
-    std::unique_ptr<Transcriptome> transcriptomeStorage;
-
-    ////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////// Genome
-    Genome genomeMain(P, P.pGe);
-    genomeMain.genomeLoad();
-
-    if (P.pGe.transform.outYes) {
-        genomeMain.initializeVariation(false);//no variation for mapGen, only for genOut
-        genomeMain.genomeOut.g->initializeVariation(P.var.yes);
-    } else {
-        genomeMain.initializeVariation(P.var.yes);
-    };
-
-    SjdbClass sjdbLoci;
-
-    if (P.sjdbInsert.pass1) {
-        Genome genomeMain1(genomeMain, Genome::Snapshot::Borrowed); // insertion-time view; source owns storage
-        sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);
-    };
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////START
+void initThreadMutexes(Parameters &P)
+{
     if (P.runThreadN > 1)
     {
         g_threadChunks.threadArray = new pthread_t[P.runThreadN];
@@ -189,135 +141,42 @@ try
         pthread_mutex_init(&g_threadChunks.mutexBAMsortBins, NULL);
         pthread_mutex_init(&g_threadChunks.mutexError, NULL);
     };
+};
 
-    g_statsAll.progressReportHeader(P.inOut->logProgress);
+void mapFilterBySJoutStage2(Parameters &P, vector<ReadAlignChunk*> &RAchunk)
+{//--outFilterType BySJout: collapse stage-1 junctions, then re-map against them
+    P.inOut->logMain << "Completed stage 1 mapping of outFilterBySJout mapping\n"
+                     << flush;
+    outputSJ(RAchunk.data(), P); // collapse novel junctions
+    P.readFilesIndex = -1;
 
-    /////////////////////////////////////////////////////////////////////////////
-    //////////////////////////////////// 2-pass 1st pass
-    twoPassRunPass1(P, genomeMain, transcriptomeMain, sjdbLoci);
-
-    if (P.quant.yes)
-    { // load transcriptome
-        transcriptomeStorage.reset(new Transcriptome(P));
-        transcriptomeMain = transcriptomeStorage.get();
-    };
-
-    // initialize Stats
-    g_statsAll.resetN();
-    time(&g_statsAll.timeStartMap);
-    *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeStartMap) << " ..... started mapping\n"
-                        << flush;
-    g_statsAll.timeLastReport = g_statsAll.timeStartMap;
-
-    P.inOut->logMain<<"TIMING map_begin t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
-    // SAM headers
-    samHeaders(P, *genomeMain.genomeOut.g, *transcriptomeMain);
-
-    // initialize chimeric parameters here - note that chimeric parameters require samHeader
-    P.pCh.initialize(&P);
-
-    // this does not seem to work at the moment
-    // P.inOut->logMain << "mlock value="<<mlockall(MCL_CURRENT|MCL_FUTURE) <<"\n"<<flush;
-
-    // prepare chunks and spawn mapping threads
-    vector<ReadAlignChunk*> RAchunk(P.runThreadN);
-    vector<std::unique_ptr<ReadAlignChunk>> chunkOwners(P.runThreadN);
-    for (int ii = 0; ii < P.runThreadN; ii++)
+    P.outFilterBySJoutStage = 2;
+    if (P.outBAMcoord)
     {
-        chunkOwners[ii].reset(new ReadAlignChunk(P, genomeMain, transcriptomeMain, ii));
-        RAchunk[ii]=chunkOwners[ii].get();
-    };
-
-    P.inOut->logMain<<"TIMING chunks_built t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
-    if (P.runRestart.type != 1)
-        mapThreadsSpawn(P, RAchunk.data());
-    P.inOut->logMain<<"TIMING spawn_done t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
-
-    if (P.outFilterBySJoutStage == 1)
-    { // completed stage 1, go to stage 2
-        P.inOut->logMain << "Completed stage 1 mapping of outFilterBySJout mapping\n"
-                         << flush;
-        outputSJ(RAchunk.data(), P); // collapse novel junctions
-        P.readFilesIndex = -1;
-
-        P.outFilterBySJoutStage = 2;
-        if (P.outBAMcoord)
-        {
-            for (int it = 0; it < P.runThreadN; it++)
-            { // prepare the unmapped bin
-                RAchunk[it]->chunkOutBAMcoord->coordUnmappedPrepareBySJout();
-            };
+        for (int it = 0; it < P.runThreadN; it++)
+        { // prepare the unmapped bin
+            RAchunk[it]->chunkOutBAMcoord->coordUnmappedPrepareBySJout();
         };
-
-        mapThreadsSpawn(P, RAchunk.data());
     };
 
-    // Validate input producers before publishing final statistics/counts.
-    P.closeReadsFiles();
+    mapThreadsSpawn(P, RAchunk.data());
+};
 
-    // close some BAM files
-    if (P.inOut->outBAMfileUnsorted != NULL)
-    {
-        if (P.inOut->unsortedWriter) P.inOut->unsortedWriter->finish();
-        const int flushStatus=bgzf_flush(P.inOut->outBAMfileUnsorted);
-        const int closeStatus=bgzf_close(P.inOut->outBAMfileUnsorted);
-        P.inOut->outBAMfileUnsorted=nullptr;
-        if (flushStatus != 0 || closeStatus != 0)
-            exitWithError("EXITING because of fatal BAM output close error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
-    };
-    if (P.inOut->outQuantBAMfile != NULL)
-    {
-        if (P.inOut->quantWriter) P.inOut->quantWriter->finish();
-        const int flushStatus=bgzf_flush(P.inOut->outQuantBAMfile);
-        const int closeStatus=bgzf_close(P.inOut->outQuantBAMfile);
-        P.inOut->outQuantBAMfile=nullptr;
-        if (flushStatus != 0 || closeStatus != 0)
-            exitWithError("EXITING because of fatal transcriptome BAM close error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
-    };
+template <class Writer>
+void closeBgzfOutput(Parameters &P, BGZF *&file, Writer &writer, const char *error)
+{//drain the async writer, flush and close; failure is fatal
+    if (file == NULL)
+        return;
+    if (writer) writer->finish();
+    const int flushStatus=bgzf_flush(file);
+    const int closeStatus=bgzf_close(file);
+    file=nullptr;
+    if (flushStatus != 0 || closeStatus != 0)
+        exitWithError(error, std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
+};
 
-    if (P.outBAMcoord && P.limitBAMsortRAM == 0)
-    { // make it equal ot the genome size
-        P.limitBAMsortRAM = genomeMain.nGenome + genomeMain.SA.lengthByte + genomeMain.SAi.lengthByte;
-    };
-
-    P.inOut->logMain<<"TIMING map_end t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
-    time(&g_statsAll.timeFinishMap);
-    *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeFinishMap) << " ..... finished mapping\n"
-                        << flush;
-    P.inOut->logMain << timeMonthDayTime(g_statsAll.timeFinishMap) << " ..... finished mapping\n"
-                     << "RAM after mapping:\n"
-                     << linuxProcMemory() << flush;
-
-    // no need for genome anymore, free the memory
-    genomeMain.freeMemory();
-
-    // aggregate output junctions
-    // collapse splice junctions from different threads/chunks, and output them
-    if (P.runRestart.type != 1 && P.outSJ.yes)
-        outputSJ(RAchunk.data(), P);
-
-    // solo counts
-    Solo soloMain(RAchunk.data(), P, RAchunk[0]->chunkTr ? *RAchunk[0]->chunkTr : inactiveTranscriptome);
-    soloMain.processAndOutput();
-
-    if (P.quant.geCount.yes)
-    { // output gene quantifications
-        for (int ichunk = 1; ichunk < P.runThreadN; ichunk++)
-        { // sum counts from all chunks into 0th chunk
-            RAchunk[0]->chunkTr->quants->addQuants(*(RAchunk[ichunk]->chunkTr->quants));
-        };
-        RAchunk[0]->chunkTr->quantsOutput();
-    };
-
-    if (P.runThreadN > 1 && P.outSAMorder == "PairedKeepInputOrder")
-    { // concatenate Aligned.* files
-        RAchunk[0]->chunkFilesCat(P.inOut->outSAM, P.outFileTmp + "/Aligned.out.sam.chunk", g_threadChunks.chunkOutN);
-    };
-
-    if (P.inOut->samWriter) P.inOut->samWriter->finish();
-    bamSortByCoordinate(P, RAchunk.data(), *genomeMain.genomeOut.g, soloMain);
-
-    // wiggle output
+void writeSignalAndCram(Parameters &P)
+{//wiggle from the sorted BAM, then CRAM transcoding
     if (P.outWigFlags.yes)
     {
         *(P.inOut->logStdOut) << timeMonthDayTime() << " ..... started wiggle output\n"
@@ -344,7 +203,10 @@ try
             bamToCramReferenceless(P.outBAMfileCoordName, P.outCRAMfileCoordName, P);
         };
     };
+};
 
+void reportFinalStats(Parameters &P)
+{//chimeric junction footer, Log.progress.out, Log.final.out
     g_statsAll.writeLines(P.inOut->outChimJunction, P.pCh.outJunctionFormat, "#", STAR_VERSION + string("   ") + P.commandLine);
 
     g_statsAll.progressReport(P.inOut->logProgress);
@@ -357,9 +219,10 @@ try
 
     P.inOut->logMain << "ALL DONE!\n"
                      << flush;
+};
 
-    // All mapping, Solo and sorting consumers have finished. Release writers
-    // before deleting their temporary files (especially important on Windows).
+void releaseChunkOutputs(vector<ReadAlignChunk*> &RAchunk)
+{//finish and drop per-chunk BAM writers before their temporary files are removed
     for (auto* chunk : RAchunk) {
         if (chunk->chunkOutBAMcoord) chunk->chunkOutBAMcoord->finalize();
         chunk->RA->outBAMcoord=chunk->RA->outBAMunsorted=chunk->RA->outBAMquant=nullptr;
@@ -367,6 +230,164 @@ try
         chunk->chunkOutBAMunsorted.reset();
         chunk->chunkOutBAMquant.reset();
     }
+};
+
+} // namespace
+
+int main(int argInN, char *argIn[])
+try
+{
+    // If no argument is given, or the first argument is either '-h' or '--help', run usage()
+    if (argInN == 1)
+    {
+        usage(0);
+    }
+    else if (argInN == 2 && (strcmp("-h", argIn[1]) == 0 || strcmp("--help", argIn[1]) == 0))
+    {
+        usage(1);
+    };
+
+    time(&g_statsAll.timeStart);
+
+    Parameters P; // all parameters
+    std::unique_ptr<InOutStreams> streamsOwner(P.inOut);
+    P.inputParameters(argInN, argIn);
+
+    *(P.inOut->logStdOut) << "\t" << P.commandLine << '\n';
+    *(P.inOut->logStdOut) << "\tSTAR version: " << STAR_VERSION << "   compiled: " << COMPILATION_TIME_PLACE << '\n';
+    *(P.inOut->logStdOut) << timeMonthDayTime(g_statsAll.timeStart) << " ..... started STAR run\n"
+                          << flush;
+
+    runNonMappingModes(P);
+
+    // transcripome placeholder
+    Transcriptome inactiveTranscriptome(P, false);
+    Transcriptome *transcriptomeMain = &inactiveTranscriptome;
+
+    // Successful standalone filtering returns normally and releases resources.
+    Solo soloCellFilter(P, *transcriptomeMain);
+    if (P.runMode == "soloCellFiltering") {
+        soloCellFilter.releaseStorage();
+        streamsOwner.reset();
+        return 0;
+    }
+    std::unique_ptr<Transcriptome> transcriptomeStorage;
+
+    // genome
+    Genome genomeMain(P, P.pGe);
+    genomeMain.genomeLoad();
+
+    if (P.pGe.transform.outYes) {
+        genomeMain.initializeVariation(false);//no variation for mapGen, only for genOut
+        genomeMain.genomeOut.g->initializeVariation(P.var.yes);
+    } else {
+        genomeMain.initializeVariation(P.var.yes);
+    };
+
+    SjdbClass sjdbLoci;
+
+    if (P.sjdbInsert.pass1) {
+        Genome genomeMain1(genomeMain, Genome::Snapshot::Borrowed); // insertion-time view; source owns storage
+        sjdbInsertJunctions(P, genomeMain, genomeMain1, sjdbLoci);
+    };
+
+    initThreadMutexes(P);
+
+    g_statsAll.progressReportHeader(P.inOut->logProgress);
+
+    // 2-pass 1st pass
+    twoPassRunPass1(P, genomeMain, transcriptomeMain, sjdbLoci);
+
+    if (P.quant.yes)
+    { // load transcriptome
+        transcriptomeStorage.reset(new Transcriptome(P));
+        transcriptomeMain = transcriptomeStorage.get();
+    };
+
+    // initialize Stats
+    g_statsAll.resetN();
+    time(&g_statsAll.timeStartMap);
+    *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeStartMap) << " ..... started mapping\n"
+                        << flush;
+    g_statsAll.timeLastReport = g_statsAll.timeStartMap;
+
+    logTiming(P, "map_begin");
+    // SAM headers
+    samHeaders(P, *genomeMain.genomeOut.g, *transcriptomeMain);
+
+    // initialize chimeric parameters here - note that chimeric parameters require samHeader
+    P.pCh.initialize(&P);
+
+    // prepare chunks and spawn mapping threads
+    vector<ReadAlignChunk*> RAchunk(P.runThreadN);
+    vector<std::unique_ptr<ReadAlignChunk>> chunkOwners(P.runThreadN);
+    for (int ii = 0; ii < P.runThreadN; ii++)
+    {
+        chunkOwners[ii].reset(new ReadAlignChunk(P, genomeMain, transcriptomeMain, ii));
+        RAchunk[ii]=chunkOwners[ii].get();
+    };
+
+    logTiming(P, "chunks_built");
+    if (P.runRestart.type != 1)
+        mapThreadsSpawn(P, RAchunk.data());
+    logTiming(P, "spawn_done");
+
+    if (P.outFilterBySJoutStage == 1)
+        mapFilterBySJoutStage2(P, RAchunk);
+
+    // Validate input producers before publishing final statistics/counts.
+    P.closeReadsFiles();
+
+    closeBgzfOutput(P, P.inOut->outBAMfileUnsorted, P.inOut->unsortedWriter, "EXITING because of fatal BAM output close error");
+    closeBgzfOutput(P, P.inOut->outQuantBAMfile, P.inOut->quantWriter, "EXITING because of fatal transcriptome BAM close error");
+
+    if (P.outBAMcoord && P.limitBAMsortRAM == 0)
+    { // make it equal ot the genome size
+        P.limitBAMsortRAM = genomeMain.nGenome + genomeMain.SA.lengthByte + genomeMain.SAi.lengthByte;
+    };
+
+    logTiming(P, "map_end");
+    time(&g_statsAll.timeFinishMap);
+    *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeFinishMap) << " ..... finished mapping\n"
+                        << flush;
+    P.inOut->logMain << timeMonthDayTime(g_statsAll.timeFinishMap) << " ..... finished mapping\n"
+                     << "RAM after mapping:\n"
+                     << linuxProcMemory() << flush;
+
+    // no need for genome anymore, free the memory
+    genomeMain.freeMemory();
+
+    // collapse splice junctions from different threads/chunks, and output them
+    if (P.runRestart.type != 1 && P.outSJ.yes)
+        outputSJ(RAchunk.data(), P);
+
+    // solo counts
+    Solo soloMain(RAchunk.data(), P, RAchunk[0]->chunkTr ? *RAchunk[0]->chunkTr : inactiveTranscriptome);
+    soloMain.processAndOutput();
+
+    if (P.quant.geCount.yes)
+    { // output gene quantifications
+        for (int ichunk = 1; ichunk < P.runThreadN; ichunk++)
+        { // sum counts from all chunks into 0th chunk
+            RAchunk[0]->chunkTr->quants->addQuants(*(RAchunk[ichunk]->chunkTr->quants));
+        };
+        RAchunk[0]->chunkTr->quantsOutput();
+    };
+
+    if (P.runThreadN > 1 && P.outSAMorder == "PairedKeepInputOrder")
+    { // concatenate Aligned.* files
+        RAchunk[0]->chunkFilesCat(P.inOut->outSAM, P.outFileTmp + "/Aligned.out.sam.chunk", g_threadChunks.chunkOutN);
+    };
+
+    if (P.inOut->samWriter) P.inOut->samWriter->finish();
+    bamSortByCoordinate(P, RAchunk.data(), *genomeMain.genomeOut.g, soloMain);
+
+    writeSignalAndCram(P);
+    reportFinalStats(P);
+
+    // All mapping, Solo and sorting consumers have finished. Release writers
+    // before deleting their temporary files (especially important on Windows).
+    releaseChunkOutputs(RAchunk);
     soloMain.releaseStorage(); // aggregate borrowers finish before chunks/temp files
     chunkOwners.clear(); // workers joined; Solo/BAM consumers completed; streams still alive
     std::fill(RAchunk.begin(), RAchunk.end(), nullptr);

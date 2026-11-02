@@ -57,8 +57,8 @@ bool ReadAlign::chimericDetectionOld() {
     int chimScoreBest=0,chimScoreNext=0;
     Transcript* trChim1=NULL;
     uint64 chimStrBest=0;
-    trChim[0]=*trBest;
-    chimStr=chimericStrand(*trBest);
+    chimOld.tr[0]=*trBest;
+    chimOld.str=chimericStrand(*trBest);
     findChimericPartner(chimScoreBest, chimScoreNext, trChim1, chimStrBest);
 
     if (!(chimScoreBest >= P.pCh.scoreMin && chimScoreBest+P.pCh.scoreDropMax >= (int) (readLength[0]+readLength[1]) ) ) {
@@ -72,38 +72,38 @@ bool ReadAlign::chimericDetectionOld() {
         };
     };
 
-    if (chimStr==0) chimStr=chimStrBest;
+    if (chimOld.str==0) chimOld.str=chimStrBest;
 
-    chimN=0;
+    chimOld.N=0;
     if (chimScoreNext + P.pCh.scoreSeparation >= chimScoreBest) {//report only if chimera is unique
         return false;
     };
-    if (trChim[0].roStart > trChim[1].roStart) swap (trChim[0],trChim[1]);
+    if (chimOld.tr[0].roStart > chimOld.tr[1].roStart) swap (chimOld.tr[0],chimOld.tr[1]);
 
-    uint64 e0 = trChim[0].Str==1 ? 0 : trChim[0].nExons-1;
-    uint64 e1 = trChim[1].Str==0 ? 0 : trChim[1].nExons-1;
+    uint64 e0 = chimOld.tr[0].Str==1 ? 0 : chimOld.tr[0].nExons-1;
+    uint64 e1 = chimOld.tr[1].Str==0 ? 0 : chimOld.tr[1].nExons-1;
 
-    chimRepeat0=0;chimRepeat1=0;chimJ0=0;chimJ1=0;chimMotif=0;
+    chimOld.repeat0=0;chimOld.repeat1=0;chimOld.j0=0;chimOld.j1=0;chimOld.motif=0;
 
-    chimN=2;
-    if ( trChim[0].exons[e0][EX_iFrag] > trChim[1].exons[e1][EX_iFrag] ) {//strange configuration, rare, similar to the next one
+    chimOld.N=2;
+    if ( chimOld.tr[0].exons[e0][EX_iFrag] > chimOld.tr[1].exons[e1][EX_iFrag] ) {//strange configuration, rare, similar to the next one
         return false;//reject such chimeras
         //good test example:
         //CTTAGCTAGCAGCGTCTTCCCAGTGCCTGGAGGGCCAGTGAGAATGGCACCCTCTGGGATTTTTGCTCCTAGGTCT
         //TTGAGGTGAAGTTCAAAGATGTGGCTGGCTGTGAGGAGGCCGAGCTAGAGATCATGGAATTTGTGAATTTCTTGAA
-    } else if ( trChim[0].exons[e0][EX_iFrag] < trChim[1].exons[e1][EX_iFrag] ) {//mates bracket the chimeric junction
-        chimN=2;
-        chimRepeat=0;
-        chimMotif=-1;
-        if (trChim[0].Str==1) {//negative strand
-            chimJ0=trChim[0].exons[e0][EX_G]-1;
+    } else if ( chimOld.tr[0].exons[e0][EX_iFrag] < chimOld.tr[1].exons[e1][EX_iFrag] ) {//mates bracket the chimeric junction
+        chimOld.N=2;
+        chimOld.repeat=0;
+        chimOld.motif=-1;
+        if (chimOld.tr[0].Str==1) {//negative strand
+            chimOld.j0=chimOld.tr[0].exons[e0][EX_G]-1;
         } else {
-            chimJ0=trChim[0].exons[e0][EX_G]+trChim[0].exons[e0][EX_L];
+            chimOld.j0=chimOld.tr[0].exons[e0][EX_G]+chimOld.tr[0].exons[e0][EX_L];
         };
-        if (trChim[1].Str==0) {//positive strand
-            chimJ1=trChim[1].exons[e1][EX_G]-1;
+        if (chimOld.tr[1].Str==0) {//positive strand
+            chimOld.j1=chimOld.tr[1].exons[e1][EX_G]-1;
         } else {
-            chimJ1=trChim[1].exons[e1][EX_G]+trChim[1].exons[e1][EX_L];
+            chimOld.j1=chimOld.tr[1].exons[e1][EX_G]+chimOld.tr[1].exons[e1][EX_L];
         };
     } else {//chimeric junctions is within one of the mates, check and shift chimeric junction if necessary
         if (!chimericJunctionInMate(e0, e1, chimScoreBest))
@@ -112,12 +112,12 @@ bool ReadAlign::chimericDetectionOld() {
     };
 
     //final check
-    if ( trChim[0].Str!=trChim[1].Str ||  trChim[0].Chr!=trChim[1].Chr
-            || (trChim[0].Str==0 ? chimJ1-chimJ0+1LLU : chimJ0-chimJ1+1LLU) > (chimMotif>=0 ? P.alignIntronMax :  P.alignMatesGapMax) ) {
+    if ( chimOld.tr[0].Str!=chimOld.tr[1].Str ||  chimOld.tr[0].Chr!=chimOld.tr[1].Chr
+            || (chimOld.tr[0].Str==0 ? chimOld.j1-chimOld.j0+1LLU : chimOld.j0-chimOld.j1+1LLU) > (chimOld.motif>=0 ? P.alignIntronMax :  P.alignMatesGapMax) ) {
         //chimera has to bw from different chr/strand, or far away
 
-        if (chimMotif>=0 &&
-           (trChim[0].exons[e0][EX_L]<P.pCh.junctionOverhangMin+chimRepeat0 || trChim[1].exons[e1][EX_L]<P.pCh.junctionOverhangMin+chimRepeat1) ) {
+        if (chimOld.motif>=0 &&
+           (chimOld.tr[0].exons[e0][EX_L]<P.pCh.junctionOverhangMin+chimOld.repeat0 || chimOld.tr[1].exons[e1][EX_L]<P.pCh.junctionOverhangMin+chimOld.repeat1) ) {
             //filter out linear junctions that are very close to chimeric junction
             return false;
         };
@@ -128,7 +128,7 @@ bool ReadAlign::chimericDetectionOld() {
 };
 
 void ReadAlign::findChimericPartner(int &chimScoreBest, int &chimScoreNext, Transcript* &trChim1, uint64 &chimStrBest)
-{// best second segment for trBest among the other windows' best transcripts and trBest's own window; sets trChim[1]
+{// best second segment for trBest among the other windows' best transcripts and trBest's own window; sets chimOld.tr[1]
     uint64 roStart1, roEnd1;
     originalReadSpan(*trBest, Lread, readLength[0], roStart1, roEnd1);
 
@@ -140,7 +140,7 @@ void ReadAlign::findChimericPartner(int &chimScoreBest, int &chimScoreNext, Tran
             if (t.intronMotifs[0]>0) continue; //do not stitch a window to itself, or to a window with non-canonical junctions
             const uint64 chimStr1=chimericStrand(t);
 
-            if (chimStr!=0 && chimStr1!=0 && chimStr!=chimStr1) continue; //chimeric segments have to have consitent strands
+            if (chimOld.str!=0 && chimStr1!=0 && chimOld.str!=chimStr1) continue; //chimeric segments have to have consitent strands
 
             uint64 roStart2, roEnd2;
             originalReadSpan(t, Lread, readLength[0], roStart2, roEnd2);
@@ -157,19 +157,19 @@ void ReadAlign::findChimericPartner(int &chimScoreBest, int &chimScoreNext, Tran
                 uint64 overlap1=0;
                 if (iWt>0 && chimScoreBest>0)
                 {//overlap between chimeric candidate segment and the best chimeric segment so far. Maybe non-zero only if both are in the same window.
-                    overlap1=blocksOverlap(trChim[1],*trAll[iW][iWt]);
+                    overlap1=blocksOverlap(chimOld.tr[1],*trAll[iW][iWt]);
                 };
 
                 if (chimScore > chimScoreBest) {
-                    trChim[1]=t;
+                    chimOld.tr[1]=t;
                     trChim1=trAll[iW][iWt];
                     if (overlap1==0)
                     {
                         chimScoreNext=chimScoreBest;
                     };
                     chimScoreBest=chimScore;
-                    trChim[1].roStart = trChim[1].roStr ==0 ? trChim[1].rStart : Lread - trChim[1].rStart - trChim[1].rLength;
-                    trChim[1].cStart  = trChim[1].gStart - mapGen.chrStart[trChim[1].Chr];
+                    chimOld.tr[1].roStart = chimOld.tr[1].roStr ==0 ? chimOld.tr[1].rStart : Lread - chimOld.tr[1].rStart - chimOld.tr[1].rLength;
+                    chimOld.tr[1].cStart  = chimOld.tr[1].gStart - mapGen.chrStart[chimOld.tr[1].Chr];
                     chimStrBest=chimStr1;
                 } else if (chimScore>chimScoreNext && overlap1==0) {//replace the nextscore if it's not the best one and is higher than the previous one
                     chimScoreNext=chimScore;
@@ -182,26 +182,26 @@ void ReadAlign::findChimericPartner(int &chimScoreBest, int &chimScoreNext, Tran
 bool ReadAlign::chimericJunctionInMate(uint64 e0, uint64 e1, int &chimScoreBest)
 {// junction inside one mate: choose its position (canonical motif preferred), shift the segment ends to it.
  // Returns false if the chimera is rejected.
-    if (!(trChim[0].exons[e0][EX_L]>=P.pCh.junctionOverhangMin && trChim[1].exons[e1][EX_L]>=P.pCh.junctionOverhangMin )) {
+    if (!(chimOld.tr[0].exons[e0][EX_L]>=P.pCh.junctionOverhangMin && chimOld.tr[1].exons[e1][EX_L]>=P.pCh.junctionOverhangMin )) {
         //large enough overhang required
         return false;
     };
     const char *G=mapGen.G;
-    const uint64 str0=trChim[0].Str, str1=trChim[1].Str;
-    uint64 roStart0 = str0==0 ? trChim[0].exons[e0][EX_R] : Lread - trChim[0].exons[e0][EX_R] - trChim[0].exons[e0][EX_L];
-    uint64 roStart1 = str1==0 ? trChim[1].exons[e1][EX_R] : Lread - trChim[1].exons[e1][EX_R] - trChim[1].exons[e1][EX_L];
+    const uint64 str0=chimOld.tr[0].Str, str1=chimOld.tr[1].Str;
+    uint64 roStart0 = str0==0 ? chimOld.tr[0].exons[e0][EX_R] : Lread - chimOld.tr[0].exons[e0][EX_R] - chimOld.tr[0].exons[e0][EX_L];
+    uint64 roStart1 = str1==0 ? chimOld.tr[1].exons[e1][EX_R] : Lread - chimOld.tr[1].exons[e1][EX_R] - chimOld.tr[1].exons[e1][EX_L];
 
     //position in the genome of read base roStart0+jR (+d) in each segment
     auto pos0=[&](uint64 jR, int64 d) -> uint64 {
-        return str0==0 ? trChim[0].exons[e0][EX_G]+jR+d : trChim[0].exons[e0][EX_G]+trChim[0].exons[e0][EX_L]-1-jR-d;
+        return str0==0 ? chimOld.tr[0].exons[e0][EX_G]+jR+d : chimOld.tr[0].exons[e0][EX_G]+chimOld.tr[0].exons[e0][EX_L]-1-jR-d;
     };
     auto pos1=[&](uint64 jR, int64 d) -> uint64 {
-        return str1==0 ? trChim[1].exons[e1][EX_G]-roStart1+roStart0+jR+d : trChim[1].exons[e1][EX_G]+trChim[1].exons[e1][EX_L]-1+roStart1-roStart0-jR-d;
+        return str1==0 ? chimOld.tr[1].exons[e1][EX_G]-roStart1+roStart0+jR+d : chimOld.tr[1].exons[e1][EX_G]+chimOld.tr[1].exons[e1][EX_L]-1+roStart1-roStart0-jR-d;
     };
 
     uint64 jR, jRbest=0;
     int jScore=0,jMotif=0,jScoreBest=-999999,jScoreJ=0;
-    uint64 jRmax = roStart1+trChim[1].exons[e1][EX_L];
+    uint64 jRmax = roStart1+chimOld.tr[1].exons[e1][EX_L];
     jRmax = jRmax>roStart0 ? jRmax-roStart0-1 : 0;
     for (jR=0; jR<jRmax; jR++) {//scan through the exons to find a canonical junction, and check for mismatches
 
@@ -212,7 +212,7 @@ bool ReadAlign::chimericJunctionInMate(uint64 e0, uint64 e1, int &chimScoreBest)
         char b1=strandBase(G, pos1(jR,0), str1);
 
         if ( ( P.pCh.filter.genomicN && (b0>3 || b1>3) ) || bR>3) {//chimera is not called if there are Ns in the genome or in the read
-            chimN=0;
+            chimOld.N=0;
             break;
         };
 
@@ -224,11 +224,11 @@ bool ReadAlign::chimericJunctionInMate(uint64 e0, uint64 e1, int &chimScoreBest)
 
         jMotif=0;
         if (b01==2 && b02==3 && b11==0 && b12==2) {//GTAG
-            if (chimStr!=2) {
+            if (chimOld.str!=2) {
                 jMotif=1;
             };
         } else if(b01==1 && b02==3 && b11==0 && b12==1) {//CTAC
-            if (chimStr!=1) {
+            if (chimOld.str!=1) {
                 jMotif=2;
             };
         };
@@ -242,41 +242,41 @@ bool ReadAlign::chimericJunctionInMate(uint64 e0, uint64 e1, int &chimScoreBest)
         jScoreJ =jMotif==0 ? jScore +  P.pCh.scoreJunctionNonGTAG : jScore ;
 
         if ( jScoreJ > jScoreBest || (jScoreJ == jScoreBest && jMotif>0) ) {
-            chimMotif=jMotif;
+            chimOld.motif=jMotif;
             jRbest=jR;
             jScoreBest=jScoreJ;
         };
     };//jR cycle
-    if ( chimN==0 ) {//the chimera was rejected because of mismatches
+    if ( chimOld.N==0 ) {//the chimera was rejected because of mismatches
         return false;
     };
 
-    if (chimMotif==0) {//non-canonical chimera
+    if (chimOld.motif==0) {//non-canonical chimera
         chimScoreBest += 1+P.pCh.scoreJunctionNonGTAG; //+1
         if ( !(chimScoreBest >= P.pCh.scoreMin && chimScoreBest+P.pCh.scoreDropMax >= (int) (readLength[0]+readLength[1])) ) {
             return false;
         };
     };
 
-    //shift junction in trChim
+    //shift junction in chimOld.tr
     if (str0==1) {
-        trChim[0].exons[e0][EX_R] +=trChim[0].exons[e0][EX_L]-jRbest-1;
-        trChim[0].exons[e0][EX_G] +=trChim[0].exons[e0][EX_L]-jRbest-1;
-        trChim[0].exons[e0][EX_L]=jRbest+1;
-        chimJ0=trChim[0].exons[e0][EX_G]-1;
+        chimOld.tr[0].exons[e0][EX_R] +=chimOld.tr[0].exons[e0][EX_L]-jRbest-1;
+        chimOld.tr[0].exons[e0][EX_G] +=chimOld.tr[0].exons[e0][EX_L]-jRbest-1;
+        chimOld.tr[0].exons[e0][EX_L]=jRbest+1;
+        chimOld.j0=chimOld.tr[0].exons[e0][EX_G]-1;
     } else {
-        trChim[0].exons[e0][EX_L]=jRbest+1;
-        chimJ0=trChim[0].exons[e0][EX_G]+trChim[0].exons[e0][EX_L];
+        chimOld.tr[0].exons[e0][EX_L]=jRbest+1;
+        chimOld.j0=chimOld.tr[0].exons[e0][EX_G]+chimOld.tr[0].exons[e0][EX_L];
     };
 
     if (str1==0) {
-        trChim[1].exons[e1][EX_R] +=roStart0+jRbest+1-roStart1;
-        trChim[1].exons[e1][EX_G] +=roStart0+jRbest+1-roStart1;
-        trChim[1].exons[e1][EX_L]=roStart1+trChim[1].exons[e1][EX_L]-roStart0-jRbest-1;
-        chimJ1=trChim[1].exons[e1][EX_G]-1;
+        chimOld.tr[1].exons[e1][EX_R] +=roStart0+jRbest+1-roStart1;
+        chimOld.tr[1].exons[e1][EX_G] +=roStart0+jRbest+1-roStart1;
+        chimOld.tr[1].exons[e1][EX_L]=roStart1+chimOld.tr[1].exons[e1][EX_L]-roStart0-jRbest-1;
+        chimOld.j1=chimOld.tr[1].exons[e1][EX_G]-1;
     } else {
-        trChim[1].exons[e1][EX_L]=roStart1+trChim[1].exons[e1][EX_L]-roStart0-jRbest-1;
-        chimJ1=trChim[1].exons[e1][EX_G]+trChim[1].exons[e1][EX_L];
+        chimOld.tr[1].exons[e1][EX_L]=roStart1+chimOld.tr[1].exons[e1][EX_L]-roStart0-jRbest-1;
+        chimOld.j1=chimOld.tr[1].exons[e1][EX_G]+chimOld.tr[1].exons[e1][EX_L];
     };
     return true;
 }
@@ -284,18 +284,18 @@ bool ReadAlign::chimericJunctionInMate(uint64 e0, uint64 e1, int &chimScoreBest)
 void ReadAlign::chimericRepeats()
 {// lengths of identical sequence on both sides of the chimeric junction (up to 100 bases)
     const char *G=mapGen.G;
-    const uint64 str0=trChim[0].Str, str1=trChim[1].Str;
+    const uint64 str0=chimOld.tr[0].Str, str1=chimOld.tr[1].Str;
     uint64 jR;
     for (jR=0;jR<100;jR++) {//forward check
-        char b0=strandBase(G, str0==0 ? chimJ0+jR : chimJ0-jR, str0);
-        char b1=strandBase(G, str1==0 ? chimJ1+1+jR : chimJ1-1-jR, str1);
+        char b0=strandBase(G, str0==0 ? chimOld.j0+jR : chimOld.j0-jR, str0);
+        char b1=strandBase(G, str1==0 ? chimOld.j1+1+jR : chimOld.j1-1-jR, str1);
         if (b0!=b1) break;
     };
-    chimRepeat1=jR;
+    chimOld.repeat1=jR;
     for (jR=0;jR<100;jR++) {//reverse check
-        char b0=strandBase(G, str0==0 ? chimJ0-1-jR : chimJ0+1+jR, str0);
-        char b1=strandBase(G, str1==0 ? chimJ1-jR : chimJ1+jR, str1);
+        char b0=strandBase(G, str0==0 ? chimOld.j0-1-jR : chimOld.j0+1+jR, str0);
+        char b1=strandBase(G, str1==0 ? chimOld.j1-jR : chimOld.j1+jR, str1);
         if (b0!=b1) break;
     };
-    chimRepeat0=jR;
+    chimOld.repeat0=jR;
 }

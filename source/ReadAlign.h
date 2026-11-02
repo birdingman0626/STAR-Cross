@@ -184,15 +184,18 @@ class ReadAlign {
         uint64 *swWinCov, *swWinGleft, *swWinGright, *swWinRleft, *swWinRright; //read coverage per window
         char *swT;
 
-        uint64 storedLmin, uniqLmax, uniqLmaxInd, multLmax, multLmaxN, multNmin, multNminL, multNmax, multNmaxL;
+        struct {//seed length/multiplicity extremes for the current read (reset per read, filled by storeAligns or the seed summary)
+            uint64 storedLmin=0, uniqLmax=0, uniqLmaxInd=0, multLmax=0, multLmaxN=0, multNmin=0, multNminL=0, multNmax=0, multNmaxL=0;
+        } seedStats;
         intScore maxScore;//maximum alignment score
         bool mateMapped[2];
         
-        //old chimeric detection
-        uint64 chimN, chimRepeat, chimStr;
-        int chimMotif;
-        uint64 chimRepeat0, chimRepeat1, chimJ0, chimJ1;
-        Transcript trChim[MAX_N_CHIMERAS];
+        struct {//old chimeric detection (chimericDetectionOld*)
+            uint64 N, repeat, str; //number of segments, repeat length at the junction, strand
+            int motif;
+            uint64 repeat0, repeat1, j0, j1; //repeat lengths and junction coordinates of the two segments
+            Transcript tr[MAX_N_CHIMERAS];
+        } chimOld;
         //new chimeric detection
         bool chimRecord; //true if chimeric aligment was detected
 
