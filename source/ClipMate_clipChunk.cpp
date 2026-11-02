@@ -47,6 +47,46 @@ void ClipMate::clipChunk(char *chArr, uint64 chSize)
     
 };
 
+void ClipMate::clipChunk(char *chArr, uint64 chSize, const std::function<bool(const ClipBatch&)> &alignAll)
+{
+    if (type != 10)
+        return;
+    const uint32 L = cr4->targetLength();
+    clipCodes.clear();
+    clipStore.clear();
+    char *chA1 = chArr;
+    while (true) {//same read walk as clipChunk above
+        chA1 = findChar(chA1, '\n')+1; //skip read name
+        char *chA2 = findChar(chA1, '\n');
+        uint32 rL = (uint32) (chA2-chA1);
+        size_t at = clipCodes.size();
+        clipCodes.resize(at+L);
+        cr4->fillCodes(chA1, rL, clipCodes.data()+at);
+        clipStore.push_back((uint8*) (chA2+1));
+        chA1 = chA2 + 3 + rL + 1;
+        if (chA1 > chArr+chSize)
+            break;
+    };
+    clipResults.resize(2*clipStore.size());
+    ClipBatch batch;
+    cr4->describe(batch);
+    batch.codes = clipCodes.data();
+    batch.n = clipStore.size();
+    batch.query = (const uint8*) adSeqNum.data();
+    batch.queryLen = (uint32) adSeqNum.size();
+    batch.out = clipResults.data();
+    if (!alignAll(batch)) {
+        clipChunk(chArr, chSize);
+        return;
+    };
+    for (size_t i=0; i<clipStore.size(); i++) {//store results
+        int L1 = clipResults[2*i+1]+1;
+        int S = clipResults[2*i];
+        bool L0 = S<20 || (S==20 && L1>26) || (S==21 && L1>30);
+        *clipStore[i] = (uint8) (L0 ? 0 : L1);
+    };
+};
+
 inline char* findChar(char *arr, char c)
 {//find character in a character array. No check for out of boundary.
     char* cArr=arr;

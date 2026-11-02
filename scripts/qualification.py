@@ -221,7 +221,9 @@ def paired_assessment(runs, labels, seed=1729):
                       and not run["warmup"] and run.get("peak_rss_bytes", 0) > 0]
     memory_limit = max(64*1024*1024, statistics.median(reference_peak)*0.01) if reference_peak else None
     identical = (len({run["binary_sha256"] for run in runs}) == 1
-                 and len({run.get("requested_gpu_mode", "off") for run in runs}) == 1)
+                 and len({run.get("requested_gpu_mode", "off") for run in runs}) == 1
+                 and len({run.get("requested_seed_backend", "off") for run in runs}) == 1
+                 and len({run.get("seed_batch_size") for run in runs}) == 1)
     enough = len(pairs) >= (5 if identical else 10)
     # A median alone can hide a minority of extreme interruptions. Require the
     # predeclared interval too; do not loosen it after observing a noisy run.

@@ -23,6 +23,8 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoScalar <int> (-1, -1, "runRNGseed", &runRNGseed));
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "legacy", &legacyIn));
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "gpuSjdbRemap", &gpuSjdbRemapMode));
+    parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "seedSearchBackend", &seedSearchBackend));
+    parArray.push_back(new ParameterInfoScalar <uint64> (-1, -1, "seedBatchSize", &seedBatchSize));
 
     //webui
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "webuiHost",    &webui.host));

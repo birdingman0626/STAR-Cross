@@ -3,14 +3,49 @@
 #include "GlobalVariables.h"
 #include "ThreadControl.h"
 #include "ErrorWarning.h"
+#include "SeedBatch.h"
+#include "PreparedRead.h"
+#include "StitchBatch.h"
 #include SAMTOOLS_BGZF_H
+#include <chrono>
+#include <future>
+#include <cstdlib>
+#include <memory>
+#include <string>
 using namespace std;
+namespace {
+using PhaseClock=std::chrono::steady_clock;
+inline double since(PhaseClock::time_point& t) {auto n=PhaseClock::now(); double s=std::chrono::duration<double>(n-t).count(); t=n; return s;}
+enum class StageState {empty, seeding, stitching, ready};
+struct Stage {
+    std::vector<PreparedRead> reads; StitchBatch sb; StitchResults sr;
+    std::future<void> seeds, stitch; StageState state=StageState::empty;
+};
+constexpr unsigned maxStages=4;
+// Batch vectors live as long as the ReadAlignChunk, so their capacity is reused from chunk
+// to chunk instead of being reallocated for every chunk. Every chunk drains all stages.
+struct MapBuffers {
+    std::vector<PreparedRead> prepared;
+    StitchBatch stitchBatch;
+    StitchResults stitchResults;
+    Stage stages[maxStages];
+};
+}
 void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be setup in RA->readInStream[ii]
     
+    // While the device index is still uploading, map whole chunks with the original CPU path.
+    SeedBatchExecutor* batch = (seedBatch && (P.seedSearchBackend=="cpu" || seedBatch->deviceSettled())) ? seedBatch : nullptr;
+    if(seedBatch && !batch) ++cpuWarmupChunks;
+    auto clipStart=PhaseClock::now();
     for (uint32 im=0; im<1; im++) {//hardcoded mate 1 5p onyl for now
-        RA->clipMates[im][0].clipChunk(chunkIn[im], chunkInSizeBytesTotal[im]);
+        if (batch && P.seedSearchBackend!="cpu")
+            RA->clipMates[im][0].clipChunk(chunkIn[im], chunkInSizeBytesTotal[im],
+                [&](const ClipBatch& b) {return batch->clip(b,iThread);});
+        else
+            RA->clipMates[im][0].clipChunk(chunkIn[im], chunkInSizeBytesTotal[im]);
     };
     
+    phaseSeconds[8]+=since(clipStart);
     RA->statsRA.resetN();
 
     for (uint64 ii=0;ii<P.readNends;ii++) {//update buffer size and rewind the input streams
@@ -27,9 +62,173 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
     };
 
     int readStatus=0;
+    if(!mapBuffers) mapBuffers=std::make_shared<MapBuffers>();
+    MapBuffers& buffers=*static_cast<MapBuffers*>(mapBuffers.get());
+    std::vector<PreparedRead>& prepared=buffers.prepared;
+    prepared.clear();
+    size_t preparedNext=0,preparedProjectedEnd=0;
+    bool preparedEof=false;
+    StitchBatch& stitchBatch=buffers.stitchBatch;
+    StitchResults& stitchResults=buffers.stitchResults;
+    bool stitchActive=false;
+    // Pipelined device path (GPU stitching on). A ring of K batches per worker, in input order:
+    // q[0] is aligned on the CPU, q[1] is stitched on the device, q[2..K-1] are seeded and
+    // projected on the device. Every read still runs the same CPU steps in input order.
+    // At most two batches seed and two stitch at once, so each has two device slots per worker.
+    bool pipelined = batch && batch->stitchEnabled();
+    unsigned warmupReads=0;
+    static const unsigned nStages=[]{
+        const char* v=std::getenv("STAR_PIPELINE_STAGES");
+        return v && std::string(v)=="3" ? 3u : maxStages;
+    }();
+    Stage* stages=buffers.stages;
+    for(unsigned i=0;i<maxStages;++i) stages[i].state=StageState::empty;
+    Stage* q[maxStages];
+    for(unsigned i=0;i<maxStages;++i) q[i]=&stages[i];
+    Stage*& stageA=q[0];
+    unsigned stitchLaunches=0, seedLaunches=0;
+    auto loadBatch=[&](std::vector<PreparedRead>& batch) {
+        // Reuse the previous batch's strings and vectors: savePreparedRead overwrites every field.
+        size_t n=0, bytes=0;
+        while(n<P.seedBatchSize && bytes<16*1024*1024) { // host memory per batch; reads also bound by seedBatchSize
+            auto t0=PhaseClock::now();
+            const int loaded=RA->loadRead();
+            RA->alignPhaseSeconds[10]+=since(t0);
+            if(loaded<0) { preparedEof=true; break; }
+            if(n==batch.size()) batch.emplace_back();
+            RA->savePreparedRead(batch[n]);
+            RA->alignPhaseSeconds[11]+=since(t0);
+            bytes+=batch[n].bytes();
+            ++n;
+        }
+        batch.resize(n);
+    };
+    auto seedAndProject=[this](std::vector<PreparedRead>* batch,unsigned slot) {//device work only; runs off the worker thread
+        seedBatch->run(*batch,slot);
+        size_t end=0;
+        for(size_t i=0;i<batch->size();++i)
+            if((*batch)[i].deviceConsolidated && i>=end) end=seedBatch->project(*batch,slot,i);
+    };
+    auto collect=[&](std::vector<PreparedRead>& batch, StitchBatch& sb) {
+        sb.clear();
+        RA->stitchCollect=&sb;
+        for(auto& read:batch) {
+            sb.reads.emplace_back();
+            RA->restorePreparedRead(read);
+            RA->alignLoadedRead();
+        }
+        RA->stitchCollect=nullptr;
+    };
+    auto tick=PhaseClock::now();
     while (readStatus==0) {//main cycle over all reads
 
-        readStatus=RA->oneRead(); //map one read
+        if(pipelined) {
+            if(stageA->state!=StageState::ready || preparedNext==stageA->reads.size()) {
+                stageA->state=StageState::empty;
+                while(true) {
+                    Stage* oldest=q[2]; // the oldest batch still seeding, if any
+                    if(oldest->state==StageState::seeding) {//device seeds ready: collect windows, start device stitching
+                        oldest->seeds.get();
+                        phaseSeconds[3]+=since(tick);
+                        collect(oldest->reads,oldest->sb);
+                        phaseSeconds[4]+=since(tick);
+                        const unsigned slot=2*iThread+(stitchLaunches++&1u); // the two stitching batches use different slots
+                        oldest->stitch=std::async(std::launch::async,[this,oldest,slot]{seedBatch->stitch(oldest->sb,oldest->sr,slot);});
+                        oldest->state=StageState::stitching;
+                    }
+                    Stage* freed=q[0];
+                    for(unsigned i=0;i+1<nStages;++i) q[i]=q[i+1];
+                    q[nStages-1]=freed;
+                    Stage* fresh=q[nStages-1];
+                    if(!preparedEof) {
+                        loadBatch(fresh->reads);
+                        phaseSeconds[1]+=since(tick);
+                        if(!fresh->reads.empty()) {
+                            const unsigned slot=2*iThread+(seedLaunches++&1u); // the two seeding batches use different slots
+                            fresh->seeds=std::async(std::launch::async,seedAndProject,&fresh->reads,slot);
+                            fresh->state=StageState::seeding;
+                        }
+                    }
+                    if(stageA->state==StageState::stitching) {
+                        stageA->stitch.get();
+                        phaseSeconds[5]+=since(tick); // wait for device stitching
+                        stageA->state=StageState::ready;
+                        break;
+                    }
+                    bool drained=preparedEof;
+                    for(unsigned i=1;i<nStages && drained;++i) drained=q[i]->state==StageState::empty;
+                    if(drained) break;
+                }
+                preparedNext=0;
+                if(stageA->state!=StageState::ready) readStatus=-1;
+            }
+            if(readStatus==0) {
+                RA->stitchInject=&stageA->sr; RA->stitchInjectRead=preparedNext;
+                auto& read=stageA->reads[preparedNext++];
+                auto t0=PhaseClock::now();
+                RA->restorePreparedRead(read);
+                RA->alignPhaseSeconds[12]+=since(t0);
+                readStatus=RA->alignLoadedRead();
+                RA->stitchInject=nullptr;
+                read.projected=SeedHitBatch{};
+                phaseSeconds[6]+=since(tick);
+            }
+        } else if(batch) {
+            if(preparedNext==prepared.size() && !preparedEof) {
+                prepared.clear(); preparedNext=0; preparedProjectedEnd=0;
+                size_t bytes=0;
+                while(prepared.size()<P.seedBatchSize && bytes<4*1024*1024) {
+                    if(RA->loadRead()<0) { preparedEof=true; break; }
+                    prepared.emplace_back();
+                    RA->savePreparedRead(prepared.back());
+                    bytes+=prepared.back().bytes();
+                }
+                phaseSeconds[1]+=since(tick);
+                if(!prepared.empty()) seedBatch->run(prepared,2*iThread);
+                phaseSeconds[2]+=since(tick);
+                stitchActive=false;
+                if(!prepared.empty() && seedBatch->stitchEnabled()) {//collect every read's windows, stitch them on the device
+                    stitchBatch.clear();
+                    RA->stitchCollect=&stitchBatch;
+                    for(size_t i=0;i<prepared.size();++i) {
+                        if(prepared[i].deviceConsolidated && i>=preparedProjectedEnd) {
+                            phaseSeconds[4]+=since(tick);
+                            preparedProjectedEnd=seedBatch->project(prepared,2*iThread,i);
+                            phaseSeconds[3]+=since(tick);
+                        }
+                        stitchBatch.reads.emplace_back();
+                        RA->restorePreparedRead(prepared[i]);
+                        RA->alignLoadedRead();
+                    }
+                    RA->stitchCollect=nullptr;
+                    phaseSeconds[4]+=since(tick);
+                    seedBatch->stitch(stitchBatch,stitchResults,iThread);
+                    phaseSeconds[5]+=since(tick);
+                    stitchActive=true;
+                }
+            }
+            if(preparedNext==prepared.size()) readStatus=-1;
+            else {
+                if(prepared[preparedNext].deviceConsolidated && preparedNext>=preparedProjectedEnd) {
+                    preparedProjectedEnd=seedBatch->project(prepared,2*iThread,preparedNext);
+                    phaseSeconds[3]+=since(tick);
+                }
+                if(stitchActive) {RA->stitchInject=&stitchResults; RA->stitchInjectRead=preparedNext;}
+                auto& read=prepared[preparedNext++];
+                RA->restorePreparedRead(read);
+                readStatus=RA->alignLoadedRead();
+                RA->stitchInject=nullptr;
+                read.projected=SeedHitBatch{}; // release each consumed hit payload before the next chunk
+                phaseSeconds[6]+=since(tick);
+            }
+        } else {//original synchronous mapper
+            readStatus=RA->oneRead(); phaseSeconds[6]+=since(tick);
+            if(seedBatch && !batch && readStatus==0) ++cpuWarmupReads;
+            // Device setup finished during this chunk: the remaining reads take the device path.
+            if(seedBatch && !batch && (++warmupReads&1023u)==0 && seedBatch->deviceSettled()) {
+                batch=seedBatch; pipelined=batch->stitchEnabled();
+            }
+        }
 
         if (readStatus==0) {//there was a read processed
             RA->iRead++;
@@ -113,6 +312,7 @@ void ReadAlignChunk::mapChunk() {//map one chunk. Input reads stream has to be s
             };
         };
 
+        phaseSeconds[7]+=since(tick);
     }; //reads cycle
 
     if ( P.outSAMbool && P.outSAMorder == "PairedKeepInputOrder" && P.runThreadN>1 ) {//write the remaining part of the buffer, close and rename chunk files

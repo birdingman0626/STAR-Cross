@@ -1,12 +1,15 @@
 #include "ReadAlign.h"
 #include "GlobalVariables.h"
 #include "ErrorWarning.h"
+#include <chrono>
 using namespace std;
 void ReadAlign::outputAlignments() {
   
     outBAMbytes=0;
         
     readAnnot.reset();
+    auto oTick=std::chrono::steady_clock::now();
+    auto oLap=[&](int k){auto n=std::chrono::steady_clock::now(); alignPhaseSeconds[k]+=std::chrono::duration<double>(n-oTick).count(); oTick=n;};
     
     if (mapGen.pGe.gType==101) {//temporary
         ReadAlign::spliceGraphWriteSAM();
@@ -41,11 +44,15 @@ void ReadAlign::outputAlignments() {
                 ReadAlign::recordSJ(nTr, trMult, chunkOutSJ); //this will set mateMapped
             };            
             
+            oLap(8);
             ReadAlign::alignedAnnotation();
+            oLap(5);
         };
 
         //the operations below are both for mapped and unmapped reads
+        oLap(8);
         soloRead->readBar->getCBandUMI(Read0, Qual0, readLengthOriginal, readNameExtra[0], readFilesIndex, readName);
+        oLap(6);
 
         //transcripts: need to be run after CB/UMI are obtained to output CR/UR tags
         if ( P.quant.trSAM.yes && unmapType<0) {//Aligned.toTranscriptome output, only for mapped
@@ -56,7 +63,9 @@ void ReadAlign::outputAlignments() {
             };
         };        
         
+        oLap(8);
         soloRead->record((unmapType<0 ? nTr : 0), trMult, iReadAll, readAnnot); //need to supply nTr=0 for unmapped reads
+        oLap(7);
 
         if (P.pGe.transform.outSAM) {
             serializeAlignments({alignsGenOut.alN, alignsGenOut.alMult, alignsGenOut.alBest});

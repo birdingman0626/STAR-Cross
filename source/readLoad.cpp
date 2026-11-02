@@ -1,20 +1,62 @@
 #include "readLoad.h"
 #include "ErrorWarning.h"
+#include "FixedStreamBuf.h"
+#include <algorithm>
 #include <cstdlib>
+#include <cstring>
 using namespace std;
+
+namespace {
+// Reads lines straight from STAR's own chunk buffer when the stream is a FixedInputBuf.
+// Each call takes the fast path only when the result is certain to equal the istream
+// call it replaces (good stream, '\n' found before the length limit); otherwise it makes
+// that istream call, before anything has been consumed.
+struct ChunkLines {
+    istream& is;
+    FixedInputBuf* buf;
+    std::streamsize count=0; // what gcount() would report for the last getline
+    explicit ChunkLines(istream& s):is(s),buf(dynamic_cast<FixedInputBuf*>(s.rdbuf())) {}
+    int peek() {
+        if (buf && is.good() && buf->current()<buf->end()) return (unsigned char)*buf->current();
+        return is.peek();
+    }
+    void getline(char* dst, std::streamsize n) {
+        if (buf && is.good() && n>1) {
+            char* c=buf->current();
+            const size_t limit=std::min<size_t>(buf->end()-c, size_t(n-1)); // newline must come before n-1 stored chars
+            if (const void* nl=std::memchr(c,'\n',limit)) {
+                const size_t k=static_cast<const char*>(nl)-c;
+                std::memcpy(dst,c,k); dst[k]=0;
+                buf->advanceTo(c+k+1); count=std::streamsize(k+1);
+                return;
+            }
+        }
+        is.getline(dst,n); count=is.gcount();
+    }
+    void getCharAndSkipOne(char& ch) { // is.get(ch); is.ignore();
+        if (buf && is.good() && buf->end()-buf->current()>=2) {
+            char* c=buf->current(); ch=c[0]; buf->advanceTo(c+2);
+            return;
+        }
+        is.get(ch); is.ignore();
+    }
+};
+}
 int readLoad(istream& readInStream, Parameters& P, uint64& Lread, uint64& LreadOriginal, \
             char* readName, char* Seq, char* SeqNum, char* Qual, vector<ClipMate> &clipOneMate, \
             uint64 &iReadAll, uint32 &readFilesIndex, char &readFilter, string &readNameExtra)
 {//load one read from a stream
     int readFileType=0;
 
-    if (readInStream.peek()!='@' && readInStream.peek()!='>')
+    ChunkLines in(readInStream);
+    const int first=in.peek();
+    if (first!='@' && first!='>')
         return -1; //end of the stream
 
     // Read header line directly into readName buffer, then parse fields with char* arithmetic
     // This avoids std::string + istringstream heap allocations per read
     static thread_local char line1buf[DEF_readNameLengthMax + 256];
-    readInStream.getline(line1buf, sizeof(line1buf));
+    in.getline(line1buf, sizeof(line1buf));
 
     // Parse readName (first token)
     char *p = line1buf;
@@ -25,7 +67,7 @@ int readLoad(istream& readInStream, Parameters& P, uint64& Lread, uint64& LreadO
 
     if (strlen(readName)>=DEF_readNameLengthMax-1) {
         ostringstream errOut;
-        errOut << "EXITING because of FATAL ERROR in reads input: read name is too long:" << readInStream.gcount()<<"\nRead Name="<<readName<<"\nDEF_readNameLengthMax="<<DEF_readNameLengthMax<<'\n';
+        errOut << "EXITING because of FATAL ERROR in reads input: read name is too long:" << in.count<<"\nRead Name="<<readName<<"\nDEF_readNameLengthMax="<<DEF_readNameLengthMax<<'\n';
         errOut << "SOLUTION: increase DEF_readNameLengthMax in IncludeDefine.h and re-compile STAR\n";
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
     };
@@ -45,9 +87,9 @@ int readLoad(istream& readInStream, Parameters& P, uint64& Lread, uint64& LreadO
     while (*extraEnd && *extraEnd != '\n' && *extraEnd != '\r') ++extraEnd;
     readNameExtra.assign(extraStart, extraEnd - extraStart);
 
-    readInStream.getline(Seq,DEF_readSeqLengthMax+1); //extract sequence
+    in.getline(Seq,DEF_readSeqLengthMax+1); //extract sequence
 
-    Lread=readInStream.gcount()-1;
+    Lread=in.count-1;
 
     if (Lread<1) {
         ostringstream errOut;
@@ -68,8 +110,7 @@ int readLoad(istream& readInStream, Parameters& P, uint64& Lread, uint64& LreadO
     
     if (readName[0]=='@') {//fastq format: read the '+' line
         readFileType=2;
-        readInStream.get(clipOneMate[0].clippedInfo); //this is used if clipChunk is activated, only 5' for now
-        readInStream.ignore(); //ignore one char: \n
+        in.getCharAndSkipOne(clipOneMate[0].clippedInfo); //clip info char (used if clipChunk is activated, only 5' for now), then \n
     };
 
     //cout << readName <<'\t' << (uint32) line3char << '\n';
@@ -78,8 +119,8 @@ int readLoad(istream& readInStream, Parameters& P, uint64& Lread, uint64& LreadO
     clipOneMate[1].clip(Lread, SeqNum); //3p clip
 
     if (readName[0]=='@') {//fastq format, read qualities
-        readInStream.getline(Qual,DEF_readSeqLengthMax);//read qualities
-        if ((uint64) readInStream.gcount() != LreadOriginal+1) {//inconsistent read sequence and quality
+        in.getline(Qual,DEF_readSeqLengthMax);//read qualities
+        if ((uint64) in.count != LreadOriginal+1) {//inconsistent read sequence and quality
             ostringstream errOut;
             errOut << "EXITING because of FATAL ERROR in reads input: quality string length is not equal to sequence length\n";
             errOut << readName <<'\n'<< Seq <<'\n'<< Qual <<'\n'<< "SOLUTION: fix your fastq file\n";

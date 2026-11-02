@@ -3,9 +3,15 @@
 #include "readBarcodeLoad.h"
 #include "SequenceFuns.h"
 #include "ErrorWarning.h"
+#include <chrono>
 #include "GlobalVariables.h"
 using namespace std;
 int ReadAlign::oneRead() {//process one read: load, map, write
+    if(loadRead()<0) return -1;
+    return alignLoadedRead();
+}
+
+int ReadAlign::loadRead() {
 
     //load read name, sequence, quality from the streams into internal arrays
     std::vector<int> readStatus(P.readNends);
@@ -77,24 +83,35 @@ int ReadAlign::oneRead() {//process one read: load, map, write
     //max number of mismatches allowed for this read
     outFilterMismatchNmaxTotal=min(P.alignFilter.mismatchMax, (uint64) (P.alignFilter.mismatchOverReadLengthMax*(readLength[0]+readLength[1])));
 
+    return 0;
+}
+
+int ReadAlign::alignLoadedRead() {
     //map the read
+    using PhaseClock=std::chrono::steady_clock;
+    auto phaseTick=PhaseClock::now();
+    auto phaseLap=[&](int k){auto n=PhaseClock::now(); alignPhaseSeconds[k]+=std::chrono::duration<double>(n-phaseTick).count(); phaseTick=n;};
     if (P.pGe.gType==101) {//SpliceGraph
         mapOneReadSpliceGraph();
     } else {//all other cases - standard alignment algorithm
         mapOneRead();
     };
+    if (stitchCollect) {phaseLap(4); return 0;} //windows collected for device stitching; this read is aligned later
+    phaseLap(0);
 
     peOverlapMergeMap();
-    
+
     multMapSelect();
-    
-    mappedFilter();  
-    
+
+    mappedFilter();
+
     transformGenome();//for now genome transformation happens after multimapper selection, and mapping filter
+    phaseLap(1);
 
     if (!peOv.yes) {//if the alignment was not mates merged - otherwise the chimeric detection was already done
         chimericDetection();
     };
+    phaseLap(2);
 
     if (P.pCh.out.bam && chimRecord) {//chimeric alignment was recorded in main BAM files, and it contains the representative portion, so non-chimeric aligmnent is not output
         return 0;
@@ -109,6 +126,7 @@ int ReadAlign::oneRead() {//process one read: load, map, write
 
     //write out alignments
     outputAlignments();
+    phaseLap(3);
 
     {
     #ifdef DEBUG_OutputLastRead

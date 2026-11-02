@@ -1,3 +1,5 @@
+#include <iomanip>
+#include <chrono>
 #ifdef _WIN32
     #include "wincompat.h"
 #endif
@@ -207,6 +209,7 @@ try
                         << flush;
     g_statsAll.timeLastReport = g_statsAll.timeStartMap;
 
+    P.inOut->logMain<<"TIMING map_begin t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
     // SAM headers
     samHeaders(P, *genomeMain.genomeOut.g, *transcriptomeMain);
 
@@ -225,8 +228,10 @@ try
         RAchunk[ii]=chunkOwners[ii].get();
     };
 
+    P.inOut->logMain<<"TIMING chunks_built t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
     if (P.runRestart.type != 1)
         mapThreadsSpawn(P, RAchunk.data());
+    P.inOut->logMain<<"TIMING spawn_done t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
 
     if (P.outFilterBySJoutStage == 1)
     { // completed stage 1, go to stage 2
@@ -275,6 +280,7 @@ try
         P.limitBAMsortRAM = genomeMain.nGenome + genomeMain.SA.lengthByte + genomeMain.SAi.lengthByte;
     };
 
+    P.inOut->logMain<<"TIMING map_end t="<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count()<<std::defaultfloat<<"\n";
     time(&g_statsAll.timeFinishMap);
     *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeFinishMap) << " ..... finished mapping\n"
                         << flush;

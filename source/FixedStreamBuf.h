@@ -25,6 +25,11 @@ public:
             setg(eback(), eback(), egptr());
     }
 
+    // Direct access for parsers that scan the buffer themselves (see readLoad).
+    char* current() const {return gptr();}
+    char* end() const {return egptr();}
+    void advanceTo(char* p) {setg(eback(), p, egptr());}
+
 protected:
     pos_type seekoff(off_type off, std::ios_base::seekdir dir,
                      std::ios_base::openmode /*which*/ = std::ios_base::in) override {

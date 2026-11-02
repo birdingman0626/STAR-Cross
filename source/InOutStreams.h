@@ -6,6 +6,7 @@
 #include <memory>
 class AsyncByteWriter;
 class ChunkInputDispatcher;
+class ChunkInputPrefetcher;
 
 class InOutStreams {
     public:
@@ -14,6 +15,7 @@ class InOutStreams {
     BGZF *outBAMfileUnsorted, *outQuantBAMfile;
     std::unique_ptr<AsyncByteWriter> unsortedWriter,quantWriter,samWriter;
     std::unique_ptr<ChunkInputDispatcher> chunkInputDispatcher;
+    std::unique_ptr<ChunkInputPrefetcher> chunkInputPrefetcher;
 
     std::ofstream outChimSAM, outChimJunction, logMain, logProgress, logFinal, outUnmappedReadsStream[MAX_N_MATES];
     std::ifstream readIn[MAX_N_MATES];

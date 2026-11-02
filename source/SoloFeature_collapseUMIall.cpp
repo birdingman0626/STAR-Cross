@@ -4,6 +4,8 @@
 #include "serviceFuns.cpp"
 #include <unordered_map>
 #include "SoloCommon.h"
+#include "DirectionalUMI.h"
+#include "SoloEM.h"
 using namespace std;
 inline int funCompareSolo1 (const void *a, const void *b);          //defined below
 inline int funCompare_uint32_1_2_0 (const void *a, const void *b);
@@ -466,26 +468,12 @@ void SoloFeature::collapseUMIperCB(uint32 iCB, vector<uint32> &umiArray, vector<
                         
                         std::copy(gEu.begin(), gEu.end(), gEMnew.begin());//gEMnew is initialized with unique counts
                         
-                        for (auto &gg: gEMold) {//zero-out very small counts
-                            if (gg<0.01) //hardcoded
-                                gg=0;
-                        };
-                        
-                        for (auto &ug: umiGenes) {
-                            double norm1 = 0.0;
-                            for (auto &gg: ug) //cycle over genes for this umi
-                                norm1 += gEMold[gg];
-                                
-                            norm1 = 1.0 / norm1;
-                                
-                            for (auto &gg: ug) {
-                                gEMnew[gg] += gEMold[gg]*norm1;
-                            };
-                        };
+                        for (const auto &ug: umiGenes)
+                            soloEMDistribute(ug,gEMold,gEMnew);
                         
                         maxAbsChange=0.0;
                         for (uint32 ii=0; ii<gEMnew.size(); ii++) {
-                            double change1 = abs(gEMnew[ii]-gEMold[ii]);
+                            double change1 = abs(gEMnew[ii]-soloEMThreshold(gEMold[ii]));
                             if (change1 > maxAbsChange)
                                 maxAbsChange = change1;
                         };
@@ -616,6 +604,12 @@ uint32 SoloFeature::umiArrayCorrect_CR(const uint32 nU0, uintUMI *umiArr, const 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 uint32 SoloFeature::umiArrayCorrect_Directional(const uint32 nU0, uintUMI *umiArr, const bool readInfoRec, const bool nUMIyes, unordered_map <uintUMI,uintUMI> &umiCorr, const int32 dirCountAdd)
 {
+    if (dirCountAdd==-1) {
+        const auto groups=collapseDirectionalUMIs(umiArr,nU0,umiArrayStride);
+        if (readInfoRec) for (uint64 iu=0;iu<uint64(nU0)*umiArrayStride;iu+=umiArrayStride)
+            if (umiArr[iu]!=umiArr[iu+2]) umiCorr[umiArr[iu]]=umiArr[iu+2];
+        return nUMIyes ? groups:0;
+    }
     qsort(umiArr, nU0, umiArrayStride*sizeof(uint32), funCompareNumbersReverseShift<uint32, 1>);//TODO no need to sort by sequence here, only by count. 
     
     for (uint64 iu=0; iu<nU0*umiArrayStride; iu+=umiArrayStride)

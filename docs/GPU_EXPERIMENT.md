@@ -1,4 +1,10 @@
-# Experimental CUDA junction-index remap
+# Experimental CUDA backends
+
+The new opt-in adaptive read-seeding integration is documented in
+[GPU_BATCHED_SEEDING.md](GPU_BATCHED_SEEDING.md), including its CPU control,
+resident index, support restrictions and current measurements. The material
+below describes the separate junction-index remap experiment and historical
+seed replay measurements.
 
 CUDA is optional and **OFF by default**. This is one bounded index-preparation
 experiment, not a GPU implementation of read alignment or a Parabricks migration.
@@ -17,7 +23,7 @@ for this unchanged-index case; the next candidate is resident-index seed search.
 The host and device language levels are independent:
 `-DSTAR_CXX_STANDARD=20 -DSTAR_CUDA_STANDARD=17` and
 `-DSTAR_CXX_STANDARD=20 -DSTAR_CUDA_STANDARD=20` are distinct qualified profiles,
-not interchangeable compiler flags. Defaults remain host17/device17. Current
+not interchangeable compiler flags. Current defaults are host20/device17. Current
 dependency/toolchain execution is tracked in
 [QUALIFICATION_RESULTS_20261007.md](QUALIFICATION_RESULTS_20261007.md).
 

@@ -10,11 +10,85 @@
 #include "ThreadControl.h"
 #include <time.h>
 #include "SeedDiagnostics.h"
+#include "SeedHitBatch.h"
+#include "StitchCoreBridge.h"
+#include "StitchBatch.h"
+#include <algorithm>
+#include <chrono>
 using namespace std;
 void ReadAlign::stitchPieces(char **R, uint64 Lread) {
     #ifdef STAR_CAPTURE_SEEDS
     seedTrace::Timer diagnostic(&seedTrace::Worker::stitchNs);
     #endif
+
+#ifndef COMPILE_FOR_LONG_READS
+    if (stitchInject && stitchInject->batch && !stitchcore::verifyEnabled()) {
+        const StitchReadResult& rr=stitchInject->reads.at(stitchInjectRead);
+        if (rr.status==stitchOk) {//the device stitched this read; its windows were built in the collect pass, in this order
+            const StitchBatch& batch=*stitchInject->batch;
+            const auto& heads=stitchInject->transcripts;
+            // Pass 1 sets only maxScore and gLength, the fields trBest selection and multMapSelect's
+            // score scan read. Pass 2 fully writes only the transcripts multMapSelect then selects
+            // (same rule, same best score); the others are never read again. Batched mode rejects
+            // chimeric detection and mate overlap, the other readers of trAll.
+            thread_local std::vector<unsigned> windowOf;
+            if (windowOf.size()<rr.windowCount) windowOf.resize(rr.windowCount);
+            trBest=trInit;
+            uint64 iW1=0, trNtotal=0;
+            for (unsigned k=0; k<rr.windowCount; k++) {//same steps as the window loop below, minus window building
+                const StitchWindowResult& wr=stitchInject->windows.at(rr.windowBegin+k);
+                trAll[iW1]=trArrayPointer+trNtotal;
+                if (trNtotal+P.alignTranscriptsPerWindowNmax >= P.alignTranscriptsPerReadNmax) {
+                    OptionalMutexLock logLock(g_threadChunks.mutexLogMain, P.runThreadN>1);
+                    P.inOut->logMain << "WARNING: not enough space allocated for transcript. Did not process all windows for read "<< readName+1 <<endl;
+                    P.inOut->logMain <<"   SOLUTION: increase alignTranscriptsPerReadNmax and re-run\n" << flush;
+                    break;
+                };
+                for (unsigned j=0; j<wr.count; j++) {
+                    const stitchcore::TrHead& h=heads.at(rr.resultBase+wr.first+j);
+                    trAll[iW1][j]->maxScore=h.maxScore;
+                    trAll[iW1][j]->gLength=h.gLength;
+                }
+                nWinTr[iW1]=wr.count;
+                if (nWinTr[iW1]==0) continue;
+                if (trAll[iW1][0]->maxScore > trBest->maxScore || (trAll[iW1][0]->maxScore == trBest->maxScore && trAll[iW1][0]->gLength < trBest->gLength ) ) {
+                    trBest=trAll[iW1][0];
+                };
+                windowOf[iW1]=k;
+                trNtotal += nWinTr[iW1];
+                iW1++;
+            }
+            if (iW1>0 && trBest!=trInit) {
+                const intScore best=trBest->maxScore;
+                trA=*trInit;
+                trA.maxScore=0;
+                for (uint64 w=0; w<iW1; w++) {
+                    const unsigned k=windowOf[w];
+                    const StitchWindowDesc& wd=batch.windows.at(rr.windowBegin+k);
+                    const StitchWindowResult& wr=stitchInject->windows.at(rr.windowBegin+k);
+                    trA.Chr=wd.Chr;
+                    trA.Str=wd.Str;
+                    trA.roStr=wd.roStr;
+                    for (unsigned j=0; j<wr.count; j++) {
+                        Transcript& t=*trAll[w][j];
+                        if ( (t.maxScore + P.alignFilter.multimapScoreRange) >= best ) {
+                            t=trA;
+                            stitchcore::fromPacked(heads.at(rr.resultBase+wr.first+j), stitchInject->rows.data(), t);
+                        }
+                    }
+                }
+            }
+            nW=iW1;
+            for (uint64 ii=0; ii<P.readNmates; ii++) maxScoreMate[ii]=rr.mates[ii];
+            ++stitchInjectedReads;
+            if (trBest->maxScore==0) {
+                mapMarker = MARKER_NO_GOOD_WINDOW;
+                nW=0;
+            };
+            return;
+        }
+    }
+#endif
 
     //reset winBin — O(modified) instead of O(N) memset
     winBin[0].reset();
@@ -53,10 +127,17 @@ void ReadAlign::stitchPieces(char **R, uint64 Lread) {
             uint64 aDir   = PC[iP][PC_Dir];
             uint64 aLength= PC[iP][PC_Length];
 
-            for (uint64 iSA=PC[iP][PC_SAstart]; iSA<=PC[iP][PC_SAend]; iSA++) {//scan through all alignments of this piece
+            // prepared GPU hits may omit hits that cannot reach any window (see gpuSeedHits.cuh)
+            const uint64 nHits = preparedHits ? preparedHits->counts.at(iP) : PC[iP][PC_SAend]-PC[iP][PC_SAstart]+1;
+            for (uint64 iHit=0; iHit<nHits; iHit++) {//scan through all alignments of this piece
                 // going through ordered positions in the suffix array from PC_SAstart to PC_SAend
-                uint64 a1 = mapGen.SA[iSA];
-                uint64 aStr = a1 >> mapGen.GstrandBit;
+                uint64 a1,aStr;
+                if(preparedHits) {
+                    const auto& hit=preparedHits->hits[preparedHits->offsets[iP]+iHit];
+                    a1=hit.genome;aStr=hit.strand;
+                } else {
+                a1 = mapGen.SA[PC[iP][PC_SAstart]+iHit];
+                aStr = a1 >> mapGen.GstrandBit;
                 a1 &= mapGen.GstrandMask; //remove strand bit
 
                 //convert to positive strand
@@ -69,6 +150,7 @@ void ReadAlign::stitchPieces(char **R, uint64 Lread) {
                     a1 = mapGen.nGenome - (aLength+a1);
                 };
 
+                }
                 //final strand
                 if (revertStrand) { //modified strand according to user input CHECK!!!!
                     aStr=1-aStr;
@@ -93,7 +175,7 @@ void ReadAlign::stitchPieces(char **R, uint64 Lread) {
                         break;
                     };
                 };
-            }; //for (uint64 iSA=PC[iP][PC_SAstart]; iSA<=PC[iP][PC_SAend]; iSA++) //scan through all alignments of this piece
+            }; //for iHit: scan through all alignments of this piece
         };//if (PC[iP][PC_Nrep]<=P.winAnchorMultimapNmax) //proceed if anchor
     };//for (uint64 iP=0; iP<nP; iP++) //scan through all anchor pieces, create alignment windows
 
@@ -143,12 +225,18 @@ void ReadAlign::stitchPieces(char **R, uint64 Lread) {
             nWAP[ii]=0;
         };
 
-        for (uint64 iSA=PC[iP][PC_SAstart]; iSA<=PC[iP][PC_SAend]; iSA++) {//scan through all alignments
+        const uint64 nHits = preparedHits ? preparedHits->counts.at(iP) : PC[iP][PC_SAend]-PC[iP][PC_SAstart]+1;
+        for (uint64 iHit=0; iHit<nHits; iHit++) {//scan through all alignments
 
-            uint64 a1 = mapGen.SA[iSA];
-            uint64 aStr = a1 >> mapGen.GstrandBit;
+            uint64 a1,aStr,aRstart;
+            if(preparedHits) {
+                const auto& hit=preparedHits->hits[preparedHits->offsets[iP]+iHit];
+                a1=hit.genome;aStr=hit.strand;aRstart=hit.readStart;
+            } else {
+            a1 = mapGen.SA[PC[iP][PC_SAstart]+iHit];
+            aStr = a1 >> mapGen.GstrandBit;
             a1 &= mapGen.GstrandMask; //remove strand bit
-            uint64 aRstart=PC[iP][PC_rStart];
+            aRstart=PC[iP][PC_rStart];
 
             //convert to positive strand
             if (aDir==1 && aStr==0) {
@@ -162,6 +250,7 @@ void ReadAlign::stitchPieces(char **R, uint64 Lread) {
                 a1 = mapGen.nGenome - (aLength+a1);
             };
 
+            }
             //final strand
             if (revertStrand) { //modified strand according to user input CHECK!!!!
                 aStr=1-aStr;
@@ -266,6 +355,35 @@ std::time(&timeStart);
         nW=0;
         return;
     #endif
+    if (stitchCollect) {//record windows for device stitching; the read is aligned again in the inject pass
+        auto& b=*stitchCollect;
+        auto& rd=b.reads.back();
+        rd.seqOffset=b.seq.size(); rd.Lread=Lread; rd.mismatchLimit=outFilterMismatchNmaxTotal;
+        for (uint64 ii=0;ii<MAX_N_MATES;ii++) rd.readLength[ii]=readLength[ii];
+        b.seq.insert(b.seq.end(),R[0],R[0]+Lread);
+        b.seq.insert(b.seq.end(),R[2],R[2]+Lread);
+        rd.windowBegin=(unsigned) b.windows.size();
+        for (uint64 iW=0; iW<nW; iW++) {
+            if (nWA[iW]==0) continue;
+            StitchWindowDesc wd;
+            wd.Chr=WC[iW][WC_Chr]; wd.Str=WC[iW][WC_Str]; wd.roStr= revertStrand ? 1-wd.Str : wd.Str;
+            wd.nA=nWA[iW]; wd.waOffset=b.wa.size()/WA_SIZE;
+            for (uint64 ia=0;ia<nWA[iW];ia++) for (uint64 k=0;k<WA_SIZE;k++) b.wa.push_back(WA[iW][ia][k]);
+            if (WlastAnchor[iW]<nWA[iW]) b.wa[(wd.waOffset+WlastAnchor[iW])*WA_SIZE+WA_Anchor]=2; //mark the last anchor
+            b.windows.push_back(wd);
+        }
+        rd.windowCount=(unsigned) (b.windows.size()-rd.windowBegin);
+        nW=0;
+        return;
+    }
+    const bool verifyCore=stitchcore::verifyEnabled();
+    const StitchReadResult* injected=nullptr;
+    if (stitchInject) {
+        const auto& rr=stitchInject->reads.at(stitchInjectRead);
+        if (rr.status==stitchOk) injected=&rr;
+    }
+    uint64 injectWindow=0; //index among non-empty windows, as collected
+
     //generate transcript for each window, choose the best
     trBest =trInit; //initialize next/best
     uint64 iW1=0;//index of non-empty windows
@@ -327,8 +445,29 @@ std::time(&timeStart);
             stitchWindowSeeds(iW, iW1, WAincl, R[trA.roStr==0 ? 0:2]);
         };
     #else
-        stitchWindowAligns(0, nWA[iW], 0, WAincl, 0, 0, trA, Lread, WA[iW], R[trA.roStr==0 ? 0:2], mapGen, P, trAll[iW1], nWinTr+iW1,
-                          {outFilterMismatchNmaxTotal,readLength,maxScoreMate});
+        if (injected && !verifyCore) {//device results: same transcripts, in the same order
+            const auto& wr=stitchInject->windows.at(injected->windowBegin+injectWindow);
+            thread_local stitchcore::Tr unpacked;
+            for (unsigned k=0;k<wr.count;k++) {
+                if (k>0) *(trAll[iW1][k])=trA;
+                stitchInject->get(injected->resultBase+wr.first+k, unpacked);
+                stitchcore::fromCore(unpacked, *trAll[iW1][k]);
+            }
+            nWinTr[iW1]=wr.count;
+        } else {
+            intScore mateBefore[MAX_N_MATES];
+            if (verifyCore) std::copy(maxScoreMate,maxScoreMate+MAX_N_MATES,mateBefore);
+            stitchWindowAligns(0, nWA[iW], 0, WAincl, 0, 0, trA, Lread, WA[iW], R[trA.roStr==0 ? 0:2], mapGen, P, trAll[iW1], nWinTr+iW1,
+                              {outFilterMismatchNmaxTotal,readLength,maxScoreMate});
+            if (verifyCore && injected) {
+                stitchcore::verifyDevice(stitchInject->windows.at(injected->windowBegin+injectWindow),
+                                         *stitchInject, injected->resultBase, trAll[iW1], nWinTr[iW1], iReadAll);
+            } else if (verifyCore) {
+                stitchcore::verifyWindow(P, mapGen, WA[iW], nWA[iW], trA, R[trA.roStr==0 ? 0:2], Lread, readLength,
+                                         outFilterMismatchNmaxTotal, mateBefore, maxScoreMate, trAll[iW1], nWinTr[iW1], iReadAll);
+            }
+        }
+        injectWindow++;
     #endif
 
         if (nWinTr[iW1]==0) {
@@ -344,6 +483,16 @@ std::time(&timeStart);
     };
 
     nW=iW1;//only count windows that had alignments
+    if (injected) {
+        if (verifyCore) {
+            for (uint64 ii=0; ii<P.readNmates; ii++) stitchcore::verifyMate(injected->mates[ii], maxScoreMate[ii], ii, iReadAll);
+        } else {
+            for (uint64 ii=0; ii<P.readNmates; ii++) maxScoreMate[ii]=injected->mates[ii];
+        }
+        ++stitchInjectedReads;
+    } else if (stitchInject) {
+        ++stitchCpuReads;
+    }
 
 //     {//debug
 //         std::time(&timeFinish);

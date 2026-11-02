@@ -74,7 +74,7 @@ if(STAR_TSAN AND STAR_ASAN)
     message(FATAL_ERROR "STAR_TSAN cannot be combined with STAR_ASAN")
 endif()
 
-option(STAR_ENABLE_CUDA "Build experimental CUDA junction SA remap" OFF)
+option(STAR_ENABLE_CUDA "Build experimental CUDA junction remap and resident batched seeds" OFF)
 set(STAR_CUDA_STANDARD "17" CACHE STRING "CUDA device language level (17 or 20), independent of host C++")
 set_property(CACHE STAR_CUDA_STANDARD PROPERTY STRINGS 17 20)
 if(NOT STAR_CUDA_STANDARD MATCHES "^(17|20)$")
@@ -84,7 +84,7 @@ option(STAR_CAPTURE_SEEDS "Diagnostic bounded post-clipping seed capture (not fo
 if(STAR_CAPTURE_SEEDS)
     set_property(SOURCE ReadAlign_maxMappableLength2strands.cpp ReadAlign_mapOneRead.cpp
                  SuffixArrayFuns.cpp ReadAlign_stitchPieces.cpp ReadAlign_stitchWindowSeeds.cpp
-                 stitchWindowAligns.cpp WindowStitcher.cpp ReadAlignChunk_processChunks.cpp
+                 stitchWindowAligns.cpp WindowStitcher.cpp StitchCoreBridge.cpp ReadAlignChunk_processChunks.cpp
                  ReadAlignChunk_readChunk.cpp APPEND PROPERTY
                  COMPILE_DEFINITIONS STAR_CAPTURE_SEEDS=1)
 endif()
@@ -99,6 +99,17 @@ if(STAR_ENABLE_CUDA)
     set_target_properties(star_sjdb_remap PROPERTIES CUDA_STANDARD ${STAR_CUDA_STANDARD} CUDA_STANDARD_REQUIRED ON
                           CUDA_ARCHITECTURES "${STAR_CUDA_ARCHITECTURES}")
     target_link_libraries(star_sjdb_remap PUBLIC CUDA::cudart)
+    add_library(star_seed_search STATIC gpuSeedSearch.cu gpuStitch.cu gpuClip.cu gpuBarcode.cu)
+    set_target_properties(star_seed_search PROPERTIES CUDA_STANDARD ${STAR_CUDA_STANDARD} CUDA_STANDARD_REQUIRED ON
+                          CUDA_ARCHITECTURES "${STAR_CUDA_ARCHITECTURES}")
+    target_include_directories(star_seed_search PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(star_seed_search PUBLIC CUDA::cudart)
+    # Stitch scoring must round like the host (no fused multiply-add) for exact parity.
+    set_source_files_properties(gpuStitch.cu PROPERTIES COMPILE_OPTIONS "-fmad=false")
+    if(MSVC)
+        # CUB (CCCL) requires the standard-conforming MSVC preprocessor.
+        target_compile_options(star_seed_search PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor>)
+    endif()
 else()
     add_library(star_sjdb_remap STATIC gpuSjdbRemap.cpp)
 endif()
@@ -364,6 +375,9 @@ set(STAR_SOURCES
     ReadAlign_stitchPieces.cpp
     ReadAlign_multMapSelect.cpp
     ReadAlign_mapOneRead.cpp
+    ReadAlign_preparedRead.cpp
+    SeedRounds.cpp
+    SeedBatch.cpp
     readLoad.cpp
     ReadAlignChunk.cpp
     ReadAlignChunk_processChunks.cpp
@@ -384,7 +398,7 @@ set(STAR_SOURCES
     ReadAlign_assignAlignToWindow.cpp
     ReadAlign_oneRead.cpp
     ReadAlign_stitchWindowSeeds.cpp
-    WindowStitcher.cpp
+    WindowStitcher.cpp StitchCoreBridge.cpp
     ReadAlign_peOverlapMergeMap.cpp
     ReadAlign_mappedFilter.cpp
     ParametersChimeric_initialize.cpp
@@ -469,6 +483,10 @@ target_include_directories(STAR SYSTEM PRIVATE
 )
 
 target_link_libraries(STAR PRIVATE hts ZLIB::ZLIB star_sjdb_remap)
+if(STAR_ENABLE_CUDA)
+    target_link_libraries(STAR PRIVATE star_seed_search)
+    target_compile_definitions(STAR PRIVATE STAR_HAVE_CUDA_SEEDS=1)
+endif()
 
 # ---------- Compile-time defines ----------
 # Build date/place

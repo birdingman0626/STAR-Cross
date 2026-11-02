@@ -21,6 +21,11 @@
 #include <time.h>
 #include <random>
 
+struct PreparedRead;
+struct SeedEmission;
+struct SeedSummary;
+struct SeedHitBatch;
+
 class ReadAlign {
     public:
         ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, int iChunk);//allocate arrays
@@ -29,6 +34,10 @@ class ReadAlign {
         ~ReadAlign();
         void borrowChimericJunctionStream(std::fstream* stream);
         int oneRead();
+        int loadRead();
+        int alignLoadedRead();
+        void savePreparedRead(PreparedRead& read) const;
+        void restorePreparedRead(const PreparedRead& read);
 
         Genome &mapGen, &genOut; //mapped-to-genome structure
 
@@ -98,10 +107,22 @@ class ReadAlign {
         uint64* outBAMoneAlignNbytes;
         int alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, std::vector<int> outSAMattrOrder, char** outBAMarray, uint64* outBAMarrayN);
 
+        // Two-phase device stitching (see StitchBatch.h). Collect: stitchPieces
+        // records the read's windows and alignLoadedRead stops after mapping.
+        // Inject: stitchPieces takes window transcripts from the results.
+        struct StitchBatch* stitchCollect=nullptr;
+        const struct StitchResults* stitchInject=nullptr;
+        size_t stitchInjectRead=0;
+        uint64 stitchInjectedReads=0, stitchCpuReads=0;
+        double alignPhaseSeconds[13]={0,0,0,0,0,0,0,0,0,0,0,0,0}; //map, select+filter, chimeric, output, collect-map, annot, cbumi, soloRecord, other-output
+
     private:
         struct Storage;
         std::unique_ptr<Storage> storage;
         Parameters& P; //pointer to the parameters, will be initialized on construction
+        const std::vector<SeedEmission>* preparedSeeds=nullptr;
+        const SeedSummary* preparedSeedSummary=nullptr;
+        const SeedHitBatch* preparedHits=nullptr;
 
         //quantification
         Transcriptome *chunkTr;

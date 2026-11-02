@@ -41,6 +41,7 @@ add_executable(star_tests
     unit/test_blocksOverlap.cpp
     unit/test_EmptyDrops.cpp
     unit/test_UMIgraph_directedCollapse.cpp
+    unit/test_SoloCounting.cpp
     unit/test_samAux.cpp
     unit/test_BGZF.cpp
     unit/test_HTSFormats.cpp
@@ -102,12 +103,11 @@ if(MSVC)
     target_link_libraries(star_rank_hint_properties PRIVATE psapi ws2_32)
 endif()
 if(STAR_ENABLE_CUDA)
+    add_executable(star_gpu_seed_slots gpu_seed_slots.cpp)
+    star_target_build_options(star_gpu_seed_slots)
+    target_link_libraries(star_gpu_seed_slots PRIVATE star_seed_search)
+    # Explicit invocation: CUDA compile-only CI runners may have no GPU.
     target_compile_definitions(star_tests PRIVATE STAR_TEST_CUDA=1)
-    add_library(star_seed_search STATIC ${STAR_SOURCE_DIR}/gpuSeedSearch.cu)
-    set_target_properties(star_seed_search PROPERTIES CUDA_STANDARD ${STAR_CUDA_STANDARD} CUDA_STANDARD_REQUIRED ON
-                          CUDA_ARCHITECTURES "${STAR_CUDA_ARCHITECTURES}")
-    target_include_directories(star_seed_search PUBLIC ${STAR_SOURCE_DIR})
-    target_link_libraries(star_seed_search PUBLIC CUDA::cudart)
     target_compile_definitions(star_seed_benchmark PRIVATE STAR_SEED_REPLAY_CUDA=1)
     target_link_libraries(star_seed_benchmark PRIVATE star_seed_search)
 endif()
@@ -138,6 +138,13 @@ add_test(NAME seed_rank_hint_properties COMMAND star_rank_hint_properties)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_test(NAME fixture_process_watchdog
     COMMAND ${Python3_EXECUTABLE} ${STAR_SOURCE_DIR}/../scripts/test_fixture_process.py)
+add_test(NAME batched_seed_cpu_contract
+    COMMAND ${Python3_EXECUTABLE} ${STAR_SOURCE_DIR}/../scripts/test_batched_seeding.py
+        --star $<TARGET_FILE:STAR> --reference $<TARGET_FILE:STAR>)
+set_tests_properties(batched_seed_cpu_contract PROPERTIES TIMEOUT 180)
+add_test(NAME solo_counting_contract
+    COMMAND ${Python3_EXECUTABLE} ${STAR_SOURCE_DIR}/../scripts/test_solo_counting.py --star $<TARGET_FILE:STAR>)
+set_tests_properties(solo_counting_contract PROPERTIES TIMEOUT 180)
 if(UNIX)
     set(hts_security_flags)
     if(STAR_ASAN)

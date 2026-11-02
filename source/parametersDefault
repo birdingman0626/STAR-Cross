@@ -38,6 +38,10 @@ legacy                          None
 
 gpuSjdbRemap                    off
     string: experimental CUDA suffix-array remap during junction preparation: off, auto (preflight fallback only), required. Currently supports no newly inserted suffixes only. CPU remains default.
+seedSearchBackend              off
+    string: experimental adaptive seed rounds: off (original CPU), cpu, auto, required (CUDA)
+seedBatchSize                  4096
+    int: maximum prepared reads per logical worker; batches also have a bounded byte budget
 
 ### WebUI Parameters (--runMode webui)
 webuiHost                       127.0.0.1

@@ -4,6 +4,7 @@
 #include "IncludeDefine.h"
 #include "Parameters.h"
 #include "SoloReadBarcodeStats.h"
+#include "BarcodeHint.h"
 
 class SoloReadBarcode {
 private:
@@ -17,6 +18,7 @@ public:
     std::string cbSeq, umiSeq, cbQual, umiQual, bSeq, bQual;
     std::vector<std::string> bStrings; //barcode strings from SAM tags
     std::string cbSeqCorrected;
+    BarcodeHint hint; //precomputed whitelist lookup for the next read, used only if its key matches
     uint64 umiB;
     //int64  cbI;
     int32 cbMatch;//-1: no match, 0: exact, 1: 1 match with 1MM, >1: # of matches with 1MM

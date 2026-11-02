@@ -38,6 +38,22 @@ void ClipCR4::fillOneSeq(uint32 idb, char *seq, uint32 seqL)
         dbCode[static_cast<size_t>(ib) * dbN + idb] = ib < minLen ? baseCode(seq[ib]) : 4;
 };
 
+void ClipCR4::fillCodes(const char *seq, uint32 seqL, uint8 *out) const
+{
+    uint32 minLen = min(seqL, readLen);
+    for (uint32 ib = 0; ib < readLen; ib++)
+        out[ib] = static_cast<uint8>(ib < minLen ? baseCode(seq[ib]) : 4);
+};
+
+void ClipCR4::describe(ClipBatch &batch) const
+{
+    batch.targetLen = readLen;
+    batch.match = match;
+    batch.mismatch = mismatch;
+    batch.gapOpen = gapOpen;
+    batch.gapExt = gapExt;
+};
+
 // Semi-global ("overlap") affine alignment of the query against each database
 // sequence: leading and trailing gaps are free in both sequences. The result
 // is the best score on the last query row (first target position wins ties),

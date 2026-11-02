@@ -3,6 +3,7 @@
 
 #include "IncludeDefine.h"
 #include "ClipCR4.h"
+#include <functional>
 #include <memory>
 
 class ClipMate
@@ -29,6 +30,12 @@ public:
     void initialize(uint32 Nin, const std::string &adSeqIn, uint32 afterAdNin, double adMMpIn);
     uint32 clip(uint64 &Lread, char *SeqNum);
     void clipChunk(char *chArr, uint64 chSize);
+    // Same result as clipChunk, with every alignment of the chunk done in one batch call.
+    // Falls back to clipChunk when the aligner returns false.
+    void clipChunk(char *chArr, uint64 chSize, const std::function<bool(const ClipBatch&)> &alignAll);
+    std::vector<uint8> clipCodes;
+    std::vector<uint8*> clipStore;
+    std::vector<int> clipResults;
 
 };
 

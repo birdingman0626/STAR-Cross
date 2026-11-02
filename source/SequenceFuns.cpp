@@ -2,14 +2,9 @@
 #include <assert.h>  
 using namespace std;
 void complementSeqNumbers(char* ReadsIn, char* ReadsOut, uint64 Lread) {//complement the numeric sequences
-    for (uint64 jj=0;jj<Lread;jj++) {
-        switch (int(ReadsIn[jj])){
-            case (3): ReadsOut[jj]=char(0);break;
-            case (2): ReadsOut[jj]=char(1);break;
-            case (1): ReadsOut[jj]=char(2);break;
-            case (0): ReadsOut[jj]=char(3);break;
-            default:  ReadsOut[jj]=ReadsIn[jj];
-        };
+    for (uint64 jj=0;jj<Lread;jj++) {//0..3 -> 3..0, any other code unchanged
+        const unsigned char c=static_cast<unsigned char>(ReadsIn[jj]);
+        ReadsOut[jj]=static_cast<char>(c<4 ? 3-c : c);
     };
 };
 
@@ -96,53 +91,49 @@ void revComplementNucleotides(string &seq) {//complement the numeric sequences
 
 
 
+namespace {
+struct BamNucleotideCodes {//BAM 4-bit codes for =ACMGRSVTWYHKDBN (either case), anything else 15
+    unsigned char code[256];
+    constexpr BamNucleotideCodes():code{} {
+        for (int i=0;i<256;++i) code[i]=15;
+        const char* letters="=ACMGRSVTWYHKDBN";
+        for (int k=0;k<16;++k) {
+            const char c=letters[k];
+            code[(unsigned char)c]=(unsigned char)k;
+            if (c>='A' && c<='Z') code[(unsigned char)(c-'A'+'a')]=(unsigned char)k;
+        }
+    }
+};
+constexpr BamNucleotideCodes bamNucleotideCodes;
+}
+
 char  nuclToNumBAM(char cc){
-    switch (cc) {//=ACMGRSVTWYHKDBN
-        case ('='): cc=0;break;
-        case ('A'): case ('a'): cc=1;break;
-        case ('C'): case ('c'): cc=2;break;
-        case ('M'): case ('m'): cc=3;break;
-        case ('G'): case ('g'): cc=4;break;
-        case ('R'): case ('r'): cc=5;break;
-        case ('S'): case ('s'): cc=6;break;
-        case ('V'): case ('v'): cc=7;break;
-        case ('T'): case ('t'): cc=8;break;
-        case ('W'): case ('w'): cc=9;break;
-        case ('Y'): case ('y'): cc=10;break;
-        case ('H'): case ('h'): cc=11;break;
-        case ('K'): case ('k'): cc=12;break;
-        case ('D'): case ('d'): cc=13;break;
-        case ('B'): case ('b'): cc=14;break;
-        case ('N'): case ('n'): cc=15;break;
-        default: cc=15;
-    };
-    return cc;
+    return (char)bamNucleotideCodes.code[(unsigned char)cc];
 };
 
 void nuclPackBAM(char* ReadsIn, char* ReadsOut, uint64 Lread) {//pack nucleotides for BAM
+    const unsigned char* code=bamNucleotideCodes.code;
     for (uint64 jj=0;jj<Lread/2;jj++) {
-        ReadsOut[jj]=nuclToNumBAM(ReadsIn[2*jj])<<4 | nuclToNumBAM(ReadsIn[2*jj+1]);
+        ReadsOut[jj]=(char)(code[(unsigned char)ReadsIn[2*jj]]<<4 | code[(unsigned char)ReadsIn[2*jj+1]]);
     };
     if (Lread%2==1) {
-        ReadsOut[Lread/2]=nuclToNumBAM(ReadsIn[Lread-1])<<4;
+        ReadsOut[Lread/2]=(char)(code[(unsigned char)ReadsIn[Lread-1]]<<4);
     };
 };
 
+namespace {
+struct NucleotideCodes {//A/a=0 C/c=1 G/g=2 T/t=3, anything else (N) 4
+    char code[256];
+    constexpr NucleotideCodes():code{} {
+        for (int i=0;i<256;++i) code[i]=4;
+        code['A']=code['a']=0; code['C']=code['c']=1; code['G']=code['g']=2; code['T']=code['t']=3;
+    }
+};
+constexpr NucleotideCodes nucleotideCodes;
+}
 void convertNucleotidesToNumbers(const char* R0, char* R1, const uint64 Lread) {//transform sequence  from ACGT into 0-1-2-3 code
-    for (uint64 jj=0;jj<Lread;jj++) {
-                    switch (int(R0[jj])){
-                        case (65): case(97):
-                            R1[jj]=char(0);break;//A
-                        case (67): case(99):
-                            R1[jj]=char(1);break;//C
-                        case (71): case(103):
-                            R1[jj]=char(2);break;//G
-                        case (84): case(116):
-                            R1[jj]=char(3);break;//T
-                        default:
-                            R1[jj]=char(4);//anything else is converted to N
-                    };
-                };
+    for (uint64 jj=0;jj<Lread;jj++)
+        R1[jj]=nucleotideCodes.code[(unsigned char)R0[jj]];
 };
 
 void convertCapitalBasesToNum(uint8_t *rS, uint64_t N)

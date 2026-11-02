@@ -1,6 +1,7 @@
 #include "InOutStreams.h"
 #include "AsyncByteWriter.h"
 #include "ChunkInputDispatcher.h"
+#include "ChunkInputPrefetcher.h"
 #include "GlobalVariables.h"
 using namespace std;
 InOutStreams::InOutStreams() {

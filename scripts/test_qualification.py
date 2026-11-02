@@ -13,6 +13,18 @@ from qualification import calibration_profile_matches, performance_acceptance, m
 
 
 class QualificationTests(unittest.TestCase):
+    def test_required_seed_execution_counts_device_shortcuts(self):
+        from benchmark_cpu_subset import required_seed_execution
+        worker = dict(reads="3", rounds="0", cpu_queries="0", gpu_queries="0", gpu_batches="1")
+        adaptive = ["SEED_BATCH setup_seconds=1 scheduler=device_adaptive"]
+        self.assertTrue(required_seed_execution(adaptive, [worker]))
+        self.assertFalse(required_seed_execution([], [worker]))
+        self.assertTrue(required_seed_execution([], [dict(worker, gpu_queries="1")]))
+        for changes in (dict(gpu_batches="0"), dict(cpu_queries="1"), dict(rounds="1"), dict(reads="0")):
+            self.assertFalse(required_seed_execution(adaptive, [dict(worker, **changes)]))
+        self.assertFalse(required_seed_execution(adaptive, []))
+        self.assertFalse(required_seed_execution(adaptive, [worker, dict(worker, gpu_batches="0")]))
+
     def test_busy_admission_preflight_never_launches_star(self):
         import benchmark_cpu_subset as benchmark
         with tempfile.TemporaryDirectory() as temp:
@@ -68,6 +80,11 @@ class QualificationTests(unittest.TestCase):
                          **({"peak_rss_bytes": 100000000} if measured else {}))
                     for i in range(n) for label in ("a", "b")]
         self.assertEqual(paired_assessment(runs(5), ["a", "b"])["status"], "CALIBRATION_PASS")
+        for field in ("requested_seed_backend", "seed_batch_size"):
+            changed = runs(5)
+            for row in changed:
+                row[field] = row['label']
+            self.assertNotEqual(paired_assessment(changed, ["a", "b"])["status"], "CALIBRATION_PASS")
         for values in (runs(4), runs(5, 1.03), runs(5, measured=False)):
             self.assertEqual(paired_assessment(values, ["a", "b"])["status"], "INCONCLUSIVE")
         noisy = runs(5)

@@ -14,6 +14,10 @@ void SoloReadBarcode::matchCBtoWL(string &cbSeq1, string &cbQual1, vector<uint64
     //convert CB and check for Ns
     uint64 cbB1;
     int64 posN=convertNuclStrToInt64(cbSeq1,cbB1);
+    //device lookup for this read: valid only for the main whitelist and the same barcode key
+    const BarcodeHint hint1=hint;
+    hint.exact=-2;
+    const bool useHint = hint1.exact!=-2 && hint1.key==cbB1 && posN==-1 && &cbWL==&pSolo.cbWL;
 
     if (!pSolo.cbWLyes) {//no whitelist - no search
         if (posN!=-1) {//Ns are present, discard this read
@@ -33,7 +37,7 @@ void SoloReadBarcode::matchCBtoWL(string &cbSeq1, string &cbQual1, vector<uint64
         //stats.V[stats.nNinBarcode]++;
         return;
     } else if (posN==-1) {//no Ns, count only for featureType==gene
-        int64 cbI=binarySearchExact<uint64>(cbB1,cbWL.data(),cbWL.size());
+        int64 cbI=useHint ? hint1.exact : binarySearchExact<uint64>(cbB1,cbWL.data(),cbWL.size());
         if (cbI>=0) {//exact match
             cbMatchInd1.push_back((uint64) cbI);
             cbMatchString1 = to_string(cbMatchInd1[0]);
@@ -68,6 +72,8 @@ void SoloReadBarcode::matchCBtoWL(string &cbSeq1, string &cbQual1, vector<uint64
     } else {//look for 1MM; posN==-1, no Ns
         for (uint32 ii=0; ii<cbSeq1.size(); ii++) {
             for (uint32 jj=1; jj<4; jj++) {
+                if (useHint && !((hint1.mask>>(3*ii+jj-1))&1))
+                    continue; //the device found no whitelist entry for this neighbour
                 int64 cbI1=binarySearchExact<uint64>(cbB1^(jj<<(ii*2)),cbWL.data(),cbWL.size());
                 if (cbI1>=0) {//found match
                     //output all

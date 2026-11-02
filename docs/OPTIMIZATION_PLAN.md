@@ -2,6 +2,12 @@
 
 日期：2026-10-06。状态：分阶段实施与实测；[本轮结果及保留/拒绝决定](OPTIMIZATION_RESULTS_20261006.md)。目标平台优先 Windows 原生 CPU/CUDA。
 
+2026-11-01：用户授权从当前主线实施 G2/G3；当前实验接口、约束和验收证据见
+[GPU_BATCHED_SEEDING.md](GPU_BATCHED_SEEDING.md)。后续全流程 GPU 的工作包、计时边界、
+资源预算与 3 倍门槛统一见 [GPU_FULL_PIPELINE_PLAN.md](GPU_FULL_PIPELINE_PLAN.md)。
+本文件下文保留原阶段设计背景；后续 GPU 执行顺序以该新计划为准。
+最新验收目标为排除载入、初始化和导出后的完整计算至少加速 3 倍；重复传输、调度与同步仍计入计算成本。局部搜索加速不等于达标，当前未达到可晋级结论，Vulkan 继续后置。
+
 本文件统一规定下一轮工作的顺序、交付物和决策条件。科学结果验收沿用[GPU 验收契约](../.agentdocs/workflow/261006-gpu-validation-and-benchmark-plan.md)，本计划不放宽该契约。各阶段按证据进入下一阶段，不要求把所有候选都实现。
 
 2026-10-08：论文与本地教材驱动的查询/索引候选细化见 [LITERATURE_OPTIMIZATION_PLAN.md](LITERATURE_OPTIMIZATION_PLAN.md)。该补充保留本文件的等价性和晋级门槛，先诊断后选择候选；不是已完成实现，也不要求机械执行全部可选路线。

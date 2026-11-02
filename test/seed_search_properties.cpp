@@ -147,6 +147,10 @@ int main() try {
         const uint64 count=maxMappableLength(batchFixture.genome,batchRead.strands,start,6,rank,rank,forward,length,range);
         expected.push_back({length,range[0],range[1],count});
     }
+    // Production Genome uses all high bits except the strand bit; the packed
+    // values have no bits above wordLength. Both mask forms must be accepted.
+    const SeedSearchEngine compactMaskEngine(batchFixture.genome);
+    batchFixture.genome.GstrandMask=~(uint64(1)<<batchFixture.genome.GstrandBit);
     const SeedSearchEngine engine(batchFixture.genome);
     std::vector<SeedMatch> output(expected.size());
     for (int threads:{1,2}) {

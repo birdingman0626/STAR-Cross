@@ -4,11 +4,63 @@
 #include "SequenceFuns.h"
 #include "GlobalVariables.h"
 #include "SeedDiagnostics.h"
+#include <chrono>
+#include <algorithm>
+#include <cstring>
+#include "ChunkInputPrefetcher.h"
 using namespace std;
 inline uint64 fastqReadOneLine(ifstream&,char*);
 inline void removeStringEndControl(string&);
 
 namespace {
+// Lines of a read file straight from its stream buffer's get area. A call returns false,
+// having consumed nothing, unless the whole line ('\n' included) is already buffered and
+// the stream is good; the caller then makes the original istream call. So every result is
+// the one the istream call would give, and only lines that cross a buffer refill go the
+// slow way.
+struct BufferedLine : std::streambuf {
+    static bool find(std::istream& in, size_t limit, const char*& begin, size_t& length) {
+        if (!in.good()) return false;
+        std::streambuf* b=in.rdbuf();
+        char* g=(b->*(&BufferedLine::gptr))();
+        char* e=(b->*(&BufferedLine::egptr))();
+        if (!g || g>=e) return false;
+        const void* nl=std::memchr(g,'\n',std::min<size_t>(size_t(e-g),limit));
+        if (!nl) return false;
+        begin=g; length=size_t(static_cast<const char*>(nl)-g);
+        return true;
+    }
+    static void consume(std::istream& in, size_t n) {//n<=line length+1, all inside the get area
+        std::streambuf* b=in.rdbuf();
+        (b->*(&BufferedLine::gbump))(static_cast<int>(n));
+    }
+};
+inline bool isFormattedSpace(char c) {return c==' '||c=='\t'||c=='\n'||c=='\v'||c=='\f'||c=='\r';}
+// in>>word; getline(in,rest);  for a header line that is fully buffered and starts with a non-space
+bool fastHeader(std::istream& in, std::string& word, std::string& rest) {
+    const char* p; size_t n;
+    if (!BufferedLine::find(in,size_t(-1),p,n) || n==0 || isFormattedSpace(p[0])) return false;
+    size_t w=1;
+    while (w<n && !isFormattedSpace(p[w])) ++w;
+    word.assign(p,w); rest.assign(p+w,n-w);
+    BufferedLine::consume(in,n+1);
+    return true;
+}
+// getline(in,line)
+bool fastGetline(std::istream& in, std::string& line) {
+    const char* p; size_t n;
+    if (!BufferedLine::find(in,size_t(-1),p,n)) return false;
+    line.assign(p,n);
+    BufferedLine::consume(in,n+1);
+    return true;
+}
+// in.ignore(count,'\n')
+bool fastIgnoreLine(std::istream& in, std::streamsize count) {
+    const char* p; size_t n;
+    if (count<1 || !BufferedLine::find(in,size_t(count),p,n)) return false; // '\n' must be among the first count chars
+    BufferedLine::consume(in,n+1);
+    return true;
+}
 struct InputLock {
     pthread_mutex_t* mutex;
     explicit InputLock(bool enabled):mutex(enabled ? &g_threadChunks.mutexInRead : nullptr) {
@@ -18,21 +70,9 @@ struct InputLock {
 };
 }
 
-void ReadAlignChunk::readChunk() {
-        if (P.outFilterBySJoutStage<2) {//read chunks from input file
-
-            #ifdef STAR_CAPTURE_SEEDS
-            const auto lockRequested=std::chrono::steady_clock::now();
-            #endif
-            InputLock lock(P.runThreadN>1);
-            #ifdef STAR_CAPTURE_SEEDS
-            const auto lockAcquired=std::chrono::steady_clock::now();
-            if (P.runThreadN>1) if(auto* w=seedTrace::worker()) {
-                w->inputLockWaitNs+=std::chrono::duration_cast<std::chrono::nanoseconds>(lockAcquired-lockRequested).count();
-                ++w->inputLockChunks;
-            }
-            #endif
-
+// Reads the next chunk of input reads into chunkIn; the caller holds the input lock.
+void fillInputChunk(Parameters& P,char** chunkIn,std::array<uint64,MAX_N_MATES>& chunkInSizeBytesTotal,
+                    std::vector<std::string>& headerExtra,bool& newFile,int iThread,bool& noReadsLeft,uint64& iChunkIn) {
             chunkInSizeBytesTotal={0,0};
 
             while (chunkInSizeBytesTotal[0] < P.chunkInSizeBytes && chunkInSizeBytesTotal[1] < P.chunkInSizeBytes && P.inOut->readIn[0].good() && P.inOut->readIn[1].good()) {
@@ -128,17 +168,19 @@ void ReadAlignChunk::readChunk() {
                     P.iReadAll++; //increment read number
                     if (P.outFilterBySJoutStage!=2) {//not the 2nd stage of the 2-stage mapping, read ID from the 1st read
                         string readID;
-                        P.inOut->readIn[0] >> readID;
+                        // Preserve each mate's original comment after STAR's internal
+                        // bookkeeping fields (including Illumina sample indexes).
+                        const bool headerParsed=fastHeader(P.inOut->readIn[0], readID, headerExtra[0]);
+                        if (!headerParsed) P.inOut->readIn[0] >> readID;
                         removeStringEndControl(readID);
                         if (P.outSAMreadIDnumber) {
                             readID="@"+to_string(P.iReadAll);
                         };
-                        // Preserve each mate's original comment after STAR's internal
-                        // bookkeeping fields (including Illumina sample indexes).
-                        getline(P.inOut->readIn[0], headerExtra[0]);
+                        if (!headerParsed) getline(P.inOut->readIn[0], headerExtra[0]);
                         removeStringEndControl(headerExtra[0]);
                         for (uint64 imate=1; imate<P.readNends; imate++) {
-                            getline(P.inOut->readIn[imate], headerExtra[imate]);
+                            if (!fastGetline(P.inOut->readIn[imate], headerExtra[imate]))
+                                getline(P.inOut->readIn[imate], headerExtra[imate]);
                             removeStringEndControl(headerExtra[imate]);
                             const size_t comment = headerExtra[imate].find_first_of(" \t");
                             if (comment == string::npos) headerExtra[imate].clear();
@@ -173,7 +215,8 @@ void ReadAlignChunk::readChunk() {
                         //sequence
                         chunkInSizeBytesTotal[imate] += fastqReadOneLine(P.inOut->readIn[imate], chunkIn[imate] + chunkInSizeBytesTotal[imate]);
                         //skip 3rd line, record '+'
-                        P.inOut->readIn[imate].ignore(DEF_readNameSeqLengthMax, '\n');
+                        if (!fastIgnoreLine(P.inOut->readIn[imate], DEF_readNameSeqLengthMax))
+                            P.inOut->readIn[imate].ignore(DEF_readNameSeqLengthMax, '\n');
                         chunkIn[imate][chunkInSizeBytesTotal[imate]] = '+';
                         chunkIn[imate][chunkInSizeBytesTotal[imate]+1] = '\n';
                         chunkInSizeBytesTotal[imate] += 2;
@@ -268,6 +311,30 @@ void ReadAlignChunk::readChunk() {
             for (uint64 imate=0; imate<P.readNends; imate++)
                 chunkIn[imate][chunkInSizeBytesTotal[imate]]='\n';//extra empty line at the end of the chunks
 
+}
+
+void ReadAlignChunk::readChunk() {
+        if (P.outFilterBySJoutStage<2 && P.inOut->chunkInputPrefetcher) {//chunk already read by the input producer
+            P.inOut->chunkInputPrefetcher->take(inputStorage,chunkInSizeBytesTotal,noReadsLeft,iChunkIn);
+            for (uint64 imate=0; imate<P.readNends; imate++) chunkIn[imate]=inputStorage[imate].get();
+        } else if (P.outFilterBySJoutStage<2) {//read chunks from input file
+
+            #ifdef STAR_CAPTURE_SEEDS
+            const auto lockRequested=std::chrono::steady_clock::now();
+            #endif
+            InputLock lock(P.runThreadN>1);
+            const auto heldSince=std::chrono::steady_clock::now();
+            struct HeldTimer {double& s; std::chrono::steady_clock::time_point t; ~HeldTimer(){s+=std::chrono::duration<double>(std::chrono::steady_clock::now()-t).count();}} held{inputLockHeldSeconds,heldSince};
+            #ifdef STAR_CAPTURE_SEEDS
+            const auto lockAcquired=std::chrono::steady_clock::now();
+            if (P.runThreadN>1) if(auto* w=seedTrace::worker()) {
+                w->inputLockWaitNs+=std::chrono::duration_cast<std::chrono::nanoseconds>(lockAcquired-lockRequested).count();
+                ++w->inputLockChunks;
+            }
+            #endif
+
+            fillInputChunk(P,chunkIn,chunkInSizeBytesTotal,headerExtra,newFile,iThread,noReadsLeft,iChunkIn);
+
             #ifdef STAR_CAPTURE_SEEDS
             if (P.runThreadN>1) if(auto* w=seedTrace::worker())
                 w->inputLockHeldNs+=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now()-lockAcquired).count();
@@ -287,8 +354,15 @@ void ReadAlignChunk::readChunk() {
 inline uint64 fastqReadOneLine(ifstream &streamIn, char *arrIn)
 {
     uint64 lenIn;
-    streamIn.getline(arrIn, DEF_readNameSeqLengthMax+1 );
-    lenIn = streamIn.gcount(); //=seqLength+1: includes \0 but not \n. We will replace \0 with \n
+    const char* line; size_t n;
+    if (BufferedLine::find(streamIn, DEF_readNameSeqLengthMax, line, n)) {//same as getline(arrIn,DEF_readNameSeqLengthMax+1) below
+        std::memcpy(arrIn, line, n); arrIn[n]=0;
+        BufferedLine::consume(streamIn, n+1);
+        lenIn = n+1;
+    } else {
+        streamIn.getline(arrIn, DEF_readNameSeqLengthMax+1 );
+        lenIn = streamIn.gcount(); //=seqLength+1: includes \0 but not \n. We will replace \0 with \n
+    };
 
     if (lenIn < 2) {
         // Empty line (1) or nothing read (0, end of input): store nothing. The

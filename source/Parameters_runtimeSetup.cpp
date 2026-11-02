@@ -209,6 +209,13 @@ void Parameters::inputParameters_runtimeSetup() {
                 if (outCRAMbool)
                     outCRAMfileUnsortedName=outFileNamePrefix + "Aligned.out.cram";
                 inOut->outBAMfileUnsorted = bgzf_open(outBAMfileUnsortedName.c_str(),("w"+to_string((long long) output.bamCompression)).c_str());
+                // Experimental: compress BGZF blocks on an htslib thread pool instead of under the
+                // workers' shared output mutex. Same blocks, same compression level.
+                if (const char* threads=std::getenv("STAR_BAM_THREADS")) {
+                    const int n=atoi(threads);
+                    if (n>0 && inOut->outBAMfileUnsorted && bgzf_mt(inOut->outBAMfileUnsorted, n, 256)!=0)
+                        exitWithError("EXITING because of fatal error: could not start BAM compression threads\n", std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
+                }
             };
             if (outBAMcoord) {
                 if (outStd=="BAM_SortedByCoordinate") {

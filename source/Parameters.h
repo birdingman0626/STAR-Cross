@@ -45,6 +45,8 @@ class Parameters {
         int runRNGseed; //random number generator seed
         std::string legacyIn; //legacy algorithm selection
         std::string gpuSjdbRemapMode; //experimental packed SA remap, default off
+        std::string seedSearchBackend; //off/cpu/auto/required, experimental batched seeding
+        uint64 seedBatchSize;
 
         struct {
             std::string host;

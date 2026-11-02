@@ -1,3 +1,4 @@
+#include "gpuSyncMode.h"
 #include "gpuSjdbRemap.h"
 #include <cuda_runtime.h>
 #include <algorithm>
@@ -62,6 +63,10 @@ GpuSjdbRemapResult gpuSjdbRemap(const GpuSjdbRemapRequest& r) {
         if(error==cudaErrorIllegalAddress || error==cudaErrorAssert) result.status=GpuSjdbRemapResult::Failed;
         result.reason="no usable CUDA device";return result;
     }
+    // Waiting host threads sleep instead of spinning, so they leave the cores to the
+    // mapping workers. Set before the context exists; later calls are harmless.
+    (void)cudaSetDeviceFlags(gpuSyncScheduleFlag());
+    (void)cudaGetLastError();
     DeviceBuffer input, output, order;
     const size_t chunk=std::min<uint64_t>(r.chunkBytes,((r.bytes+7)/8)*8);
     result.deviceBytes=r.bytes+chunk+r.junctions*sizeof(uint32_t);

@@ -2,6 +2,7 @@
 #define CODE_ClipCR4
 
 #include "IncludeDefine.h"
+#include <cstddef>
 #include <vector>
 
 // Alignment result for one database sequence (score + end position)
@@ -9,6 +10,17 @@ struct ClipAlignResult
 {
     int score;
     int endLocationTarget; // 0-indexed position in target where alignment ends
+};
+
+// A whole chunk of CR4 clipping alignments handed to a batch aligner (the device).
+struct ClipBatch {
+    const uint8 *codes;  // n*targetLen base codes, read-major
+    size_t n;
+    uint32 targetLen;
+    int match, mismatch, gapOpen, gapExt;
+    const uint8 *query;
+    uint32 queryLen;
+    int *out;            // 2*n: score, endLocationTarget
 };
 
 class ClipCR4
@@ -31,6 +43,10 @@ public:
     void fillOneSeq(uint32 idb, char *seq, uint32 seqL);
     void align(uint8 *query, uint32 queryLen, int dbN1);
     static uint32 polyTail3p(char *seq, uint32 seqLen); // stateless: the 3' mate has no ClipCR4 instance
+    // Batch interface: the codes fillOneSeq stores for one sequence, and the scoring.
+    uint32 targetLength() const {return readLen;}
+    void fillCodes(const char *seq, uint32 seqL, uint8 *out) const;
+    void describe(ClipBatch &batch) const;
 
 private:
     uint32 readLen; // sequence length to align against

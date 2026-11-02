@@ -3,6 +3,8 @@
 #include "Stats.h"
 #include "serviceFuns.cpp"
 #include "SeedDiagnostics.h"
+#include "SeedRounds.h"
+#include <chrono>
 using namespace std;
 int ReadAlign::mapOneRead() {
     #ifdef STAR_CAPTURE_SEEDS
@@ -18,7 +20,10 @@ int ReadAlign::mapOneRead() {
 
     revertStrand = false; //the 2nd read is awlays on opposite strand. 1st and 2nd reads have already been reversed.
 
-    if (Lread>0) {
+    if (preparedSeedSummary) {
+        Nsplit=preparedSeedSummary->splits;
+        if(!Nsplit) splitR[1][0]=preparedSeedSummary->longestSplit;
+    } else if (Lread>0) {
         Nsplit=qualitySplit(Read1[0], Lread, P.maxNsplit, P.seedSplitMin, splitR);
         // splitR[0][fragnum] => good region start position   (from SequenceFuns.cpp)
         // splitR[1][fragnum] => good reagion length
@@ -43,6 +48,27 @@ int ReadAlign::mapOneRead() {
 
     trBest=trInit;
 
+    if(preparedSeeds) {
+        const auto* seeds=std::exchange(preparedSeeds,nullptr);
+        if(const auto* summary=std::exchange(preparedSeedSummary,nullptr)) {
+            nP=summary->pieces;nA=summary->alignments;nUM[0]=summary->unique;nUM[1]=summary->multiple;
+            uniqLmax=summary->uniqLmax;uniqLmaxInd=summary->uniqLmaxInd;
+            multLmax=summary->multLmax;multLmaxN=summary->multLmaxN;
+            multNmin=summary->multNmin;multNminL=summary->multNminL;
+            multNmax=summary->multNmax;multNmaxL=summary->multNmaxL;
+            if(nP!=seeds->size() || nP>P.seedPerReadNmax) throw std::logic_error("invalid consolidated GPU seeds");
+            for(size_t i=0;i<seeds->size();++i) {
+                const auto& seed=(*seeds)[i];
+                PC[i][PC_rStart]=seed.direction==0 ? seed.start : seed.start+1-seed.match.length;
+                PC[i][PC_Length]=seed.match.length;PC[i][PC_Dir]=seed.direction;
+                PC[i][PC_Nrep]=seed.match.multiplicity;PC[i][PC_SAstart]=seed.match.lower;
+                PC[i][PC_SAend]=seed.match.upper;PC[i][PC_iFrag]=seed.fragment;
+            }
+        } else for(const auto& seed:*seeds) {
+            uint64 bounds[2]={seed.match.lower,seed.match.upper};
+            storeAligns(seed.direction,seed.start,seed.match.multiplicity,seed.match.length,bounds,seed.fragment);
+        }
+    } else {
     uint64 seedSearchStartLmax=min(P.seedSearchStartLmax, // 50
                                   (uint64) (P.seedSearchStartLmaxOverLread*(Lread-1))); // read length
     // align all good pieces
@@ -97,6 +123,7 @@ int ReadAlign::mapOneRead() {
         };
     };
 
+    }
     #ifdef OFF_AFTER_SEEDING
         #warning OFF_AFTER_SEEDING
         return 0;
@@ -120,8 +147,11 @@ int ReadAlign::mapOneRead() {
         nW=0;
     } else if (Nsplit>0 && nA>0) {//otherwise there are no good pieces, or all pieces map too many times: read cannot be mapped
 //         qsort((void*) PC, nP, sizeof(uint64)*PC_SIZE, funCompareUint2);//sort PC by rStart and length
+        auto spStart=std::chrono::steady_clock::now();
         stitchPieces(Read1, Lread);
+        alignPhaseSeconds[9]+=std::chrono::duration<double>(std::chrono::steady_clock::now()-spStart).count();
     };
 
+    preparedHits=nullptr;
     return 0;
 };

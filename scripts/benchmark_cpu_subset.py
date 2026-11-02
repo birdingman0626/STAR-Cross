@@ -25,6 +25,17 @@ def sha256(path):
     return digest.hexdigest()
 
 
+def required_seed_execution(events, workers):
+    """Device prefix shortcuts execute even when no SA extension is needed."""
+    if not workers or any(int(w["cpu_queries"]) for w in workers):
+        return False
+    if any("scheduler=device_adaptive" in line for line in events):
+        return (not any(int(w["rounds"]) for w in workers)
+                and all(int(w.get("gpu_batches", 0)) > 0 for w in workers if int(w["reads"]) > 0)
+                and any(int(w["reads"]) > 0 for w in workers))
+    return any(int(w["gpu_queries"]) > 0 for w in workers)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", required=True)
@@ -45,6 +56,8 @@ def main():
     parser.add_argument("--cpu-affinity", type=lambda value: int(value, 0),
                         help="Windows STAR-only CPU mask for controlled RCA, e.g. 0xff; not a low-load waiver")
     parser.add_argument("--gpu-sjdb-remap", action="append", default=[], help="label=off|auto|required, explicit experimental backend per binary")
+    parser.add_argument("--seed-search-backend", action="append", default=[], help="label=off|cpu|auto|required, experimental round scheduler")
+    parser.add_argument("--seed-batch-size", type=int, default=4096)
     parser.add_argument("--reference-run", type=Path, help="Reuse a successful run with identical arguments, avoiding another full index load")
     args = parser.parse_args()
     if args.cpu_affinity is not None and (sys.platform != "win32" or not 0 < args.cpu_affinity <= sys.maxsize*2+1):
@@ -73,6 +86,20 @@ def main():
         if label not in labels or label in gpu_modes or mode not in ("off", "auto", "required"):
             parser.error("Invalid or duplicate GPU backend assignment")
         gpu_modes[label] = mode
+    seed_modes = {}
+    for specification in args.seed_search_backend:
+        label, mode = specification.split("=", 1)
+        if label not in labels or label in seed_modes or mode not in ("off", "cpu", "auto", "required"):
+            parser.error("Invalid or duplicate seed backend assignment")
+        seed_modes[label] = mode
+    if not 1 <= args.seed_batch_size <= 65536:
+        parser.error("Seed batch size must be in [1,65536]")
+
+    def backend_arguments(label):
+        options = ["--gpuSjdbRemap", gpu_modes[label]] if label in gpu_modes else []
+        if label in seed_modes:
+            options += ["--seedSearchBackend", seed_modes[label], "--seedBatchSize", str(args.seed_batch_size)]
+        return options
     if len(args.binary) < 2 and args.reference_run is None:
         parser.error("At least two binaries are required for a comparison")
     fixture, data, output = (Path(path).resolve() for path in (args.fixture, args.data_dir, args.output_dir))
@@ -210,10 +237,11 @@ def main():
             prior_dir = args.calibration_receipt.parent/prior["run_directory"]
             if (prior.get("binary_sha256") != sha256(args.binary[0].split("=", 1)[1])
                     or prior.get("requested_gpu_mode", "off") != gpu_modes.get(labels[0], "off")
+                    or prior.get("requested_seed_backend", "off") != seed_modes.get(labels[0], "off")
                     or read_json(prior_dir/"input_signatures.json") != signatures):
                 reject("Calibration input/binary/backend differs")
             prior_command = read_json(prior_dir/"command.json")
-            expected_arguments = common + (["--gpuSjdbRemap", gpu_modes[labels[0]]] if labels[0] in gpu_modes else [])
+            expected_arguments = common + backend_arguments(labels[0])
             if (not isinstance(prior_command, list) or len(prior_command) < 3
                     or prior_command[1:-2] != expected_arguments or prior_command[-2] != "--outFileNamePrefix"
                     or sha256(prior_command[0]) != prior["binary_sha256"]):
@@ -246,7 +274,7 @@ def main():
         run.mkdir()
         (run/"input_signatures.json").write_text(json.dumps(signatures, indent=2))
         binary_digest = sha256(binary)
-        backend = ["--gpuSjdbRemap", gpu_modes[label]] if label in gpu_modes else []
+        backend = backend_arguments(label)
         command = [binary, *common, *backend, "--outFileNamePrefix", str(run)+"/"]
         (run/"command.json").write_text(json.dumps(command))
         print(f"Starting {label}", flush=True)
@@ -260,6 +288,8 @@ def main():
         item = {"label": label, "round": round_number, "warmup": round_number < 0,
                 "run_directory": run.name, "binary_sha256": binary_digest, "exit_code": exit_code, **memory,
                 "requested_gpu_mode": gpu_modes.get(label, "off"),
+                "requested_seed_backend": seed_modes.get(label, "off"),
+                "seed_batch_size": args.seed_batch_size if label in seed_modes else None,
                 "monotonic_elapsed_seconds": time.monotonic()-start}
         result["runs"].append(item)
         save()
@@ -314,6 +344,20 @@ def main():
         if gpu_modes.get(label) == "required" and (not item["gpu_backend_events"] or any(
                 not line.startswith("GPU_SJDB_REMAP status=0 ") for line in item["gpu_backend_events"])):
             reject("Required GPU backend did not complete; CPU output cannot qualify GPU execution")
+        item["seed_backend_events"] = [line for line in read_text(run/"Log.out").splitlines()
+                                       if line.startswith("SEED_BATCH ")]
+        if seed_modes.get(label) in ("cpu", "auto", "required"):
+            workers = [dict(field.split("=", 1) for field in line.split()[1:])
+                       for line in item["seed_backend_events"] if line.startswith("SEED_BATCH worker=")]
+            # auto mode may map the first reads on the CPU while the device sets up; they are logged separately
+            warmup = sum(int(line.split("reads=")[1].split()[0]) for line in read_text(run/"Log.out").splitlines()
+                         if line.startswith("SEED_BATCH_WARMUP "))
+            if seed_modes[label] == "required" and warmup:
+                reject("Required CUDA seeds mapped reads on the CPU warm-up path")
+            if sum(int(worker["reads"]) for worker in workers) + warmup != manifest["pairs"]:
+                reject("Batched seed read accounting does not cover the input")
+            if seed_modes[label] == "required" and not required_seed_execution(item["seed_backend_events"], workers):
+                reject("Required CUDA seeds did not execute exclusively on the GPU")
         observed = [line.split("|")[1].strip() for line in final_log.splitlines() if "Number of input reads" in line]
         if observed != [str(manifest["pairs"])]:
             reject(f"Unexpected input-read count: {observed}")

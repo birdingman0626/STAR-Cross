@@ -35,15 +35,38 @@ workaround; corrected below).
 
 ## Recommended actions
 
-In priority order:
+### Implementation follow-up on `codex/gpu-batched-seeding`
 
-1. **Fix the EM NaN** (multi-gene reads, below). It needs only
-   `--soloMultiMappers EM`, not a raised multimap limit. Small, output-neutral for
-   every case that currently gives a finite result. Add a unit test with a
-   101-gene UMI.
-2. **Fix or document UMI-tools directional grouping** (UMI deduplication, below):
-   the link rule matches, the grouping does not. Add the counterexample as a
-   regression test.
+The findings above describe the reviewed `1367fb6` implementation. The working
+branch now repairs the first two findings:
+
+- `1MM_Directional_UMItools` follows directed reachability rather than a greedy
+  first-parent chain. Equal-count roots use deterministic sequence order;
+  representative UMI strings are not claimed identical to every upstream input
+  ordering. The stricter `1MM_Directional` and CellRanger dedup modes retain
+  their previous behavior. Affected directional molecule counts intentionally
+  change; this is a correctness repair, not an exact-output optimization.
+- EM keeps pre-threshold weights available. A molecule with zero truncated
+  support uses its prior weights locally, or uniform weights if those are also
+  zero. Other molecules retain the original thresholded update and convergence
+  comparison. Ordinary finite updates remain bit-identical in regression tests.
+- `test_SoloCounting.cpp` checks independent graph transitive closure on all
+  two-base UMI triples with counts 1–3, input-order permutations, integer-count
+  overflow, and EM conservation. `scripts/test_solo_counting.py` checks actual
+  STAR output for all 144 singleton-path cases, an Exact-mode control, and
+  100/101/150 overlapping genes with uniquely mapped reads and the default
+  alignment multiplicity limit. These checks do not establish real-data effect
+  frequency or reference-tool equivalence outside the tested contracts.
+
+The retained actions, in original priority order:
+
+1. **EM NaN — repaired on the working branch** (multi-gene reads, below). It needs only
+   `--soloMultiMappers EM`, not a raised multimap limit. The fix preserves the
+   ordinary finite update; 100/101/150-gene unit and CLI regressions now cover
+   the threshold boundary and conservation.
+2. **UMI-tools directional grouping — repaired on the working branch** (below):
+   the old link rule matched, but its grouping did not. The counterexamples and
+   an independent transitive-closure oracle are now regression tests.
 3. **Validate the default chimeric scoring** against simulated fusions with known
    truth, comparing default and `--legacy`. The change only affects
    `--chimMultimapNmax > 0`, which STAR-Fusion's published command sets (10);

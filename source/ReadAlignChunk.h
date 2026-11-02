@@ -9,11 +9,22 @@
 #include "BAMoutput.h"
 #include "Quantifications.h"
 #include "FixedStreamBuf.h"
+#include <memory>
+class SeedBatchExecutor;
+
+void fillInputChunk(Parameters& P,char** chunkIn,std::array<uint64,MAX_N_MATES>& chunkInSizeBytesTotal,
+                    std::vector<std::string>& headerExtra,bool& newFile,int iThread,bool& noReadsLeft,uint64& iChunkIn);
 
 class ReadAlignChunk {//chunk of reads and alignments
 public:
     Parameters& P;
     ReadAlign* RA;
+    double phaseSeconds[9]={0,0,0,0,0,0,0,0,0}; //read, load, seed, project, collect, stitch, align, write, clip
+    unsigned cpuWarmupChunks=0; //chunks mapped on the CPU path while the device index was uploading
+    double inputLockHeldSeconds=0; //time this worker held the input mutex
+    uint64 cpuWarmupReads=0; //reads in those chunks mapped before the device path took over
+    SeedBatchExecutor* seedBatch=nullptr; //borrowed for one joined mapping pass
+    std::shared_ptr<void> mapBuffers; //batch buffers kept across mapChunk calls (see ReadAlignChunk_mapChunk.cpp)
 
     Transcriptome *chunkTr;
 
