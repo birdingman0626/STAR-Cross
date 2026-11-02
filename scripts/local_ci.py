@@ -378,15 +378,32 @@ def msvc_environment():
     return dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
 
 
+def extended_path(path):
+    """Absolute path; on Windows, in extended-length form, which lifts the 260-character
+    MAX_PATH limit that fetched dependency trees (e.g. nlohmann_json test reports) exceed."""
+    p = os.path.abspath(path)
+    if os.name != "nt" or p.startswith("\\\\?\\"):
+        return p
+    return "\\\\?\\UNC\\" + p[2:] if p.startswith("\\\\") else "\\\\?\\" + p
+
+
+def remove_tree(path):
+    """Delete a directory tree, including read-only files and over-MAX_PATH entries."""
+    import shutil
+
+    # git leaves its object files read-only, which Windows refuses to delete
+    def make_writable(func, p, _):
+        os.chmod(p, 0o700)
+        func(p)
+    target = extended_path(path)
+    shutil.rmtree(target, onexc=make_writable) if sys.version_info >= (3, 12) else shutil.rmtree(target, onerror=make_writable)
+
+
 def run_local_windows(lane, host, plan, bundle, workdir, log, timeout):
     import shutil
     ws = workdir / lane["id"]
     if ws.exists():
-        # git leaves its object files read-only, which Windows refuses to delete
-        def make_writable(func, path, _):
-            os.chmod(path, 0o700)
-            func(path)
-        shutil.rmtree(ws, onexc=make_writable) if sys.version_info >= (3, 12) else shutil.rmtree(ws, onerror=make_writable)
+        remove_tree(ws)
     ws.mkdir(parents=True)
     with tarfile.open(fileobj=io.BytesIO(bundle), mode="r:gz") as tar:
         tar.extractall(ws, filter="data")

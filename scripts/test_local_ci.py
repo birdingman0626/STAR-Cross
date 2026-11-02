@@ -2,6 +2,7 @@
 import subprocess
 import shutil
 import sys
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -48,6 +49,22 @@ class ExpressionTests(unittest.TestCase):
 
     def test_substitute(self):
         self.assertEqual(lc.substitute("cc=${{ matrix.c }}!", {"matrix": {"c": "gcc"}}), "cc=gcc!")
+
+
+class RemoveTreeTests(unittest.TestCase):
+    def test_removes_read_only_and_over_max_path_entries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "work"
+            deep = os.path.join(str(root), *(["d" * 50] * 6))  # well past 260 characters
+            os.makedirs(lc.extended_path(deep))
+            leaf = os.path.join(deep, "read_only.txt")
+            leaf_io = lc.extended_path(leaf)
+            with open(leaf_io, "w") as f:
+                f.write("x")
+            os.chmod(leaf_io, 0o400)
+            self.assertGreater(len(os.path.abspath(leaf)), 260)
+            lc.remove_tree(root)
+            self.assertFalse(root.exists())
 
 
 class WorkflowTests(unittest.TestCase):
