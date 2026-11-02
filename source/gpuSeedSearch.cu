@@ -143,6 +143,7 @@ struct GpuSeedIndex::State {
         Pinned hostTaskKept,hostReadTasks,hostSelectedCount;
         size_t selectTempBytes=0;
         U keptGuess=0; // kept hits downloaded with the counts (from recent batches); the rest needs a second copy
+        unsigned eventGuess=0; // seed events downloaded with the counts (from recent batches)
         std::vector<std::vector<unsigned>> readNodes;
         std::vector<U> readLengths,hitCounts;
         size_t bytes=0;
@@ -316,14 +317,22 @@ GpuAdaptiveSeeds GpuSeedIndex::seedReads(const std::vector<char>& reads,
     checked(cudaMemcpyAsync(slot.hostCounts.p,slot.counts.p,sizeof(AdaptiveCounts),cudaMemcpyDeviceToHost,slot.stream.value));
     checked(cudaMemcpyAsync(slot.hostMatches.p,slot.matches.p,ranges.size()*sizeof(unsigned),cudaMemcpyDeviceToHost,slot.stream.value));
     checked(cudaMemcpyAsync(slot.hostSummaries.p,slot.summaries.p,ranges.size()*sizeof(SeedSummary),cudaMemcpyDeviceToHost,slot.stream.value));
+    // Events fill the array from the front. Copy a guessed prefix in the same round trip;
+    // only the first counts.used events are read, so a too-large guess just moves unused bytes.
+    const unsigned eventGuess=static_cast<unsigned>(std::min<U>(slot.eventGuess,state->eventCapacity));
+    if(eventGuess) checked(cudaMemcpyAsync(slot.hostEvents.p,slot.events.p,eventGuess*sizeof(SeedNode),cudaMemcpyDeviceToHost,slot.stream.value));
     checked(cudaStreamSynchronize(slot.stream.value));
     slot.bytes=reads.size();++slot.generation;
     const auto counts=*static_cast<AdaptiveCounts*>(slot.hostCounts.p);
     if(counts.error || counts.used>state->eventCapacity)
         throw std::runtime_error("adaptive GPU seed error mask="+std::to_string(counts.error)+
             " (1=event capacity, 2=zero stride, 4=no progress, 8=seedPerReadNmax); no partial seeds accepted");
-    checked(cudaMemcpyAsync(slot.hostEvents.p,slot.events.p,counts.used*sizeof(SeedNode),cudaMemcpyDeviceToHost,slot.stream.value));
-    checked(cudaStreamSynchronize(slot.stream.value));
+    if(counts.used>eventGuess) {//the guess was short: fetch the rest
+        checked(cudaMemcpyAsync(static_cast<SeedNode*>(slot.hostEvents.p)+eventGuess,static_cast<SeedNode*>(slot.events.p)+eventGuess,
+            (counts.used-eventGuess)*sizeof(SeedNode),cudaMemcpyDeviceToHost,slot.stream.value));
+        checked(cudaStreamSynchronize(slot.stream.value));
+    }
+    slot.eventGuess=std::max(slot.eventGuess-slot.eventGuess/8,counts.used+counts.used/4);
     const auto* nodes=static_cast<SeedNode*>(slot.hostEvents.p);
     const auto* heads=static_cast<unsigned*>(slot.hostMatches.p);
     const auto* summaries=static_cast<const SeedSummary*>(slot.hostSummaries.p);
