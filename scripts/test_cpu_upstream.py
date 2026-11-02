@@ -461,6 +461,44 @@ def main():
                              "--outSAMtype", "BAM", "Unsorted"], valid=False)
     checks.append("real SAM-input BAM-output B array, tag whitelist, malformed and oversized rejection")
 
+    # SAM input through --readFilesCommand: the header is read by a separate command run.
+    def bam_header_text(path):
+        with gzip.open(path, 'rb') as stream:
+            assert stream.read(4) == b'BAM\1'
+            return stream.read(struct.unpack('<i', stream.read(4))[0]).decode()
+    sam_co = root / "input-co.sam"
+    sam_co.write_text(sam.read_text().replace("@HD\tVN:1.6\n", "@HD\tVN:1.6\n@CO\tfrom-input\n"))
+    copy_command = root / "copy-producer.py"
+    copy_command.write_text("import sys\nfrom pathlib import Path\n"
+                            "sys.stdout.buffer.write(Path(sys.argv[-1]).read_bytes())\n", encoding="utf-8")
+    sam_tmp = tempfile.TemporaryDirectory(prefix="star-sam-", dir="/tmp") if os.name != "nt" else None
+    sam_cmd = common + ["--readFilesType", "SAM", "SE", "--readFilesIn", str(sam_co), "--outSAMtype", "BAM", "Unsorted"]
+    def with_command(script, tmp_name):
+        options = sam_cmd + ["--readFilesCommand", producer_python, str(script)]
+        return options + (["--outTmpDir", str(Path(sam_tmp.name) / tmp_name)] if sam_tmp else [])
+    direct = run("sam-co-direct", sam_cmd)
+    piped = run("sam-co-command", with_command(copy_command, "copy"))
+    assert bam_records(piped / "Aligned.out.bam") == bam_records(direct / "Aligned.out.bam")
+    assert bam_scientific_header(piped / "Aligned.out.bam") == bam_scientific_header(direct / "Aligned.out.bam")
+    assert "@CO\tfrom-input" in bam_header_text(piped / "Aligned.out.bam")
+    failed = run("sam-co-command-failed", with_command(failing_command, "failed"), valid=False)
+    assert "ALL DONE!" not in (failed / "Log.out").read_text()
+    if os.name == "nt":
+        # Windows runs the read command and then the header command synchronously:
+        # fail only the second call so the header status check itself is exercised.
+        once_command = root / "once-producer.py"
+        once_command.write_text("import sys\nfrom pathlib import Path\n"
+                                "mark = Path(sys.argv[0]).with_suffix('.ran')\n"
+                                "if mark.exists():\n    raise SystemExit(23)\n"
+                                "mark.write_text('1')\n"
+                                "sys.stdout.buffer.write(Path(sys.argv[-1]).read_bytes())\n", encoding="utf-8")
+        header_failed = run("sam-co-header-failed", with_command(once_command, "header"), valid=False)
+        assert "readFilesCommand failed while reading the SAM header" in (header_failed / "console.log").read_text()
+        assert "exit code 23" in (header_failed / "console.log").read_text()
+    if sam_tmp:
+        sam_tmp.cleanup()
+    checks.append("SAM input via readFilesCommand: header and records match direct input; a failing command stops the run")
+
     whitelist = root / "whitelist.txt"
     whitelist.write_text("ACGTACGT\n")
     cdna = root / "cdna.fastq"

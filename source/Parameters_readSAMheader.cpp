@@ -3,10 +3,38 @@
 #include <fstream>
 #include <sys/stat.h>
 
+#include <cerrno>
+#include <cstring>
+
 #ifdef _WIN32
 #include "wincompat.h"
+#else
+#include <sys/wait.h>
 #endif
 using namespace std;
+
+namespace {
+// Fatal error for a header-reading readFilesCommand that system() reports as failed.
+// status/savedErrno are system()'s result and errno right after the call.
+void exitHeaderCommandFailed(Parameters &P, const string &command, int status, int savedErrno) {
+    ostringstream err;
+    err << "EXITING because of fatal INPUT FILE error: readFilesCommand failed while reading the SAM header: " << command;
+    if (status == -1) {
+        err << ": could not run the command: " << strerror(savedErrno);
+#ifndef _WIN32
+    } else if (WIFEXITED(status)) {
+        err << ": exit code " << WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+        err << ": signal " << WTERMSIG(status);
+#else
+    } else {
+        err << ": exit code " << status;
+#endif
+    };
+    err << "\nSOLUTION: check --readFilesCommand and --readFilesIn.\n";
+    exitWithError(err.str(), std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
+};
+} // namespace
 void Parameters::readSAMheader(const string commandString, const vector<string> fileNames) {
 
     if (commandString=="") {//simply read from file
@@ -27,7 +55,8 @@ void Parameters::readSAMheader(const string commandString, const vector<string> 
     for (uint32 ii=0; ii<fileNames.size(); ii++) {
         remove(tmpFile.c_str());
         string com1=commandString + "   " + fileNames.at(ii) + " > \"" + tmpFile + "\"";
-        discardResult(system(com1.c_str()));
+        const int status=system(com1.c_str());//synchronous: the command's own exit code
+        if (status != 0) exitHeaderCommandFailed(*this, com1, status, errno);
         tmpFileIn.open(tmpFile);
         while (tmpFileIn.good() && tmpFileIn.peek()=='@') {
             string str1;
@@ -53,7 +82,10 @@ void Parameters::readSAMheader(const string commandString, const vector<string> 
     ifstream tmpFifoIn;
     for (uint32 ii=0; ii<fileNames.size(); ii++) {
         string com1=commandString + "   " + fileNames.at(ii) + " > " + tmpFifo + "&";
-        discardResult(system(com1.c_str()));
+        // The command runs in the background feeding the FIFO, so system() only reports whether the
+        // shell could start it; the command's own failure is caught when the read streams close.
+        const int status=system(com1.c_str());
+        if (status != 0) exitHeaderCommandFailed(*this, com1, status, errno);
         tmpFifoIn.open(tmpFifo);
         while (tmpFifoIn.peek()=='@') {
             string str1;
