@@ -233,6 +233,72 @@ void releaseChunkOutputs(vector<ReadAlignChunk*> &RAchunk)
     }
 };
 
+void logRunStart(Parameters &P)
+{
+    *(P.inOut->logStdOut) << "\t" << P.commandLine << '\n';
+    *(P.inOut->logStdOut) << "\tSTAR version: " << STAR_VERSION << "   compiled: " << COMPILATION_TIME_PLACE << '\n';
+    *(P.inOut->logStdOut) << timeMonthDayTime(g_statsAll.timeStart) << " ..... started STAR run\n"
+                          << flush;
+};
+
+void loadGenome(Parameters &P, Genome &genomeMain)
+{//load the genome and initialize variation for the mapping and output genomes
+    genomeMain.genomeLoad();
+
+    if (P.pGe.transform.outYes) {
+        genomeMain.initializeVariation(false);//no variation for mapGen, only for genOut
+        genomeMain.genomeOut.g->initializeVariation(P.var.yes);
+    } else {
+        genomeMain.initializeVariation(P.var.yes);
+    };
+};
+
+void buildChunks(Parameters &P, Genome &genomeMain, Transcriptome *transcriptomeMain, vector<ReadAlignChunk*> &RAchunk, vector<std::unique_ptr<ReadAlignChunk>> &chunkOwners)
+{//one alignment chunk per thread; chunkOwners owns them, RAchunk borrows
+    for (int ii = 0; ii < P.runThreadN; ii++)
+    {
+        chunkOwners[ii].reset(new ReadAlignChunk(P, genomeMain, transcriptomeMain, ii));
+        RAchunk[ii]=chunkOwners[ii].get();
+    };
+};
+
+void startMappingStats(Parameters &P)
+{
+    g_statsAll.resetN();
+    time(&g_statsAll.timeStartMap);
+    *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeStartMap) << " ..... started mapping\n"
+                        << flush;
+    g_statsAll.timeLastReport = g_statsAll.timeStartMap;
+};
+
+void logMappingFinished(Parameters &P)
+{
+    logTiming(P, "map_end");
+    time(&g_statsAll.timeFinishMap);
+    *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeFinishMap) << " ..... finished mapping\n"
+                        << flush;
+    P.inOut->logMain << timeMonthDayTime(g_statsAll.timeFinishMap) << " ..... finished mapping\n"
+                     << "RAM after mapping:\n"
+                     << linuxProcMemory() << flush;
+};
+
+void mergeChunkOutputs(Parameters &P, vector<ReadAlignChunk*> &RAchunk)
+{//gene counts and PairedKeepInputOrder SAM from all chunks
+    if (P.quant.geCount.yes)
+    { // output gene quantifications
+        for (int ichunk = 1; ichunk < P.runThreadN; ichunk++)
+        { // sum counts from all chunks into 0th chunk
+            RAchunk[0]->chunkTr->quants->addQuants(*(RAchunk[ichunk]->chunkTr->quants));
+        };
+        RAchunk[0]->chunkTr->quantsOutput();
+    };
+
+    if (P.runThreadN > 1 && P.outSAMorder == "PairedKeepInputOrder")
+    { // concatenate Aligned.* files
+        RAchunk[0]->chunkFilesCat(P.inOut->outSAM, P.outFileTmp + "/Aligned.out.sam.chunk", g_threadChunks.chunkOutN);
+    };
+};
+
 } // namespace
 
 int main(int argInN, char *argIn[])
@@ -254,10 +320,7 @@ try
     std::unique_ptr<InOutStreams> streamsOwner(P.inOut);
     P.inputParameters(argInN, argIn);
 
-    *(P.inOut->logStdOut) << "\t" << P.commandLine << '\n';
-    *(P.inOut->logStdOut) << "\tSTAR version: " << STAR_VERSION << "   compiled: " << COMPILATION_TIME_PLACE << '\n';
-    *(P.inOut->logStdOut) << timeMonthDayTime(g_statsAll.timeStart) << " ..... started STAR run\n"
-                          << flush;
+    logRunStart(P);
 
     runNonMappingModes(P);
 
@@ -276,14 +339,7 @@ try
 
     // genome
     Genome genomeMain(P, P.pGe);
-    genomeMain.genomeLoad();
-
-    if (P.pGe.transform.outYes) {
-        genomeMain.initializeVariation(false);//no variation for mapGen, only for genOut
-        genomeMain.genomeOut.g->initializeVariation(P.var.yes);
-    } else {
-        genomeMain.initializeVariation(P.var.yes);
-    };
+    loadGenome(P, genomeMain);
 
     SjdbClass sjdbLoci;
 
@@ -306,11 +362,7 @@ try
     };
 
     // initialize Stats
-    g_statsAll.resetN();
-    time(&g_statsAll.timeStartMap);
-    *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeStartMap) << " ..... started mapping\n"
-                        << flush;
-    g_statsAll.timeLastReport = g_statsAll.timeStartMap;
+    startMappingStats(P);
 
     logTiming(P, "map_begin");
     // SAM headers
@@ -322,11 +374,7 @@ try
     // prepare chunks and spawn mapping threads
     vector<ReadAlignChunk*> RAchunk(P.runThreadN);
     vector<std::unique_ptr<ReadAlignChunk>> chunkOwners(P.runThreadN);
-    for (int ii = 0; ii < P.runThreadN; ii++)
-    {
-        chunkOwners[ii].reset(new ReadAlignChunk(P, genomeMain, transcriptomeMain, ii));
-        RAchunk[ii]=chunkOwners[ii].get();
-    };
+    buildChunks(P, genomeMain, transcriptomeMain, RAchunk, chunkOwners);
 
     logTiming(P, "chunks_built");
     if (P.runRestart.type != 1)
@@ -347,13 +395,7 @@ try
         P.limit.BAMsortRAM = genomeMain.nGenome + genomeMain.SA.lengthByte + genomeMain.SAi.lengthByte;
     };
 
-    logTiming(P, "map_end");
-    time(&g_statsAll.timeFinishMap);
-    *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeFinishMap) << " ..... finished mapping\n"
-                        << flush;
-    P.inOut->logMain << timeMonthDayTime(g_statsAll.timeFinishMap) << " ..... finished mapping\n"
-                     << "RAM after mapping:\n"
-                     << linuxProcMemory() << flush;
+    logMappingFinished(P);
 
     // no need for genome anymore, free the memory
     genomeMain.freeMemory();
@@ -366,19 +408,7 @@ try
     Solo soloMain(RAchunk.data(), P, RAchunk[0]->chunkTr ? *RAchunk[0]->chunkTr : inactiveTranscriptome);
     soloMain.processAndOutput();
 
-    if (P.quant.geCount.yes)
-    { // output gene quantifications
-        for (int ichunk = 1; ichunk < P.runThreadN; ichunk++)
-        { // sum counts from all chunks into 0th chunk
-            RAchunk[0]->chunkTr->quants->addQuants(*(RAchunk[ichunk]->chunkTr->quants));
-        };
-        RAchunk[0]->chunkTr->quantsOutput();
-    };
-
-    if (P.runThreadN > 1 && P.outSAMorder == "PairedKeepInputOrder")
-    { // concatenate Aligned.* files
-        RAchunk[0]->chunkFilesCat(P.inOut->outSAM, P.outFileTmp + "/Aligned.out.sam.chunk", g_threadChunks.chunkOutN);
-    };
+    mergeChunkOutputs(P, RAchunk);
 
     if (P.inOut->samWriter) P.inOut->samWriter->finish();
     bamSortByCoordinate(P, RAchunk.data(), *genomeMain.genomeOut.g, soloMain);
