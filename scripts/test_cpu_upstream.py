@@ -467,7 +467,11 @@ def main():
             assert stream.read(4) == b'BAM\1'
             return stream.read(struct.unpack('<i', stream.read(4))[0]).decode()
     sam_co = root / "input-co.sam"
-    sam_co.write_text(sam.read_text().replace("@HD\tVN:1.6\n", "@HD\tVN:1.6\n@CO\tfrom-input\n"))
+    # Larger than a pipe buffer, so the header reader stops a command that is still writing.
+    record = sam.read_text().split("\n", 1)[1]
+    sam_co.write_text("@HD\tVN:1.6\n@CO\tfrom-input\n" +
+                      "".join(record.replace("read\t", f"read{i}\t", 1) for i in range(400)))
+    assert sam_co.stat().st_size > 65536
     copy_command = root / "copy-producer.py"
     copy_command.write_text("import sys\nfrom pathlib import Path\n"
                             "sys.stdout.buffer.write(Path(sys.argv[-1]).read_bytes())\n", encoding="utf-8")
@@ -483,7 +487,10 @@ def main():
     assert "@CO\tfrom-input" in bam_header_text(piped / "Aligned.out.bam")
     failed = run("sam-co-command-failed", with_command(failing_command, "failed"), valid=False)
     assert "ALL DONE!" not in (failed / "Log.out").read_text()
-    if os.name == "nt":
+    if os.name != "nt":  # the header command's exit status is collected before mapping starts
+        assert "readFilesCommand failed while reading the SAM header" in (failed / "console.log").read_text()
+        assert "exit code 23" in (failed / "console.log").read_text()
+    else:
         # Windows runs the read command and then the header command synchronously:
         # fail only the second call so the header status check itself is exercised.
         once_command = root / "once-producer.py"
@@ -497,7 +504,8 @@ def main():
         assert "exit code 23" in (header_failed / "console.log").read_text()
     if sam_tmp:
         sam_tmp.cleanup()
-    checks.append("SAM input via readFilesCommand: header and records match direct input; a failing command stops the run")
+    checks.append("SAM input via readFilesCommand: header and records match direct input; a header command stopped "
+                  "early is not a failure; a failing header command stops the run with its exit code")
 
     whitelist = root / "whitelist.txt"
     whitelist.write_text("ACGTACGT\n")

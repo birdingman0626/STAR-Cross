@@ -9,13 +9,25 @@
 #ifdef _WIN32
 #include "wincompat.h"
 #else
+// macOS 26 SDK Mach headers (reached via <spawn.h>) use the C11 keyword
+// _Static_assert, which Apple Clang accepts in C++ but GCC rejects.
+#if defined(__APPLE__) && defined(__GNUC__) && !defined(__clang__) && !defined(_Static_assert)
+#define _Static_assert static_assert
+#include <spawn.h>
+#undef _Static_assert
+#else
+#include <spawn.h>
+#endif
+#include <signal.h>
 #include <sys/wait.h>
+#include <unistd.h>
+extern char **environ; // not declared by <unistd.h> on macOS
 #endif
 using namespace std;
 
 namespace {
-// Fatal error for a header-reading readFilesCommand that system() reports as failed.
-// status/savedErrno are system()'s result and errno right after the call.
+// Fatal error for a header-reading readFilesCommand that failed.
+// status is a system()/waitpid() status (-1: could not run; savedErrno says why).
 void exitHeaderCommandFailed(Parameters &P, const string &command, int status, int savedErrno) {
     ostringstream err;
     err << "EXITING because of fatal INPUT FILE error: readFilesCommand failed while reading the SAM header: " << command;
@@ -81,11 +93,14 @@ void Parameters::readSAMheader(const string commandString, const vector<string> 
 
     ifstream tmpFifoIn;
     for (uint32 ii=0; ii<fileNames.size(); ii++) {
-        string com1=commandString + "   " + fileNames.at(ii) + " > " + tmpFifo + "&";
-        // The command runs in the background feeding the FIFO, so system() only reports whether the
-        // shell could start it; the command's own failure is caught when the read streams close.
-        const int status=system(com1.c_str());
-        if (status != 0) exitHeaderCommandFailed(*this, com1, status, errno);
+        // Same /bin/sh -c as system(), but in the foreground of a child we can wait for.
+        string com1=commandString + "   " + fileNames.at(ii) + " > " + tmpFifo;
+        char* spawnArgv[] = { const_cast<char*>("/bin/sh"), const_cast<char*>("-c"),
+                              const_cast<char*>(com1.c_str()), (char*) NULL };
+        pid_t pid=0;
+        const int spawnErr=posix_spawn(&pid, "/bin/sh", NULL, NULL, spawnArgv, environ);
+        if (spawnErr != 0) exitHeaderCommandFailed(*this, com1, -1, spawnErr);
+
         tmpFifoIn.open(tmpFifo);
         while (tmpFifoIn.peek()=='@') {
             string str1;
@@ -95,7 +110,19 @@ void Parameters::readSAMheader(const string commandString, const vector<string> 
                 samHeaderExtra += str1 + '\n';
             };
         };
+        // Reading stops at the first record, so a healthy command may still be writing: stop it
+        // and ignore its status. If its whole output was read, its exit status is part of input validity.
+        const bool reachedEof=tmpFifoIn.eof();
         tmpFifoIn.close();
+        if (!reachedEof) kill(pid, SIGKILL);
+        int status=0;
+        pid_t waited;
+        do { waited=waitpid(pid, &status, 0); } while (waited < 0 && errno == EINTR);
+        if (waited < 0) {
+            exitHeaderCommandFailed(*this, com1, -1, errno);
+        } else if (reachedEof && !(WIFEXITED(status) && WEXITSTATUS(status) == 0)) {
+            exitHeaderCommandFailed(*this, com1, status, 0);
+        };
     };
 #endif
 };
