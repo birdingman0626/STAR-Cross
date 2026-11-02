@@ -246,6 +246,8 @@ class ReadAlign {
         void bamUnmappedMate(BamRecordContext &c, BamMateRecord &m, uint64 imate);
         void bamMappedMate(BamRecordContext &c, BamMateRecord &m, uint64 imate);
         void bamMappedAttributes(BamRecordContext &c, BamMateRecord &m, uint64 imate, const std::vector<int> &outSAMattrOrder);
+        bool bamAlignAttribute(int attr, BamRecordContext &c, BamMateRecord &m, uint64 imate, uint64 &tagNM, std::string &tagMD);
+        bool bamSoloAttribute(int attr, BamRecordContext &c, BamMateRecord &m);
         uint64 bamWriteRecord(const BamRecordContext &c, BamMateRecord &m, uint64 imate, char *out);
 
         void outputTranscriptSJ(Transcript const &trOut, uint64 nTrOut, OutSJ *outStream, uint64 sjReadStartN );

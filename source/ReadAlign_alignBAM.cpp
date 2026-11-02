@@ -312,157 +312,178 @@ string joinGenes(const Names &names, const Genes &genes)
 
 void ReadAlign::bamMappedAttributes(BamRecordContext &c, BamMateRecord &m, uint64 imate, const vector<int> &outSAMattrOrder)
 {// SAM attributes of a mapped mate, in the requested order
-    Transcript const &trOut=c.trOut;
-    char *a=m.attrOutArray;
     uint32 &n=m.attrN;
     uint64 tagNM=(uint64) -1;
     string tagMD("");
 
     n=0;
     for (uint64 ii=0;ii<outSAMattrOrder.size();ii++) {
-        switch (outSAMattrOrder[ii]) {
-            case ATTR_NH:
-                n+=bamAttrArrayWriteInt(c.nTrOut,"NH",a+n,P);
-                break;
-            case ATTR_HI:
-                n+=bamAttrArrayWriteInt(c.iTrOut+P.outSAMattrIHstart,"HI",a+n,P);
-                break;
-            case ATTR_AS:
-                n+=bamAttrArrayWriteInt(trOut.maxScore,"AS",a+n,P);
-                break;
-            case ATTR_nM:
-                n+=bamAttrArrayWriteInt(trOut.nMM,"nM",a+n,P);
-                break;
-            case ATTR_jM:
-                n+=bamAttrArrayWrite(m.SJmotif,"jM",a+n);
-                break;
-            case ATTR_jI:
-                n+=bamAttrArrayWrite(m.SJintron,"jI",a+n);
-                break;
-            case ATTR_XS:
-                if (trOut.sjMotifStrand==1) {
-                    n+=bamAttrArrayWrite('+',"XS",a+n);
-                } else if (trOut.sjMotifStrand==2) {
-                    n+=bamAttrArrayWrite('-',"XS",a+n);
-                };
-                break;
-            case ATTR_cN:
-                {
-                    vector <int32> v1={(int32)clipMates[imate][0].clippedN, (int32)clipMates[imate][1].clippedN};
-                    n+=bamAttrArrayWrite(v1,"cN",a+n);
-                    break;
-                };
-            case ATTR_NM:
-                if ( tagNM == (uint64) -1 ) samAttrNM_MD (trOut, m.iEx1, m.iEx2, tagNM, tagMD);
-                n+=bamAttrArrayWriteInt(tagNM,"NM",a+n,P);
-                break;
-            case ATTR_MD:
-                if ( tagMD.size()==0 ) samAttrNM_MD (trOut, m.iEx1, m.iEx2, tagNM, tagMD);
-                n+=bamAttrArrayWrite(tagMD,"MD",a+n);
-                break;
-            case ATTR_RG:
-                n+=bamAttrArrayWrite(P.outSAMattrRG.at(readFilesIndex),"RG",a+n);
-                break;
-            case ATTR_rB:
-                {
-                    vector <int32> rb;
-                    for (uint64 ie=m.iEx1;ie<=m.iEx2;ie++) {
-                        rb.push_back( (int32) trOut.exons[ie][EX_R]+1 );
-                        rb.push_back( (int32) trOut.exons[ie][EX_R]+trOut.exons[ie][EX_L]);
-                        rb.push_back( (int32) (trOut.exons[ie][EX_G]-genOut.chrStart[trOut.Chr]+1) );
-                        rb.push_back( (int32) (trOut.exons[ie][EX_G]-genOut.chrStart[trOut.Chr]+trOut.exons[ie][EX_L]) );
-                    };
-                    n+=bamAttrArrayWrite(rb,"rB",a+n);
-                };
-                break;
-            case ATTR_vG:
-                if (trOut.varGenCoord.size()>0)
-                    n+=bamAttrArrayWrite(trOut.varGenCoord,"vG",a+n);
-                break;
-            case ATTR_vA:
-                if (trOut.varAllele.size()>0)
-                    n+=bamAttrArrayWrite(trOut.varAllele,"vA",a+n);
-                break;
-            case ATTR_vW:
-                if (waspType!=-1)
-                    n+=bamAttrArrayWrite( (int32) waspType, "vW", a+n );
-                break;
-            case ATTR_ha:
-                if (mapGen.pGe.transform.type==2) {
-                    n+=bamAttrArrayWrite( (int32) trOut.haploType, "ha", a+n );
-                };
-                break;
-            case ATTR_ch:
-                if (c.alignType<=-10) {//chimeric alignment
-                    n+=bamAttrArrayWrite('1',"ch",a+n);
-                };
-                break;
-            case ATTR_MC:
-                if (c.nMates>1) {//mate CIGAR
-                    n+=bamAttrArrayWrite(matesCIGAR[1-imate],"MC",a+n);
-                };
-                break;
-
-            //solo
-            case ATTR_CR:
-                n+=bamAttrArrayWrite(soloRead->readBar->cbSeq,"CR",a+n);
-                break;
-            case ATTR_CY:
-                n+=bamAttrArrayWrite(soloRead->readBar->cbQual,"CY",a+n);
-                break;
-            case ATTR_UR:
-                n+=bamAttrArrayWrite(soloRead->readBar->umiSeq,"UR",a+n);
-                break;
-            case ATTR_UY:
-                n+=bamAttrArrayWrite(soloRead->readBar->umiQual,"UY",a+n);
-                break;
-            case ATTR_GX:
-                n+=bamAttrArrayWrite(c.gxgnGene<0 ? string("-") : chunkTr->geID[c.gxgnGene], "GX",a+n);
-                break;
-            case ATTR_GN:
-                n+=bamAttrArrayWrite(c.gxgnGene<0 ? string("-") : chunkTr->geName[c.gxgnGene], "GN",a+n);
-                break;
-            case ATTR_gx:
-                n+=bamAttrArrayWrite(joinGenes(chunkTr->geID, readAnnot.annotFeatures[P.pSolo.samAttrFeature].fAlign[c.iTrOut]),"gx",a+n);
-                break;
-            case ATTR_gn:
-                n+=bamAttrArrayWrite(joinGenes(chunkTr->geName, readAnnot.annotFeatures[P.pSolo.samAttrFeature].fAlign[c.iTrOut]),"gn",a+n);
-                break;
-            case ATTR_sF:
-                {
-                    const auto &feat=readAnnot.annotFeatures[P.pSolo.samAttrFeature];
-                    vector<int32_t> sf(2);
-                    sf[0] = feat.ovType;
-                    sf[1] = feat.fSet.size();
-                    if ( (sf[0]==1 || sf[0]==3 || sf[0]==5) && feat.fAlign[c.iTrOut].size()==0) {
-                        sf={-1,-1};
-                    };
-                    n += bamAttrArrayWrite(sf,"sF",a+n);
-                };
-                break;
-            case ATTR_sM:
-                n+=bamAttrArrayWrite(soloRead->readBar->cbMatch,"sM",a+n);
-                break;
-            case ATTR_sS:
-                n+=bamAttrArrayWrite(soloRead->readBar->bSeq,"sS",a+n);
-                break;
-            case ATTR_sQ:
-                n+=bamAttrArrayWrite(soloRead->readBar->bQual,"sQ",a+n);
-                break;
-            case ATTR_CB:
-                if (soloRead->readBar->cbSeqCorrected!="") //only if corrected CB is defined (e.g. CB_samTagOut), otherwise it will be added at the BAM sorting stage
-                    n+=bamAttrArrayWrite(soloRead->readBar->cbSeqCorrected,"CB",a+n);
-                break;
-            case ATTR_UB: //will be added at the BAM sorting stage
-                break;
-
-            default:
-                ostringstream errOut;
-                errOut <<"EXITING because of FATAL BUG: unknown/unimplemented SAM/BAM atrribute (tag): "<<outSAMattrOrder[ii] <<"\n";
-                errOut <<"SOLUTION: please make sure that SAM attributes in --outSAMattributes are compatible with the --outSAMtype option\n";
-                exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
-        };
+        if (bamAlignAttribute(outSAMattrOrder[ii], c, m, imate, tagNM, tagMD))
+            continue;
+        if (bamSoloAttribute(outSAMattrOrder[ii], c, m))
+            continue;
+        ostringstream errOut;
+        errOut <<"EXITING because of FATAL BUG: unknown/unimplemented SAM/BAM atrribute (tag): "<<outSAMattrOrder[ii] <<"\n";
+        errOut <<"SOLUTION: please make sure that SAM attributes in --outSAMattributes are compatible with the --outSAMtype option\n";
+        exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
+}
+
+// alignment attributes; false if attr is not one of them. NM/MD are computed once per mate
+bool ReadAlign::bamAlignAttribute(int attr, BamRecordContext &c, BamMateRecord &m, uint64 imate, uint64 &tagNM, string &tagMD)
+{
+    Transcript const &trOut=c.trOut;
+    char *a=m.attrOutArray;
+    uint32 &n=m.attrN;
+    switch (attr) {
+        case ATTR_NH:
+            n+=bamAttrArrayWriteInt(c.nTrOut,"NH",a+n,P);
+            break;
+        case ATTR_HI:
+            n+=bamAttrArrayWriteInt(c.iTrOut+P.outSAMattrIHstart,"HI",a+n,P);
+            break;
+        case ATTR_AS:
+            n+=bamAttrArrayWriteInt(trOut.maxScore,"AS",a+n,P);
+            break;
+        case ATTR_nM:
+            n+=bamAttrArrayWriteInt(trOut.nMM,"nM",a+n,P);
+            break;
+        case ATTR_jM:
+            n+=bamAttrArrayWrite(m.SJmotif,"jM",a+n);
+            break;
+        case ATTR_jI:
+            n+=bamAttrArrayWrite(m.SJintron,"jI",a+n);
+            break;
+        case ATTR_XS:
+            if (trOut.sjMotifStrand==1) {
+                n+=bamAttrArrayWrite('+',"XS",a+n);
+            } else if (trOut.sjMotifStrand==2) {
+                n+=bamAttrArrayWrite('-',"XS",a+n);
+            };
+            break;
+        case ATTR_cN:
+            {
+                vector <int32> v1={(int32)clipMates[imate][0].clippedN, (int32)clipMates[imate][1].clippedN};
+                n+=bamAttrArrayWrite(v1,"cN",a+n);
+                break;
+            };
+        case ATTR_NM:
+            if ( tagNM == (uint64) -1 ) samAttrNM_MD (trOut, m.iEx1, m.iEx2, tagNM, tagMD);
+            n+=bamAttrArrayWriteInt(tagNM,"NM",a+n,P);
+            break;
+        case ATTR_MD:
+            if ( tagMD.size()==0 ) samAttrNM_MD (trOut, m.iEx1, m.iEx2, tagNM, tagMD);
+            n+=bamAttrArrayWrite(tagMD,"MD",a+n);
+            break;
+        case ATTR_RG:
+            n+=bamAttrArrayWrite(P.outSAMattrRG.at(readFilesIndex),"RG",a+n);
+            break;
+        case ATTR_rB:
+            {
+                vector <int32> rb;
+                for (uint64 ie=m.iEx1;ie<=m.iEx2;ie++) {
+                    rb.push_back( (int32) trOut.exons[ie][EX_R]+1 );
+                    rb.push_back( (int32) trOut.exons[ie][EX_R]+trOut.exons[ie][EX_L]);
+                    rb.push_back( (int32) (trOut.exons[ie][EX_G]-genOut.chrStart[trOut.Chr]+1) );
+                    rb.push_back( (int32) (trOut.exons[ie][EX_G]-genOut.chrStart[trOut.Chr]+trOut.exons[ie][EX_L]) );
+                };
+                n+=bamAttrArrayWrite(rb,"rB",a+n);
+            };
+            break;
+        case ATTR_vG:
+            if (trOut.varGenCoord.size()>0)
+                n+=bamAttrArrayWrite(trOut.varGenCoord,"vG",a+n);
+            break;
+        case ATTR_vA:
+            if (trOut.varAllele.size()>0)
+                n+=bamAttrArrayWrite(trOut.varAllele,"vA",a+n);
+            break;
+        case ATTR_vW:
+            if (waspType!=-1)
+                n+=bamAttrArrayWrite( (int32) waspType, "vW", a+n );
+            break;
+        case ATTR_ha:
+            if (mapGen.pGe.transform.type==2) {
+                n+=bamAttrArrayWrite( (int32) trOut.haploType, "ha", a+n );
+            };
+            break;
+        case ATTR_ch:
+            if (c.alignType<=-10) {//chimeric alignment
+                n+=bamAttrArrayWrite('1',"ch",a+n);
+            };
+            break;
+        case ATTR_MC:
+            if (c.nMates>1) {//mate CIGAR
+                n+=bamAttrArrayWrite(matesCIGAR[1-imate],"MC",a+n);
+            };
+            break;
+        default:
+            return false;
+    };
+    return true;
+}
+
+// Solo attributes; false if attr is not one of them
+bool ReadAlign::bamSoloAttribute(int attr, BamRecordContext &c, BamMateRecord &m)
+{
+    char *a=m.attrOutArray;
+    uint32 &n=m.attrN;
+    switch (attr) {
+        case ATTR_CR:
+            n+=bamAttrArrayWrite(soloRead->readBar->cbSeq,"CR",a+n);
+            break;
+        case ATTR_CY:
+            n+=bamAttrArrayWrite(soloRead->readBar->cbQual,"CY",a+n);
+            break;
+        case ATTR_UR:
+            n+=bamAttrArrayWrite(soloRead->readBar->umiSeq,"UR",a+n);
+            break;
+        case ATTR_UY:
+            n+=bamAttrArrayWrite(soloRead->readBar->umiQual,"UY",a+n);
+            break;
+        case ATTR_GX:
+            n+=bamAttrArrayWrite(c.gxgnGene<0 ? string("-") : chunkTr->geID[c.gxgnGene], "GX",a+n);
+            break;
+        case ATTR_GN:
+            n+=bamAttrArrayWrite(c.gxgnGene<0 ? string("-") : chunkTr->geName[c.gxgnGene], "GN",a+n);
+            break;
+        case ATTR_gx:
+            n+=bamAttrArrayWrite(joinGenes(chunkTr->geID, readAnnot.annotFeatures[P.pSolo.samAttrFeature].fAlign[c.iTrOut]),"gx",a+n);
+            break;
+        case ATTR_gn:
+            n+=bamAttrArrayWrite(joinGenes(chunkTr->geName, readAnnot.annotFeatures[P.pSolo.samAttrFeature].fAlign[c.iTrOut]),"gn",a+n);
+            break;
+        case ATTR_sF:
+            {
+                const auto &feat=readAnnot.annotFeatures[P.pSolo.samAttrFeature];
+                vector<int32_t> sf(2);
+                sf[0] = feat.ovType;
+                sf[1] = feat.fSet.size();
+                if ( (sf[0]==1 || sf[0]==3 || sf[0]==5) && feat.fAlign[c.iTrOut].size()==0) {
+                    sf={-1,-1};
+                };
+                n += bamAttrArrayWrite(sf,"sF",a+n);
+            };
+            break;
+        case ATTR_sM:
+            n+=bamAttrArrayWrite(soloRead->readBar->cbMatch,"sM",a+n);
+            break;
+        case ATTR_sS:
+            n+=bamAttrArrayWrite(soloRead->readBar->bSeq,"sS",a+n);
+            break;
+        case ATTR_sQ:
+            n+=bamAttrArrayWrite(soloRead->readBar->bQual,"sQ",a+n);
+            break;
+        case ATTR_CB:
+            if (soloRead->readBar->cbSeqCorrected!="") //only if corrected CB is defined (e.g. CB_samTagOut), otherwise it will be added at the BAM sorting stage
+                n+=bamAttrArrayWrite(soloRead->readBar->cbSeqCorrected,"CB",a+n);
+            break;
+        case ATTR_UB: //will be added at the BAM sorting stage
+            break;
+        default:
+            return false;
+    };
+    return true;
 }
 
 uint64 ReadAlign::bamWriteRecord(const BamRecordContext &c, BamMateRecord &m, uint64 imate, char *out)
