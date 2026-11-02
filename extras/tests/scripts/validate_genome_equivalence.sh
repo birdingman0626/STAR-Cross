@@ -47,7 +47,7 @@ gen() { # gen <STAR> <outdir> <threads> <extraArgs...>
     mkdir -p "$out"
     "$star" --runMode genomeGenerate --genomeDir "$out" \
         --genomeFastaFiles "$GENOME" \
-        --genomeSAindexNbases 11 --genomeChrBinNbits 16 \
+        --genomeSAindexNbases "${SAI_NBASES:-11}" --genomeChrBinNbits 16 \
         --runThreadN "$threads" "$@" \
         --outFileNamePrefix "$out/" > "$out/gen.log" 2>&1 || {
             echo "genomeGenerate FAILED ($star, threads=$threads)"; tail -20 "$out/gen.log"; exit 1; }
@@ -77,5 +77,37 @@ cmp_idx "$WORK/old_t1" "$WORK/new_t16" "old-vs-new 16-thread"
 echo "=== candidate (new, 16 threads, low RAM -> multi-chunk / disk-backed) ==="
 gen "$NEW_STAR" "$WORK/new_t16_lowram" 16 --limitGenomeGenerateRAM 600000000
 cmp_idx "$WORK/old_t1" "$WORK/new_t16_lowram" "old-vs-new 16-thread low-RAM"
+
+# ---- small genomes: upstream's SAindex walk steps over short suffix runs ----
+# (N-containing suffixes at strand ends). With >=16 threads the index is built
+# from a parallel scan of every suffix, which must still reproduce that walk.
+# The 8 Mb rand() genome above depends on the awk implementation and does not
+# always hit this case; these exact-integer LCG genomes are the same in any awk.
+lcg_genome() { # lcg_genome <seed> <out.fa>
+    awk -v seed="$1" 'BEGIN{
+        x=seed; b="ACGT"; s="";
+        for(i=0;i<5000;i++){ x=(x*16807)%2147483647; s=s substr(b,x%4+1,1) }
+        print ">chrLcg";
+        for(i=1;i<=length(s);i+=60) print substr(s,i,60);
+    }' > "$2"
+}
+lcg_genome 1 "$WORK/lcg1.fa"
+LCG1_SHA=5bd8ea363deb18590776259fb4a6bd2cb3a8e32112a99c5872248fc69929966a
+if [ "$(sha256sum < "$WORK/lcg1.fa" | cut -d' ' -f1)" != "$LCG1_SHA" ]; then
+    echo "ERROR: awk produced an unexpected LCG genome" >&2; exit 2
+fi
+for seed in 1 2 3 4 5; do
+    lcg_genome "$seed" "$WORK/lcg$seed.fa"
+    for nb in 4 5; do
+        echo "=== small genome seed=$seed SAindexNbases=$nb (old 1, new 1, new 16 threads) ==="
+        GENOME="$WORK/lcg$seed.fa"
+        d="$WORK/lcg${seed}_nb$nb"
+        SAI_NBASES=$nb gen "$OLD_STAR" "$d/old_t1" 1
+        SAI_NBASES=$nb gen "$NEW_STAR" "$d/new_t1" 1
+        SAI_NBASES=$nb gen "$NEW_STAR" "$d/new_t16" 16
+        cmp_idx "$d/old_t1" "$d/new_t1" "small seed=$seed nb=$nb single-thread"
+        cmp_idx "$d/old_t1" "$d/new_t16" "small seed=$seed nb=$nb 16-thread"
+    done
+done
 
 echo "ALL GENOME-INDEX EQUIVALENCE CHECKS PASSED"

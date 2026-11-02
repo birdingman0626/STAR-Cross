@@ -3,6 +3,7 @@
 #include "SuffixArrayFuns.h"
 #include "ErrorWarning.h"
 #include "uninitArray.h"
+#include <algorithm>
 using namespace std;
 struct SAindexEvent {
     uint64 isa;
@@ -190,6 +191,67 @@ void genomeSAindex(char * G, PackedArray & SA, Parameters & P, PackedArray & SAi
  };
 
 
+// Upstream step + binary-search walk over the SA. calc(isa,iL4) returns the full prefix index of suffix isa.
+// The walk can step over short runs (e.g. N-containing suffixes near the SA end); the index format
+// is defined by this walk, so every traversal strategy must visit exactly the suffixes it visits.
+template <class CalcFn>
+static void SAindexFindNextIndex(uint64 nSA, uint64 isaStep, uint64 &isa, uint64 &indFull, int &iL4, CalcFn &calc)
+{
+    uint64 indFullPrev=indFull;
+    int iL4prev=iL4;
+    isa+=isaStep;
+    while (isa<nSA && (indFull=calc(isa,iL4))==indFullPrev && iL4==iL4prev)
+    {//make large step in isa while the indFull/iL4 are still the same
+        isa+=isaStep;
+    };
+    if (isa>=nSA)
+    {//reached the end of the SA
+        indFull=calc(nSA-1,iL4);
+        if (indFull==indFullPrev && iL4==iL4prev)
+        {
+            isa=nSA;//no more indices, the last one is equal to the previous
+            return;
+        };
+    };
+
+    {//binary search
+        uint64 i1=isa-isaStep;
+        uint64 i2=min(isa,nSA-1);
+        while (i1+1<i2)
+        {
+            isa=i1/2 + i2/2 + (i1%2 + i2%2)/2;
+            if ((indFull=calc(isa,iL4))==indFullPrev && iL4==iL4prev)
+            {
+                i1=isa;
+            } else
+            {
+                i2=isa;
+            };
+        };
+        if (isa==i1)
+        {
+            isa=i2;
+            indFull=calc(isa,iL4);
+        };
+    };
+};
+
+template <class CalcFn>
+static void SAindexSkipSearch(PackedArray &SAi, Genome &mapGen, uint64 *ind0, uint64 iSA1, uint64 iSA2, CalcFn &calc)
+{
+    uint64 isaStep=mapGen.nSA/(1llu<<(2*mapGen.pGe.gSAindexNbases))+1;
+
+    uint64 isa=iSA1;
+    int iL4;
+    uint64 indFull=calc(isa,iL4);
+    while (isa<=iSA2) {//for all suffixes
+        SAindexProcessEvent(SAi, mapGen, isa, indFull, iL4, ind0);
+
+        //find next index not equal to the current one
+        SAindexFindNextIndex(mapGen.nSA, isaStep, isa, indFull, iL4, calc);//indFull and iL4 have been already defined at the previous step
+    };//isa cycle
+};
+
 void genomeSAindexChunk(char * G, PackedArray & SA, Parameters & P, PackedArray & SAi, uint64 iSA1, uint64 iSA2, Genome &mapGen)
 {
     const bool parallelEvents=P.runThreadN>=16 && iSA1==0 && iSA2+1==mapGen.nSA;
@@ -204,26 +266,24 @@ void genomeSAindexChunk(char * G, PackedArray & SA, Parameters & P, PackedArray 
     };
 
     if (parallelEvents) {
+        //precompute every run start in parallel, then replay the upstream walk on the runs (no genome access)
         vector<SAindexEvent> events;
         SAindexScanEventsParallel(G, SA, P, mapGen, iSA1, iSA2, events);
 
         P.inOut->logMain << "SAindex event count: " << events.size() << "\n" << flush;
-        for (uint64 iEvent=0; iEvent<events.size(); iEvent++) {
-            SAindexProcessEvent(SAi, mapGen, events[iEvent].isa, events[iEvent].indFull, events[iEvent].iL4, ind0);
+        auto calcFromEvents=[&events](uint64 isa, int &iL4) {
+            auto it=upper_bound(events.begin(), events.end(), isa,
+                                [](uint64 v, const SAindexEvent &e) {return v<e.isa;});
+            --it;//events[0].isa==iSA1<=isa
+            iL4=it->iL4;
+            return it->indFull;
         };
+        SAindexSkipSearch(SAi, mapGen, ind0, iSA1, iSA2, calcFromEvents);
     } else {
-        uint64 isaStep=mapGen.nSA/(1llu<<(2*mapGen.pGe.gSAindexNbases))+1;
-
-        uint64 isa=iSA1;
-        int iL4;
-        uint64 indFull=funCalcSAiFromSA(G,SA,mapGen,isa,mapGen.pGe.gSAindexNbases,iL4);
-        while (isa<=iSA2) {//for all suffixes
-            SAindexProcessEvent(SAi, mapGen, isa, indFull, iL4, ind0);
-
-            //find next index not equal to the current one
-            funSAiFindNextIndex(G, SA, isaStep, isa, indFull, iL4, mapGen);//indFull and iL4 have been already defined at the previous step
-
-        };//isa cycle
+        auto calcFromGenome=[&](uint64 isa, int &iL4) {
+            return funCalcSAiFromSA(G,SA,mapGen,isa,mapGen.pGe.gSAindexNbases,iL4);
+        };
+        SAindexSkipSearch(SAi, mapGen, ind0, iSA1, iSA2, calcFromGenome);
     };
 
     for (uint64 iL=0; iL < mapGen.pGe.gSAindexNbases; iL++) {//fill up unfilled indexes
@@ -235,41 +295,8 @@ void genomeSAindexChunk(char * G, PackedArray & SA, Parameters & P, PackedArray 
 
 void funSAiFindNextIndex(char * G, PackedArray & SA, uint64 isaStep, uint64 & isa, uint64 & indFull, int & iL4, Genome &mapGen)
  {
-    uint64 indFullPrev=indFull;
-    int iL4prev=iL4;
-    isa+=isaStep;
-    while (isa<mapGen.nSA && (indFull=funCalcSAiFromSA(G,SA,mapGen,isa,mapGen.pGe.gSAindexNbases,iL4))==indFullPrev && iL4==iL4prev)
-    {//make large step in isa while the indFull/iL4 are still the same
-        isa+=isaStep;
+    auto calc=[&](uint64 i, int &l) {
+        return funCalcSAiFromSA(G,SA,mapGen,i,mapGen.pGe.gSAindexNbases,l);
     };
-    if (isa>=mapGen.nSA)
-    {//reached the end of the SA
-        indFull=funCalcSAiFromSA(G,SA,mapGen,mapGen.nSA-1,mapGen.pGe.gSAindexNbases,iL4);
-        if (indFull==indFullPrev && iL4==iL4prev)
-        {
-            isa=mapGen.nSA;//no more indices, the last one is equal to the previous
-            return;
-        };
-    };
-
-    {//binary search
-        uint64 i1=isa-isaStep;
-        uint64 i2=min(isa,mapGen.nSA-1);
-        while (i1+1<i2)
-        {
-            isa=i1/2 + i2/2 + (i1%2 + i2%2)/2;
-            if ((indFull=funCalcSAiFromSA(G,SA,mapGen,isa,mapGen.pGe.gSAindexNbases,iL4))==indFullPrev && iL4==iL4prev)
-            {
-                i1=isa;
-            } else
-            {
-                i2=isa;
-            };
-        };
-        if (isa==i1)
-        {
-            isa=i2;
-            indFull=funCalcSAiFromSA(G,SA,mapGen,isa,mapGen.pGe.gSAindexNbases,iL4);
-        };
-    };
+    SAindexFindNextIndex(mapGen.nSA, isaStep, isa, indFull, iL4, calc);
 };
