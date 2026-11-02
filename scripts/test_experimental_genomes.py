@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import random
+import struct
 import subprocess
 import tempfile
 
@@ -82,6 +83,11 @@ def main():
             scores = graph_scores(candidate)
             for read in ("@short0", "@short1", "@short2"):
                 assert max(int(row[7]) for row in scores if row[0] == read) == 100
+            # Seeds are --genomeSAindexNbases (4) bases long and must fit in the read; seeds read past
+            # its end came from stale buffer bytes and made the coverage diagnostics vary run to run.
+            for row in scores:
+                assert float(row[5]) <= (int(row[4]) - 4 + 1) / int(row[4]) + 1e-6, row
+            assert graph_scores(run(args.star_exe, kind + "-map-repeat", mapping)) == scores
             checks.append("SuperTranscriptome generation, actual graph scores and teardown (diagnostics only)")
             for format_ in ("BAM", "CRAM"):
                 rejected = run(args.star_exe, kind + "-reject-" + format_,
@@ -133,6 +139,55 @@ def main():
         for name, seq in expected.items():
             assert bytes(code[b] for b in seq) in genome_bytes, (kind, name)
         checks.append(kind + " generation includes (-)strand transcript sequences in FASTA and genome")
+
+    # GX/GN without Solo annotate genes with --soloStrand (it was left uninitialized, so genes
+    # flipped run to run), and Aligned.toTranscriptome.out.bam rB blocks are in transcript
+    # coordinates like POS (they were offset by genome chromosome starts indexed by transcript).
+    def aux_tags(record):
+        name_len, n_cigar, seq_len = record[8], struct.unpack("<H", record[12:14])[0], struct.unpack("<i", record[16:20])[0]
+        name = record[32:32 + name_len - 1].decode()
+        o = 32 + name_len + 4 * n_cigar + (seq_len + 1) // 2 + seq_len
+        tags = {}
+        while o < len(record):
+            tag, kind = record[o:o + 2].decode(), chr(record[o + 2])
+            o += 3
+            if kind == "Z":
+                end = record.index(b"\0", o)
+                tags[tag], o = record[o:end].decode(), end + 1
+            elif kind == "B":
+                assert chr(record[o]) == "i", tag
+                count = struct.unpack("<i", record[o + 1:o + 5])[0]
+                tags[tag] = list(struct.unpack(f"<{count}i", record[o + 5:o + 5 + 4 * count]))
+                o += 5 + 4 * count
+            else:
+                size = {"c": 1, "C": 1, "s": 2, "S": 2, "i": 4, "I": 4}[kind]
+                tags[tag] = int.from_bytes(record[o:o + size], "little", signed=kind.islower())
+                o += size
+        return name, struct.unpack("<i", record[4:8])[0], tags
+
+    annot = root / "annot.fastq"
+    annot_reads = {"sense": sequence[5050:5150], "antisense": revcomp(sequence[5200:5300]),
+                   "spliced": sequence[850:900] + sequence[1500:1550]}
+    annot.write_text("".join(f"@{n}\n{s}\n+\n{'I'*len(s)}\n" for n, s in annot_reads.items()))
+    expected_genes = {"Forward": {"sense": "g2", "antisense": "-", "spliced": "g1"},
+                      "Reverse": {"sense": "-", "antisense": "g2", "spliced": "-"},
+                      "Unstranded": {"sense": "g2", "antisense": "g2", "spliced": "g1"}}
+    for strand, genes in expected_genes.items():
+        options = ["--genomeDir", str(root / "Full"), "--readFilesIn", str(annot), "--outSAMtype", "BAM", "Unsorted",
+                   "--outSAMattributes", "NH", "HI", "GX", "GN", "rB", "--soloStrand", strand,
+                   "--quantMode", "TranscriptomeSAM"]
+        out = run(args.star_exe, "gxgn-" + strand, options)
+        records = [aux_tags(r) for r in bam_records(out / "Aligned.out.bam")]
+        assert {n: (t["GX"], t["GN"]) for n, _, t in records} == {n: (g, g) for n, g in genes.items()}, (strand, records)
+        assert bam_records(run(args.star_exe, "gxgn-" + strand + "-repeat", options) / "Aligned.out.bam") == \
+            bam_records(out / "Aligned.out.bam"), strand
+        for n, pos, t in records:  # one chromosome starting at 0: genomic rB blocks match POS
+            assert t["rB"][2] == pos + 1, (n, pos, t["rB"])
+        transcriptomic = {n: (pos, t["rB"]) for n, pos, t in
+                          (aux_tags(r) for r in bam_records(out / "Aligned.toTranscriptome.out.bam"))}
+        assert transcriptomic == {"sense": (50, [1, 100, 51, 150]), "antisense": (200, [1, 100, 201, 300]),
+                                  "spliced": (750, [1, 100, 751, 850])}, (strand, transcriptomic)  # junction is contiguous in t1
+    checks.append("GX/GN without Solo follow --soloStrand; toTranscriptome rB in transcript coordinates")
 
     if args.long_exe:
         reads = root / "long.fastq"
