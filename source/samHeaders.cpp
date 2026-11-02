@@ -16,7 +16,8 @@ void samHeaders(Parameters &P, Genome &genomeOut, Transcriptome &transcriptomeMa
         for (uint32 ii=0;ii<P.outSAMattrRGlineSplit.size();ii++) {//@RG lines
             samHeaderStream << "@RG\t" << P.outSAMattrRGlineSplit.at(ii) <<"\n";
         };
-        outBAMwriteHeader(P.inOut->outQuantBAMfile,samHeaderStream.str(),transcriptomeMain.trID,trlength);
+        if (!outBAMwriteHeader(P.inOut->outQuantBAMfile,samHeaderStream.str(),transcriptomeMain.trID,trlength))
+            exitBAMwriteError("the BAM header of " + P.outQuantBAMfileName, P);
     };
     
     //////////////////////////////////////////////////////////////////////////////// main headers
@@ -103,6 +104,7 @@ void samHeaders(Parameters &P, Genome &genomeOut, Transcriptome &transcriptomeMa
         *P.inOut->outSAM << P.samHeader;
     };
     if (P.outBAMunsorted){
-        outBAMwriteHeader(P.inOut->outBAMfileUnsorted,P.samHeader,genomeOut.chrNameAll,genomeOut.chrLengthAll);
+        if (!outBAMwriteHeader(P.inOut->outBAMfileUnsorted,P.samHeader,genomeOut.chrNameAll,genomeOut.chrLengthAll))
+            exitBAMwriteError("the BAM header of " + P.outBAMfileUnsortedName, P);
     };
 };

@@ -66,7 +66,8 @@ void BAMbinSortByCoordinate(uint32 iBin, uint64 binN, uint64 binS, uint64 nThrea
         exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
 
-    outBAMwriteHeader(bgzfBin,P.samHeaderSortedCoord,genome.chrNameAll,genome.chrLengthAll);
+    if (!outBAMwriteHeader(bgzfBin,P.samHeaderSortedCoord,genome.chrNameAll,genome.chrLengthAll))
+        exitBAMwriteError("temporary sorted BAM file " + dirBAMsort+"/b"+to_string((uint64) iBin), P);
     //send ordered aligns to bgzf one-by-one
     char bam1[BAM_ATTR_MaxSize];//temp array
     for (uint64 ia=0;ia<binN;ia++) {
@@ -80,6 +81,8 @@ void BAMbinSortByCoordinate(uint32 iBin, uint64 binN, uint64 binS, uint64 nThrea
             exitWithError("EXITING: sorted BAM output write error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
 
-    discardResult(bgzf_flush(bgzfBin));
-    bgzf_close(bgzfBin);
+    const int flushStatus=bgzf_flush(bgzfBin);
+    const int closeStatus=bgzf_close(bgzfBin);
+    if (flushStatus!=0 || closeStatus!=0)
+        exitBAMwriteError("temporary sorted BAM file " + dirBAMsort+"/b"+to_string((uint64) iBin), P);
 };

@@ -60,9 +60,6 @@ THE SOFTWARE.
 #include "htslib/htslib/sam.h"
 #include <cstring>
 using namespace std;
-// GCC does not accept a (void) cast to ignore warn_unused_result values
-static inline void discard_result(long long) {}
-
 #define BUF_SIZE 0x10000
 
 #define GZIPID1 31
@@ -84,7 +81,8 @@ int bam_cat(int nfn, char * const *fn, const bam_hdr_t *h, const char* outbam)
         fprintf(stderr, "[%s] ERROR: fail to open output file '%s'.\n", __func__, outbam);
         return 1;
     }
-    if (h) discard_result(bam_hdr_write(fp, h));
+    bool writeFailed = false; // any failed write leaves the merged BAM unusable
+    if (h && bam_hdr_write(fp, h) < 0) writeFailed = true;
 
     buf = (uint8_t*) malloc(BUF_SIZE);
     for(i = 0; i < nfn; ++i){
@@ -100,11 +98,11 @@ int bam_cat(int nfn, char * const *fn, const bam_hdr_t *h, const char* outbam)
         if (in->is_write) return -1;
 
         old = bam_hdr_read(in);
-        if (h == 0 && i == 0) discard_result(bam_hdr_write(fp, old));
+        if (h == 0 && i == 0 && bam_hdr_write(fp, old) < 0) writeFailed = true;
 
         if (in->block_offset < in->block_length) {
-            discard_result(bgzf_write(fp, (void*)((char*)in->uncompressed_block + in->block_offset), in->block_length - in->block_offset));
-            discard_result(bgzf_flush(fp));
+            if (bgzf_write(fp, (void*)((char*)in->uncompressed_block + in->block_offset), in->block_length - in->block_offset) < 0
+                || bgzf_flush(fp) < 0) writeFailed = true;
         }
 
         j=0;
@@ -115,14 +113,14 @@ int bam_cat(int nfn, char * const *fn, const bam_hdr_t *h, const char* outbam)
                     fprintf(stderr, "[%s] ERROR: truncated file?: '%s'.\n", __func__, fn[i]);
                     return -1;
                 }
-                discard_result(bgzf_raw_write(fp, ebuf, len));
+                if (bgzf_raw_write(fp, ebuf, len) < 0) writeFailed = true;
                 memcpy(ebuf,ebuf+len,diff);
                 memcpy(ebuf+diff,buf,len);
             } else {
-                if(j!=0) discard_result(bgzf_raw_write(fp, ebuf, es));
+                if (j!=0 && bgzf_raw_write(fp, ebuf, es) < 0) writeFailed = true;
                 len-= es;
                 memcpy(ebuf,buf+len,es);
-                discard_result(bgzf_raw_write(fp, buf, len));
+                if (bgzf_raw_write(fp, buf, len) < 0) writeFailed = true;
             }
             j=1;
         }
@@ -135,15 +133,15 @@ int bam_cat(int nfn, char * const *fn, const bam_hdr_t *h, const char* outbam)
             if(((gzip1!=GZIPID1) || (gzip2!=GZIPID2)) || (isize!=0)) {
                 fprintf(stderr, "[%s] WARNING: Unexpected block structure in file '%s'.", __func__, fn[i]);
                 fprintf(stderr, " Possible output corruption.\n");
-                discard_result(bgzf_raw_write(fp, ebuf, es));
+                if (bgzf_raw_write(fp, ebuf, es) < 0) writeFailed = true;
             }
         }
         bam_hdr_destroy(old);
         bgzf_close(in);
     }
     free(buf);
-    bgzf_close(fp);
-    return 0;
+    if (bgzf_close(fp) < 0) writeFailed = true;
+    return writeFailed ? -1 : 0;
 }
 
 

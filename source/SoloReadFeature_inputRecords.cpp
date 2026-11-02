@@ -72,7 +72,7 @@ void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32
             #endif
 
             for (uint32 ii=0; ii<(uint32)cbmatch; ii++) {
-                uint32 cbin;
+                uint32 cbin=0;
                 char  qin=0;
                 readNumber(*streamReads, cbin); readChar(*streamReads, qin);
                 if (cbReadCountTotal[cbin]>0) {//otherwise this cbin does not work

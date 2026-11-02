@@ -42,8 +42,10 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
                 errOut <<"SOLUTION: check that the disk is not full, increase the max number of open files with Linux command ulimit -n before running STAR";
                 exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
             };
-            outBAMwriteHeader(bgzfOut,P.samHeaderSortedCoord,genome.chrNameAll,genome.chrLengthAll);
-            bgzf_close(bgzfOut);
+            const bool headerOk=outBAMwriteHeader(bgzfOut,P.samHeaderSortedCoord,genome.chrNameAll,genome.chrLengthAll);
+            const int closeStatus=bgzf_close(bgzfOut);
+            if (!headerOk || closeStatus!=0)
+                exitBAMwriteError("the sorted BAM file " + P.outBAMfileCoordName, P);
         } else {//sort
             uint64 totalMem=0;
             #pragma omp parallel num_threads(P.outBAMsortingThreadNactual)
@@ -93,7 +95,8 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
             for (uint32 ibin=0; ibin<bamBinNamesV.size(); ibin++) {
                     bamBinNames[ibin] = (char*) bamBinNamesV.at(ibin).c_str();
             };
-            bam_cat(bamBinNamesV.size(), bamBinNames.get(), 0, P.outBAMfileCoordName.c_str());
+            if (bam_cat(bamBinNamesV.size(), bamBinNames.get(), 0, P.outBAMfileCoordName.c_str()) != 0)
+                exitBAMwriteError("the sorted BAM file " + P.outBAMfileCoordName + " (merging the sorted bins failed)", P);
         };
     };    
 };

@@ -16,7 +16,8 @@ void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Paramet
         exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
 
-    outBAMwriteHeader(bgzfBin,P.samHeaderSortedCoord,genome.chrNameAll,genome.chrLengthAll);
+    if (!outBAMwriteHeader(bgzfBin,P.samHeaderSortedCoord,genome.chrNameAll,genome.chrLengthAll))
+        exitBAMwriteError("temporary sorted BAM file " + dirBAMsort+"/b"+to_string((uint64) iBin), P);
 
 
     vector<string> bamInFile;
@@ -81,8 +82,10 @@ void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Paramet
         startPos.erase(startPos.begin());
     };
 
-    discardResult(bgzf_flush(bgzfBin));
-    bgzf_close(bgzfBin);
+    const int flushStatus=bgzf_flush(bgzfBin);
+    const int closeStatus=bgzf_close(bgzfBin);
+    if (flushStatus!=0 || closeStatus!=0)
+        exitBAMwriteError("temporary sorted BAM file " + dirBAMsort+"/b"+to_string((uint64) iBin), P);
 
 
     for (uint64 it=0; it<bamInFile.size(); it++) {//destroy at the end

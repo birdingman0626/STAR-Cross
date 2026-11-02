@@ -8,7 +8,10 @@
 #include "htslib/htslib/hts_endian.h"
 
 
-void outBAMwriteHeader (BGZF* fp, const std::string &samh, const std::vector <std::string> &chrn, const std::vector <uint64> &chrl);
+// Writes and flushes the BAM header; returns false if any write or the flush failed.
+[[nodiscard]] bool outBAMwriteHeader (BGZF* fp, const std::string &samh, const std::vector <std::string> &chrn, const std::vector <uint64> &chrl);
+// Fatal OUTPUT error for a failed BAM write, flush or close of 'what'.
+void exitBAMwriteError(const std::string &what, Parameters &P);
 int bam_read1_fromArray(char *bamChar, bam1_t *b);
 std::string bam_cigarString (bam1_t *b);
         

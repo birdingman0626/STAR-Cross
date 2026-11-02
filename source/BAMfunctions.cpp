@@ -58,21 +58,26 @@ int bam_read1_fromArray(char *bamChar, bam1_t *b) //modified from samtools bam_r
 }
 
 
-void outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint64> &chrl) {
-    discardResult(bgzf_write(fp,"BAM\001",4));
+bool outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chrn, const vector <uint64> &chrl) {
+    bool ok = bgzf_write(fp,"BAM\001",4)==4;
     int32 hlen=samh.size();
-    bamWriteInt32LE(fp,hlen);
-    discardResult(bgzf_write(fp,samh.c_str(),hlen));
+    ok = ok && bamWriteInt32LE(fp,hlen)==4;
+    ok = ok && bgzf_write(fp,samh.c_str(),hlen)==hlen;
     int32 nchr=(int32) chrn.size();
-    bamWriteInt32LE(fp,nchr);
-    for (int32 ii=0;ii<nchr;ii++) {
+    ok = ok && bamWriteInt32LE(fp,nchr)==4;
+    for (int32 ii=0; ok && ii<nchr; ii++) {
         int32 rlen = (int32) (chrn.at(ii).size()+1);
         int32 slen = (int32) chrl[ii];
-        bamWriteInt32LE(fp,rlen);
-        discardResult(bgzf_write(fp,chrn.at(ii).data(),rlen)); //this includes \0 at the end of the string
-        bamWriteInt32LE(fp,slen);
+        ok = ok && bamWriteInt32LE(fp,rlen)==4;
+        ok = ok && bgzf_write(fp,chrn.at(ii).data(),rlen)==rlen; //this includes \0 at the end of the string
+        ok = ok && bamWriteInt32LE(fp,slen)==4;
     };
-    discardResult(bgzf_flush(fp));
+    return ok && bgzf_flush(fp)==0;
+};
+
+void exitBAMwriteError(const string &what, Parameters &P) {
+    exitWithError("EXITING because of fatal OUTPUT error: could not write " + what +
+                  "\nSOLUTION: check free disk space and write permissions.\n", std::cerr, P.inOut->logMain, EXIT_CODE_FILE_WRITE, P);
 };
 
 // calculate bin given an alignment covering [beg,end) (zero-based, half-close-half-open)
