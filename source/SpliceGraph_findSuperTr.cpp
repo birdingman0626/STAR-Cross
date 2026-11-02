@@ -16,7 +16,7 @@ void SpliceGraph::findSuperTr(const char *readSeq, const char *readSeqRevCompl, 
 	seedSuperTr.reserve(seedMultMax);
     memset(superTrSeedCount,0,sizeof(superTrSeedCount[0])*2*superTrome.N);
     
-    for (uint32 iseed=0; iseed<readLen; iseed+=seedSpacing) {//loop through seeds
+    for (uint32 iseed=0; iseed+seedLen<=readLen; iseed+=seedSpacing) {//loop through seeds that fit in the read: past its end the buffer holds stale bytes
         //calculate index
         uint64 ind1=0;
         for (uint32 ii=iseed; ii<iseed+seedLen; ii++) {
