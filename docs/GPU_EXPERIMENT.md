@@ -1,4 +1,4 @@
-# Experimental CUDA backends
+# Earlier CUDA experiments
 
 The new opt-in adaptive read-seeding integration is documented in
 [GPU_BATCHED_SEEDING.md](GPU_BATCHED_SEEDING.md), including its CPU control,
@@ -6,9 +6,12 @@ resident index, support restrictions and current measurements. The material
 below describes the separate junction-index remap experiment and historical
 seed replay measurements.
 
-CUDA is optional and **OFF by default**. This is one bounded index-preparation
-experiment, not a GPU implementation of read alignment or a Parabricks migration.
-The CPU algorithm remains the oracle. No end-to-end speedup is promised.
+CUDA is optional and **OFF by default**. This document records the earlier
+index-preparation adapter and isolated query replay. Current execution and
+measurements are maintained in [GPU_BATCHED_SEEDING.md](GPU_BATCHED_SEEDING.md)
+and [GPU_RESULTS.md](GPU_RESULTS.md); next steps are in
+[GPU_FULL_PIPELINE_PLAN.md](GPU_FULL_PIPELINE_PLAN.md).
+The CPU algorithm remains the oracle.
 
 The first 1M-pair Cyno engineering-prefix comparison matched the independent
 official STAR CPU output: complete BAM records, raw/filtered/EM matrices, axes,

@@ -94,9 +94,11 @@ preview, queue status and logs. See [Web UI usage](docs/webui/README.md).
 - **Windows limits:** shared-memory genome loading is unavailable; use
   `--genomeLoad NoSharedMemory`. `--readFilesCommand` uses temporary files rather
   than FIFO streaming, which can require additional disk space.
-- **CUDA is experimental and OFF by default.** The junction-index adapter and
-  isolated seed-search benchmark do not establish production read-alignment
-  acceleration or an end-to-end speedup. See [GPU experiments](docs/GPU_EXPERIMENT.md).
+- **CUDA is experimental and OFF by default.** Experimental backends include
+  device seeding, clipping and stitching for the supported
+  profiles. The complete-computation 3x target remains unverified. See
+  [GPU usage and limits](docs/GPU_BATCHED_SEEDING.md) and
+  [recorded measurements](docs/GPU_RESULTS.md).
 
 ## Validation
 
@@ -113,6 +115,7 @@ a workload-specific speedup as a full-library guarantee. See
 
 ## Build and support
 
+- [Documentation index](docs/README.md): usage, validation, development plans and evidence.
 - [Build from source](docs/BUILD.md): Linux, macOS and Windows; build options and tests.
 - [Report a STAR-Cross issue](https://github.com/birdingman0626/STAR-Cross/issues):
   include `--version`, platform, command, relevant logs and a small reproducible

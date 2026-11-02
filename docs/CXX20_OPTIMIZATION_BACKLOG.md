@@ -1,8 +1,9 @@
-# C++20 performance backlog — deferred
+# C++20 optimization backlog and experiment history
 
-Date: 2026-10-16. Status: recorded only; **not implemented**. The user requested
-no further C++17 compatibility requirement. Removing existing compatibility
-lanes is separate work, not performed by this document.
+The initial backlog was recorded on 2026-10-16; subsequent sections record
+experiments and their decisions. Unchecked proposals remain unimplemented.
+C++20 is now required; current language/toolchain status is maintained in
+[CXX20_UPGRADE_PLAN.md](CXX20_UPGRADE_PLAN.md).
 
 ## Ordered experiments
 
