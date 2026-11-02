@@ -359,7 +359,8 @@ GpuAdaptiveSeeds GpuSeedIndex::seedReads(const std::vector<char>& reads,
     return output;
 }
 
-void GpuSeedIndex::configureWindowFilter(const U* sjDstart,const U* sjAstart,U sjdbN,U sjGstart,
+static_assert(sizeof(unsigned long long)==sizeof(U),"junction arrays are copied as 64-bit words");
+void GpuSeedIndex::configureWindowFilter(const unsigned long long* sjDstart,const unsigned long long* sjAstart,U sjdbN,U sjGstart,
         U sjdbLength,U sjdbOverhang,unsigned binBits,U anchorDist,U flank,U anchorMax) {
     if(!state->eventCapacity) throw std::logic_error("configure adaptive seeds before the window filter");
     if(state->filtering) throw std::logic_error("window filter already configured");

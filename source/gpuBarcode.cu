@@ -73,7 +73,7 @@ struct GpuWhitelist::State {
     ~State() {if(wl) cudaFree(wl);}
 };
 
-GpuWhitelist::GpuWhitelist(const uint64_t* whitelist,size_t n,unsigned length,size_t slots):state(std::make_unique<State>()) {
+GpuWhitelist::GpuWhitelist(const unsigned long long* whitelist,size_t n,unsigned length,size_t slots):state(std::make_unique<State>()) {
     if(n==0) throw std::invalid_argument("GPU barcode: empty whitelist");
     if(length==0 || length>kMaxLength) throw std::invalid_argument("GPU barcode: barcode length out of range");
     state->n=(long long)n; state->length=length;
@@ -90,11 +90,11 @@ void GpuWhitelist::totals(double& seconds,uint64_t& reads) const {
     for(const auto& s:state->slots) {seconds+=s.seconds; reads+=s.reads;}
 }
 
-void GpuWhitelist::lookup(const uint64_t* keys,size_t n,int64_t* exact,uint64_t* mask,unsigned slot) {
+void GpuWhitelist::lookup(const unsigned long long* keys,size_t n,int64_t* exact,uint64_t* mask,unsigned slot) {
     submit(keys,n,slot); collect(exact,mask,slot);
 }
 
-void GpuWhitelist::submit(const uint64_t* keys,size_t n,unsigned slot) {
+void GpuWhitelist::submit(const unsigned long long* keys,size_t n,unsigned slot) {
     auto& s=state->slots.at(slot);
     s.submitted=n;
     if(n==0) return;

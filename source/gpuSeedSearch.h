@@ -41,8 +41,9 @@ public:
     GpuAdaptiveSeeds seedReads(const std::vector<char>& reads,
         const std::vector<SeedReadRange>& ranges, size_t slot, bool deferProjection=false);
     // Optional: drop hits that cannot reach any alignment window of their read
-    // (see gpuSeedHits.cuh). Junction arrays are copied; sjdbN may be zero.
-    void configureWindowFilter(const uint64_t* sjDstart, const uint64_t* sjAstart, uint64_t sjdbN,
+    // (see gpuSeedHits.cuh). Junction arrays are copied; sjdbN may be zero. They are STAR
+    // uint64 (unsigned long long) arrays, which differ from uint64_t on LP64 Linux.
+    void configureWindowFilter(const unsigned long long* sjDstart, const unsigned long long* sjAstart, uint64_t sjdbN,
         uint64_t sjGstart, uint64_t sjdbLength, uint64_t sjdbOverhang, unsigned winBinNbits,
         uint64_t winAnchorDistNbins, uint64_t winFlankNbins, uint64_t winAnchorMultimapNmax);
     // Consume a bounded prefix of the remaining reads; seeds stay in this slot.
