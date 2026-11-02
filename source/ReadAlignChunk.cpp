@@ -6,6 +6,7 @@
     #include <pthread.h>
 #endif
 #include "ErrorWarning.h"
+#include "uninitArray.h"
 using namespace std;
 ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, int iChunk) : P(Pin), mapGen(genomeIn) {//initialize chunk
 
@@ -25,12 +26,12 @@ ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome 
 
     RA->iRead=0;
 
-    inputPointers.reset(new char* [P.readNends]); chunkIn=inputPointers.get();
-    inputStreamPointers.reset(new FixedIStream* [P.readNends]); readInStream=inputStreamPointers.get();
+    inputPointers=makeUninitArray<char*>(P.readNends); chunkIn=inputPointers.get();
+    inputStreamPointers=makeUninitArray<FixedIStream*>(P.readNends); readInStream=inputStreamPointers.get();
     inputStorage.resize(P.readNends); inputStreams.resize(P.readNends);
 
     for (uint64 ii=0;ii<P.readNends;ii++) {
-       inputStorage[ii].reset(new char[P.chunkInSizeBytesArray]); chunkIn[ii]=inputStorage[ii].get();
+       inputStorage[ii]=makeUninitArray<char>(P.chunkInSizeBytesArray); chunkIn[ii]=inputStorage[ii].get();
        memset(chunkIn[ii],'\n',P.chunkInSizeBytesArray);
        inputStreams[ii].reset(new FixedIStream); readInStream[ii]=inputStreams[ii].get();
        readInStream[ii]->setBuffer(chunkIn[ii],P.chunkInSizeBytesArray);
@@ -39,7 +40,7 @@ ReadAlignChunk::ReadAlignChunk(Parameters& Pin, Genome &genomeIn, Transcriptome 
 
 
     if (P.outSAMbool) {
-        outputStorage.reset(new char [P.chunkOutBAMsizeBytes]); chunkOutBAM=outputStorage.get();
+        outputStorage=makeUninitArray<char>(P.chunkOutBAMsizeBytes); chunkOutBAM=outputStorage.get();
         RA->outBAMarray=chunkOutBAM;
         outputStreamStorage.reset(new FixedOStream); chunkOutBAMstream=outputStreamStorage.get();
         chunkOutBAMstream->setBuffer(chunkOutBAM,P.chunkOutBAMsizeBytes);

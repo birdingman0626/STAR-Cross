@@ -1,6 +1,7 @@
 #ifndef STAR_CHUNK_INPUT_PREFETCHER_H
 #define STAR_CHUNK_INPUT_PREFETCHER_H
 #include "IncludeDefine.h"
+#include "uninitArray.h"
 #include <array>
 #include <condition_variable>
 #include <cstring>
@@ -31,7 +32,7 @@ public:
         for(size_t i=0;i<depth;++i) {
             auto c=std::make_unique<Chunk>();
             for(size_t e=0;e<ends;++e) {
-                c->storage.emplace_back(new char[bytes]);
+                c->storage.emplace_back(makeUninitArray<char>(bytes));
                 std::memset(c->storage.back().get(),'\n',bytes);
             }
             free.push_back(std::move(c));

@@ -40,6 +40,7 @@
 #include "htslib/htslib/sam.h"
 #include "parametersDefault.xxd"
 #include "webui/WebUI.h"
+#include "uninitArray.h"
 using namespace std;
 void usage(int usageType)
 {
@@ -128,7 +129,7 @@ void initThreadMutexes(Parameters &P)
 {
     if (P.runThreadN > 1)
     {
-        g_threadChunks.threadArray = new pthread_t[P.runThreadN];
+        g_threadChunks.threadArray = makeUninitArray<pthread_t>(P.runThreadN);
         pthread_mutex_init(&g_threadChunks.mutexInRead, NULL);
         pthread_mutex_init(&g_threadChunks.mutexOutSAM, NULL);
         pthread_mutex_init(&g_threadChunks.mutexOutBAM1, NULL);
