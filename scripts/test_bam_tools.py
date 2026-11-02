@@ -7,7 +7,7 @@ with unique, multi-mapping and identical duplicate pairs, then runs every signal
 variant and both duplicate-marking modes. With --ref-exe the same input BAM is
 processed by a reference binary and every output must be identical (signal files
 byte-for-byte, BAM after BGZF decompression). Failure gates require a clean
-non-zero exit for a missing input and, on Linux, for outputs that cannot be
+non-zero exit for a missing or truncated input and, on Linux, for outputs that cannot be
 written (symlinked to /dev/full); success with a truncated output is a failure.
 """
 import argparse
@@ -141,6 +141,27 @@ def main():
                                                "--inputBAMfile", str(root / "absent.bam"), *options], expect_ok=False)
         assert proc.returncode not in (0, -11, 139) and "EXITING" in proc.stdout, (label, proc.returncode, proc.stdout[-2000:])
     checks.append("missing input BAM: clean fatal error for signal and duplicate marking")
+
+    # An input cut inside a BGZF block after the header must fail, not end early as if complete.
+    data = bam.read_bytes()
+    blocks, pos = [], 0
+    while pos < len(data):
+        size = int.from_bytes(data[pos + 16:pos + 18], "little") + 1  # BSIZE extra field
+        blocks.append((pos, size))
+        pos += size
+    data_blocks = [b for b in blocks if b[1] > 28]  # drop the empty EOF marker block
+    assert len(data_blocks) >= 2, f"input BAM has {len(data_blocks)} data blocks; cannot cut after the header"
+    cut_start, cut_size = data_blocks[-1]
+    truncated = root / "truncated.bam"
+    truncated.write_bytes(data[:cut_start + cut_size // 2])
+    for label, options in (("truncated-signal", ["--outWigType", "bedGraph"]),
+                           ("truncated-signal-RPM", ["--outWigType", "bedGraph", "--outWigNorm", "RPM"]),
+                           ("truncated-dedup", ["--bamRemoveDuplicatesType", "UniqueIdentical"])):
+        _, proc = run(f"fail/{label}", star, ["--runMode", "inputAlignmentsFromBAM",
+                                             "--inputBAMfile", str(truncated), *options], expect_ok=False)
+        assert proc.returncode not in (0, -11, 139) and "fatal INPUT FILE error" in proc.stdout, \
+            (label, proc.returncode, proc.stdout[-2000:])
+    checks.append("input BAM truncated mid-block: clean fatal error for signal and duplicate marking")
     if sys.platform.startswith("linux") and os.path.exists("/dev/full"):
         for label, options, target in (("full-dedup", ["--bamRemoveDuplicatesType", "UniqueIdentical"], "Processed.out.bam"),
                                        ("full-signal", ["--outWigType", "bedGraph", "--outWigStrand", "Unstranded"],

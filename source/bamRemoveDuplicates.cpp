@@ -149,8 +149,9 @@ struct ScannedAlign {
 };
 
 // reached end of loaded BAM block: write out the processed part and load more BAM data
-template <class WriteBlock>
-void loadBamBlock(DedupScan &scan, BGZF *bamIn, char *bamRaw, uint64 bamLengthMax, Parameters &P, const WriteBlock &writeBlock) {
+template <class WriteBlock, class InputFailure>
+void loadBamBlock(DedupScan &scan, BGZF *bamIn, char *bamRaw, uint64 bamLengthMax, Parameters &P, const WriteBlock &writeBlock,
+                  const InputFailure &inputFailure) {
     uint64 &bamLength=scan.bamLength, &bamS=scan.bamS, &bamE=scan.bamE, &bamE1=scan.bamE1;
     if (bamLength<bamLengthMax && bamLength>0) {//reached end of BAM file, cannot load more
         scan.bamFileEnd=true;
@@ -167,7 +168,9 @@ void loadBamBlock(DedupScan &scan, BGZF *bamIn, char *bamRaw, uint64 bamLengthMa
 
         bamLength-=bamS;
         memmove(bamRaw, bamRaw+bamS,bamLength); //move the non-processed part of the block to the beginning of bamRaw
-        bamLength+=bgzf_read(bamIn, bamRaw+bamLength, bamLengthMax-bamLength);//marks the end of the BAM block that has been read
+        const ssize_t bytesRead=bgzf_read(bamIn, bamRaw+bamLength, bamLengthMax-bamLength);
+        if (bytesRead<0) inputFailure("read");
+        bamLength+=(uint64) bytesRead;//marks the end of the BAM block that has been read
         //restart search for the group
         bamS=0;
         bamE=0;
@@ -289,6 +292,11 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
                       "\nSOLUTION: check that the file is a valid BAM file.\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
     };
 
+    // A read error or failed close means part of the input was not seen: fatal, not a short output BAM.
+    const auto inputFailure = [&](const string &what) {
+        exitWithError("EXITING because of fatal INPUT FILE error: could not " + what + " --inputBAMfile " + bamFileName +
+                      "\nSOLUTION: check that the file is a complete, valid BAM file.\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+    };
     const auto outputFailure = [&](const string &what) {
         exitWithError("EXITING because of fatal OUTPUT error: could not " + what + " " + bamFileNameOut +
                       "\nSOLUTION: check free disk space and write permissions.\n", std::cerr, P.inOut->logMain, EXIT_CODE_FILE_WRITE, P);
@@ -313,7 +321,7 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
     DedupScan scan;
     while (true) {
         if (scan.bamE1>scan.bamLength) {//reached end of loaded BAM block, add BAM data
-            loadBamBlock(scan, bamIn, bamRaw, bamLengthMax, P, writeBlock);
+            loadBamBlock(scan, bamIn, bamRaw, bamLengthMax, P, writeBlock, inputFailure);
         };
 
         ScannedAlign a;
@@ -341,6 +349,7 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
 
     };
 
+    if (bgzf_close(bamInStorage.release())!=0) inputFailure("close");
     writeBlock(bamRaw,scan.bamLength);
     if (bgzf_flush(bgzfOut)!=0) outputFailure("flush");
     if (bgzf_close(bgzfOutStorage.release())!=0) outputFailure("close");

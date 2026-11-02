@@ -24,6 +24,24 @@ std::pair<BgzfHandle, BamHeader> openInputBAM(const string &bamFileName, Paramet
     return {std::move(in), std::move(header)};
 }
 
+// A read error or failed close means part of the input was not seen: fatal, not a short signal file.
+void inputBAMfailure(const string &what, const string &bamFileName, Parameters &P) {
+    exitWithError("EXITING because of fatal INPUT FILE error: could not " + what + " --inputBAMfile " + bamFileName +
+                  "\nSOLUTION: check that the file is a complete, valid BAM file.\n",
+                  std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
+}
+
+// bam_read1: >=0 record size, -1 end of file, < -1 truncated or corrupt record
+bool readRecord(BGZF *bamIn, bam1_t *bamA, const string &bamFileName, Parameters &P) {
+    const int bamBytes1=bam_read1(bamIn, bamA);
+    if (bamBytes1 < -1) inputBAMfailure("read a record of", bamFileName, P);
+    return bamBytes1 >= 0;
+}
+
+void closeInputBAM(BgzfHandle &in, const string &bamFileName, Parameters &P) {
+    if (bgzf_close(in.release())!=0) inputBAMfailure("close", bamFileName, P);
+}
+
 bool referenceExcluded(const Parameters &P, const char *targetName) {//reference does not match required references
     return P.outWigReferencesPrefix!="-" && (P.outWigReferencesPrefix.compare(0,P.outWigReferencesPrefix.size(),targetName,P.outWigReferencesPrefix.size())!=0);
 }
@@ -33,9 +51,7 @@ void countNormalizationReads(const string &bamFileName, Parameters &P, bam1_t *b
     auto countInput=openInputBAM(bamFileName, P);
     BGZF *bamIn=countInput.first.get();
     bam_hdr_t *bamHeader=countInput.second.get();
-    while ( true ) {//until the end of file
-        int bamBytes1=bam_read1(bamIn, bamA);
-        if (bamBytes1<0) break; //end of file
+    while ( readRecord(bamIn, bamA, bamFileName, P) ) {//until the end of file
         if (bamA->core.tid<0) continue; //unmapped read
         if ( referenceExcluded(P, bamHeader->target_name[bamA->core.tid]) ) continue; //reference does not match required references
 
@@ -49,6 +65,7 @@ void countNormalizationReads(const string &bamFileName, Parameters &P, bam1_t *b
             };
         };
     };
+    closeInputBAM(countInput.first, bamFileName, P);
 }
 
 void openSignalFiles(const string &sigFileName, Parameters &P, int sigN, std::vector<string> &sigOutFileName, SignalFiles &sigOutAll) {
@@ -236,13 +253,13 @@ void signalFromBAM(const string bamFileName, const string sigFileName, Parameter
     std::vector<double> sigAll; // per-chromosome signal, zeroed for each new chromosome
     uint32_t chrLen=0;
     while ( true ) {//until the end of file
-        int bamBytes1=bam_read1(bamIn, bamA);
-        if (bamA->core.tid!=iChr || bamBytes1<0) {
+        const bool gotRecord=readRecord(bamIn, bamA, bamFileName, P);
+        if (bamA->core.tid!=iChr || !gotRecord) {
             //output to file
             if (iChr!=-999) {//iChr=-999 marks chromosomes that are not output, including unmapped reads
                 writeChromosomeSignal(P, sigN, bamHeader->target_name[iChr], sigAll, chrLen, normFactor, sigOutAll);
             };
-            if (bamBytes1<0) {//no more reads
+            if (!gotRecord) {//no more reads
                 break;
             };
 
@@ -258,5 +275,6 @@ void signalFromBAM(const string bamFileName, const string sigFileName, Parameter
 
         addAlignmentSignal(bamA, P, sigN, sigAll, chrLen);
     };
+    closeInputBAM(signalInput.first, bamFileName, P);
     closeSignalFiles(P, sigN, sigOutFileName, sigOutAll);
 };
