@@ -423,5 +423,10 @@ private:
     void samAttributeAdd(const std::string &attr);
     void samAttributesImplied();
     void samAttributesRequireBAM();
+    // readFilesInit stages (Parameters_readFilesInit.cpp)
+    void readFilesInitType();
+    void readFilesInitNamesFromIn();
+    void readFilesInitReadGroups();
+    void readFilesInitManifest();
 };
 #endif  // Parameters.h
