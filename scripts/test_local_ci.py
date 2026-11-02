@@ -51,6 +51,29 @@ class ExpressionTests(unittest.TestCase):
         self.assertEqual(lc.substitute("cc=${{ matrix.c }}!", {"matrix": {"c": "gcc"}}), "cc=gcc!")
 
 
+class Utf8ModeTests(unittest.TestCase):
+    SCRIPT = str(Path(__file__).resolve().parent / "local_ci.py")
+
+    def run_py(self, *args):
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONUTF8"}
+        return subprocess.run([sys.executable, "-X", "utf8=0", *args], capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", env=env)
+
+    def test_runs_and_keeps_exit_code_with_utf8_mode_off(self):
+        hosts = str(Path(self.SCRIPT).with_name("local_ci_hosts.example.json"))
+        out = self.run_py(self.SCRIPT, "--hosts", hosts, "--list")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("clang-asan-ubsan", out.stdout)
+        bad = self.run_py(self.SCRIPT, "--no-such-option")
+        self.assertEqual(bad.returncode, 2, bad.stderr)
+
+    def test_utf8_mode_interpreter_never_reruns(self):
+        out = subprocess.run([sys.executable, "-X", "utf8", "-c",
+                              "import sys; sys.path.insert(0, sys.argv[1]); import local_ci; print(local_ci.needs_utf8_rerun())",
+                              str(Path(self.SCRIPT).parent)], capture_output=True, text=True)
+        self.assertEqual(out.stdout.strip(), "False", out.stderr)
+
+
 class RemoveTreeTests(unittest.TestCase):
     def test_removes_read_only_and_over_max_path_entries(self):
         with tempfile.TemporaryDirectory() as tmp:

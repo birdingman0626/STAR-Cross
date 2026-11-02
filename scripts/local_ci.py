@@ -539,5 +539,18 @@ def main(argv=None):
     return 1 if any(r["status"] in ("FAIL", "ERROR") for r in summary) else 0
 
 
+def needs_utf8_rerun():
+    """True when text I/O would use a non-UTF-8 locale code page (e.g. GBK on Chinese Windows),
+    which cannot decode the UTF-8 that vcvars, git and the build print."""
+    import locale
+    return not sys.flags.utf8_mode and locale.getpreferredencoding(False).replace("-", "").lower() != "utf8"
+
+
 if __name__ == "__main__":
+    os.environ["PYTHONUTF8"] = "1"  # inherited by Python processes the lanes start
+    if needs_utf8_rerun():
+        try:
+            sys.exit(subprocess.run([sys.executable, "-X", "utf8", os.path.abspath(__file__), *sys.argv[1:]]).returncode)
+        except KeyboardInterrupt:
+            sys.exit(130)
     sys.exit(main())
