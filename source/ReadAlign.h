@@ -217,6 +217,10 @@ class ReadAlign {
         void resetN();//resets the counters to 0
         void multMapSelect();
         int mapOneRead();
+        //mapOneRead steps (ReadAlign_mapOneRead.cpp)
+        void initReadTranscript();
+        void loadPreparedSeeds();
+        void searchSeeds();
         void mapOneReadSpliceGraph();
         uint64 maxMappableLength2strands(uint64 pieceStart, uint64 pieceLength, uint64 iDir, uint64 iSA1, uint64 iSA2, uint64& maxL, uint64 iFrag);
         void storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, uint64 indStartEnd[2], uint64 iFrag);

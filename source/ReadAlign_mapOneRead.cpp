@@ -34,7 +34,48 @@ int ReadAlign::mapOneRead() {
 
     resetN(); //reset aligns counters to 0
 
-    //reset/initialize a transcript
+    initReadTranscript();
+
+    if(preparedSeeds) {
+        loadPreparedSeeds();
+    } else {
+        searchSeeds();
+    }
+    #ifdef OFF_AFTER_SEEDING
+        #warning OFF_AFTER_SEEDING
+        return 0;
+    #endif
+
+    #ifdef STAR_CAPTURE_SEEDS
+    seedTrace::finalSeeds(nP,PC);
+    #endif
+
+    if (Lread<P.alignFilter.matchMin) {//read is too short (trimmed too much?)
+        mapMarker=MARKER_READ_TOO_SHORT;
+        trBest->rLength=0; //min good piece length
+        nW=0;
+    } else if (Nsplit==0) {//no good pieces
+        mapMarker=MARKER_NO_GOOD_PIECES;
+        trBest->rLength=splitR[1][0]; //min good piece length
+        nW=0;
+    } else if (Nsplit>0 && nA==0) {
+        mapMarker=MARKER_ALL_PIECES_EXCEED_seedMultimapNmax;
+        trBest->rLength=seedStats.multNminL;
+        nW=0;
+    } else if (Nsplit>0 && nA>0) {//otherwise there are no good pieces, or all pieces map too many times: read cannot be mapped
+//         qsort((void*) PC, nP, sizeof(uint64)*PC_SIZE, funCompareUint2);//sort PC by rStart and length
+        auto spStart=std::chrono::steady_clock::now();
+        stitchPieces(Read1, Lread);
+        alignPhaseSeconds[9]+=std::chrono::duration<double>(std::chrono::steady_clock::now()-spStart).count();
+    };
+
+    preparedHits=nullptr;
+    return 0;
+};
+
+//reset/initialize a transcript
+void ReadAlign::initReadTranscript()
+{
     trInit->reset();
     trInit->Chr=0;    trInit->Str=0; trInit->roStr=0;    trInit->cStart=0;     trInit->gLength=0; //to generate nice output of 0 for non-mapped reads
     trInit->iRead=iRead;
@@ -47,28 +88,35 @@ int ReadAlign::mapOneRead() {
     trInit->readName=readName;
 
     trBest=trInit;
+};
 
-    if(preparedSeeds) {
-        const auto* seeds=std::exchange(preparedSeeds,nullptr);
-        if(const auto* summary=std::exchange(preparedSeedSummary,nullptr)) {
-            nP=summary->pieces;nA=summary->alignments;nUM[0]=summary->unique;nUM[1]=summary->multiple;
-            seedStats.uniqLmax=summary->uniqLmax;seedStats.uniqLmaxInd=summary->uniqLmaxInd;
-            seedStats.multLmax=summary->multLmax;seedStats.multLmaxN=summary->multLmaxN;
-            seedStats.multNmin=summary->multNmin;seedStats.multNminL=summary->multNminL;
-            seedStats.multNmax=summary->multNmax;seedStats.multNmaxL=summary->multNmaxL;
-            if(nP!=seeds->size() || nP>P.seed.perReadNmax) throw std::logic_error("invalid consolidated GPU seeds");
-            for(size_t i=0;i<seeds->size();++i) {
-                const auto& seed=(*seeds)[i];
-                PC[i][PC_rStart]=seed.direction==0 ? seed.start : seed.start+1-seed.match.length;
-                PC[i][PC_Length]=seed.match.length;PC[i][PC_Dir]=seed.direction;
-                PC[i][PC_Nrep]=seed.match.multiplicity;PC[i][PC_SAstart]=seed.match.lower;
-                PC[i][PC_SAend]=seed.match.upper;PC[i][PC_iFrag]=seed.fragment;
-            }
-        } else for(const auto& seed:*seeds) {
-            uint64 bounds[2]={seed.match.lower,seed.match.upper};
-            storeAligns(seed.direction,seed.start,seed.match.multiplicity,seed.match.length,bounds,seed.fragment);
+//seeds (and their summary) prepared by the batched/GPU seed search
+void ReadAlign::loadPreparedSeeds()
+{
+    const auto* seeds=std::exchange(preparedSeeds,nullptr);
+    if(const auto* summary=std::exchange(preparedSeedSummary,nullptr)) {
+        nP=summary->pieces;nA=summary->alignments;nUM[0]=summary->unique;nUM[1]=summary->multiple;
+        seedStats.uniqLmax=summary->uniqLmax;seedStats.uniqLmaxInd=summary->uniqLmaxInd;
+        seedStats.multLmax=summary->multLmax;seedStats.multLmaxN=summary->multLmaxN;
+        seedStats.multNmin=summary->multNmin;seedStats.multNminL=summary->multNminL;
+        seedStats.multNmax=summary->multNmax;seedStats.multNmaxL=summary->multNmaxL;
+        if(nP!=seeds->size() || nP>P.seed.perReadNmax) throw std::logic_error("invalid consolidated GPU seeds");
+        for(size_t i=0;i<seeds->size();++i) {
+            const auto& seed=(*seeds)[i];
+            PC[i][PC_rStart]=seed.direction==0 ? seed.start : seed.start+1-seed.match.length;
+            PC[i][PC_Length]=seed.match.length;PC[i][PC_Dir]=seed.direction;
+            PC[i][PC_Nrep]=seed.match.multiplicity;PC[i][PC_SAstart]=seed.match.lower;
+            PC[i][PC_SAend]=seed.match.upper;PC[i][PC_iFrag]=seed.fragment;
         }
-    } else {
+    } else for(const auto& seed:*seeds) {
+        uint64 bounds[2]={seed.match.lower,seed.match.upper};
+        storeAligns(seed.direction,seed.start,seed.match.multiplicity,seed.match.length,bounds,seed.fragment);
+    }
+};
+
+//CPU seed search: map all good pieces from several starts in both directions
+void ReadAlign::searchSeeds()
+{
     // Lread==0 (read fully clipped) leaves Nsplit==0 and skips the loop below; Lread-1 would
     // wrap there and overflow the double->uint64 conversion.
     uint64 searchStartLmax=P.seed.searchStartLmax; // 50
@@ -124,36 +172,4 @@ int ReadAlign::mapOneRead() {
             };//for (uint64 istart=0; istart<Nstart; istart++)
         };
     };
-
-    }
-    #ifdef OFF_AFTER_SEEDING
-        #warning OFF_AFTER_SEEDING
-        return 0;
-    #endif
-
-    #ifdef STAR_CAPTURE_SEEDS
-    seedTrace::finalSeeds(nP,PC);
-    #endif
-
-    if (Lread<P.alignFilter.matchMin) {//read is too short (trimmed too much?)
-        mapMarker=MARKER_READ_TOO_SHORT;
-        trBest->rLength=0; //min good piece length
-        nW=0;
-    } else if (Nsplit==0) {//no good pieces
-        mapMarker=MARKER_NO_GOOD_PIECES;
-        trBest->rLength=splitR[1][0]; //min good piece length
-        nW=0;
-    } else if (Nsplit>0 && nA==0) {
-        mapMarker=MARKER_ALL_PIECES_EXCEED_seedMultimapNmax;
-        trBest->rLength=seedStats.multNminL;
-        nW=0;
-    } else if (Nsplit>0 && nA>0) {//otherwise there are no good pieces, or all pieces map too many times: read cannot be mapped
-//         qsort((void*) PC, nP, sizeof(uint64)*PC_SIZE, funCompareUint2);//sort PC by rStart and length
-        auto spStart=std::chrono::steady_clock::now();
-        stitchPieces(Read1, Lread);
-        alignPhaseSeconds[9]+=std::chrono::duration<double>(std::chrono::steady_clock::now()-spStart).count();
-    };
-
-    preparedHits=nullptr;
-    return 0;
 };
