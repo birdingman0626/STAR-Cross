@@ -4,6 +4,7 @@
 #include "BAMbinSortUnmapped.h"
 #include "ErrorWarning.h"
 #include "bam_cat.h"
+#include "uninitArray.h"
 using namespace std;
 void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genome, Solo &solo) {
     if (P.outBAMcoord) {//sort BAM if needed
@@ -79,7 +80,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
             };
 
             //concatenate all BAM files, using bam_cat
-            char **bamBinNames = new char* [nBins];
+            auto bamBinNames=makeUninitArray<char*>(nBins);
             vector <string> bamBinNamesV;
             for (uint32 ibin=0; ibin<nBins; ibin++) {
 
@@ -92,8 +93,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
             for (uint32 ibin=0; ibin<bamBinNamesV.size(); ibin++) {
                     bamBinNames[ibin] = (char*) bamBinNamesV.at(ibin).c_str();
             };
-            bam_cat(bamBinNamesV.size(), bamBinNames, 0, P.outBAMfileCoordName.c_str());
-            delete[] bamBinNames; // fix: memory leak
+            bam_cat(bamBinNamesV.size(), bamBinNames.get(), 0, P.outBAMfileCoordName.c_str());
         };
     };    
 };

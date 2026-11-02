@@ -5,13 +5,16 @@
 #include "unaligned.h"
 #include "bamEndian.h"
 #include "SequenceFuns.h"
+#include "uninitArray.h"
 using namespace std;
 void BAMbinSortByCoordinate(uint32 iBin, uint64 binN, uint64 binS, uint64 nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
 
     if (binS==0) return; //nothing to do for empty bins
     //allocate arrays
-    char *bamIn=new char[binS+1];
-    uint64 *startPos=new uint64[binN*3];
+    auto bamInStorage=makeUninitArray<char>(binS+1);
+    auto startPosStorage=makeUninitArray<uint64>(binN*3);
+    char *bamIn=bamInStorage.get();
+    uint64 *startPos=startPosStorage.get();
 
     uint64 bamInBytes=0;
     //load all aligns
@@ -79,7 +82,4 @@ void BAMbinSortByCoordinate(uint32 iBin, uint64 binN, uint64 binS, uint64 nThrea
 
     bgzf_flush(bgzfBin);
     bgzf_close(bgzfBin);
-    //release memory
-    delete [] bamIn;
-    delete [] startPos;
 };

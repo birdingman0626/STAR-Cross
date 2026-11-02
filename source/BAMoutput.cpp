@@ -13,6 +13,7 @@
 #include "ThreadControl.h"
 #include "streamFuns.h"
 #include "ErrorWarning.h"
+#include "uninitArray.h"
 using namespace std;
 void BAMoutput::checkStream(uint32 bin) {
     if (!*binStream[bin])
@@ -34,16 +35,16 @@ BAMoutput::BAMoutput (int iChunk, string tmpDir, Parameters &Pin) : P(Pin){//all
     nBins=P.outBAMcoordNbins;
     binSize=P.chunkOutBAMsizeBytes/nBins;
     bamArraySize=binSize*nBins;
-    bamArray.reset(new char [bamArraySize]);
+    bamArray=makeUninitArray<char>(bamArraySize);
 
     bamDir=tmpDir+to_string((uint64) iChunk);//local directory for this thread (iChunk)
 
     mkdir(bamDir.c_str(),P.runDirPerm);
-    binStart.reset(new char* [nBins]);
-    binBytes.reset(new uint64 [nBins]);
+    binStart=makeUninitArray<char*>(nBins);
+    binBytes=makeUninitArray<uint64>(nBins);
     binStream.resize(nBins);
-    binTotalN.reset(new uint64 [nBins]);
-    binTotalBytes.reset(new uint64 [nBins]);
+    binTotalN=makeUninitArray<uint64>(nBins);
+    binTotalBytes=makeUninitArray<uint64>(nBins);
     for (uint64 ii=0;ii<nBins;ii++) {
         binStart[ii]=bamArray.get()+bamArraySize/nBins*ii;
         binBytes[ii]=0;
@@ -59,7 +60,7 @@ BAMoutput::BAMoutput (int iChunk, string tmpDir, Parameters &Pin) : P(Pin){//all
 BAMoutput::BAMoutput (BGZF *bgzfBAMin, Parameters &Pin) : P(Pin){//allocate BAM array with one bin, streamed directly into bgzf file
 
     bamArraySize=P.chunkOutBAMsizeBytes;
-    bamArray.reset(new char [bamArraySize]);
+    bamArray=makeUninitArray<char>(bamArraySize);
     binBytes1=0;
     bgzfBAM=bgzfBAMin;
     //not used
@@ -151,7 +152,8 @@ void BAMoutput::coordBins() {//define genomic starts for bins
     if (P.runThreadN>1) pthread_mutex_lock(&g_threadChunks.mutexBAMsortBins);
     if (P.outBAMsortingBinStart[0]!=0) {//it's set to 0 only after the bin sizes are determined
         //extract coordinates and sort
-        uint64 *startPos = new uint64 [binTotalN[0]+1];//array of aligns start positions
+        auto startPosStorage=makeUninitArray<uint64>(binTotalN[0]+1);//array of aligns start positions
+        uint64 *startPos=startPosStorage.get();
         for (uint64 ib=0,ia=0;ia<binTotalN[0];ia++) {
             uint32 bamIn32[3];
             std::memcpy(bamIn32, binStart[0]+ib, sizeof(bamIn32));
@@ -171,14 +173,14 @@ void BAMoutput::coordBins() {//define genomic starts for bins
             P.inOut->logMain << ib <<"\t"<< (P.outBAMsortingBinStart[ib]>>32) << "\t" << ((P.outBAMsortingBinStart[ib]<<32)>>32) <<endl;
             //how to deal with equal boundaries???
         };
-        delete [] startPos;
     };
     //mutex here
     if (P.runThreadN>1) pthread_mutex_unlock(&g_threadChunks.mutexBAMsortBins);
 
     //re-allocate binStart
     uint64 binTotalNold=binTotalN[0];
-    char *binStartOld=new char [binSize1];
+    auto binStartOldStorage=makeUninitArray<char>(binSize1);
+    char *binStartOld=binStartOldStorage.get();
     memcpy(binStartOld,binStart[0],binBytes[0]);
 
     binBytes[0]=0;
@@ -192,7 +194,6 @@ void BAMoutput::coordBins() {//define genomic starts for bins
         coordOneAlign (binStartOld+ib, (uint64) (recordSize+sizeof(uint32)), loadUnaligned<uint64>(binStartOld+ib1) );
         ib=ib1+sizeof(uint64);//iRead at the end of the BAM record
     };
-    delete [] binStartOld;
     return;
 };
 

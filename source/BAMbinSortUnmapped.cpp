@@ -3,6 +3,7 @@
 #include "BAMfunctions.h"
 #include "unaligned.h"
 #include "bamEndian.h"
+#include "uninitArray.h"
 using namespace std;
 void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Parameters &P, Genome &genome, Solo &solo) {
 
@@ -28,19 +29,19 @@ void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Paramet
     vector<uint32> bamSize(bamInFile.size(),0);//record sizes
 
     //allocate arrays
-    char **bamIn=new char* [bamInFile.size()];
-    ifstream *bamInStream = new ifstream [bamInFile.size()];
+    vector<std::unique_ptr<char[]>> bamIn(bamInFile.size());
+    vector<ifstream> bamInStream(bamInFile.size());
 
     for (uint64 it=0; it<bamInFile.size(); it++) {//initialize
-        bamIn[it] = new char [BAMoutput_oneAlignMaxBytes];
+        bamIn[it] = makeUninitArray<char>(BAMoutput_oneAlignMaxBytes);
 
         bamInStream[it].open(bamInFile.at(it).c_str());//opean all files
 
-        bamInStream[it].read(bamIn[it],sizeof(int32));//read BAM record size
+        bamInStream[it].read(bamIn[it].get(),sizeof(int32));//read BAM record size
         if (bamInStream[it].good()) {
-            bamSize[it]=loadUnaligned<uint32>(bamIn[it])+sizeof(int32);//true record size +=4 (4 bytes for uint64-iRead)
-            bamInStream[it].read(bamIn[it]+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint64));//read the rest of the record, including last uint64 = iRead
-            uint64 iRead=loadUnaligned<uint64>(bamIn[it]+bamSize.at(it));
+            bamSize[it]=loadUnaligned<uint32>(bamIn[it].get())+sizeof(int32);//true record size +=4 (4 bytes for uint64-iRead)
+            bamInStream[it].read(bamIn[it].get()+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint64));//read the rest of the record, including last uint64 = iRead
+            uint64 iRead=loadUnaligned<uint64>(bamIn[it].get()+bamSize.at(it));
             iRead = iRead >> 32; //iRead is recorded in top 32bits
             startPos[iRead]=it;//startPos[iRead]=it : record the order of the files to output
         } else {//nothing to do here, file is empty, do not record it
@@ -55,7 +56,7 @@ void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Paramet
 
         while (true) {
             //add extra tags to the BAM record
-            char* bam0=bamIn[it];
+            char* bam0=bamIn[it].get();
             uint32 size0=bamSize.at(it);
             
             if (solo.pSolo.samAttrYes)
@@ -63,11 +64,11 @@ void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Paramet
 
             if (bamWriteNativeRecords(bgzfBin, bam0, size0) != size0)
                 exitWithError("EXITING: unmapped BAM output write error", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
-            bamInStream[it].read(bamIn[it],sizeof(int32));//read record size
+            bamInStream[it].read(bamIn[it].get(),sizeof(int32));//read record size
             if (bamInStream[it].good()) {
-                 bamSize[it]=loadUnaligned<uint32>(bamIn[it])+sizeof(int32);
-                 bamInStream[it].read(bamIn[it]+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint64));//read the rest of the record, including 
-                 uint64 iRead=loadUnaligned<uint64>(bamIn[it]+bamSize.at(it));
+                 bamSize[it]=loadUnaligned<uint32>(bamIn[it].get())+sizeof(int32);
+                 bamInStream[it].read(bamIn[it].get()+sizeof(int32),bamSize.at(it)-sizeof(int32)+sizeof(uint64));//read the rest of the record, including 
+                 uint64 iRead=loadUnaligned<uint64>(bamIn[it].get()+bamSize.at(it));
                  iRead = iRead >> 32; //iRead is recorded in top 32bits
                  if (iRead>startNext) {//this read from this chunk is > than a read from another chunk
                      startPos[iRead]=it;
@@ -87,8 +88,5 @@ void BAMbinSortUnmapped(uint32 iBin, uint64 nThreads, string dirBAMsort, Paramet
     for (uint64 it=0; it<bamInFile.size(); it++) {//destroy at the end
         bamInStream[it].close();
         remove(bamInFile.at(it).c_str());
-        delete [] bamIn[it];
     };
-    delete [] bamIn;
-    delete [] bamInStream;
 };

@@ -8,6 +8,7 @@
 #include SAMTOOLS_BGZF_H
 #include "ErrorWarning.h"
 #include "unaligned.h"
+#include "uninitArray.h"
 using namespace std;
 #define compareReturn(a,b) if(a>b) {return 1;} else if (a<b) {return -1;}
 
@@ -166,9 +167,9 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
     if (bamLengthMax==0) bamLengthMax=16000000000;
     uint64 grNmax=1000000;//max number of alignments
 
-    std::unique_ptr<char[]> bamRawStorage(new char[bamLengthMax]); // not zero-filled: up to --limitBAMsortRAM
+    auto bamRawStorage=makeUninitArray<char>(bamLengthMax); // not zero-filled: up to --limitBAMsortRAM
     char *bamRaw=bamRawStorage.get();
-    std::unique_ptr<uint64[]> aDStorage(new uint64[grNmax*2]);
+    auto aDStorage=makeUninitArray<uint64>(grNmax*2);
     uint64 *aD=aDStorage.get();
 
     uint64 bamLength=0;
@@ -283,7 +284,7 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
         if (nMult==1) {//record this alignment in the current group, unique mappers only. Multi-mappers will not be considered for collapsing, and will remain marked as duplicates
             if (grN>=grNmax) {//reallocate
                 grNmax=grN*2;
-                std::unique_ptr<uint64[]> aD1(new uint64[grNmax]);
+                auto aD1=makeUninitArray<uint64>(grNmax);
                 memcpy((char*) aD1.get(), (char*) aD, grN*sizeof(uint64));
                 aDStorage=std::move(aD1);
                 aD=aDStorage.get();
