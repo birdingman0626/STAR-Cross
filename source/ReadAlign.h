@@ -105,7 +105,7 @@ class ReadAlign {
 	//input,output
         char** outBAMoneAlign;
         uint64* outBAMoneAlignNbytes;
-        int alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, const std::vector<int> &outSAMattrOrder, char** outBAMarrayOut, uint64* outBAMarrayN);
+        int alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, const std::vector<int> &outSAMattrOrder, char** outBAMarrayOut, uint64* outBAMarrayN, bool transcriptomic=false);
 
         // Two-phase device stitching (see StitchBatch.h). Collect: stitchPieces
         // records the read's windows and alignLoadedRead stops after mapping.

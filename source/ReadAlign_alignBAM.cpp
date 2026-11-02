@@ -58,6 +58,7 @@ struct ReadAlign::BamRecordContext {
     uint64 leftMate; //the mate (0 or 1) which is on the left
     uint64 tLen, leftMostMate;
     int32 gxgnGene; //gene to output in GX/GN
+    bool transcriptomic; //Aligned.toTranscriptome record: Chr is a transcript, coordinates are in the transcript
 };
 
 // One mate's record, built step by step.
@@ -74,7 +75,7 @@ struct ReadAlign::BamMateRecord {
     vector<char> SJmotif;
 };
 
-int ReadAlign::alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int alignType, bool *mateMap, const vector<int> &outSAMattrOrder, char** outBAMarrayOut, uint64* outBAMarrayN) {
+int ReadAlign::alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int alignType, bool *mateMap, const vector<int> &outSAMattrOrder, char** outBAMarrayOut, uint64* outBAMarrayN, bool transcriptomic) {
     //return: number of lines (mates)
 
     //alignType>=0: unmapped reads
@@ -91,7 +92,7 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, u
 
     BamRecordContext c{trOut, nTrOut, iTrOut, trChrStart, mateChr, mateStart, mateStrand, alignType, mateMap,
                        P.readNmates==2, //not readNends: this is about alignments
-                       1, 0, 0, 0, 0, -1};
+                       1, 0, 0, 0, 0, -1, transcriptomic};
 
     //for SAM output need to split mates
     if (alignType<0) {//mapped reads: SAM
@@ -381,11 +382,13 @@ bool ReadAlign::bamAlignAttribute(int attr, BamRecordContext &c, BamMateRecord &
         case ATTR_rB:
             {
                 vector <int32> rb;
+                //transcriptomic records: Chr indexes transcripts, not genOut chromosomes; use transcript coordinates like POS
+                uint64 rbStart = c.transcriptomic ? c.trChrStart : genOut.chrStart[trOut.Chr];
                 for (uint64 ie=m.iEx1;ie<=m.iEx2;ie++) {
                     rb.push_back( (int32) trOut.exons[ie][EX_R]+1 );
                     rb.push_back( (int32) trOut.exons[ie][EX_R]+trOut.exons[ie][EX_L]);
-                    rb.push_back( (int32) (trOut.exons[ie][EX_G]-genOut.chrStart[trOut.Chr]+1) );
-                    rb.push_back( (int32) (trOut.exons[ie][EX_G]-genOut.chrStart[trOut.Chr]+trOut.exons[ie][EX_L]) );
+                    rb.push_back( (int32) (trOut.exons[ie][EX_G]-rbStart+1) );
+                    rb.push_back( (int32) (trOut.exons[ie][EX_G]-rbStart+trOut.exons[ie][EX_L]) );
                 };
                 n+=bamAttrArrayWrite(rb,"rB",a+n);
             };
