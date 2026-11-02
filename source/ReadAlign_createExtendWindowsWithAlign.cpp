@@ -10,7 +10,7 @@ int ReadAlign::createExtendWindowsWithAlign(uint64 a1, uint64 aStr) {
     uint64 aBin = (a1 >> P.win.binNbits); //align's bin
     uint64 iBinLeft=aBin, iBinRight=aBin;
     auto &wB=winBin[aStr];
-    uint64 iBin=-1, iWin=-1, iWinRight=-1;
+    uint64 iBin=(uint64) -1, iWin=(uint64) -1, iWinRight=(uint64) -1;
 
 
     if (wB[aBin]==uintWinBinMax) {//proceed if there is no window at this bin

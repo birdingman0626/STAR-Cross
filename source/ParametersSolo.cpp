@@ -140,7 +140,7 @@ void ParametersSolo::initCBtype()
 
 void ParametersSolo::initBarcodeRead()
 {//which input read carries the barcode (FASTQ) or which SAM tags (SAM input)
-    barcodeRead=-1; 
+    barcodeRead=(uint32) -1; 
     barcodeReadSeparate=false;
     
     if (pP->readFiles.typeN != 10) {//input from FASTQ

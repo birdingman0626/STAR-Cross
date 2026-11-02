@@ -192,7 +192,7 @@ template <class argType>
 inline uint32 binarySearch1(argType x, argType *X, uint32 N) {
     //binary search in the sorted list
     //check the boundaries first
-    if (x>X[N-1] || x<X[0]) return -1;
+    if (x>X[N-1] || x<X[0]) return (uint32) -1;
 
     uint32 i1=0, i2=N-1, i3=N/2;
     while (i2>i1+1) {//binary search

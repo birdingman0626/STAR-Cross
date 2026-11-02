@@ -25,7 +25,7 @@ SoloFeature::SoloFeature(Parameters &Pin, ReadAlignChunk **RAchunk, Transcriptom
             featuresNumber=P.sjAll[0].size();
             break;
         default:
-            featuresNumber = -1; //undefined
+            featuresNumber = (uint32) -1; //undefined
     };    
 };
 

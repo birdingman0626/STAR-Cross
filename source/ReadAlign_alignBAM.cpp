@@ -521,8 +521,8 @@ uint64 ReadAlign::bamWriteRecord(const BamRecordContext &c, BamMateRecord &m, ui
         pBAM[6]=c.mateChr;
         pBAM[7]=c.mateStart;
     } else {
-        pBAM[6]=-1;
-        pBAM[7]=-1;
+        pBAM[6]=(uint32) -1;
+        pBAM[7]=(uint32) -1;
     };
     //8: tlen Template length (= TLEN)
     if (c.nMates>1) {

@@ -224,7 +224,7 @@ void ReadAlign::extendWindowFlanks()
         };
         nWA[iWin]=0; //initialize nWA
         WALrec[iWin]=0; //initialize rec-length
-        WlastAnchor[iWin]=-1;
+        WlastAnchor[iWin]=(uint64) -1;
     };
 }
 
@@ -248,7 +248,7 @@ void ReadAlign::assignAlignsToWindows(uint64 LreadArg)
                     assignAlignToWindow(a1A, aLengthA, h.aStr, aNrep, aFrag, h.aRstart+aLengthD, aAnchor, isj1);
                 };//otherwise the align does not cross the junction and is skipped
             } else {//this is a normal genomic read
-                assignAlignToWindow(h.a1, aLength, h.aStr, aNrep, aFrag, h.aRstart, aAnchor, -1);
+                assignAlignToWindow(h.a1, aLength, h.aStr, aNrep, aFrag, h.aRstart, aAnchor, (uint64) -1);
             };
         };
     };

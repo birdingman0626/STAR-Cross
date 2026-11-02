@@ -88,7 +88,7 @@ void Chain::liftOverGTF(string gtfFileName, string outFileName)
             line1str >> c1;
             int32 i1 = binarySearch1a <uint64> (c1, ch1->bStart1.data(), ch1->bN);
 
-            c2[ii]=-1;//-1 means impossible to lift this end
+            c2[ii]=(uint64) -1;//-1 means impossible to lift this end
 
             if (i1>=0 && c1 < ch1->bStart1[i1]+ch1->bLen[i1])
             {//c1 is inside the block, simple transformation

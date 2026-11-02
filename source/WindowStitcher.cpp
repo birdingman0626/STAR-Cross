@@ -35,7 +35,7 @@ bool WindowStitcher::scoreSeedChains(uint64 iW, bool *WAexcl, char *R)
     for (uint64 iS1=0;iS1<nWA[iW];iS1++) {
         scoreSeedBest[iS1]=0;
         scoreSeedBestMM[iS1]=0;
-        scoreSeedBestInd[iS1]=-1;
+        scoreSeedBestInd[iS1]=(uint64) -1;
         if (WAexcl!=NULL && WAexcl[iS1]) continue; //do not include this seed
         intScore score2=0;
         for (uint64 iS2=0;iS2<=iS1;iS2++) {

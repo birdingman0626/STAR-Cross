@@ -200,7 +200,7 @@ void genomeSAindexChunk(char * G, PackedArray & SA, Parameters & P, PackedArray 
     uint64* ind0=ind0Storage.get();
 
     for (uint64 ii=0; ii<mapGen.pGe.gSAindexNbases; ii++) {
-        ind0[ii]=-1;//this is needed in case "AAA...AAA",i.e. indPref=0 is not present in the genome for some lengths
+        ind0[ii]=(uint64) -1;//this is needed in case "AAA...AAA",i.e. indPref=0 is not present in the genome for some lengths
     };
 
     if (parallelEvents) {

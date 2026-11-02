@@ -53,7 +53,7 @@ void ReadAlign::chimericDetectionOldOutput() {
                 outputTranscriptSAM(chimOld.tr[iTr], chimOld.N, iTr, mateChr, mateStart, mateStrand, -1, NULL, &chunkOutChimSAM);
             } else
             {
-                outputTranscriptSAM(chimOld.tr[iTr], chimOld.N, iTr, -1, -1, -1, -1, NULL, &chunkOutChimSAM);
+                outputTranscriptSAM(chimOld.tr[iTr], chimOld.N, iTr, (uint64) -1, (uint64) -1, -1, -1, NULL, &chunkOutChimSAM);
             };
         };
     };

@@ -37,7 +37,7 @@ void ChimericAlign::chimericBAMoutput(Transcript *al1, Transcript *al2, ReadAlig
             mateStrand=(uint8_t) (trChim[1-itr]->Str!=trChim[1-itr]->exons[0][EX_iFrag]);
             alignType=-10;
         } else {//spanning chimeric alignment, could be PE or SE
-            mateChr=-1;mateStart=-1;mateStrand=0;//no need fot mate info unless this is the supplementary alignment
+            mateChr=(uint64) -1;mateStart=(uint64) -1;mateStrand=0;//no need fot mate info unless this is the supplementary alignment
             if (chimRepresent==(int)itr) {
                 alignType=-10; //this is representative part of chimeric alignment, record is as normal; if encompassing chimeric junction, both are recorded as normal
                 bamIrepr=bamN;

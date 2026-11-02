@@ -115,7 +115,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
         metadataStorage->geneStrand=makeUninitArray<uint8>(nGe); geneFull.str=metadataStorage->geneStrand.get();
 
         for (uint64 ig=0;ig<nGe;ig++) {
-            geneFull.s[ig]=-1;//largest uint64
+            geneFull.s[ig]=(uint64) -1;//largest uint64
             geneFull.e[ig]=0;
         };
 

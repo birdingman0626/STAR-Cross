@@ -67,7 +67,7 @@ void SoloFeature::collapseUMIperCB(uint32 iCB, vector<uint32> &umiArray, vector<
 
 void SoloFeature::groupReadsByGene(uint32 *rGU, uint32 rN, vector<uint32> &gID, vector<uint32> &gReadS, uint32 &nGenes, uint32 &nGenesMult)
 {// gene boundaries in the gene-sorted reads: gReadS[i] is the start of gene gID[i]; unique genes come first
-    uint32 gid1 = -1;//current gID
+    uint32 gid1 = (uint32) -1;//current gID
     nGenes = 0;
     nGenesMult = 0;
     for (uint32 iR=0; iR<rN*rguStride; iR+=rguStride) {
@@ -136,7 +136,7 @@ void SoloFeature::collapseGeneUMIs(uint32 iCB, uint32 iG, uint32 *rGU, const vec
 
     //exact collapse
     uint32 iR1=-umiArrayStride; //number of distinct UMIs for this gene
-    uint32 u1=-1;
+    uint32 u1=(uint32) -1;
     for (uint32 iR=rguU; iR<gReadS[iG+1]-gReadS[iG]; iR+=rguStride) {//count and collapse identical UMIs
         if (pSolo.umiFiltering.MultiGeneUMI && umiGeneMapCount[rGU1[iR]][gID[iG]]==0) {//multigene UMI is not recorded
             if ( pSolo.umiDedup.typeMain != UMIdedup::typeI::NoDedup ) //for NoDedup, the UMI filtering is not done
@@ -235,13 +235,13 @@ void SoloFeature::countMultiGeneUMI_CR(uint32 iCB, uint32 nGenes, uint32 *rGU, c
         geneUmiHash.resize(nGenes);
 
     for (const auto &iu: umiGeneMapCount) {//loop over UMIs for all genes
-        uint32 maxu=0, maxg=-1;
+        uint32 maxu=0, maxg=(uint32) -1;
         for (const auto &ig : iu.second) {
             if (ig.second>maxu) {
                 maxu=ig.second;
                 maxg=ig.first;
             } else if (ig.second==maxu) {
-                maxg=-1;
+                maxg=(uint32) -1;
             };
         };
 
@@ -250,7 +250,7 @@ void SoloFeature::countMultiGeneUMI_CR(uint32 iCB, uint32 nGenes, uint32 *rGU, c
 
         for (const auto &ig : umiGeneMapCount0[iu.first]) {//check that this umi/gene had also top count for uncorrected umis
             if (ig.second>umiGeneMapCount0[iu.first][maxg]) {
-                maxg=-1;
+                maxg=(uint32) -1;
                 break;
             };
         };

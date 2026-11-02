@@ -53,7 +53,7 @@ uint64 findInsertionPoints(PackedArray &SA, char *seq1[2], uint64 *indArray, uin
 
         if (seq1[0][ii]>3)
         {//no index for suffices starting with N
-            indArray[ii*2]=-1;
+            indArray[ii*2]=(uint64) -1;
         } else
         {
             indArray[ii*2] =  suffixArraySearch1(mapGen, seq1, ii, 10000, nG, (ii<nG1 ? true:false), 0, SA.length-1, 0) ;
@@ -159,8 +159,8 @@ uint64 insertSeqSA(PackedArray & SA, PackedArray & SA1, PackedArray & SAi, char 
     time ( &rawtime );
     P.inOut->logMain  << timeMonthDayTime(rawtime) << "   Finished sorting SA indices"<<endl;
 
-    indArray[2*nInd]=-999; //mark the last junction
-    indArray[2*nInd+1]=-999; //mark the last junction
+    indArray[2*nInd]=(uint64) -999; //mark the last junction
+    indArray[2*nInd+1]=(uint64) -999; //mark the last junction
 
     SA1.defineBits(SA.wordLength,SA.length+nInd);
     mergeInsertions(SA, SA1, indArray, nInd, nG, nG1, nG2, N2bit);

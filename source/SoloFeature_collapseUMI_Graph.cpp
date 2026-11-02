@@ -82,7 +82,7 @@ static inline void process1MMpair(uint32 *umiArr, uint32 iu, uint32 iuu,
                                    uint32 &nU1, uint32 &nU2, uint32 &nC,
                                    vector<array<uint32,2>> &vC)
 {
-    const uint32 bitTop=1<<31;
+    const uint32 bitTop=1u<<31;
     const uint32 bitTopMask=~bitTop;
 
     //graph coloring

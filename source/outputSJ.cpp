@@ -92,7 +92,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
             oneSJ.junctionPointer(allSJ.data,ii);
 
             sjFilter[ii]=false;
-            uint64 x1=0, x2=-1;
+            uint64 x1=0, x2=(uint64) -1;
             if (ii>0)         x1=loadUnaligned<uint64>(allSJ.data+(ii-1)*oneSJ.dataSize); //previous junction donor
             if (ii+1<allSJ.N) x2=loadUnaligned<uint64>(allSJ.data+(ii+1)*oneSJ.dataSize); //next junction donor
             uint64 minDist=min(*oneSJ.start-x1, x2-*oneSJ.start);
@@ -112,7 +112,7 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
             if (sjA[ii*3+2]==SJ_MOTIF_SIZE+1) {//no filtering for annotated junctions
                 sjFilter[sjA[ii*3+1]]=true;
             } else {
-                uint64 x1=0, x2=-1;
+                uint64 x1=0, x2=(uint64) -1;
                 if (ii>0)         x1=sjA[ii*3-3]; //previous junction donor
                 if (ii+1<allSJ.N) x2=sjA[ii*3+3]; //next junction donor
                 uint64 minDist=min(sjA[ii*3]-x1, x2-sjA[ii*3]);

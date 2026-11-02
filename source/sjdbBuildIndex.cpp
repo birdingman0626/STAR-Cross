@@ -171,7 +171,7 @@ void findInsertionPoints(SjdbInsertion &s, const char *G1c, uint64 nIndicesSJ1)
             uint64 ind1=2*(isj*nIndicesSJ1+istart);
             if (sjdbInd>=0 || seq1[0][istart]>3)
             {//no index for already included junctions, or suffices starting with N
-                s.indArray[ind1]=-1;
+                s.indArray[ind1]=(uint64) -1;
             } else
             {
                 //-1LLU results in suffixes for the new junctions to be always included in SA *after* the suffixes of the old junctions
@@ -421,8 +421,8 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     P.inOut->logMain  << timeMonthDayTime(rawtime) << "   Finished sorting SA indicesL nInd="<<s.nInd
                        << " strategy=" << (parallelSort ? "parallel-bucket" : "qsort") <<endl;
 
-    s.indArray[2*s.nInd]=-999; //mark the last junction
-    s.indArray[2*s.nInd+1]=-999; //mark the last junction
+    s.indArray[2*s.nInd]=(uint64) -999; //mark the last junction
+    s.indArray[2*s.nInd+1]=(uint64) -999; //mark the last junction
 
     mapGen.nGenome=s.genomeEnd()+nGsj;
     mapGen.nSA+=s.nInd;
