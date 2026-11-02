@@ -410,5 +410,13 @@ private:
     void validateSjdbInsert();
     void validateReadAndAlignOptions();
     void validateBuffersAndOutSJ();
+    // inputParameters_parseSources stages, in call order
+    void loadDefaultParameters();
+    std::string scanInitialCommandLine(int argInN, char* argIn[]);
+    void openMainLog();
+    void selectStdOutStream();
+    void logInitialCommandLine();
+    void readParametersFiles();
+    void logFinalParameters(const char *executable);
 };
 #endif  // Parameters.h

@@ -13,8 +13,31 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
     //hard-coded parameters
     runRestart.type=0;
 
-///////// Default parameters
+    loadDefaultParameters();
 
+    const string commandLineFile=scanInitialCommandLine(argInN, argIn);
+
+    openMainLog();
+    selectStdOutStream();
+    logInitialCommandLine();
+
+    readParametersFiles();
+
+///////// Command Line Final
+
+    if (argInN>1) {//scan all parameters from command line and override previous values
+        inOut->logMain << "###### All USER parameters from Command Line:\n" <<flush;
+        istringstream parStreamCommandLine(commandLineFile);
+        scanAllLines(parStreamCommandLine, 2, -1);
+    };
+
+    inOut->logMain << "##### Finished reading parameters from all sources\n\n" << flush;
+
+    logFinalParameters(argIn[0]);
+}
+
+///////// Default parameters
+void Parameters::loadDefaultParameters() {
     #include "parametersDefault.xxd"
     string parString( (const char*) parametersDefault,parametersDefault_len);
     stringstream parStream (parString);
@@ -27,9 +50,12 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
             exitWithError(errOut.str(), std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
         };
     };
+}
 
 ///////// Initial parameters from Command Line
-
+// Builds commandLine and returns the command line as parameter-file text; scans only the
+// initial command-line parameters (those needed before the log is open).
+string Parameters::scanInitialCommandLine(int argInN, char* argIn[]) {
     commandLine="";
     string commandLineFile="";
 
@@ -75,7 +101,10 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
         istringstream parStreamCommandLine(commandLineFile);
         scanAllLines(parStreamCommandLine, 1, 2); //read only initial Command Line parameters
     };
+    return commandLineFile;
+}
 
+void Parameters::openMainLog() {
 	createDirectory(outFileNamePrefix, S_IRWXU, "--outFileNamePrefix", *this); //TODO: runDirPerm is hard-coded now. Need to load it from command-line
 
     outLogFileName=outFileNamePrefix + "Log.out";
@@ -93,8 +122,10 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
     #ifdef COMPILE_FOR_LONG_READS
            inOut->logMain << "Compiled for LONG reads" << "\n";
     #endif
+}
 
-    //define what goes to cout
+//define what goes to cout
+void Parameters::selectStdOutStream() {
     if (outStd=="Log") {
         inOut->logStdOut=& std::cout;
     } else if (outStd=="SAM" || outStd=="BAM_Unsorted" || outStd=="BAM_SortedByCoordinate" || outStd=="BAM_Quant") {
@@ -106,16 +137,9 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
         errOut <<"SOLUTION: provide a valid value fot outStd: Log / SAM / BAM_Unsorted / BAM_SortedByCoordinate";
         exitWithError(errOut.str(),std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     };
+}
 
-    /*
-    inOut->logMain << "##### DEFAULT parameters:\n" <<flush;
-    for (uint64 ii=0; ii<parArray.size(); ii++) {
-        if (parArray[ii]->inputLevel==0) {
-            inOut->logMain << setw(PAR_NAME_PRINT_WIDTH) << parArray[ii]->nameString <<"    "<< *(parArray[ii]) << endl;
-        };
-    };
-    */
-
+void Parameters::logInitialCommandLine() {
     inOut->logMain <<"##### Command Line:\n"<<commandLine <<endl ;
 
     inOut->logMain << "##### Initial USER parameters from Command Line:\n";
@@ -124,9 +148,10 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
             inOut->logMain << setw(PAR_NAME_PRINT_WIDTH) << parArray[ii]->nameString <<"    "<< *(parArray[ii]) << endl;
         };
     };
+}
 
 ///////// Parameters files
-
+void Parameters::readParametersFiles() {
     if (parametersFiles.at(0) != "-") {//read parameters from a user-defined file
         for (uint64 ii=0; ii<parametersFiles.size(); ii++) {
             parameterInputName.push_back(parametersFiles.at(ii));
@@ -142,21 +167,14 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
             };
         };
     };
+}
 
-///////// Command Line Final
-
-    if (argInN>1) {//scan all parameters from command line and override previous values
-        inOut->logMain << "###### All USER parameters from Command Line:\n" <<flush;
-        istringstream parStreamCommandLine(commandLineFile);
-        scanAllLines(parStreamCommandLine, 2, -1);
-    };
-
-    inOut->logMain << "##### Finished reading parameters from all sources\n\n" << flush;
-
+// log the user re-defined parameters and record the effective command line in commandLineFull
+void Parameters::logFinalParameters(const char *executable) {
     inOut->logMain << "##### Final user re-defined parameters-----------------:\n" << flush;
 
     ostringstream clFull;
-    clFull << argIn[0];
+    clFull << executable;
     for (uint64 ii=0; ii<parArray.size(); ii++) {
         if (parArray[ii]->inputLevel>0) {
             inOut->logMain << setw(PAR_NAME_PRINT_WIDTH) << parArray[ii]->nameString <<"    "<< *(parArray[ii]) << endl;
@@ -168,14 +186,5 @@ void Parameters::inputParameters_parseSources(int argInN, char* argIn[]) {
     commandLineFull=clFull.str();
     inOut->logMain << "\n-------------------------------\n##### Final effective command line:\n" <<  clFull.str() << "\n";
 
-    /*
-    //     parOut.close();
-    inOut->logMain << "\n##### Final parameters after user input--------------------------------:\n" << flush;
-    //     parOut.open("Parameters.all.out");
-    for (uint64 ii=0; ii<parArray.size(); ii++) {
-        inOut->logMain << setw(PAR_NAME_PRINT_WIDTH) << parArray[ii]->nameString <<"    "<< *(parArray[ii]) << endl;
-    };
-    //     parOut.close();
-    */
     inOut->logMain << "----------------------------------------\n\n" << flush;
 }
