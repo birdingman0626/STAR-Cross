@@ -1,4 +1,5 @@
 """Self-tests for scripts/local_ci.py (no network, no PyYAML needed)."""
+import importlib.util
 import subprocess
 import shutil
 import sys
@@ -59,11 +60,14 @@ class Utf8ModeTests(unittest.TestCase):
         return subprocess.run([sys.executable, "-X", "utf8=0", *args], capture_output=True, text=True,
                               encoding="utf-8", errors="replace", env=env)
 
-    def test_runs_and_keeps_exit_code_with_utf8_mode_off(self):
+    @unittest.skipUnless(importlib.util.find_spec("yaml"), "--list loads the workflow, which needs PyYAML")
+    def test_runs_with_utf8_mode_off(self):
         hosts = str(Path(self.SCRIPT).with_name("local_ci_hosts.example.json"))
         out = self.run_py(self.SCRIPT, "--hosts", hosts, "--list")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("clang-asan-ubsan", out.stdout)
+
+    def test_keeps_exit_code_with_utf8_mode_off(self):
         bad = self.run_py(self.SCRIPT, "--no-such-option")
         self.assertEqual(bad.returncode, 2, bad.stderr)
 
