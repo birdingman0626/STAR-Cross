@@ -7,27 +7,33 @@
 using namespace std;
 int32 alignBlocksOverlapExons(Transcript &aG, uint16 exN1, uint32 *exSE1, uint64 trStart1, bool &sjConcord);
 
-void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat)
+namespace {
+
+struct GeneStrOverlapAlign {
+    uint32 g;
+    int32 ov;
+    uint32 ia;
+    uint32 exl;
+    bool str;
+    bool sjc;
+};
+
+typedef array<bool,6> OverlapTypes;
+struct GeneInfo1 {
+    uint32 g;
+    uint32 ia;
+    OverlapTypes ot; //overlap types, prioritized
+};
+const OverlapTypes otAS={false,true,false,true,false,true}; //which OverlapTypes is antisense, it will not be counted
+
+//overlap types of every alignment with every transcript that contains it
+vector<GeneInfo1> geneOverlaps(const Transcriptome &T, uint64 nA, Transcript **aAll, int32 strandType)
 {
-    struct GeneStrOverlapAlign {
-        uint32 g;
-        int32 ov;
-        uint32 ia;
-        uint32 exl;
-        bool str;
-        bool sjc;
-    };
-
-
-    typedef array<bool,6> OverlapTypes;
-    struct GeneInfo1 {
-        uint32 g;
-        uint32 ia;
-        OverlapTypes ot; //overlap types, prioritized
-    };
+    uint64 *trS=T.trS, *trE=T.trE, *trEmax=T.trEmax;
+    uint8 *trStr=T.trStr;
+    const uint32 nTr=T.nTr;
     vector<GeneInfo1> vGeneInfo1;
     vGeneInfo1.reserve(256); //TODO: check if this affects speed
-    OverlapTypes otAS={false,true,false,true,false,true}; //which OverlapTypes is antisense, it will not be counted
 
     /*//GeneFullClosest3p
     uint64 minDist3p=(uint64)-1;
@@ -69,14 +75,14 @@ void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandT
             */
 
             bool sjConcord;
-            int32 nOverlap = alignBlocksOverlapExons(aG, trExN[tr1], exSE+2*trExI[tr1], trS[tr1], sjConcord);
+            int32 nOverlap = alignBlocksOverlapExons(aG, T.trExN[tr1], T.exSE+2*T.trExI[tr1], trS[tr1], sjConcord);
             if ( nOverlap>=0 ) {
 
                 int exl=0;
                 for (uint64 iex=0; iex<aG.nExons;iex++)
                     exl += aG.exons[iex][EX_L];
 
-                vGeneInfo1.push_back({trGene[tr1], iag, {
+                vGeneInfo1.push_back({T.trGene[tr1], iag, {
                                                             str1 && nOverlap==exl && sjConcord,
                                                             !str1 && nOverlap==exl && sjConcord,
                                                             str1 && nOverlap>exl/2, 
@@ -87,7 +93,7 @@ void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandT
                                      });
 
                 /* matches Gene
-                vGeneInfo1.push_back({trGene[tr1], iag, {
+                vGeneInfo1.push_back({T.trGene[tr1], iag, {
                                                             str1 && nOverlap==exl && sjConcord, 
                                                             false, 
                                                             false, 
@@ -97,7 +103,7 @@ void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandT
                 */
 
                 /* matches GeneFull_ExonOverIntron
-                vGeneInfo1.push_back({trGene[tr1], iag, {
+                vGeneInfo1.push_back({T.trGene[tr1], iag, {
                                                             str1 && nOverlap==exl && sjConcord, 
                                                             false, 
                                                             false, 
@@ -120,6 +126,107 @@ void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandT
 
         } while (trEmax[tr1]>=aGend && tr1>0);
     };
+    return vGeneInfo1;
+};
+
+//prune geneFull_Ex50pAS according to priorities
+void pruneByOverlapPriority(const vector<GeneInfo1> &vGeneInfo1, uint64 nA, ReadAnnotFeature &annFeat)
+{
+    /*
+    bool bTranscr = false; //transcriptomic
+    bool bExonic = false; //sense, exonic: >=50% exonic
+    bool bExonicAS = false; 
+    bool bIntronic = false; //sense, intronic
+    for (auto &v1: vGeStrOvAl) {
+        if ( v1.str ) {//sense
+            if (v1.ov==v1.exl && v1.sjc) {
+                bTranscr = true;
+                break; //this is the highest priority
+            } else if (v1.ov>=v1.exl/2) {
+                bExonic = true;
+            } else {
+                bIntronic = true;
+            };
+        } else if (v1.ov>=v1.exl/2) {
+            bExonicAS = true;
+        };
+    };
+    
+
+    for (auto &v1: vGeneInfo1) {
+        if ( v1.tr ) {//sense
+            bTranscr = true;
+            break; //this is the highest priority
+        } else if ( v1.ex ) {
+            bExonic = true;
+        } else if ( v1.as ) {
+            bExonicAS = true;
+        } else if (v1.in) {
+            bIntronic = true;
+        };
+    };
+    if (bTranscr) {
+        for (auto &v1: vGeneInfo1)
+            if ( v1.tr )
+                annFeat.fSet.insert(v1.g);
+    } else if (bExonic) {
+        for (auto &v1: vGeneInfo1)
+            if ( v1.ex )
+                annFeat.fSet.insert(v1.g);
+    } else if (bIntronic) {
+        for (auto &v1: vGeneInfo1)
+            if ( v1.in )
+                annFeat.fSet.insert(v1.g);
+    };
+    */
+
+    OverlapTypes otFinal={};
+    for ( auto &v1: vGeneInfo1 ) {
+        for ( uint32 it=0; it<otFinal.size(); it++ ) {
+            if ( v1.ot[it] ) {
+                otFinal[it] = true;
+                break; //lower it are prioritized over higher
+            };
+       };
+    };
+
+    if (otFinal[0]) {
+        annFeat.ovType = ReadAnnotFeature::overlapTypes::exonic;
+    } else if (otFinal[1]) {
+        annFeat.ovType = ReadAnnotFeature::overlapTypes::exonicAS;
+    } else if (otFinal[2]) {
+        annFeat.ovType = ReadAnnotFeature::overlapTypes::exonic50p;
+    } else if (otFinal[3]) {
+        annFeat.ovType = ReadAnnotFeature::overlapTypes::exonic50pAS;
+    } else if (otFinal[4]) {
+        annFeat.ovType = ReadAnnotFeature::overlapTypes::intronic;
+    } else if (otFinal[5]) {
+        annFeat.ovType = ReadAnnotFeature::overlapTypes::intronicAS;
+    } else {
+        annFeat.ovType = ReadAnnotFeature::overlapTypes::intergenic; //intergenic. i.e. no overlap with genes
+    };
+
+    annFeat.fAlign.resize(nA);
+    for ( uint32 it=0; it<otFinal.size(); it++ ) {
+        if ( otFinal[it] ) {
+            if (otAS[it])
+                return; //AS reads are not counted TODO: add to stats
+            for ( auto &v1: vGeneInfo1 ) {
+                if ( v1.ot[it] ) {
+                    annFeat.fSet.insert(v1.g);
+                    annFeat.fAlign[v1.ia].insert(v1.g);
+                };
+            };
+            break;//first otFinal wins
+        };
+    };      
+};
+
+} // namespace
+
+void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat)
+{
+    const vector<GeneInfo1> vGeneInfo1=geneOverlaps(*this, nA, aAll, strandType);
 
     /*
     {//GeneFullClosest3p
@@ -134,96 +241,7 @@ void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandT
     };
     */
 
-    {//prune geneFull_Ex50pAS according to priorities
-        /*
-        bool bTranscr = false; //transcriptomic
-        bool bExonic = false; //sense, exonic: >=50% exonic
-        bool bExonicAS = false; 
-        bool bIntronic = false; //sense, intronic
-        for (auto &v1: vGeStrOvAl) {
-            if ( v1.str ) {//sense
-                if (v1.ov==v1.exl && v1.sjc) {
-                    bTranscr = true;
-                    break; //this is the highest priority
-                } else if (v1.ov>=v1.exl/2) {
-                    bExonic = true;
-                } else {
-                    bIntronic = true;
-                };
-            } else if (v1.ov>=v1.exl/2) {
-                bExonicAS = true;
-            };
-        };
-        
-
-        for (auto &v1: vGeneInfo1) {
-            if ( v1.tr ) {//sense
-                bTranscr = true;
-                break; //this is the highest priority
-            } else if ( v1.ex ) {
-                bExonic = true;
-            } else if ( v1.as ) {
-                bExonicAS = true;
-            } else if (v1.in) {
-                bIntronic = true;
-            };
-        };
-        if (bTranscr) {
-            for (auto &v1: vGeneInfo1)
-                if ( v1.tr )
-                    annFeat.fSet.insert(v1.g);
-        } else if (bExonic) {
-            for (auto &v1: vGeneInfo1)
-                if ( v1.ex )
-                    annFeat.fSet.insert(v1.g);
-        } else if (bIntronic) {
-            for (auto &v1: vGeneInfo1)
-                if ( v1.in )
-                    annFeat.fSet.insert(v1.g);
-        };
-        */
-
-        OverlapTypes otFinal={};
-        for ( auto &v1: vGeneInfo1 ) {
-            for ( uint32 it=0; it<otFinal.size(); it++ ) {
-                if ( v1.ot[it] ) {
-                    otFinal[it] = true;
-                    break; //lower it are prioritized over higher
-                };
-           };
-        };
-
-        if (otFinal[0]) {
-            annFeat.ovType = ReadAnnotFeature::overlapTypes::exonic;
-        } else if (otFinal[1]) {
-            annFeat.ovType = ReadAnnotFeature::overlapTypes::exonicAS;
-        } else if (otFinal[2]) {
-            annFeat.ovType = ReadAnnotFeature::overlapTypes::exonic50p;
-        } else if (otFinal[3]) {
-            annFeat.ovType = ReadAnnotFeature::overlapTypes::exonic50pAS;
-        } else if (otFinal[4]) {
-            annFeat.ovType = ReadAnnotFeature::overlapTypes::intronic;
-        } else if (otFinal[5]) {
-            annFeat.ovType = ReadAnnotFeature::overlapTypes::intronicAS;
-        } else {
-            annFeat.ovType = ReadAnnotFeature::overlapTypes::intergenic; //intergenic. i.e. no overlap with genes
-        };
-
-        annFeat.fAlign.resize(nA);
-        for ( uint32 it=0; it<otFinal.size(); it++ ) {
-            if ( otFinal[it] ) {
-                if (otAS[it])
-                    return; //AS reads are not counted TODO: add to stats
-                for ( auto &v1: vGeneInfo1 ) {
-                    if ( v1.ot[it] ) {
-                        annFeat.fSet.insert(v1.g);
-                        annFeat.fAlign[v1.ia].insert(v1.g);
-                    };
-                };
-                break;//first otFinal wins
-            };
-        };      
-    };
+    pruneByOverlapPriority(vGeneInfo1, nA, annFeat);
 };
 
 int32 alignBlocksOverlapExons(Transcript &aG, uint16 exN1, uint32 *exSE1, uint64 trStart1, bool &sjConcord)
