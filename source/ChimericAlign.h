@@ -36,6 +36,14 @@ class ChimericAlign
         ParametersChimeric &pCh;
         Genome &mapGen;
 
+        // chimericStitching steps
+        void trimToJunctionExons();
+        void setMateBracketedJunction();
+        bool stitchJunctionWithinMate(char *genSeq, char *readSeq);
+        bool findBestJunctionPosition(char *genSeq, char *readSeq, uint64 roStart0, uint64 roStart1, uint64 &jRbest);
+        void shiftJunctionExons(uint64 roStart0, uint64 roStart1, uint64 jRbest);
+        void findJunctionRepeats(char *genSeq);
+
 };
 
 #endif
