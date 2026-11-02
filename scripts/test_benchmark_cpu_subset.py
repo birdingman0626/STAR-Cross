@@ -36,6 +36,7 @@ out = pathlib.Path(sys.argv[sys.argv.index("--outFileNamePrefix")+1])
 with gzip.open(out/"Aligned.out.bam", "wb") as bam:
     bam.write(b"BAM\\1"+struct.pack("<ii",0,0))
 (out/"Log.final.out").write_text("Number of input reads | 1\\n")
+(out/"Log.out").write_text("fixture\\n")
 (out/"SJ.out.tab").write_text("fixture\\n")
 for feature in ("Gene", "GeneFull_Ex50pAS", "Velocyto"):
     raw = out/"Solo.out"/feature/"raw"
