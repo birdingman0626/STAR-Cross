@@ -8,6 +8,14 @@ using namespace std;
 SpliceGraph::typeAlignScore SpliceGraph::swScoreSpliced
                             (const char *readSeq, const uint32 readLen, const SuperTranscript &superTr, vector<array<uint32,2>> &cigar)
 {//Smith-Waterman alignment with splices
+    typeAlignScore scoreMaxGlobal = swFillMatrix(readSeq, readLen, superTr);
+    swTraceback(readSeq, readLen, superTr, cigar);
+    return scoreMaxGlobal;
+};
+
+//fill score/direction matrices; records the best cell in alignInfo.aEnd and returns its score
+SpliceGraph::typeAlignScore SpliceGraph::swFillMatrix(const char *readSeq, const uint32 readLen, const SuperTranscript &superTr)
+{
     
     uint32 superTrLen = superTr.length;
 
@@ -85,7 +93,12 @@ SpliceGraph::typeAlignScore SpliceGraph::swScoreSpliced
         }; // row for loop
     }; // col for loop
     alignInfo.aEnd[0]--;//true row
-    
+    return scoreMaxGlobal;
+};
+
+//traceback from alignInfo.aEnd: cigar, alignInfo counts and start
+void SpliceGraph::swTraceback(const char *readSeq, const uint32 readLen, const SuperTranscript &superTr, vector<array<uint32,2>> &cigar)
+{
     ///////////traceback
     
     cigar.clear();
@@ -98,7 +111,7 @@ SpliceGraph::typeAlignScore SpliceGraph::swScoreSpliced
     alignInfo.nI=0;
     alignInfo.nD=0;
     alignInfo.nSJ=0;
-    iAcceptor=superTr.sjC.size()-1; //= last junction
+    int32 iAcceptor=superTr.sjC.size()-1; //= last junction
     
     if (row!=(int32)readLen-1) //soft-clip
         cigar.push_back({BAM_CIGAR_S, readLen-1-row}); 
@@ -180,6 +193,4 @@ SpliceGraph::typeAlignScore SpliceGraph::swScoreSpliced
         cigar.push_back({BAM_CIGAR_S, (uint32)row}); 
         
     std::reverse(cigar.begin(), cigar.end());
-    return scoreMaxGlobal;
 };
-

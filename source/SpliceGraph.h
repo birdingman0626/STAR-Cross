@@ -52,6 +52,10 @@ private:
     std::unique_ptr<uint32[]> junctionIndexStorage;
     Parameters &P;
     ReadAlign *RA;
+
+    //swScoreSpliced steps (SpliceGraph_swScoreSpliced.cpp)
+    typeAlignScore swFillMatrix(const char *readSeq, const uint32 readLen, const SuperTranscript &superTr);
+    void swTraceback(const char *readSeq, const uint32 readLen, const SuperTranscript &superTr, std::vector<std::array<uint32,2>> &cigar);
 };
 
 #endif
