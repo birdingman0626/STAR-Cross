@@ -31,6 +31,23 @@ public:
     GTF(Genome &genomeIn, Parameters &Pin, const std::string &dirOut, SjdbClass &sjdbLoci);
     uint64 transcriptGeneSJ(const std::string &dirOutArg);
     void superTranscript();
+
+private:
+    struct SuperTranscriptLayout {//intermediate results of superTranscript()
+        uint64 nMinusStrandOffset=0;//(-)strand exons are converted with this genome length
+        std::vector<std::array<uint64,2>> mergedIntervals;//union of all exons, full genome coordinates
+        std::vector<std::array<uint64,2>> superTrStartEnd;//superTranscripts, condensed genome coordinates
+        std::vector<uint64> mergedIntervalsSuperTrIndex;//superTranscript of each merged interval
+    };
+    void superTranscriptWriteFullGenome();
+    void superTranscriptConvertMinusStrand(const SuperTranscriptLayout &layout);
+    void superTranscriptCondenseGenome(SuperTranscriptLayout &layout);
+    void superTranscriptMergeTranscripts(SuperTranscriptLayout &layout);
+    void superTranscriptSequences(const SuperTranscriptLayout &layout);
+    void superTranscriptNormalSequences();
+    void superTranscriptJunctions(const SuperTranscriptLayout &layout);
+    void superTranscriptReplaceGenome(const SuperTranscriptLayout &layout);
+    void superTranscriptWriteConversion(const SuperTranscriptLayout &layout);
 };
 
 #endif
