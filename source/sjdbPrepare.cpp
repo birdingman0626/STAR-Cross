@@ -1,18 +1,19 @@
 #include "sjdbPrepare.h"
 #include "ErrorWarning.h"
 #include "serviceFuns.cpp"
+#include "uninitArray.h"
 using namespace std;
 void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string outDir, Genome &mapGen, char *Gsj) {
 
     char *G=mapGen.G;
 
-    std::unique_ptr<uint64[]> startStorage(new uint64[sjdbLoci.chr.size()]);
-    std::unique_ptr<uint64[]> endStorage(new uint64[sjdbLoci.chr.size()]);
+    auto startStorage=makeUninitArray<uint64>(sjdbLoci.chr.size());
+    auto endStorage=makeUninitArray<uint64>(sjdbLoci.chr.size());
     uint64 *sjdbS=startStorage.get(), *sjdbE=endStorage.get();
 
-    std::unique_ptr<uint8[]> motifStorage(new uint8[sjdbLoci.chr.size()]);
-    std::unique_ptr<uint8[]> leftStorage(new uint8[sjdbLoci.chr.size()]);
-    std::unique_ptr<uint8[]> rightStorage(new uint8[sjdbLoci.chr.size()]);
+    auto motifStorage=makeUninitArray<uint8>(sjdbLoci.chr.size());
+    auto leftStorage=makeUninitArray<uint8>(sjdbLoci.chr.size());
+    auto rightStorage=makeUninitArray<uint8>(sjdbLoci.chr.size());
     uint8 *sjdbMotif=motifStorage.get(), *sjdbShiftLeft=leftStorage.get(), *sjdbShiftRight=rightStorage.get();
 
 
@@ -75,7 +76,7 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string
     };
 
     //sort sjdb
-    std::unique_ptr<uint64[]> sortStorage(new uint64[sjdbLoci.chr.size()*3]);
+    auto sortStorage=makeUninitArray<uint64>(sjdbLoci.chr.size()*3);
     uint64 *sjdbSort=sortStorage.get();
     for (uint64 ii=0;ii<sjdbLoci.chr.size();ii++) {
         uint64 shift1=0;
@@ -96,7 +97,7 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string
 
     qsort((void *) sjdbSort, sjdbLoci.chr.size(), sizeof(uint64)*3, funCompareUint2);
 
-    std::unique_ptr<uint64[]> indexStorage(new uint64[sjdbLoci.chr.size()]);
+    auto indexStorage=makeUninitArray<uint64>(sjdbLoci.chr.size());
     uint64 *I=indexStorage.get();
     uint64 nsj=0;
     for (uint64 ii=0;ii<sjdbLoci.chr.size();ii++) {

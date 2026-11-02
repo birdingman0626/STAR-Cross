@@ -12,6 +12,7 @@
 #include "gpuSjdbRemap.h"
 
 #include "funCompareUintAndSuffixes.h"
+#include "uninitArray.h"
 using namespace std;
 static uint64 sjdbSortBucket(uint64 key, uint64 keyRange, uint64 bucketN)
 {
@@ -83,7 +84,8 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint64 nInd
         };
     };
 
-    uint64* indArray1=new uint64[2*nInd+2];
+    auto indArray1Storage=makeUninitArray<uint64>(2*nInd+2);
+    uint64* indArray1=indArray1Storage.get();//borrowed by the OpenMP workers below
     #pragma omp parallel num_threads(P.runThreadN)
     {
         uint64 tid=(uint64) omp_get_thread_num();
@@ -105,7 +107,6 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint64 nInd
     };
 
     memcpy(indArray,indArray1,indBytes);
-    delete [] indArray1;
     return true;
 };
 
@@ -404,13 +405,13 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     const uint64 nGsj=mapGen.sjdbLength*mapGen.sjdbN;
     const uint64 nIndicesSJ1=mapGen.sjdbLength;//keep all indices - this is pre-2.4.1 of generating the genome
 
-    std::unique_ptr<uint32[]> oldSJind(new uint32[mapGen1.sjdbN]);
-    std::unique_ptr<uint64[]> indArray(new uint64[2*mapGen.sjdbN*(nIndicesSJ1+1)*2]);//SA index and index in the genome * nJunction * nIndices per junction * 2 for reverse compl
+    auto oldSJind=makeUninitArray<uint32>(mapGen1.sjdbN);
+    auto indArray=makeUninitArray<uint64>(2*mapGen.sjdbN*(nIndicesSJ1+1)*2);//SA index and index in the genome * nJunction * nIndices per junction * 2 for reverse compl
     SjdbInsertion s{P, mapGen, mapGen1, Gsj, nGsj, indArray.get(), 0, oldSJind.get(), 0};
 
     prepareJunctionText(s);
     {
-        std::unique_ptr<char[]> G1c(new char[nGsj*2+1]);
+        auto G1c=makeUninitArray<char>(nGsj*2+1);
         complementSeqNumbers(Gsj, G1c.get(), nGsj*2+1);
         findInsertionPoints(s, G1c.get(), nIndicesSJ1);
     };

@@ -5,6 +5,7 @@
 //#include <ctime>
 #include <map>
 #include <memory>
+#include "uninitArray.h"
 using namespace std;
 #define GTF_extrLoci_size 6
 #define GTF_extrTrStart(ii) ((ii)*GTF_extrLoci_size)
@@ -33,7 +34,7 @@ uint64 GTF::transcriptGeneSJ(const string &dirOutArg)
 
     {//exon-gene data structures: exon start/end/strand/gene/transcript
         //re-sort exons by exons loci
-        std::unique_ptr<uint64[]> exgeStorage(new uint64 [exonN*GTF_exgeLoci_size]);
+        auto exgeStorage=makeUninitArray<uint64>(exonN*GTF_exgeLoci_size);
         uint64* exgeLoci=exgeStorage.get(); //this also contains transcripts start and end
 
         for (uint64 iex=0; iex<exonN; iex++) {
@@ -65,7 +66,7 @@ uint64 GTF::transcriptGeneSJ(const string &dirOutArg)
 
     {//exon-transcript data structures
         //re-sort transcripts by transcript start/end
-        std::unique_ptr<uint64[]> extrStorage(new uint64 [exonN*GTF_extrLoci_size]);
+        auto extrStorage=makeUninitArray<uint64>(exonN*GTF_extrLoci_size);
         uint64* extrLoci=extrStorage.get(); //this also contains transcripts start and end
 
         uint64 trex1=0;
@@ -117,7 +118,7 @@ uint64 GTF::transcriptGeneSJ(const string &dirOutArg)
 
     //make junctions
     const uint64 sjStride=4;
-    std::unique_ptr<uint64[]> sjStorage(new uint64 [exonN*sjStride]);
+    auto sjStorage=makeUninitArray<uint64>(exonN*sjStride);
     uint64* sjLoci=sjStorage.get();
     uint64 trIDn=exonLoci[0][exT];
     uint64 sjN=0;

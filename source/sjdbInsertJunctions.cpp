@@ -7,6 +7,7 @@
 #include "sjdbBuildIndex.h"
 #include "streamFuns.h"
 #include "genomeParametersWrite.h"
+#include "uninitArray.h"
 using namespace std;
 void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, SjdbClass & sjdbLoci)
 {
@@ -45,7 +46,8 @@ void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, Sjdb
     };
 
     //char *Gsj=new char [2*mapGen.sjdbLength*sjdbLoci.chr.size()*(P.var.yes ? 2:1)+1];//array to store junction sequences, will be filled in sjdbPrepare
-    char *Gsj=new char [2*mapGen.sjdbLength*sjdbLoci.chr.size()+1];//array to store junction sequences, will be filled in sjdbPrepare
+    auto GsjStorage=makeUninitArray<char>(2*mapGen.sjdbLength*sjdbLoci.chr.size()+1);//array to store junction sequences, will be filled in sjdbPrepare
+    char *Gsj=GsjStorage.get();
 
     sjdbPrepare (sjdbLoci, P, mapGen.chrStart[mapGen.nChrReal], P.sjdbInsert.outDir, mapGen, Gsj);//mapGen.nGenome - change when replacing junctions
     time ( &rawtime );
@@ -60,7 +62,7 @@ void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, Sjdb
     };
     //insert junctions into the genome and SA and SAi
     sjdbBuildIndex (P, Gsj, mapGen.G, mapGen.SA, (P.twoPass.pass2 ? mapGen.SApass2 : mapGen.SApass1), mapGen.SAi, mapGen, mapGen1);
-    delete [] Gsj; //junction sequences have been added to G
+    GsjStorage.reset(); //junction sequences have been added to G
     time ( &rawtime );
     P.inOut->logMain     << timeMonthDayTime(rawtime) << " ..... finished inserting junctions into genome" <<endl;
 
