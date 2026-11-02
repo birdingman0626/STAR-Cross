@@ -428,5 +428,10 @@ private:
     void readFilesInitNamesFromIn();
     void readFilesInitReadGroups();
     void readFilesInitManifest();
+    // openReadsFiles stages (Parameters_openReadsFiles.cpp); the script/spawn steps are POSIX-only
+    void openReadsFilesPlain();
+    void openReadsFilesCommand(uint64 imate);
+    void writeReadsCommandScript(uint64 imate, const std::string &readsCommandFileName);
+    void spawnReadsCommand(uint64 imate, const std::string &readsCommandFileName);
 };
 #endif  // Parameters.h
