@@ -69,8 +69,11 @@ int ReadAlign::mapOneRead() {
             storeAligns(seed.direction,seed.start,seed.match.multiplicity,seed.match.length,bounds,seed.fragment);
         }
     } else {
-    uint64 searchStartLmax=min(P.seed.searchStartLmax, // 50
-                                  (uint64) (P.seed.searchStartLmaxOverLread*(Lread-1))); // read length
+    // Lread==0 (read fully clipped) leaves Nsplit==0 and skips the loop below; Lread-1 would
+    // wrap there and overflow the double->uint64 conversion.
+    uint64 searchStartLmax=P.seed.searchStartLmax; // 50
+    if (Lread>0)
+        searchStartLmax=min(searchStartLmax, (uint64) (P.seed.searchStartLmaxOverLread*(Lread-1))); // read length
     // align all good pieces
     for (uint64 ip=0; ip<Nsplit; ip++) {
 
