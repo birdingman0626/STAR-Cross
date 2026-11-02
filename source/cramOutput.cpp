@@ -46,7 +46,8 @@ bool bamToCramReferenceless(const std::string &inBam, const std::string &outCram
 
     bam_destroy1(b);
     sam_hdr_destroy(hdr);
-    sam_close(in);
+    if (sam_close(in) < 0) //the BAM may not have been read completely: keep it
+        ok = false;
     if (sam_close(out) < 0)
         ok = false;
 
