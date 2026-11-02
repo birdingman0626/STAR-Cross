@@ -102,6 +102,38 @@ def main():
                 assert graph_scores(candidate) == graph_scores(reference)
                 checks.append("SuperTranscriptome index and graph diagnostic scores equal to reference; alignment output NOT qualified")
 
+    # (-)strand transcripts are read from the reverse-complement genome strand. Upstream read it
+    # before it was filled: the sequences were spacer bytes, printed through an out-of-range lookup.
+    def read_fasta(path):
+        records, name = {}, None
+        for line in path.read_text().splitlines():
+            if line.startswith(">"):
+                name = line[1:]
+                records[name] = ""
+            else:
+                records[name] += line
+        return records
+    revcomp = lambda s: s[::-1].translate(str.maketrans("ACGT", "TGCA"))
+    minus_gtf = root / "minus.gtf"
+    minus_gtf.write_text('chr1\ttest\texon\t101\t900\t.\t+\t.\tgene_id "g1"; transcript_id "t1";\n'
+                         'chr1\ttest\texon\t8001\t8500\t.\t-\t.\tgene_id "g3"; transcript_id "t3";\n'
+                         'chr1\ttest\texon\t9001\t9300\t.\t-\t.\tgene_id "g3"; transcript_id "t3";\n')
+    expected = {"t1": sequence[100:900], "t3": revcomp(sequence[8000:8500] + sequence[9000:9300])}
+    code = {"A": 0, "C": 1, "G": 2, "T": 3}
+    for kind in ("Transcriptome", "SuperTranscriptome"):
+        genome = root / (kind + "-minus")
+        genome.mkdir()
+        run(args.star_exe, kind + "-minus-index",
+            ["--runMode", "genomeGenerate", "--genomeFastaFiles", str(fasta), "--sjdbGTFfile", str(minus_gtf),
+             "--sjdbOverhang", "49", "--genomeSAindexNbases", "4", "--genomeChrBinNbits", "10",
+             "--genomeDir", str(genome), "--genomeType", kind])
+        assert read_fasta(genome / "transcriptSequences.fasta") == expected, kind
+        assert sorted(read_fasta(genome / "superTranscriptSequences.fasta").values()) == sorted(expected.values()), kind
+        genome_bytes = (genome / "Genome").read_bytes()
+        for name, seq in expected.items():
+            assert bytes(code[b] for b in seq) in genome_bytes, (kind, name)
+        checks.append(kind + " generation includes (-)strand transcript sequences in FASTA and genome")
+
     if args.long_exe:
         reads = root / "long.fastq"
         fragments = [sequence[100:900] + sequence[1500:2300], sequence[5050:6250]]

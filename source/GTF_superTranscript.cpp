@@ -12,6 +12,8 @@ void GTF::superTranscript() {
     };
 
     superTranscriptWriteFullGenome();
+    if (P.legacyIn=="None")
+        superTranscriptFillMinusStrand();
 
     SuperTranscriptLayout layout;
     layout.nMinusStrandOffset=genome.nGenome;
@@ -34,6 +36,18 @@ void GTF::superTranscriptWriteFullGenome() {
     genomeParametersWrite(genome.pGe.gDir+"/fullGenome/genomeParameters.txt", P, ERROR_OUT, genome);
     genome.writeChrInfo(genome.pGe.gDir+"/fullGenome/");
     genome.writeGenomeSequence(genome.pGe.gDir+"/fullGenome/");
+}
+
+// (-)strand exons are read from the reverse-complement half of G, which genome generation
+// otherwise fills only later (defineSuffixArray). Without this, (-)strand transcripts consist
+// of spacer bytes: absent from the (Super)Transcriptome genome and printed out of range.
+// --legacy keeps that upstream 2.7.11b behavior.
+void GTF::superTranscriptFillMinusStrand() {
+    char *G=genome.G;
+    const uint64 nGenome=genome.nGenome;
+    for (uint64 ii=0;ii<nGenome;ii++) {
+        G[2*nGenome-1-ii]=G[ii]<4 ? 3-G[ii] : G[ii];
+    };
 }
 
 void GTF::superTranscriptConvertMinusStrand(const SuperTranscriptLayout &layout) {
@@ -172,11 +186,14 @@ void GTF::superTranscriptNormalSequences() {
 
     //output normal transcript sequences
     vector<char> numToCharConverter{'A','C','G','T','N'};
+    const auto baseChar = [&numToCharConverter](uint8 b) {//spacer and other non-base codes print as N
+        return b<numToCharConverter.size() ? numToCharConverter[b] : 'N';
+    };
     auto trSeqOut = ofstrOpenOwned(P.pGe.gDir+"/transcriptSequences.fasta",ERROR_OUT, P);
     for (uint64 ii = 0; ii < transcriptSeq.size(); ii++) {
         trSeqOut << ">" << transcriptID[ii] << "\n";
         for(uint64 jj = 0; jj < transcriptSeq[ii].size(); jj++) {
-            trSeqOut << numToCharConverter[transcriptSeq[ii][jj]];
+            trSeqOut << baseChar(transcriptSeq[ii][jj]);
         };
         trSeqOut << "\n";
     };
@@ -185,7 +202,7 @@ void GTF::superTranscriptNormalSequences() {
     for (uint64 ii = 0; ii < superTrome.seq.size(); ii++) {
         sutrSeqOut << ">st" << to_string(ii) << "\n";
         for(uint64 jj = 0; jj < superTrome.seq[ii].size(); jj++) {
-            sutrSeqOut << numToCharConverter[superTrome.seq[ii][jj]];
+            sutrSeqOut << baseChar(superTrome.seq[ii][jj]);
         };
         sutrSeqOut << "\n";
     };

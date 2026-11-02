@@ -90,7 +90,9 @@ preview, queue status and logs. See [Web UI usage](docs/webui/README.md).
 - **Algorithm differences:** chimeric scoring fixes can change alignments.
   `--legacy` selects the upstream-style chimeric scoring path; it is not a
   blanket guarantee of upstream-identical results. Unsafe stitching
-  branch-and-bound pruning was removed.
+  branch-and-bound pruning was removed. `--genomeType Transcriptome` and
+  `SuperTranscriptome` now include (-)strand transcript sequences, which
+  upstream left as spacer bytes; `--legacy` restores that behavior.
 - **Windows limits:** shared-memory genome loading is unavailable; use
   `--genomeLoad NoSharedMemory`. `--readFilesCommand` uses temporary files rather
   than FIFO streaming, which can require additional disk space.

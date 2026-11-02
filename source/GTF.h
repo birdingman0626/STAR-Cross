@@ -40,6 +40,7 @@ private:
         std::vector<uint64> mergedIntervalsSuperTrIndex;//superTranscript of each merged interval
     };
     void superTranscriptWriteFullGenome();
+    void superTranscriptFillMinusStrand();
     void superTranscriptConvertMinusStrand(const SuperTranscriptLayout &layout);
     void superTranscriptCondenseGenome(SuperTranscriptLayout &layout);
     void superTranscriptMergeTranscripts(SuperTranscriptLayout &layout);
