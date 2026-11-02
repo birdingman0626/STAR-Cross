@@ -368,13 +368,37 @@ def lima_power(host, action):
                    capture_output=True)
 
 
+def console_codepage():
+    """Code page Windows console tools (cmd's `set`, vswhere) write in when not UTF-8."""
+    if sys.platform == "win32":
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        return f"cp{kernel32.GetConsoleOutputCP() or kernel32.GetOEMCP()}"
+    import locale
+    return locale.getpreferredencoding(False)
+
+
+def decode_tool_output(data, fallback=None):
+    """Decode a Windows tool's output line by line: UTF-8 where valid, else the console code page.
+    `set` mixes both (e.g. a GBK OneDrive path), and in UTF-8 mode text=True captures fail on it:
+    the decode error stays in subprocess's reader thread and .stdout comes back None."""
+    fallback = fallback or console_codepage()
+    lines = []
+    for line in data.splitlines(keepends=True):
+        try:
+            lines.append(line.decode("utf-8"))
+        except UnicodeDecodeError:
+            lines.append(line.decode(fallback, errors="replace"))
+    return "".join(lines)
+
+
 def msvc_environment():
     vswhere = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Microsoft Visual Studio/Installer/vswhere.exe"
-    install = subprocess.run([str(vswhere), "-latest", "-prerelease", "-products", "*", "-requires",
-                              "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"],
-                             capture_output=True, text=True, check=True).stdout.strip()
+    install = decode_tool_output(subprocess.run([str(vswhere), "-latest", "-prerelease", "-products", "*", "-requires",
+                                                 "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"],
+                                                capture_output=True, check=True).stdout).strip()
     vcvars = Path(install) / "VC/Auxiliary/Build/vcvars64.bat"
-    out = subprocess.run(f'cmd /s /c ""{vcvars}" >nul && set"', capture_output=True, text=True, shell=True, check=True).stdout
+    out = decode_tool_output(subprocess.run(f'cmd /s /c ""{vcvars}" >nul && set"', capture_output=True, shell=True, check=True).stdout)
     return dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
 
 

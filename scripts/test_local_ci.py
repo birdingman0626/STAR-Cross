@@ -73,6 +73,14 @@ class Utf8ModeTests(unittest.TestCase):
                               str(Path(self.SCRIPT).parent)], capture_output=True, text=True)
         self.assertEqual(out.stdout.strip(), "False", out.stderr)
 
+    def test_decodes_mixed_utf8_and_code_page_tool_output(self):
+        # vcvars `set` dump: UTF-8 lines plus a value in the console code page (GBK OneDrive path)
+        data = ("PATH=C:\\é\r\n".encode("utf-8") + "OneDrive=E:\\OneDrive - 北京\r\n".encode("gbk") + b"X=1\r\n")
+        text = lc.decode_tool_output(data, fallback="gbk")
+        env = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+        self.assertEqual(env, {"PATH": "C:\\é", "OneDrive": "E:\\OneDrive - 北京", "X": "1"})
+        self.assertEqual(lc.decode_tool_output(b"\xff\xfe=\r\n", fallback="utf-8"), "\ufffd\ufffd=\r\n")
+
 
 class RemoveTreeTests(unittest.TestCase):
     def test_removes_read_only_and_over_max_path_entries(self):
