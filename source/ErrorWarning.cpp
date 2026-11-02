@@ -22,7 +22,6 @@ void exitWithError(string messageOut, ostream &streamOut1, ostream &streamOut2, 
     // and may join the dispatcher from its own thread. Diagnostics above are
     // flushed; process termination reclaims descriptors and memory. Normal
     // successful execution retains its explicit, post-join RAII cleanup.
-//     if (P.runThreadN>1) pthread_mutex_unlock(&g_threadChunks.mutexError);
     exit(errorInt);
 };
 

@@ -119,11 +119,6 @@ void SoloReadFeature::record(SoloReadBarcode &soloBar, uint64 nTr, Transcript **
                         nFeat = outputReadCB(streamReads, (readIndexYes ? iRead : (uint64)-1), featureType, soloBar, reFe, readAnnot, readFlag);
                     };
 
-                    //debug
-                    //{
-                    //    if (SoloFeatureTypes::Gene==featureType && ((readFlag.checkBit(readFlag.featureM)==1|readFlag.checkBit(readFlag.featureU)==1) != readFlag.checkBit(readFlag.exonic) ))
-                    //        cout << iRead<<" "<<readFlag.checkBit(readFlag.featureM)<<" "<<readFlag.checkBit(readFlag.featureU)<<" "<<readFlag.checkBit(readFlag.exonic)<<endl;
-                    //};                    
                 };
                 break;
         
@@ -131,8 +126,6 @@ void SoloReadFeature::record(SoloReadBarcode &soloBar, uint64 nTr, Transcript **
                 if (nTr>1) {//reject all multimapping reads
                     stats.V[stats.subMultiFeatureMultiGenomic]++;
                     stats.V[stats.MultiFeature]++;
-                //} else if (readAnnot.geneConcordant.size()>1){//for SJs, still check genes, no feature if multi-gene
-                //    stats.V[stats.MultiFeature]++;
                 } else {//one gene or no gene
                     alignOut[0]->extractSpliceJunctions(reFe.sj, reFe.sjAnnot);
                     //if ( reFe.sj.empty() || (reFe.sjAnnot && readAnnot.geneConcordant.size()==0) ) {//no junctions, or annotated junction but no gene (i.e. read does not fully match transcript)

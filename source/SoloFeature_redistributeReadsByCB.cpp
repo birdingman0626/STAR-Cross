@@ -15,8 +15,6 @@ void SoloFeature::redistributeReadsByCB()
     
     //find boundaries for cells
     uint64 nReadRec=std::accumulate(readFeatSum->cbReadCount.begin(), readFeatSum->cbReadCount.end(), 0LLU);
-    //for ( auto &cbrc : readFeatSum->cbReadCount )
-    //    nReadRec += cbrc;
     
     uint64 nReadRecBin=nReadRec/pSolo.redistrReadsNfiles;
     
@@ -75,8 +73,5 @@ void SoloFeature::redistributeReadsByCB()
         //TODO: delete streamReads files one by one to save disk space
     };
     
-    //close files
-    //for (uint32 ii=0; ii<pSolo.redistrReadsNfiles; ii++)
-    //    redistrFilesStreams[ii]->flush();
 };
     

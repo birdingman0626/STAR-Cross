@@ -78,7 +78,6 @@ void SoloFeature::countCBgeneUMI()
         nReadPerCB[iCB] = (rCBpa[indCB[iCB]]-rCBp[iCB])/rguStride;  //number of reads that were matched to WL, rCBpa accumulated reference to the last element+1
                                                                     //for multimappers this is the number of all alignments > number of reads
         nReadPerCBmax=max(nReadPerCBmax,nReadPerCB[iCB]);
-        //readFeatSum->stats.V[readFeatSum->stats.yesWLmatch] += nReadPerCB[iCB];
     };    
     
     time(&rawTime);

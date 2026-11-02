@@ -61,8 +61,6 @@ void Parameters::registerParameters() {
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesManifest", &readFiles.manifest));
     parArray.push_back(new ParameterInfoVector <string> (-1, -1, "readFilesSAMattrKeep", &readFiles.samAttrKeepIn));
 
-    //parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "readStrand", &pReads.strandString));
-
 
     //input from BAM
     parArray.push_back(new ParameterInfoScalar <string> (-1, -1, "inputBAMfile", &inputBAMfile));

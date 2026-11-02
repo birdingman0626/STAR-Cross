@@ -53,7 +53,6 @@ public:
     void quantsOutput(); //output quantification files
     void geneFullAlignOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat);
     void geneFullAlignOverlap_ExonOverIntron(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat, ReadAnnotFeature &annFeatGeneConcordant);
-    //void geneFullAlignOverlap_CR(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotations &readAnnot);
     void classifyAlign(Transcript **alignG, uint64 nAlignG, ReadAnnotations &readAnnot);
     void alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat);
 

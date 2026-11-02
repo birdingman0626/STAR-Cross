@@ -25,7 +25,6 @@ void Parameters::readFilesInit()
                                   SOLUTION: specify only two-letter tags in --readFilesSAMtagsKeep.",
                                   std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
                 };
-                //array<char,2> taga = {tag[0], tag[1]};
                 uint16_t tagn = * ( (uint16_t*) tag.c_str() );
                 readFiles.samAttrKeep.insert(tagn);
             };

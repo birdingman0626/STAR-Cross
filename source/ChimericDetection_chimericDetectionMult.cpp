@@ -74,7 +74,7 @@ void ChimericDetection::releaseChimAligns() {
     chimAligns.clear();
 };
 
-bool ChimericDetection::chimericDetectionMult(uint64 nW, uint64 *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA) {
+bool ChimericDetection::chimericDetectionMult(uint64 nWin, uint64 *readLength, int maxNonChimAlignScore, ReadAlign *PEunmergedRA) {
 
     releaseChimAligns(); // previous read's alignments
     int chimScoreBest=0;
@@ -87,7 +87,7 @@ bool ChimericDetection::chimericDetectionMult(uint64 nW, uint64 *readLength, int
     if ((maxPossibleAlignScore - P.pCh.scoreDropMax) > minScoreToConsider)
         minScoreToConsider = maxPossibleAlignScore - P.pCh.scoreDropMax;
 
-    for (uint64 iW1=0; iW1<nW; iW1++) {//cycle windows
+    for (uint64 iW1=0; iW1<nWin; iW1++) {//cycle windows
         for (uint64 iA1=0; iA1<nWinTr[iW1]; iA1++) {//cycle aligns in the window
 
             ChimericSegment seg1(P,*trAll[iW1][iA1]);
@@ -95,7 +95,7 @@ bool ChimericDetection::chimericDetectionMult(uint64 nW, uint64 *readLength, int
             if (!seg1.segmentCheck())
                 continue; //seg1 is bad - skip
 
-            for (uint64 iW2=iW1; iW2<nW; iW2++) {//check all windows for chimeras
+            for (uint64 iW2=iW1; iW2<nWin; iW2++) {//check all windows for chimeras
                 for (uint64 iA2=(iW1!=iW2 ? 0 : iA1+1); iA2<nWinTr[iW2]; iA2++) {//cycle over aligns in the window
                     //for the same window, start iA2 at iA1+1 to avoid duplicating
 

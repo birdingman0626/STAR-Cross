@@ -100,30 +100,9 @@ uint64 ReadAlign::outputSpliceGraphSAM(Transcript const &trOut, uint64 nTrOut, u
                     *outStream<< "\tNM:i:" <<tagNM;
                     break;
                     
-//                 case ATTR_jM:
-//                     *outStream<<"\tjM:B:c"<< SJmotif;
-//                     break;
-//                 case ATTR_jI:
-//                     *outStream<<"\tjI:B:i"<< SJintron;
-//                     break;
-//                 case ATTR_XS:
-//                     if (trOut.sjMotifStrand==1) {
-//                         *outStream<<"\tXS:A:+";
-//                     } else if (trOut.sjMotifStrand==2) {
-//                         *outStream<<"\tXS:A:-";
-//                     };
-//                     break;
-//                 case ATTR_MD:
-//                     *outStream<< "\tMD:Z:" <<tagMD;
-//                     break;
                 case ATTR_RG:
                     *outStream<< "\tRG:Z:" <<P.outSAMattrRG.at(readFilesIndex);
                     break;
-//                 case ATTR_MC:
-//                     if (nMates>1) {
-//                         *outStream<< "\tMC:Z:" <<matesCIGAR[1-imate];
-//                     };
-//                     break;
                     
                 //do nothing - this attributes only work for BAM output
                 case ATTR_jM:

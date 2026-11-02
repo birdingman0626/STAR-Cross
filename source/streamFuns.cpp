@@ -70,10 +70,6 @@ void fstreamWriteBig(std::ofstream &S, char* A, unsigned long long N, std::strin
         struct statvfs statvfsBuf;
         statvfs(fileName.c_str(), &statvfsBuf);
 
-//         system(( "ls -lL "+ P.pGe.gDir + " > "+ P.pGe.gDir +"/error.info 2>&1").c_str());
-//         ifstream error_info((P.pGe.gDir +"/error.info").c_str());
-//         P.inOut->logMain <<error_info.rdbuf();
-
         struct stat statBuf;
         stat(fileName.c_str(), &statBuf);
 
@@ -109,8 +105,6 @@ std::ofstream &ofstrOpen (std::string fileName, std::string errorID, Parameters 
 }
 
 std::fstream &fstrOpen (std::string fileName, std::string errorID, Parameters &P, bool flagDelete) {//open file 'fileName', generate error if cannot open
-    //std::fstream &fStream = *new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out );
-    //std::fstream &fStream = *new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc);
 
     std::fstream *fStreamP;
     if (flagDelete) {//truncate the file if it exists

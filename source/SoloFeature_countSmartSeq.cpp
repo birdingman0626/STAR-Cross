@@ -140,10 +140,10 @@ void SoloFeature::countSmartSeq()
     nReadPerCBtotal = nReadPerCB;
     nReadPerCBunique = nReadPerCB;
     
-    uint32 nReadPerCBmax=0;
+    uint32 nReadPerCBmaxLocal=0;
     for (uint32 icb=0; icb<nCB; icb++) {
         
-        nReadPerCBmax=max(nReadPerCBmax,nReadPerCB[icb]);
+        nReadPerCBmaxLocal=max(nReadPerCBmaxLocal,nReadPerCB[icb]);
         readFeatSum->stats.V[readFeatSum->stats.yesWLmatch] += nReadPerCBtotal[icb];
         readFeatSum->stats.V[readFeatSum->stats.yessubWLmatch_UniqueFeature] += nReadPerCBunique[icb];
             

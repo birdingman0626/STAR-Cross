@@ -9,10 +9,6 @@ Variation::Variation (Parameters &Pin, vector <uint64> &chrStartIn, map <string,
     if (yesVar) {
         yes=true;
 
-        //not used yet
-        //varOutFileName=P.outFileNamePrefix+"Variation.out";
-        //varOutStream.open(varOutFileName);
-
         vcfFile=P.var.vcfFile;
         loadVCF(vcfFile);
     } else{

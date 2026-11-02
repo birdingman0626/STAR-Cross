@@ -19,13 +19,6 @@ void Transcriptome::geneCountsAddAlign(uint64 nA, Transcript **aAll, vector<int3
 //              if ((uint64)ib==a.nExons-1)
 //              {//binary search for the first time: end of the block among the starts of exons
                  e1=binarySearch1a<uint64>(g1, exG.s, (int32) exG.nEx);
-//              } else
-//              {//simple backwards scan
-//                  while (e1>=0 && exG.s[e1]>g1)
-//                  {//stop when exon start is less than block end
-//                      --e1;
-//                  };
-//              };
 
              while (e1>=0 && exG.eMax[e1]>=a.exons[ib][EX_G]) {//these exons may overlap this block
                  if (exG.e[e1]>=a.exons[ib][EX_G]) {//this exon overlaps the block

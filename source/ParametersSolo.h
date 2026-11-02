@@ -26,7 +26,6 @@ public:
     } yes;
 
     struct {
-        //uint32_t N;
         std::array<uint32_t,tN> I;
         uint32_t &NoDedup=I[0], &Exact=I[1], &All=I[2], &Directional=I[3], &CR=I[4], &Directional_UMItools=I[5];
         uint32_t main; //index for SAM/stats/filtering output
@@ -38,8 +37,6 @@ public:
     
     void initialize(ParametersSolo *pS);
     
-//protected:
-//    int it;
 };
 
 class MultiMappers {
@@ -56,7 +53,6 @@ public:
     } yes;
 
     struct {
-        //uint32_t N;
         std::array<uint32_t,tN> I;
         uint32_t &Unique=I[0], &Uniform=I[1], &Rescue=I[2], &PropUnique=I[3], &EM=I[4];
         uint32_t main; //index for SAM/stats/filtering output

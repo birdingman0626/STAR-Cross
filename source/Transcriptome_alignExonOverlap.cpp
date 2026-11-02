@@ -17,8 +17,6 @@ void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandT
         bool str;
         bool sjc;
     };
-    //vector<GeneStrOverlapAlign> vGeStrOvAl;
-    //vGeStrOvAl.reserve(256); //TODO: check if this affects speed
 
 
     typedef array<bool,6> OverlapTypes;
@@ -78,8 +76,6 @@ void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandT
                 for (uint64 iex=0; iex<aG.nExons;iex++)
                     exl += aG.exons[iex][EX_L];
 
-                //vGeStrOvAl.push_back({trGene[tr1], nOverlap, iag, exl, str1, sjConcord});
-                
                 vGeneInfo1.push_back({trGene[tr1], iag, {
                                                             str1 && nOverlap==exl && sjConcord,
                                                             !str1 && nOverlap==exl && sjConcord,
@@ -122,7 +118,6 @@ void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandT
                 */               
             };
 
-            //cout << trGene[tr1] <<" "<< nOverlap << " " <<flush;
         } while (trEmax[tr1]>=aGend && tr1>0);
     };
 
@@ -214,8 +209,6 @@ void Transcriptome::alignExonOverlap(uint64 nA, Transcript **aAll, int32 strandT
             annFeat.ovType = ReadAnnotFeature::overlapTypes::intergenic; //intergenic. i.e. no overlap with genes
         };
 
-        // annFeat.fSet={};
-        // annFeat.fAlign = {};
         annFeat.fAlign.resize(nA);
         for ( uint32 it=0; it<otFinal.size(); it++ ) {
             if ( otFinal[it] ) {

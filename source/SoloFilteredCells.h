@@ -22,11 +22,11 @@ public:
     std::vector<uint32> nReadPerCellUnique, nGenePerCell;
     std::vector<bool> filtVecBool;
     
-    void reset(uint64 nCells) {
+    void reset(uint64 nCellsIn) {
         C={0}; 
         nReadPerCellUnique.clear(); nReadPerCellUnique.reserve(16384);
         nGenePerCell.clear(); nGenePerCell.reserve(16384);
-        filtVecBool.clear();  filtVecBool.resize(nCells, false);
+        filtVecBool.clear();  filtVecBool.resize(nCellsIn, false);
     };
 };
 

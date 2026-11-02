@@ -338,7 +338,6 @@ set(STAR_SOURCES
     ReadAlign_mapOneReadSpliceGraph.cpp
     SpliceGraph.cpp
     SpliceGraph_swScoreSpliced.cpp
-    SpliceGraph_swTraceBack.cpp
     SpliceGraph_findSuperTr.cpp
     sjAlignSplit.cpp
     GTF.cpp

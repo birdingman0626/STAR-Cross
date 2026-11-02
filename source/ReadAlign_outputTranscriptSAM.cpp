@@ -3,14 +3,14 @@
 #include "ErrorWarning.h"
 using namespace std;
 
-uint64 ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, ostream *outStream) {
+uint64 ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapTypeArg, bool *mateMap, ostream *outStream) {
 
     if (P.outSAMmode=="None") return 0; //no SAM output
 
     uint64 outStreamPos0=(uint64)outStream->tellp();
 
-    if (unmapType>=0) {//unmapped reads: SAM
-        samUnmappedMates(trOut, unmapType, mateMap, outStream);
+    if (unmapTypeArg>=0) {//unmapped reads: SAM
+        samUnmappedMates(trOut, unmapTypeArg, mateMap, outStream);
         return (uint64)outStream->tellp()-outStreamPos0;
     };
 
@@ -134,7 +134,7 @@ uint64 ReadAlign::outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, ui
     return (uint64)outStream->tellp()-outStreamPos0;
 };
 
-void ReadAlign::samUnmappedMates(Transcript const &trOut, int unmapType, bool *mateMap, ostream *outStream)
+void ReadAlign::samUnmappedMates(Transcript const &trOut, int unmapTypeArg, bool *mateMap, ostream *outStream)
 {// one SAM line per unmapped mate
     for (uint64 imate=0;imate<P.readNmates;imate++) {//cycle over mates //not readNends: this is alignment
         if (mateMap[imate]) continue;
@@ -167,7 +167,7 @@ void ReadAlign::samUnmappedMates(Transcript const &trOut, int unmapType, bool *m
         };
 
         *outStream <<"\t"<< '0' <<"\t"<< Read0[imate] <<"\t"<< (readFileType==2 ? Qual0[imate]:"*")
-                <<"\tNH:i:0" <<"\tHI:i:0" <<"\tAS:i:"<<trOut.maxScore <<"\tnM:i:"<<trOut.nMM<<"\tuT:A:" <<unmapType;
+                <<"\tNH:i:0" <<"\tHI:i:0" <<"\tAS:i:"<<trOut.maxScore <<"\tnM:i:"<<trOut.nMM<<"\tuT:A:" <<unmapTypeArg;
         if (!P.outSAMattrRG.empty()) *outStream<< "\tRG:Z:" <<P.outSAMattrRG.at(readFilesIndex);
 
         if (P.readFiles.typeN==10 && !readNameExtra[imate].empty()) {//SAM files as input - output extra attributes

@@ -170,8 +170,6 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
 
                 uint32 mIndex = pSolo.multiMap.countInd.I[iMult] + iDed;
                     
-                //string matOutString;
-                //matOutString.reserve(100000000);
                 std::ostringstream matOutStringStream;//(matOutString);
                     
                 nCellGeneEntries = 0;
@@ -242,7 +240,6 @@ void SoloFeature::outputResults(bool cellFilterYes, string outputPrefixMat)
                         };
                     };
                 };
-                //matOutStringStream.flush();
                 nGeneUMIperCBmultiFill = false; //arrays were filled - only do it once
 
 

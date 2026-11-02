@@ -53,7 +53,6 @@ void Genome::genomeOutLoad(){//allocate and load *output* Genome
     for (uint32 ii=0; ii<nconv; ii++)
         convStream >> genomeOut.convBlocks[ii][0] >> genomeOut.convBlocks[ii][1] >> genomeOut.convBlocks[ii][2];
     
-    //genomeOut.convBlocks[nconv][0]=genomeOut.convBlocks[nconv-1][0]+genomeOut.convBlocks[nconv-1][1];
     genomeOut.convBlocks[nconv-1][1] +=1;//increase the length of the last block so that we never reach the last base
     genomeOut.convBlocks[nconv][0]=(uint64)-1;//start of the block after last is infinity
 };

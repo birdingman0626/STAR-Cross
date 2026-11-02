@@ -21,8 +21,4 @@ SpliceGraph::SpliceGraph (SuperTranscriptome &superTrome, Parameters &P, ReadAli
     };
     junctionIndexStorage.reset(new uint32[superTrome.sjDonorNmax]); sjDindex=junctionIndexStorage.get();
     
-    //rowCol.reserve(100000);
-    //rowSJ.reserve(100000);
-    //blockCoord.reserve(100000);
-    //blockSJ.reserve(10000);
 };

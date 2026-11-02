@@ -4,9 +4,6 @@
 using namespace std;
 void Transcriptome::geneFullAlignOverlap(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat)
 {
-    // annFeat.fSet={};
-    // annFeat.fAlign = {};
-    // annFeat.ovType = 0; //exonic/intronic determination is not done
 
     annFeat.fAlign.resize(nA);
     for (uint32 iA=0; iA<nA; iA++) {

@@ -901,7 +901,7 @@ void Genome::writeChrInfo(const string dirOut)
 };
 void Genome::writeGenomeSequence(const string dirOut) 
 {//write genome sequence
-    ofstream genomeOut = ofstrOpenOwned(dirOut+"/Genome",ERROR_OUT, P);
-    fstreamWriteBig(genomeOut,G,nGenome,dirOut+"/Genome",ERROR_OUT,P);
-    genomeOut.close();
+    ofstream genomeOutStream = ofstrOpenOwned(dirOut+"/Genome",ERROR_OUT, P);
+    fstreamWriteBig(genomeOutStream,G,nGenome,dirOut+"/Genome",ERROR_OUT,P);
+    genomeOutStream.close();
 };

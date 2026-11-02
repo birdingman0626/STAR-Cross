@@ -7,8 +7,6 @@
 class ParametersSolo;
 
 class SoloBarcode {//complex barcodes
-//private:
-//    ParametersSolo *pSolo;
 public:
     uint32 mate;//0 or 1
     //array: 0=start, 1=end
@@ -32,7 +30,6 @@ public:
     void sortWhiteList(ParametersSolo *pSolo);
     void extractPositionsFromString(std::string &strIn);
 
-    //SoloBarcode(ParametersSolo *pSolo) : pSolo(pSolo) {};
 };
 
 #endif

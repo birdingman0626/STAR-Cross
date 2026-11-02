@@ -76,7 +76,6 @@ void Stats::progressReport(ofstream &progressStream) {
     time( &timeCurrent);
 
     if (difftime(timeCurrent,timeLastReport)>=60.0 && readN>0) {//make the report
-        //progressStream.imbue(std::locale(""));
         progressStream <<setw(15)<< timeMonthDayTime(timeCurrent) \
                 <<SETW1<< setiosflags(ios::fixed) << setprecision(1) \
                 << double(readN)/1e6/difftime(timeCurrent,timeStartMap)*3600 \

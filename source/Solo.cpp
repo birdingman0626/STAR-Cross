@@ -96,9 +96,6 @@ void Solo::processAndOutput()
 
         for (uint32 ii=0; ii<pSolo.nFeatures; ii++) {
             soloFeat[ii]->processRecords();
-            //if (!pSolo.readInfoYes[soloFeat[ii]->featureType]) {
-            //    delete soloFeat[ii];
-            //};
         };
 
         *P.inOut->logStdOut << timeMonthDayTime() << " ..... finished Solo counting\n" <<flush;

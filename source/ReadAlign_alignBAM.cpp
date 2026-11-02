@@ -74,7 +74,7 @@ struct ReadAlign::BamMateRecord {
     vector<char> SJmotif;
 };
 
-int ReadAlign::alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int alignType, bool *mateMap, const vector<int> &outSAMattrOrder, char** outBAMarray, uint64* outBAMarrayN) {
+int ReadAlign::alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int alignType, bool *mateMap, const vector<int> &outSAMattrOrder, char** outBAMarrayOut, uint64* outBAMarrayN) {
     //return: number of lines (mates)
 
     //alignType>=0: unmapped reads
@@ -139,7 +139,7 @@ int ReadAlign::alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, u
                 exitWithError("EXITING: BAM attributes exceed buffer capacity\n", std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
             m.attrN+=bamAttrArrayWriteSAMtags(readNameExtra[m.Mate], m.attrOutArray+m.attrN, BAM_ATTR_MaxSize-m.attrN, P);
         };
-        outBAMarrayN[imate]=bamWriteRecord(c, m, imate, outBAMarray[imate]);
+        outBAMarrayN[imate]=bamWriteRecord(c, m, imate, outBAMarrayOut[imate]);
     };
 
     return ( outBAMarrayN[1]==0 ? 1 : 2);

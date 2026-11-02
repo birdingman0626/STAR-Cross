@@ -113,8 +113,6 @@ int readLoad(istream& readInStream, Parameters& P, uint64& Lread, uint64& LreadO
         in.getCharAndSkipOne(clipOneMate[0].clippedInfo); //clip info char (used if clipChunk is activated, only 5' for now), then \n
     };
 
-    //cout << readName <<'\t' << (uint32) line3char << '\n';
-    
     clipOneMate[0].clip(Lread, SeqNum); //5p clip
     clipOneMate[1].clip(Lread, SeqNum); //3p clip
 

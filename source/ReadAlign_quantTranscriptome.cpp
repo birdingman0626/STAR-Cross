@@ -84,16 +84,5 @@ uint64 ReadAlign::quantTranscriptome (Transcriptome *Tr, uint64 nAlignG, Transcr
         };
     };
 
-    //not used anymore per Colin Dewey's request
-    //     if (nAlignT==0 && P.outSAMunmapped=="Within") {//read could be mapped to genome, but not transcriptome - output as unmapped
-    //         uint64 unmapType=5;
-    //         bool mateMapped[2]={false,false};
-    //         alignBAM(*alignG[0], 0, 0, mapGen.chrStart[alignG[0]->Chr], (uint64) -1, (uint64) -1, 0,  unmapType, mateMapped, P.outSAMattrOrder);
-    //             for (uint64 imate=0; imate<P.readNmates; imate++) {//output each mate //not readNends: this is alignment
-    //                 outBAMquant->unsortedOneAlign(outBAMoneAlign[imate], outBAMoneAlignNbytes[imate], imate>0 ? 0 : outBAMoneAlignNbytes[0]+outBAMoneAlignNbytes[1]);
-    //             };
-    //
-    //     };
-
     return nAlignT;
 };

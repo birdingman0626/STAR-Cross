@@ -6,9 +6,6 @@ bool Transcript::transformGenome(Genome &genOut, Transcript & A)
     uint32 nB=0;//number of out blocks
     auto &coBl=genOut.genomeOut.convBlocks;
     
-    //uint64 icb=0;
-    
-    //auto cBit=coBl.begin();
     for (uint32 iA=0; iA<nExons; iA++) {//loop over blocks
         
         uint64 r1=exons[iA][EX_R];//r start of a-block
@@ -27,7 +24,6 @@ bool Transcript::transformGenome(Genome &genOut, Transcript & A)
                                });
         
         --cBit;//upperbound finds element > value, need to step back
-        //icb=binarySearchStride(coBl.data(), coBl.size(), exons[iA][EX_G], icb, 3);
 
                
         uint64 b1=(*cBit)[0];

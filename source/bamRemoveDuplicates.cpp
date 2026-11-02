@@ -268,7 +268,6 @@ void bamRemoveDuplicates(const string bamFileName, const string bamFileNameOut, 
                         char* flagField=(char*) mate+4*4;
                         storeUnaligned<uint32>(flagField, loadUnaligned<uint32>(flagField) ^ (0x400<<16));
                     };
-                    //cout << ((char*)(bamPb+9)) <<"\n";
                     bScore=-999;//reset best score
                 };
             };

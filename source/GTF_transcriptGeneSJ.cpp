@@ -21,7 +21,7 @@ using namespace std;
 #define GTF_exgeGeID(ii) ((ii)*GTF_exgeLoci_size+3)
 #define GTF_exgeTrID(ii) ((ii)*GTF_exgeLoci_size+4)
 
-uint64 GTF::transcriptGeneSJ(const string &dirOut) 
+uint64 GTF::transcriptGeneSJ(const string &dirOutArg) 
 {//sort exonLoci by transcript ID and exon coordinates
  //fills sjdbLoci from GTF junctions
     
@@ -46,7 +46,7 @@ uint64 GTF::transcriptGeneSJ(const string &dirOut)
 
         qsort((void*) exgeLoci, exonN, sizeof(uint64)*GTF_exgeLoci_size, funCompareArrays<uint64,5>);
 
-        ofstream exgeOut = ofstrOpenOwned(dirOut+"/exonGeTrInfo.tab",ERROR_OUT,P);
+        ofstream exgeOut = ofstrOpenOwned(dirOutArg+"/exonGeTrInfo.tab",ERROR_OUT,P);
         exgeOut<<exonN<<"\n";
         for (uint64 iex=0; iex<exonN; iex++) {
              exgeOut<<exgeLoci[GTF_exgeExStart(iex)] <<"\t"<<  exgeLoci[GTF_exgeExEnd(iex)] <<"\t"<< exgeLoci[GTF_exgeExStrand(iex)] \
@@ -54,7 +54,7 @@ uint64 GTF::transcriptGeneSJ(const string &dirOut)
         };
         exgeOut.close();
 
-        ofstream geOut = ofstrOpenOwned(dirOut+"/geneInfo.tab",ERROR_OUT,P);
+        ofstream geOut = ofstrOpenOwned(dirOutArg+"/geneInfo.tab",ERROR_OUT,P);
         geOut << geneID.size() << "\n";
         for (uint64 ig=0; ig<geneID.size(); ig++) {//just geneID for now
             geOut << geneID[ig] <<"\t"<< geneAttr[ig][0] <<"\t"<< geneAttr[ig][1] <<"\n";
@@ -86,9 +86,9 @@ uint64 GTF::transcriptGeneSJ(const string &dirOut)
 
         qsort((void*) extrLoci, exonN, sizeof(uint64)*GTF_extrLoci_size, funCompareArrays<uint64,5>);
 
-        ofstream trOut ((dirOut+"/transcriptInfo.tab").c_str());
+        ofstream trOut ((dirOutArg+"/transcriptInfo.tab").c_str());
         trOut<<transcriptID.size() << "\n";
-        ofstream exOut ((dirOut+"/exonInfo.tab").c_str());
+        ofstream exOut ((dirOutArg+"/exonInfo.tab").c_str());
         exOut<<exonN<<"\n";
 
         uint64 trid=extrLoci[GTF_extrTrID(0)];
@@ -161,7 +161,7 @@ uint64 GTF::transcriptGeneSJ(const string &dirOut)
         };
     };
 
-    ofstream sjdbList ((dirOut+"/sjdbList.fromGTF.out.tab").c_str());
+    ofstream sjdbList ((dirOutArg+"/sjdbList.fromGTF.out.tab").c_str());
     for (uint64 ii=sjdbN1;ii<sjdbLoci.chr.size(); ii++) {
         sjdbList << sjdbLoci.chr.at(ii)<<"\t"<< sjdbLoci.start.at(ii) << "\t"<< sjdbLoci.end.at(ii)  <<"\t"<< sjdbLoci.str.at(ii);
 

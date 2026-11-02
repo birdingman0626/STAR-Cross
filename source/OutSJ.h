@@ -45,7 +45,6 @@ public:
 
     OutSJ(uint64 nSJmax, Parameters &Pin, Genome &genomeIn);
     void collapseSJ();//collapse the junctions in data
-//     int compareSJ(void* i1, void* i2);
 
     void dataSizeIncrease();
 

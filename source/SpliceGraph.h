@@ -16,7 +16,6 @@ public:
     
     SuperTranscriptome &superTrome;
     
-    //vector<array<typeSeqLen, 2>> readAndSuperTranscript;
     const static typeSeqLen maxSeqLength = 100000;//make user parameter?
     typeAlignScore **scoringMatrix, *scoreTwoColumns[2];
     const static typeSeqLen maxMatrixSize = 1000000000; //1B elements in the matrix for now
@@ -36,10 +35,6 @@ public:
         uint32 nMap, nMM, nI, nD, nSJ;
         std::array<SpliceGraph::typeSeqLen, 2> aStart, aEnd;
     } alignInfo;
-    //vector<array<int32,4>> blockCoord;
-    //vector<int32> blockSJ;
-    //vector<int32> rowCol;
-    //vector<array<int32,2>> rowSJ;
     
     
     
@@ -47,7 +42,6 @@ public:
     ~SpliceGraph() = default;
 
     typeAlignScore swScoreSpliced(const char *readSeq, const uint32 readLen, const SuperTranscript &superTr, std::vector<std::array<uint32,2>> &cigar);
-    //void swTraceBack(array<typeSeqLen, 2> &alignEnds, array<typeSeqLen, 2> &alignStarts);
     void findSuperTr(const char *readSeq, const char *readSeqRevCompl, const uint32 readLen, const std::string &readName, Genome &mapGen);
     
 private:

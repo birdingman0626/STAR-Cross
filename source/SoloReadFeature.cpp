@@ -7,8 +7,6 @@ SoloReadFeature::SoloReadFeature(int32 feTy, Parameters &Pin, int iChunk)
 {
     if (pSolo.type==0)
         return;
-//     if (pSolo.type==pSolo.SoloTypes::CB_samTagOut)
-//         return;
     
     readInfoYes = pSolo.readInfoYes[featureType];
     readIndexYes = pSolo.readIndexYes[featureType];

@@ -220,7 +220,6 @@ int32 convertNuclStrToInt32(const string S, uint32 &intOut) {
         };
         intOut = intOut << 2;
         intOut +=nt;
-        //intOut += nt<<(2*ii);
     };
     return posN;
 };
@@ -250,7 +249,6 @@ int64 convertNuclStrToInt64(const string S, uint64 &intOut) {
         };
         intOut = intOut << 2;
         intOut +=nt;
-        //intOut += nt<<(2*ii);
     };
     return posN;
 };
@@ -386,7 +384,6 @@ uint32 localSearchGeneral(const char *text, const uint32 textLen, const vector<c
             };
         };
         
-        //if ( (nMatch1>nMatchBest || (nMatch1==nMatchBest && nMM1<nMM)) && double(nMM1)<=double(nMatch1)*pMM ) {
         if ( (nMatch1>nMatchBest || (nMatch1==nMatchBest && nMM1<nMM)) && nMM1<vecMM.size() && (qe-qs)>=vecMM[nMM1]) {
             posBest=pos;
             nMatchBest=nMatch1;

@@ -143,10 +143,6 @@ void signalFromBAM(const string bamFileName, const string sigFileName, Parameter
             sigAll.assign((size_t)sigN*chrLen, 0.0);
         };
 
-//         uint32_t nCigar =(bamA->core.flag<<16)>>16;
-//         uint32_t mapFlag=bamA->core.flag>>16;
-//         uint32_t mapQ=(bamA->core.flag<<16)>>24;
-
         #define BAM_CIGAR_OperationShift 4
         #define BAM_CIGAR_LengthBits 28
         #define BAM_CIGAR_M 0

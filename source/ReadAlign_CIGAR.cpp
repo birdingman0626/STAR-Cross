@@ -45,12 +45,10 @@ samStreamCIGAR.str(std::string());
 
         string SJmotif = samStreamSJmotif.str();
         string SJintron = samStreamSJintron.str();
-//         string SJannot = samStreamSJannot.str();
 
         if (SJmotif.length()==0) {//no junctions recorded, mark with -1
             SJmotif=",-1";
             SJintron=",-1";
-//             SJannot=",-1";
         };
 
         uint64 trimR1=(trOut.exons[iEx1][EX_R]<readLength[leftMate] ? \

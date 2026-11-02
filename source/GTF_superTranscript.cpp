@@ -223,8 +223,6 @@ void GTF::superTranscript() {
         //            start in the suTrome:  start in condG                                length     start in fullGenome
         convStream << genome.chrStart[iSuTr]+condGstart-superTrStartEnd[iSuTr][0] <<'\t'<< len1<<'\t'<< b[0] <<'\n'; //<<"\t"<<iSuTr<<"\t"<<b[1]<<"\t"<<condGstart<<"\t"<<superTrStartEnd[iSuTr][0]<<"\t"<<superTrStartEnd[iSuTr][1]<<'\n';
         condGstart+=len1;
-//         if (condGstart>superTrStartEnd[iSuTr][1])
-//             ++iSuTr;
     };
     convStream.close();
 }

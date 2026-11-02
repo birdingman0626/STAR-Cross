@@ -185,18 +185,6 @@ void genomeSAindex(char * G, PackedArray & SA, Parameters & P, PackedArray & SAi
     P.inOut->logMain    << timeMonthDayTime(rawTime) <<" ... completed Suffix Array index\n" <<flush;
     *P.inOut->logStdOut << timeMonthDayTime(rawTime) <<" ... completed Suffix Array index\n" <<flush;
 
-//     for (uint64 ii=1;ii<=mapGen.pGe.gSAindexNbases-1;ii++) {//L-mer indices starts
-//         cout <<ii<<endl;
-//         for (uint64 jj=mapGen.genomeSAindexStart[ii-1]; jj<mapGen.genomeSAindexStart[ii]; jj++)
-//         {
-//             if (SAi[jj]!=SAio[jj])
-//             {
-//                 cout <<ii <<" "<< jj<<" "<<jj-mapGen.genomeSAindexStart[ii-1]<<" "<<SAi[jj]<<" "<<SAio[jj]<<" "<<endl;
-//                 sleep(100);
-//             };
-//         };
-//     };
-
 
  };
 
@@ -223,7 +211,6 @@ void genomeSAindexChunk(char * G, PackedArray & SA, Parameters & P, PackedArray 
         };
     } else {
         uint64 isaStep=mapGen.nSA/(1llu<<(2*mapGen.pGe.gSAindexNbases))+1;
-//     isaStep=8;
 
         uint64 isa=iSA1;
         int iL4;

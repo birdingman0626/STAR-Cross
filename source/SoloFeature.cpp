@@ -40,8 +40,6 @@ void SoloFeature::clearLarge()
     countMatMult.i.shrink_to_fit();
     countMatMult.m.clear();
     countMatMult.m.shrink_to_fit();
-    //indCB.clear(); //needed for Velocyto
-    //indCB.shrink_to_fit();
     indCBwl.clear();
     indCBwl.shrink_to_fit();
     nGenePerCB.clear();

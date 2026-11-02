@@ -40,7 +40,6 @@ uint32 ClipMate::clip(uint64 &Lread, char *seqNum)
                 /* new way, not tested properly
                 uint64 clippedAdN1 = Lread-localSearch(seqNum, Lread, adSeqNum.data(), adSeqNum.size(), adMMp);
                 
-                //clippedAdN = localSearchGeneral(seqNum, Lread, adSeqNum, 0, Lread, adMMp,   clippedAdMM);
                 vector<uint32> vecMM({20, 23, 26, 30, 40, 50, 60, 70, 80, 90});
                 clippedAdN = localSearchGeneral(seqNum, Lread, adSeqNum, Lread-1, -1, adMMp, vecMM,   clippedAdMM);
                 

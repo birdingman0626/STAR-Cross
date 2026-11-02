@@ -25,17 +25,6 @@ uint64 blocksOverlap(Transcript &t1, Transcript &t2) {//calculate overlap betwee
         };
     };
 
-    //debug
-//     uint64 nO1=0;
-//     for (uint64 ir=0;ir<t1.Lread;ir++) {
-//         if (t1.gMap[ir]==t2.gMap[ir] && t1.gMap[ir]>0) nO1++;
-//     };
-//
-//     if (nOverlap!=nO1) {
-//         exit(255);
-//     };
-//
-
     return nOverlap;
 };
 

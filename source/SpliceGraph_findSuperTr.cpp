@@ -77,10 +77,8 @@ void SpliceGraph::findSuperTr(const char *readSeq, const char *readSeqRevCompl, 
 	
     //find max coverage
     typeSuperTrSeedCount countMax=0;
-	//float countOverSuperTrLenMax=0;
     for (uint32 ii=0; ii<2*superTrome.N; ii++) {
         countMax=max(superTrSeedCount[ii], countMax);
-		//countOverSuperTrLenMax=max(superTrSeedCount[ii]/float(superTr.length[ii%superTr.N]), countOverSuperTrLenMax);
     };
     
     if (countMax<readLen*seedCoverageThreshold/seedSpacing)//no good candidates, hard-coded for now
@@ -114,10 +112,6 @@ void SpliceGraph::findSuperTr(const char *readSeq, const char *readSeqRevCompl, 
 		uint32 swScore = 0;
         swScore = swScoreSpliced((str1==0 ? readSeq : readSeqRevCompl), readLen, superTrome.superTrs[sutr1], trA.cigar);
         
-        //swTraceBack(alignInfo.aEnd, alignInfo.aStart);
-		//float(superTrSeedCount[ii])/countMax
-		//float(superTrSeedCount[ii])/superTr.length[sutr1]/countOverSuperTrLenMax <<'\t'<<
-
 		cout << readName <<'\t'<< sutr1 <<'\t'<< str1 <<'\t'<< superTrome.superTrs[sutr1].length <<'\t'<< readLen <<'\t'<< float(superTrSeedCount[ii])/readLen*seedSpacing <<'\t'<<  
 				float(superTrSeedCount[ii])/countMax <<'\t'<<
                 swScore <<'\t'<< float(swScore)/readLen <<'\t'<< alignInfo.aStart[0] <<'\t'<< alignInfo.aEnd[0] <<'\t'<< alignInfo.aStart[1] <<'\t'<< alignInfo.aEnd[1] << endl;
@@ -130,49 +124,6 @@ void SpliceGraph::findSuperTr(const char *readSeq, const char *readSeqRevCompl, 
         trA.lIns=alignInfo.nI;
         trA.lDel=alignInfo.nD;
         trA.rLength=alignInfo.nMap;
-//         {//calculate blocks from rowCol and rowSJ
-//             int32 iEx=-1;//current exon
-//             for (uint32 row=alignInfo.aStart[0]; row<=alignInfo.aEnd[0]; row++) {
-// 
-//                 if (rowCol[row]>=0) {//this row has no mapped base (i.e. no block) = bases deleted from query
-//                     if (iEx==-1 || rowCol[row]!=rowCol[row-1]+1) {//start new block
-//                         ++iEx;
-//                         trA.exons[iEx][EX_R]=row;
-//                         trA.exons[iEx][EX_G]=mapGen.chrStart[trA.Chr]+rowCol[row];
-//                         trA.exons[iEx][EX_L]=1;
-//                         trA.canonSJ[iEx]=-1;
-//                         trA.sjAnnot[iEx]=0;
-//                     } else {
-//                         trA.exons[iEx][EX_L]++;
-//                     };
-//                 };
-//          
-//                 //this needs to be done even if rowCol[row]==-1
-//                 if (rowSJ[row][0]>=0) {//junction: create two 0-length blocks to encapsulate junction
-//                     ++iEx;
-//                     trA.exons[iEx][EX_R]=row+1;
-//                     trA.exons[iEx][EX_G]=mapGen.chrStart[trA.Chr]+rowSJ[row][0]+1;
-//                     trA.exons[iEx][EX_L]=0;
-//                     trA.canonSJ[iEx]=1;//TODO actual motif
-//                     trA.sjAnnot[iEx]=1;
-//                     //if (rowSJ[row]!=rowCol[row+1]) {//create 0-length block to mark junction, on the next row
-//                         ++iEx;
-//                         trA.exons[iEx][EX_R]=row+1;
-//                         trA.exons[iEx][EX_G]=mapGen.chrStart[trA.Chr]+rowSJ[row][1];
-//                         trA.exons[iEx][EX_L]=0;
-//                         trA.canonSJ[iEx]=-1;
-//                         trA.sjAnnot[iEx]=0;
-//                     //};
-//                 };
-//             };
-//             
-//             trA.nExons=iEx+1;
-// 
-//             for (uint32 iex=0; iex<trA.nExons; iex++) {
-//                 trA.exons[iex][EX_iFrag]=0;
-//                 trA.exons[iex][EX_sjA]=0;
-//             };            
-//         };       
 
         if (swScore>maxMaxScore) {
             maxMaxScore=swScore;

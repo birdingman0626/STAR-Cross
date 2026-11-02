@@ -96,7 +96,6 @@ GTF::GTF(Genome &genome, Parameters &P, const string &dirOut, SjdbClass &sjdbLoc
             replace(oneLine1.begin(),oneLine1.end(),'\t',' ');//replace tabs
             replace(oneLine1.begin(),oneLine1.end(),'\"',' ');//now the only separator is space
             
-            //string trID(""), gID(""), attr1(""),gName(""),gBiotype("");
             vector<vector<string>> exAttrNames({ {genome.pGe.sjdbGTFtagExonParentTranscript}, {genome.pGe.sjdbGTFtagExonParentGene}, genome.pGe.sjdbGTFtagExonParentGeneName, genome.pGe.sjdbGTFtagExonParentGeneType }); //trID, gID, gName, gBiotype
             vector<string> exAttr; //trID, gID, gName, gBiotype
             exAttr.resize(exAttrNames.size());

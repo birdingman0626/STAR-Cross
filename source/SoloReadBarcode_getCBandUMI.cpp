@@ -22,9 +22,7 @@ void SoloReadBarcode::matchCBtoWL(string &cbSeq1, string &cbQual1, vector<uint64
     if (!pSolo.cbWLyes) {//no whitelist - no search
         if (posN!=-1) {//Ns are present, discard this read
             cbMatch1=-2;
-            //stats.V[stats.nNinBarcode]++;
         } else {//no Ns
-            //cbI=(int64) cbB1;
             cbMatchInd1.push_back(cbB1);//all possible barcodes are accepted. This will overflow if CB is longer than 31b
             cbMatchString1 = to_string(cbB1);
             cbMatch1=0;
@@ -34,7 +32,6 @@ void SoloReadBarcode::matchCBtoWL(string &cbSeq1, string &cbQual1, vector<uint64
 
     if (posN==-2) {//>2 Ns, might already be filtered by Illumina
         cbMatch1=-2;
-        //stats.V[stats.nNinBarcode]++;
         return;
     } else if (posN==-1) {//no Ns, count only for featureType==gene
         int64 cbI=useHint ? hint1.exact : binarySearchExact<uint64>(cbB1,cbWL.data(),cbWL.size());
@@ -85,7 +82,6 @@ void SoloReadBarcode::matchCBtoWL(string &cbSeq1, string &cbQual1, vector<uint64
         };
     };
     if (cbMatch1==0) {//no matches
-        //stats.V[stats.noNoWLmatch]++;
         cbMatch1=-1;
     } else if (cbMatch1==1) {//1 match, no need to record the quality
         cbMatchString1 = to_string(cbMatchInd1[0]);

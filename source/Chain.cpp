@@ -115,12 +115,3 @@ void Chain::liftOverGTF(string gtfFileName, string outFileName)
     streamOut.close();
 };
 
-//             if (mapGen.chrNameIndex.count(oldname))
-//             {
-//                 ostringstream errOut;
-//                 errOut << "EXITING because of fatal INPUT file error: chain file contains chromosome (scaffold) not present in the genome " << oldname <<"\n";
-//                 errOut << ERROR_OUT << "\n";
-//                 exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_INPUT_FILES, P);
-//             };
-//             uint64 ichr=mapGen.chrNameIndex[oldname];//chr index in the genome list
-//             bStart1[bN] += mapGen.chrLength[ichr];//whole genome chain - shift by chr start

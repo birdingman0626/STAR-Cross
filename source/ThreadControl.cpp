@@ -12,5 +12,4 @@ void* ThreadControl::threadRAprocessChunks(void* chunk) {
 ThreadControl::ThreadControl() {
     chunkInN=0;
     chunkOutN=0;
-//     chunkOutBAMposition=new uint64 [MAX_chunkOutBAMposition];
 };

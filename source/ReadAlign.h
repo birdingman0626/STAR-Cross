@@ -105,7 +105,7 @@ class ReadAlign {
 	//input,output
         char** outBAMoneAlign;
         uint64* outBAMoneAlignNbytes;
-        int alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, const std::vector<int> &outSAMattrOrder, char** outBAMarray, uint64* outBAMarrayN);
+        int alignBAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 trChrStart, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, const std::vector<int> &outSAMattrOrder, char** outBAMarrayOut, uint64* outBAMarrayN);
 
         // Two-phase device stitching (see StitchBatch.h). Collect: stitchPieces
         // records the read's windows and alignLoadedRead stops after mapping.
@@ -223,9 +223,9 @@ class ReadAlign {
 
         bool outputTranscript(Transcript *trOut, uint64 nTrOut, std::ofstream *outBED);
 
-        uint64 outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapType, bool *mateMap, std::ostream *outStream);
+        uint64 outputTranscriptSAM(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 mateChr, uint64 mateStart, char mateStrand, int unmapTypeArg, bool *mateMap, std::ostream *outStream);
         //outputTranscriptSAM steps (ReadAlign_outputTranscriptSAM.cpp)
-        void samUnmappedMates(Transcript const &trOut, int unmapType, bool *mateMap, std::ostream *outStream);
+        void samUnmappedMates(Transcript const &trOut, int unmapTypeArg, bool *mateMap, std::ostream *outStream);
         void samCIGARandJunctions(Transcript const &trOut, uint64 iEx1, uint64 iEx2, uint64 Mate, uint64 leftMate, std::string &CIGAR, std::string &SJmotif, std::string &SJintron);
         void samTextNM_MD(Transcript const &trOut, uint64 iEx1, uint64 iEx2, uint64 &tagNM, std::string &tagMD);
         void samAttributes(Transcript const &trOut, uint64 nTrOut, uint64 iTrOut, uint64 imate, uint64 nMates, const std::string &SJmotif, const std::string &SJintron,
@@ -265,15 +265,15 @@ class ReadAlign {
         void calcCIGAR(Transcript const &trOut, uint64 nMates, uint64 iExMate, uint64 leftMate);
 
         void stitchWindowSeeds (uint64 iW, uint64 iWrec, bool *WAexcl, char *R);//stitches all seeds in one window: iW
-        void stitchPieces(char **R, uint64 Lread);
+        void stitchPieces(char **R, uint64 LreadArg);
         //stitchPieces steps (ReadAlign_stitchPieces.cpp)
         bool takeInjectedTranscripts();//device-stitched read: take its transcripts, skip window building
-        void createWindowsFromAnchors(uint64 Lread);
+        void createWindowsFromAnchors(uint64 LreadArg);
         void extendWindowFlanks();
-        void assignAlignsToWindows(uint64 Lread);
+        void assignAlignsToWindows(uint64 LreadArg);
         void filterWindowsByCoverage();//long reads only
-        void collectStitchWindows(char **R, uint64 Lread);
-        void stitchAllWindows(char **R, uint64 Lread);
+        void collectStitchWindows(char **R, uint64 LreadArg);
+        void stitchAllWindows(char **R, uint64 LreadArg);
         void warnTranscriptSpace();
 
         uint64 quantTranscriptome (Transcriptome *Tr, uint64 nAlignG, Transcript **alignG, Transcript *alignT);

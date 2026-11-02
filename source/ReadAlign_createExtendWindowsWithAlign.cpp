@@ -49,10 +49,6 @@ int ReadAlign::createExtendWindowsWithAlign(uint64 a1, uint64 aStr) {
                 while (wB[iBin]==wB[iBin+1]) ++iBin; //extend through all bins of the right window
                 iBinRight=iBin;
                 iWinRight=wB[iBin];
-//                 if (iBin!=WC[iWinRight][WC_gEnd]) {//debug, switch off!!!
-//                     cerr <<"BUG in createWindows"<<endl<<flush;
-//                     exit(0);
-//                 };
                 if (!flagMergeLeft) iWin=wB[iBin];//left window overwrites right
                 for (uint64 ii=aBin; ii<=iBin; ii++) {//mark al bins with the existing windows ID
                     wB.set(ii, iWin);

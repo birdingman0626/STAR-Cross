@@ -39,7 +39,6 @@ void twoPassRunPass1(Parameters &P, Genome &genomeMain, Transcriptome *transcrip
     P1.outFileNamePrefix=P.twoPass.dir;
 
     P1.readMapNumber=min(P.twoPass.pass1readsN, P.readMapNumber);
-//         P1.inOut->logMain.open((P1.outFileNamePrefix + "Log.out").c_str());
 
     P1.wasp.outputMode="None"; //no WASP filtering on the 1st pass
     P1.wasp.yes = false;

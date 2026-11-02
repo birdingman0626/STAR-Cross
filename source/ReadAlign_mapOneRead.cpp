@@ -102,7 +102,6 @@ int ReadAlign::mapOneRead() {
                         uint64 Shift = iDir==0 ? ( splitR[0][ip] + istart*Lstart + Lmapped ) : \
                                    ( splitR[0][ip] + splitR[1][ip] - istart*Lstart-1-Lmapped); //choose Shift for forward or reverse
 
-                        //uint64 seedLength=min(splitR[1][ip] - Lmapped - istart*Lstart, P.seedSearchLmax);
                         uint64 seedLength=splitR[1][ip] - Lmapped - istart*Lstart; // what's left of the read to align.
                         maxMappableLength2strands(Shift, seedLength, iDir, 0, mapGen.nSA-1, L, splitR[2][ip]);//L=max mappable length, unique or multiple
                         if (iDir==0 && istart==0 && Lmapped==0 && Shift+L == splitR[1][ip] ) {//this piece maps full length and does not need to be mapped from the opposite direction

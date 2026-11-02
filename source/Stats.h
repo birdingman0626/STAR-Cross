@@ -36,6 +36,5 @@ class Stats {
         void writeLines(std::ofstream &streamOut, const std::vector<int> outType, const std::string commStr, const std::string outStr);// write commented lines to text files with stats
         
         void qualHistCalc(const uint64 imate, const char* qual, const uint64 len);
-        //void qualHistCalcSolo(const uint64 imate, const char* qual, const vector<uint32> stlen);
 };
 #endif

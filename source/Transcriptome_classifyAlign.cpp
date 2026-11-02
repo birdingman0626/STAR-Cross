@@ -47,7 +47,6 @@ int alignToTranscript(Transcript &aG, uint64 trS1, uint16 exN1, uint32 *exSE1, u
             };
         };
 
-        //uint64 eS=exSE1[2*ex1];
         eE  = exSE1[2*ex1+1];
         enS = ex1+1<exN1 ? exSE1[2*(ex1+1)] : 0;//next exon start
 
@@ -176,15 +175,9 @@ int alignToTranscriptMinOverlap(Transcript &aG, uint64 trS1, uint32 *exSE1, uint
 
 void Transcriptome::classifyAlign (Transcript **alignG, uint64 nAlignG, ReadAnnotations &readAnnot) 
 {
-    // readAnnot.transcriptConcordant={};
-    // readAnnot.trVelocytoType={};
-    //array<bool,AlignVsTranscript::N> reAnn={false};
 
 
     ReadAnnotFeature &annFeat = readAnnot.annotFeatures[SoloFeatureTypes::Gene];
-    // annFeat.fSet={};
-    // annFeat.fAlign = {};       
-    // annFeat.ovType = 0;
 
     annFeat.fAlign.resize(nAlignG);    
     uint32 reGe=(uint32)-2;//so that the first gene can be recorded
@@ -213,10 +206,6 @@ void Transcriptome::classifyAlign (Transcript **alignG, uint64 nAlignG, ReadAnno
             
             if (aStatus==AlignVsTranscript::Concordant) {//align conforms with the transcript
 
-                //debug
-                //if (aG.nExons==1 && aG.exons[0][EX_L]+distTrEnds[0]+distTrEnds[1] != trLen[tr1])
-                //    cerr << aG.exons[0][EX_L]+distTrEnds[0]+distTrEnds[1] <<" "<<trLen[tr1] <<endl;
-                
                 uint64 distTTS = (uint64) ( trStr[tr1]==1 ? distTrEnds[1] : distTrEnds[0] );
                 readAnnot.transcriptConcordant.push_back({tr1,(uint32) distTTS});
 

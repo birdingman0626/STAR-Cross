@@ -20,7 +20,6 @@ public:
     std::string cbSeqCorrected;
     BarcodeHint hint; //precomputed whitelist lookup for the next read, used only if its key matches
     uint64 umiB;
-    //int64  cbI;
     int32 cbMatch;//-1: no match, 0: exact, 1: 1 match with 1MM, >1: # of matches with 1MM
     int32 umiCheck;//umi check status
     std::string cbMatchString;//CB matches and qualities

@@ -6,7 +6,6 @@ using namespace std;
 void ParametersClip::initialize(Parameters *pPin)
 {
     pP = pPin;
-    //yes = false;
     
     if (adapterType[0]!="Hamming" && adapterType[0]!="CellRanger4") {
         exitWithError("EXITING because of fatal PARAMETER error: --clipAdapterType = " + adapterType[0] + " is not a valid option\n" +

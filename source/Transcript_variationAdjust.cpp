@@ -39,11 +39,6 @@ int Transcript::variationAdjust(const Genome &mapGen, char *R)
                     };
                 };
 
-                //if (ntR == Var.snp.nt[isnp][0])
-                //{//mark snp that agrees with the reference
-                //    igt*=10;
-                //};
-
                 varAllele.push_back(igt);
 
                 if (igt<3 && ntR != Var.snp.nt[isnp][0])

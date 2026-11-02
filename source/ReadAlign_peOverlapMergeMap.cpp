@@ -9,9 +9,6 @@ void ReadAlign::peOverlapMergeMap() {
         return;
     };
 
-    //debug
-    //cout << ">" << readName+1;
-
 
     //merge PE mates into SE
     peMergeRA->copyRead(*this);
@@ -20,32 +17,14 @@ void ReadAlign::peOverlapMergeMap() {
     peOv.yes=false;
 
     if (peOv.nOv==0) {//check if mates can be merged, if not - return
-        //cout <<"\n-1\n";
         return;
     };
-
-    //change parameters for SE mapping
-    //double P_alignSplicedMateMapLminOverLmate=P.alignSplicedMateMapLminOverLmate;
-    //P.alignSplicedMateMapLminOverLmate=P.alignSplicedMateMapLminOverLmate*peMergeRA->readLength[0]/(readLength[0]+readLength[1]);
 
     //map SE
     peMergeRA->mapOneRead();
     if (peMergeRA->nW==0) { // || peMergeRA->trBest->maxScore+peOv.nOv < trBest->maxScore) {//no windows, score of the merged align is less. This is a preliminary check, more accurate check is done with alignment score calculated after transforming the SE back to PE
-        //cout <<" -2\n";
-        //for (uint64 ii=0;ii<peMergeRA->Lread;ii++) {
-        //    cout <<P.genomeNumToNT[peMergeRA->Read1[0][ii]];
-        //};
-        //cout << "\n";
         return;
     };
-
-    //convert best alignment SE to PE
-    //trA=*trInit;
-    //trA.peOverlapSEtoPE(peOv.nOv, *peMergeRA->trBest);
-    //trA.alignScore(Read1,mapGen.G,P);
-    //if (trA.maxScore<trBest->maxScore || trA.nMM > outFilterMismatchNmaxTotal) {//merged-mate SE alignment has lower score than the PE
-    //    return;
-    //};
 
     intScore peScore=trBest->maxScore;
 
@@ -53,22 +32,9 @@ void ReadAlign::peOverlapMergeMap() {
     peMergeRA->peOv=peOv;
     peOverlapSEtoPE(*peMergeRA);
 
-    //debug
-    //if (oldScore>trBest->maxScore || trBest->maxScore<peMergeRA->trBest->maxScore)
-    //    cout << readName << "   "<< oldScore << "   "<< peMergeRA->trBest->maxScore << "   "<<trBest->maxScore << endl;
-
 
     //chimeric detection for SE
     chimericDetectionPEmerged(*peMergeRA);
-
-    //debug
-    //cout << "\n";
-    //for (uint64 ii=0;ii<peMergeRA->Lread;ii++) {
-    //    cout <<P.genomeNumToNT[peMergeRA->Read1[0][ii]];
-    //};
-    //cout << "\n";
-
-    //P.alignSplicedMateMapLminOverLmate=P_alignSplicedMateMapLminOverLmate;
 
     if (peScore<=trBest->maxScore || chimRecord) {//otherwise peOv.yes=false
         peOv.yes=true;
@@ -124,30 +90,6 @@ void Transcript::peOverlapSEtoPE(uint64* mateStart, const Transcript &t) {//conv
     uint64 mEnd[2];
     mEnd[0]=mSta[0]+mLen[0];
     mEnd[1]=mSta[1]+mLen[1];
-
-//     uint64 iex=0;
-//     for ( ; iex<t.nExons; iex++) {//first, cycle through the exons from mate1
-//         if (t.exons[iex][EX_R] >= mEnd[0] || t.exons[iex][EX_R]+t.exons[iex][EX_L] < mSta[0]) {//this exon is only in mate2, break this cycle
-//             break;
-//         };
-//         //record these exons for mate1
-//
-//         exons[iex][EX_iFrag]=t.Str;
-//         exons[iex][EX_sjA]=t.exons[iex][EX_sjA];
-//         canonSJ[iex]=t.canonSJ[iex];
-//         sjAnnot[iex]=t.sjAnnot[iex];
-//         sjStr[iex]=t.sjStr[iex];
-//         shiftSJ[iex][0]=t.shiftSJ[iex][0];
-//         shiftSJ[iex][1]=t.shiftSJ[iex][1];
-//
-//         exons[iex][EX_R]=t.exons[iex][EX_R]-mSta[0];
-//         exons[iex][EX_G]=t.exons[iex][EX_G];
-//         if (t.exons[iex][EX_R]+t.exons[iex][EX_L] < mEnd[0]) {//exon is fully in mate1
-//             exons[iex][EX_L]=t.exons[iex][EX_L];
-//         } else {
-//             exons[iex][EX_L]=mEnd[0]-t.exons[iex][EX_R];
-//         };
-//     };
 
     nExons=0;
     for (uint64 imate=0; imate<2; imate++) {//cycle over mate 1,2
@@ -232,9 +174,6 @@ void Transcript::peOverlapSEtoPE(uint64* mateStart, const Transcript &t) {//conv
 };
 
 void ReadAlign::peOverlapSEtoPE(ReadAlign &seRA) {//ReAdAlign: convert SE to PE and copy
-
-    //nW=seRA.nW;
-    //memcpy((void*) nWinTr, (void*) seRA.nWinTr, nW*sizeof(*nWinTr));
 
     uint64 trNtotal=0;
     intScore bestScore=-10*Lread;

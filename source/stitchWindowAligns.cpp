@@ -253,14 +253,6 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
                 //OR within the score range of each mate
                 //OR all transcript if chimeric detection is activated
 
-//             if (P.alignEndsType.in=="EndToEnd") {//check that the alignment is end-to-end
-//                 uint64 rTotal=trA.rLength+trA.lIns;
-// //                 for (uint64 iex=1;iex<trA.nExons;iex++) {//find the inside exons
-// //                     rTotal+=trA.exons[iex][EX_R]-trA.exons[iex-1][EX_R];
-// //                 };
-//                 if ( (trA.iFrag<0 && rTotal<(context.readLength[0]+context.readLength[1])) || (trA.iFrag>=0 && rTotal<context.readLength[trA.iFrag])) return;
-//             };
-
             uint64 iTr=0; //transcript insertion/replacement place
 
             trA.mappedLength=0;
@@ -302,7 +294,6 @@ void stitchWindowAligns(uint64 iA, uint64 nA, int Score, bool WAincl[], uint64 t
                 if (*nWinTr<P.align.transcriptsPerWindowNmax) {
                     (*nWinTr)++; //increment number of transcripts per window;
                 } else {
-                        //"WARNING: too many recorded transcripts per window: iRead="<<RA->iRead<< "\n";
                 };
             };
         };

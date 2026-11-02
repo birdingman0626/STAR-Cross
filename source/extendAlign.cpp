@@ -30,7 +30,6 @@ if (extendToEnd) {//end to end extension
             trA->nMatch=0;
             trA->nMM=nMMmax+1;
             return true;
-//             return false;
         };
         if (R[iS]==MARK_FRAG_SPACER_BASE) break; //no extension through the spacer between fragments
 

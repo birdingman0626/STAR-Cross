@@ -70,8 +70,6 @@ void wlAddMismatches(uint32 nMM, uint32 cbLen, vector<uintCB> &wl, vector<uintCB
             for (uint32 ll=0; ll<cbLen*2; ll+=2) {//2 bits for each base of CB
                 for (uintCB jj=1; jj<4; jj++) {//change to 1 of 3 values. Note that jj=0 corresponds to no change
                     uintCB cbmm = cbMMind[ii].cb^(jj<<ll);
-                    //if (cbmm==27 && mm==3)
-                    //    cout << ii;
                     cbMMind.push_back({cbmm, cbMMind[ii].ind, mm});
                     ++ind3;
                 };
@@ -81,29 +79,21 @@ void wlAddMismatches(uint32 nMM, uint32 cbLen, vector<uintCB> &wl, vector<uintCB
         if (mm==2) {//ins+del only added at mm=ed=2
             for (uint64 ii=0; ii<wl.size(); ii++) {//ins+del added to original barcodes (without mm)
                 uintCB cbmm = cbMMind[ii].cb;
-                //cout << convertNuclInt64toString(cbmm, cbLen)<<endl;
                 for (uint32 ld=0; ld<cbLen*2; ld+=2) {//del
                     uintCB maskd1 = ((uintCB)-1)<<(ld+2);
                     uintCB maskd = (~maskd1)>>2;
                     uintCB cbmmd = (cbmm & maskd) | ((cbmm & maskd1)>>2);
-                    //cout << convertNuclInt64toString(cbmmd, cbLen)<<endl;
                     for (uint32 ll=0; ll<cbLen*2; ll+=2) {//ins
                         uintCB cbmm1 = cbmmd<<2;
-                        //cout << convertNuclInt64toString(cbmm1, cbLen) <<" "<< ll <<endl;
                         uintCB mask1 = ((uintCB)-1)<<(ll+2);
-                        //cout << convertNuclInt64toString(mask1, cbLen)<<endl;
                         uintCB mask = (~mask1)>>2;
-                        //cout << convertNuclInt64toString(mask, cbLen)<<endl;                
                         uintCB cbmm2 = (cbmmd & mask) | (cbmm1 & mask1);
-                        //cout << convertNuclInt64toString(cbmm2, cbLen)<<endl;
                         
                         for (uintCB jj=0; jj<4; jj++) {
                             uintCB cbmm3 = cbmm2 | (jj<<ll);//cbmm2 has A=00 in ll-position. Change this to one of 4 bases
-                            //cout << convertNuclInt64toString(cbmm3, cbLen) <<" "<< jj<<endl;
                             cbMMind.push_back({cbmm3, cbMMind[ii].ind, mm});
                             ++ind3;
                         };
-                        //cout << flush;
                     };
                 };
             };
@@ -130,12 +120,9 @@ void wlAddMismatches(uint32 nMM, uint32 cbLen, vector<uintCB> &wl, vector<uintCB
         if (    ( ii>0 && cbMMind[ii].cb == prevCB ) 
              || ( ii<cbMMind.size()-1 && cbMMind[ii].cb == cbMMind[ii+1].cb &&  cbMMind[ii].mm == cbMMind[ii+1].mm ) ) {
             cbMMind[ii].mm = nMM+1; //this cb is equal to previous, mark to skip
-            //cout << convertNuclInt64toString(cbMMind[ii].cb, cbLen) <<' '<< cbMMind[ii].mm << " 2" << ' '<< convertNuclInt64toString(wl[cbMMind[ii].ind], cbLen)<<' '<<wl[cbMMind[ii].ind]<<'\n';
         } else {
             nCBout++;
             nCBmm[cbMMind[ii].mm]++;
-            //cout << convertNuclInt64toString(cbMMind[ii].cb, cbLen) <<' '<< cbMMind[ii].mm << " 1" << ' '<< convertNuclInt64toString(wl[cbMMind[ii].ind], cbLen); //<<' '<< cbMMind[ii].cb;
-            //cout <<'\n';
         };
         prevCB = cbMMind[ii].cb;
     };

@@ -5,13 +5,6 @@
 #include "Parameters.h"
 #include <array>
 
-// struct SNPnt
-// {
-//     char ref;
-//     char a1;
-//     char a2;
-// };
-
 class SNP
 {
 public:
@@ -44,8 +37,6 @@ public:
 private:
     std::unique_ptr<uint64[]> snpLociStorage;
     std::string vcfFile;
-    //string varOutFileName;
-    //ofstream varOutStream;//output file for variations
 
     std::vector <uint64> &chrStart; //this needs to be replaced with a structure that contains basic genome variables
     std::map <std::string,uint64> &chrNameIndex;

@@ -110,7 +110,6 @@ void Junction::collapseOneSJ(char* isj1P, char* isjP, Parameters& P) {//collapse
                    <<" "<<int(*(char*)(isj1P+annotP)) <<" "<<int(*(char*)(isjP+annotP))<<"\n";
             exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
 
-           //*(isj1P+motifP) = *(isjP+motifP) ; 
     };
     if (*(isj1P+annotP) < *(isjP+annotP) ) {
             // The same junction can legitimately be detected both de-novo (annot=0)

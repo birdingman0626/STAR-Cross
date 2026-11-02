@@ -4,7 +4,6 @@
 using namespace std;
 void Transcriptome::geneFullAlignOverlap_ExonOverIntron(uint64 nA, Transcript **aAll, int32 strandType, ReadAnnotFeature &annFeat, ReadAnnotFeature &annFeatGeneConcordant)
 {
-    // annFeat.ovType = 0;
     if (annFeatGeneConcordant.fSet.size()>0) {//if concordant genes were found for this read, prioritize them over intronic overlap
         annFeat = annFeatGeneConcordant;
         annFeat.ovType = ReadAnnotFeature::overlapTypes::exonic;
@@ -12,8 +11,6 @@ void Transcriptome::geneFullAlignOverlap_ExonOverIntron(uint64 nA, Transcript **
     };
 
     //calculate overlap with introns
-    // annFeat.fSet={};
-    // annFeat.fAlign = {};    
     
     annFeat.fAlign.resize(nA);
     for (uint32 iA=0; iA<nA; iA++) {//only includes aligns that are entirely inside genes (?)

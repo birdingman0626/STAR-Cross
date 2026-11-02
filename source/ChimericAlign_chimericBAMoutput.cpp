@@ -45,12 +45,6 @@ void ChimericAlign::chimericBAMoutput(Transcript *al1, Transcript *al2, ReadAlig
                     ++bamIrepr;
                 };
 //TODO check flags of SE split read
-//                if (chimType==3) {
-//                    bamIrepr=bamN;
-//                } else if (trChim[itr]->exons[0][EX_iFrag]==trChim[1-itr]->exons[0][EX_iFrag]) {
-//
-//                };
-//                bamIrepr=( (itr%2)==(trChim[itr]->Str) && chimType!=3) ? bamN+1 : bamN;//this is the mate that is chimerically split
             } else {//"supplementary" chimeric segment
                 alignType=P.pCh.out.bamHardClip ? ( ( itr%2==trChim[itr]->Str ) ? -12 : -11) : -13 ; //right:left chimeric junction
                 bamIsuppl=bamN;

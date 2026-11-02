@@ -50,14 +50,6 @@ void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, u
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_RUNTIME, P);
     };
   #else
-//     int iP3;
-//     for (iP3=nP-1; iP3>=0; iP3--) {
-//         if ( PC[iP3][0]<=rStart ) {
-//             if ( (PC[iP3][PC_rStart]==rStart) && PC[iP3][PC_Length]<L ) continue;
-//             if ( (PC[iP3][PC_rStart]==rStart) && PC[iP3][PC_Length]==L ) iP3=-1; //same alignment as before, do not store!
-//             break;
-//         };
-//     };
 
     int iP2=-1,iP1;
     int nRemove=0;
@@ -100,10 +92,6 @@ void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, u
     };
 
     int iP=iP2;
-//     if (iP!=iP3+1) {
-//         cout << "BUG: iP!=iP3+1 iRead="<<iRead<<"   "<<readName<<flush;
-//         exit(-1);
-//     };
 
     if (nRemove==0) {//add piece
         if (nP == P.seed.perReadNmax) {

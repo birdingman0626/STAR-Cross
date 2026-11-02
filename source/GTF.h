@@ -29,7 +29,7 @@ public:
     SuperTranscriptome superTrome;
     
     GTF(Genome &genomeIn, Parameters &Pin, const std::string &dirOut, SjdbClass &sjdbLoci);
-    uint64 transcriptGeneSJ(const std::string &dirOut);
+    uint64 transcriptGeneSJ(const std::string &dirOutArg);
     void superTranscript();
 };
 

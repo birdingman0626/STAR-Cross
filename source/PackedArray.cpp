@@ -49,7 +49,6 @@ void PackedArray::defineBits(uint64 Nbits, uint64 lengthIn){
     bitRecMask=(~0LLU)>>wordCompLength;
     length=lengthIn;
     lengthByte=length == 0 ? sizeof(uint64) : (length-1)*wordLength/8LLU+sizeof(uint64);
-//     lengthByte=((lengthByte+sizeof(uint64)-1LLU)/sizeof(uint64))*sizeof(uint64);
 };
 
 void PackedArray::writePacked( uint64 jj, uint64 x) {

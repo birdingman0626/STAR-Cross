@@ -190,8 +190,6 @@ class Parameters {
         uint32 outBAMsortingBinsN;//user-defined number of bins for sorting
         std::string outBAMsortTmpDir;
 
-//         string bamRemoveDuplicatesType;
-//         uint64 bamRemoveDuplicatesMate2basesN;
         struct {
             std::string mode;
             bool yes;
@@ -264,8 +262,6 @@ class Parameters {
         } outWigFlags;
 
         //2-pass
-//         uint64 twoPass.pass1readsN, twoPass.sjLimit;
-//         string twoPass.dir,twopassSJpass1file;
         struct {
             bool yes; //true in 2-pass mode
             bool pass2; //true if now running the 2nd pass

@@ -28,7 +28,6 @@ void Parameters::inputParameters (int argInN, char* argIn[]) {//input parameters
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void Parameters::scanAllLines (istream &streamIn, int inputLevel,  int inputLevelRequested) {//scan
-//     istringstream stringInStream (stringIn);
     string lineIn;
     while (getline(streamIn,lineIn)) {
         scanOneLine(lineIn, inputLevel, inputLevelRequested);

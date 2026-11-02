@@ -45,7 +45,6 @@ uint64 compareSeqToGenome(const SeedIndexView &mapGen, const char* const* s2, ui
                 };
             };
         };
-//         if (s[ii]>g[ii]) {compRes=true;} else {compRes=false;};
         return N; //exact match
     } else if (dirR && !dirG) {
         const char* s  = s2[1] + S + L;
@@ -125,7 +124,6 @@ uint64 findMultRange(const SeedIndexView &mapGen, uint64 i3, uint64 L3, uint64 i
     };
     while ( (i1b+1<i1a)|(i1b>i1a+1) ) { //L1a is the target length, i1a...i1b is the initial range, i1c,L1c is the value in the middle
         uint64 i1c=medianUint2(i1a,i1b);
-        //uint64 L1c=identityLength(&g[mapGen.SA[i3]+L1b],&g[mapGen.SA[i1c]+L1b],L3-L1b)+L1b;
         uint64 L1c=compareSeqToGenome(mapGen,s,S,L3,L1b,i1c,dirR,compRes);
         if (L1c==L3) {
             i1a=i1c;
@@ -160,8 +158,6 @@ uint64 maxMappableLength(const SeedIndexView &mapGen, const char* const* s, uint
     L1=compareSeqToGenome(mapGen,s,S,N,L,i1,dirR,compRes);
     L2=compareSeqToGenome(mapGen,s,S,N,L,i2,dirR,compRes);
 
-//     L1=identityLength(&s[L],&g[mapGen.SA[i1]]);
-//     L2=identityLength(&s[L],&g[mapGen.SA[i2]]);
     L= min(L1,L2);
 
     L1a=L1;L1b=L1;i1a=i1;i1b=i1;
@@ -295,7 +291,6 @@ uint64 compareSeqToGenome1(const SeedIndexView &mapGen, const char* const* s2, u
                 return ii+L;
             };
         };
-//         if (s[ii]>g[ii]) {compRes=true;} else {compRes=false;};
         return N; //exact match
     }
     else
@@ -369,8 +364,6 @@ uint64 suffixArraySearch1(const SeedIndexView &mapGen, const char* const* s, uin
         if (L3==N) {//this should not really happen
             L=N;
             return i3;
-//             cerr << "Bug L3==N"<<endl;
-//             exit(-1); //found exact match of the whole read length, exit the binary search
         };
 
         if (compRes>0)

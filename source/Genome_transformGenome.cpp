@@ -175,13 +175,11 @@ void Genome::transformChrLenStart(map<string,vector<VariantInfo>> &vcfVariants, 
 {//recalculate chrLength/Start
     chrStart1=chrStart;
     chrLength1=chrLength;
-    //vector<bool> chrTransformYes(chrLength.size(), false);
     for (uint32 ichr=0; ichr<chrLength.size(); ichr++) {
 
         if (vcfVariants.count(chrName[ichr])==0)
             continue;
 
-        //chrTransformYes[ichr]=true;
         vector<VariantInfo> &vV = vcfVariants[chrName[ichr]];
 
         std::sort(vV.begin(), vV.end(), 

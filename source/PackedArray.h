@@ -26,7 +26,6 @@ class PackedArray {
     void allocateArray();
     void deallocateArray();
     void pointArray(char* pointerCharIn);
-//     PackedArray(uint64 N);
 };
 
 inline uint64 PackedArray::operator [] (uint64 ii) const {
