@@ -3,19 +3,37 @@
 #include "serviceFuns.cpp"
 #include "uninitArray.h"
 using namespace std;
-void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string outDir, Genome &mapGen, char *Gsj) {
 
+namespace {
+// per-input-junction arrays; borrowed views of storage owned by sjdbPrepare
+struct JunctionArrays {
+    uint64 *sjdbS, *sjdbE;
+    uint8 *sjdbMotif, *sjdbShiftLeft, *sjdbShiftRight;
+};
+
+uint8 junctionMotif(const char *G, uint64 sjS, uint64 sjE) {
+    if ( G[sjS]==2 && G[sjS+1]==3 && G[sjE-1]==0 && G[sjE]==2 ) {//GTAG
+        return 1;
+    } else if ( G[sjS]==1 && G[sjS+1]==3 && G[sjE-1]==0 && G[sjE]==1 ) {//CTAC
+        return 2;
+    } else if ( G[sjS]==2 && G[sjS+1]==1 && G[sjE-1]==0 && G[sjE]==2 ) {//GCAG
+        return 3;
+    } else if ( G[sjS]==1 && G[sjS+1]==3 && G[sjE-1]==2 && G[sjE]==1 ) {//CTGC
+        return 4;
+    } else if ( G[sjS]==0 && G[sjS+1]==3 && G[sjE-1]==0 && G[sjE]==1 ) {//ATAC
+        return 5;
+    } else if ( G[sjS]==2 && G[sjS+1]==3 && G[sjE-1]==0 && G[sjE]==3 ) {//GTAT
+        return 6;
+    } else {
+        return 0;
+    };
+}
+
+// genome coordinates, motif and repeat shifts of every input junction; junctions are shifted to the left-most repeat position
+void locateJunctions(SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, Genome &mapGen, const JunctionArrays &sj) {
     char *G=mapGen.G;
-
-    auto startStorage=makeUninitArray<uint64>(sjdbLoci.chr.size());
-    auto endStorage=makeUninitArray<uint64>(sjdbLoci.chr.size());
-    uint64 *sjdbS=startStorage.get(), *sjdbE=endStorage.get();
-
-    auto motifStorage=makeUninitArray<uint8>(sjdbLoci.chr.size());
-    auto leftStorage=makeUninitArray<uint8>(sjdbLoci.chr.size());
-    auto rightStorage=makeUninitArray<uint8>(sjdbLoci.chr.size());
-    uint8 *sjdbMotif=motifStorage.get(), *sjdbShiftLeft=leftStorage.get(), *sjdbShiftRight=rightStorage.get();
-
+    uint64 *sjdbS=sj.sjdbS, *sjdbE=sj.sjdbE;
+    uint8 *sjdbMotif=sj.sjdbMotif, *sjdbShiftLeft=sj.sjdbShiftLeft, *sjdbShiftRight=sj.sjdbShiftRight;
 
     string chrOld="";
     uint64 iChr=0;
@@ -37,21 +55,7 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string
         sjdbE[ii] = sjdbLoci.end.at(ii)   + mapGen.chrStart[iChr] - 1;
 
         //motifs
-        if ( G[sjdbS[ii]]==2 && G[sjdbS[ii]+1]==3 && G[sjdbE[ii]-1]==0 && G[sjdbE[ii]]==2 ) {//GTAG
-            sjdbMotif[ii]=1;
-        } else if ( G[sjdbS[ii]]==1 && G[sjdbS[ii]+1]==3 && G[sjdbE[ii]-1]==0 && G[sjdbE[ii]]==1 ) {//CTAC
-            sjdbMotif[ii]=2;
-        } else if ( G[sjdbS[ii]]==2 && G[sjdbS[ii]+1]==1 && G[sjdbE[ii]-1]==0 && G[sjdbE[ii]]==2 ) {//GCAG
-            sjdbMotif[ii]=3;
-        } else if ( G[sjdbS[ii]]==1 && G[sjdbS[ii]+1]==3 && G[sjdbE[ii]-1]==2 && G[sjdbE[ii]]==1 ) {//CTGC
-            sjdbMotif[ii]=4;
-        } else if ( G[sjdbS[ii]]==0 && G[sjdbS[ii]+1]==3 && G[sjdbE[ii]-1]==0 && G[sjdbE[ii]]==1 ) {//ATAC
-            sjdbMotif[ii]=5;
-        } else if ( G[sjdbS[ii]]==2 && G[sjdbS[ii]+1]==3 && G[sjdbE[ii]-1]==0 && G[sjdbE[ii]]==3 ) {//GTAT
-            sjdbMotif[ii]=6;
-        } else {
-            sjdbMotif[ii]=0;
-        };
+        sjdbMotif[ii]=junctionMotif(G, sjdbS[ii], sjdbE[ii]);
         //repeat length: go back and forth around jR to find repeat length
         uint64 jjL=0,jjR=0;
         while ( jjL <= sjdbS[ii]-1 && G[sjdbS[ii]-1-jjL]==G[sjdbE[ii]-jjL] && G[sjdbS[ii]-1-jjL]<4 && jjL<255) {//go back
@@ -74,10 +78,10 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string
         sjdbS[ii]-=sjdbShiftLeft[ii];
         sjdbE[ii]-=sjdbShiftLeft[ii];
     };
+}
 
-    //sort sjdb
-    auto sortStorage=makeUninitArray<uint64>(sjdbLoci.chr.size()*3);
-    uint64 *sjdbSort=sortStorage.get();
+// sort junctions by start/end, separately for each strand
+void sortJunctionsByStrand(SjdbClass &sjdbLoci, uint64 nGenomeReal, const JunctionArrays &sj, uint64 *sjdbSort) {
     for (uint64 ii=0;ii<sjdbLoci.chr.size();ii++) {
         uint64 shift1=0;
         switch (sjdbLoci.str.at(ii)) {
@@ -90,15 +94,18 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string
             default:
                 shift1=2*nGenomeReal;
         };
-        sjdbSort[ii*3]=sjdbS[ii]+shift1; //separate sorting of +/- strand
-        sjdbSort[ii*3+1]=sjdbE[ii]+shift1;
+        sjdbSort[ii*3]=sj.sjdbS[ii]+shift1; //separate sorting of +/- strand
+        sjdbSort[ii*3+1]=sj.sjdbE[ii]+shift1;
         sjdbSort[ii*3+2]=ii;
     };
 
     qsort((void *) sjdbSort, sjdbLoci.chr.size(), sizeof(uint64)*3, funCompareUint2);
+}
 
-    auto indexStorage=makeUninitArray<uint64>(sjdbLoci.chr.size());
-    uint64 *I=indexStorage.get();
+// keep one junction per intron and strand; returns the number kept, their indexes in I
+uint64 collapseSameStrandDuplicates(SjdbClass &sjdbLoci, const JunctionArrays &sj, const uint64 *sjdbSort, uint64 *I) {
+    const uint64 *sjdbS=sj.sjdbS, *sjdbE=sj.sjdbE;
+    const uint8 *sjdbMotif=sj.sjdbMotif, *sjdbShiftLeft=sj.sjdbShiftLeft;
     uint64 nsj=0;
     for (uint64 ii=0;ii<sjdbLoci.chr.size();ii++) {
         uint64 isj=sjdbSort[ii*3+2];//index of the next sorted junction
@@ -126,6 +133,13 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string
             // else - keep the old junction, do not add the new one
         };
     };
+    return nsj;
+}
+
+// resolve junctions with the same loci on opposite strands and record the result in mapGen
+void recordGenomeJunctions(SjdbClass &sjdbLoci, Genome &mapGen, const JunctionArrays &sj, uint64 *sjdbSort, const uint64 *I, uint64 nsj) {
+    const uint64 *sjdbS=sj.sjdbS, *sjdbE=sj.sjdbE;
+    const uint8 *sjdbMotif=sj.sjdbMotif, *sjdbShiftLeft=sj.sjdbShiftLeft, *sjdbShiftRight=sj.sjdbShiftRight;
 
     //sort again, after returning canonical junctions back to original loci:
     for (uint64 ii=0;ii<nsj;ii++) {
@@ -190,8 +204,11 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string
         nsj1++;
     };
     mapGen.sjdbN=nsj1;
-    mapGen.allocateJunctionCoordinates(mapGen.sjdbN);
+}
 
+// junction flank sequences into Gsj, and sjdbInfo.txt / sjdbList.out.tab
+void writeJunctionSequences(Parameters &P, const string &outDir, Genome &mapGen, char *Gsj) {
+    char *G=mapGen.G;
     ofstream sjdbInfo((outDir+"/sjdbInfo.txt").c_str());
     ofstream sjdbList ((outDir+"/sjdbList.out.tab").c_str());
     char strandChar[3]={'.','+','-'};
@@ -219,6 +236,33 @@ void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string
     };
     sjdbInfo.close();
     sjdbList.close();
+}
+}
 
+void sjdbPrepare (SjdbClass &sjdbLoci, Parameters &P, uint64 nGenomeReal, string outDir, Genome &mapGen, char *Gsj) {
+
+    auto startStorage=makeUninitArray<uint64>(sjdbLoci.chr.size());
+    auto endStorage=makeUninitArray<uint64>(sjdbLoci.chr.size());
+
+    auto motifStorage=makeUninitArray<uint8>(sjdbLoci.chr.size());
+    auto leftStorage=makeUninitArray<uint8>(sjdbLoci.chr.size());
+    auto rightStorage=makeUninitArray<uint8>(sjdbLoci.chr.size());
+
+    const JunctionArrays sj{startStorage.get(), endStorage.get(), motifStorage.get(), leftStorage.get(), rightStorage.get()};
+
+    locateJunctions(sjdbLoci, P, nGenomeReal, mapGen, sj);
+
+    //sort sjdb
+    auto sortStorage=makeUninitArray<uint64>(sjdbLoci.chr.size()*3);
+    uint64 *sjdbSort=sortStorage.get();
+    sortJunctionsByStrand(sjdbLoci, nGenomeReal, sj, sjdbSort);
+
+    auto indexStorage=makeUninitArray<uint64>(sjdbLoci.chr.size());
+    uint64 *I=indexStorage.get();
+    uint64 nsj=collapseSameStrandDuplicates(sjdbLoci, sj, sjdbSort, I);
+
+    recordGenomeJunctions(sjdbLoci, mapGen, sj, sjdbSort, I, nsj);
+    mapGen.allocateJunctionCoordinates(mapGen.sjdbN);
+
+    writeJunctionSequences(P, outDir, mapGen, Gsj);
 };
-
