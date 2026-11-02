@@ -23,8 +23,10 @@ void ParametersSolo::initialize(Parameters *pPin)
     //constants - may turn into parameters in the future
     redistrReadsNfiles = 3*pP->runThreadN;
 
-    if (!initSoloType())
+    if (!initSoloType()) {//Solo off
+        initStrand(); //GX/GN without Solo still annotate genes with --soloStrand (Transcriptome::classifyAlign)
         return;
+    };
     initCBtype();
     initBarcodeRead();
     initStrand();

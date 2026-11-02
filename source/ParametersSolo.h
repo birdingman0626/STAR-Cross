@@ -114,7 +114,7 @@ public:
     uint32 nFeatures;//=features.size(), number of requested features
     
     int32 featureFirst; //which feature is the first on the list
-    std::array<bool,SoloFeatureTypes::N> featureYes; //which features are requested
+    std::array<bool,SoloFeatureTypes::N> featureYes{}; //which features are requested; all false when Solo is off
     std::array<bool,SoloFeatureTypes::N> readInfoYes;//which features will need readInfo (for now only Gene and GeneFull)
     std::array<bool,SoloFeatureTypes::N> readIndexYes;//which features will need recording of readIndex (for now only Gene and GeneFull, for multimappers)
     std::array<bool,SoloFeatureTypes::N> readStatsYes;//which features will need output of read statistics
