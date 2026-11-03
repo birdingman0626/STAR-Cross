@@ -275,7 +275,7 @@ void Genome::transformBlocksWrite(vector<array<uint64,3>> &transformBlocks)
     for (auto &tb : transformBlocks) {
         convStream << tb[2] <<'\t'<< tb[1] <<'\t'<< tb[0] <<'\n'; //revert old new for reverse conversion
     };
-    convStream.close();
+    ofstrClose(convStream, P.pGe.gDir+"/transformGenomeBlocks.tsv", ERROR_OUT, P);
 };
 
 void Genome::transformExonLoci(vector<array<uint64,exL>> &exonLoci, vector<array<uint64,3>> &transformBlocks)

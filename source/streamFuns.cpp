@@ -88,6 +88,26 @@ void fstreamWriteBig(std::ofstream &S, char* A, unsigned long long N, std::strin
     P.inOut->logMain << " done\n" <<flush;
 };
 
+template <class FileStream>
+static void closeOutputFile(FileStream &S, const std::string &fileName, const std::string &errorID, Parameters &P) {
+    if (S.is_open())
+        S.close(); //flushes; failure sets failbit
+    if (S.fail()) {//a failed open, write or final flush leaves the file missing or truncated
+        ostringstream errOut;
+        errOut << errorID<<": exiting because of *OUTPUT FILE* error: could not write the output file "<< fileName <<"\n";
+        errOut << "SOLUTION: check that the disk is not full and that you have write permission for this file\n";
+        exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_FILE_WRITE, P);
+    };
+};
+
+void ofstrClose(std::ofstream &S, const std::string &fileName, const std::string &errorID, Parameters &P) {
+    closeOutputFile(S, fileName, errorID, P);
+};
+
+void ofstrClose(std::fstream &S, const std::string &fileName, const std::string &errorID, Parameters &P) {
+    closeOutputFile(S, fileName, errorID, P);
+};
+
 std::ofstream ofstrOpenOwned (std::string fileName, std::string errorID, Parameters &P) {//open file 'fileName', generate error if cannot open
     std::ofstream ofStream(fileName.c_str(), std::fstream::out | std::fstream::trunc | std::fstream::binary);//binary mode: avoid Windows text-mode corruption of binary data (LF->CRLF, 0x1A as EOF)
     if (ofStream.fail()) {//

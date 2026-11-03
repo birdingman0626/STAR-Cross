@@ -398,6 +398,29 @@ def main():
         assert "ALL DONE!" not in (failed/"Log.out").read_text()
         checks.append("deferred BAM disk-full error blocks scientific completion")
 
+        # Text outputs are buffered streams: the failure surfaces only when they
+        # are flushed or closed, which used to be unchecked.
+        text_cases = {
+            "SJ.out.tab": ["--outSAMtype", "None"],
+            "Aligned.out.sam": ["--outSAMtype", "SAM"],
+            "Unmapped.out.mate1": ["--outSAMtype", "None", "--outReadsUnmapped", "Fastx"],
+        }
+        for artifact, options in text_cases.items():
+            failed = root/("disk-full-"+artifact.replace(".", "-"))
+            failed.mkdir()
+            (failed/artifact).symlink_to("/dev/full")
+            command = [args.star_exe, "--runThreadN", str(args.threads), *common,
+                       "--readFilesIn", str(reads), *options,
+                       "--outFileNamePrefix", str(failed)+"/"]
+            (failed/"command.json").write_text(json.dumps(command))
+            print(f"Running fixture: disk-full {artifact}", flush=True)
+            process = run_fixture(command, failed / "console.log")
+            assert process.returncode != 0, f"{artifact} write failure was accepted"
+            assert not (failed/"Log.final.out").exists(), artifact
+            assert "ALL DONE!" not in (failed/"Log.out").read_text(), artifact
+            assert "could not write" in (failed/"Log.out").read_text(), artifact
+        checks.append("disk-full SJ.out.tab, SAM and unmapped-read outputs block scientific completion")
+
     # FASTA uses a distinct input branch; C++20 removed unsafe char* extraction.
     fasta_reads = root / "reads.fasta"
     fasta_reads.write_text("".join(f">r{i} comment\n{s[:50]}\n{s[50:]}\n"

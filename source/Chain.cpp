@@ -111,7 +111,7 @@ void Chain::liftOverGTF(string gtfFileName, string outFileName)
             streamOutUnlifted << line1 <<"\n";
         };
     };
-    streamOutUnlifted.close();
-    streamOut.close();
+    ofstrClose(streamOutUnlifted, outFileName+".unlifted", ERROR_OUT, P);
+    ofstrClose(streamOut, outFileName, ERROR_OUT, P);
 };
 

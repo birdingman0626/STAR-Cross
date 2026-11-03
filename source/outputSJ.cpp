@@ -1,4 +1,5 @@
 #include "ReadAlignChunk.h"
+#include "streamFuns.h"
 #include "Parameters.h"
 #include "OutSJ.h"
 #include <limits.h>
@@ -135,7 +136,8 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
                 outSJtmpStream << *oneSJ.start <<'\t'<< *oneSJ.gap <<'\n';
             };
         };
-        outSJfileStream.close();
+        ofstrClose(outSJfileStream, P.outFileNamePrefix+"SJ.out.tab", ERROR_OUT, P);
+        ofstrClose(outSJtmpStream, P.outFileTmp+"SJ.start_gap.tsv", ERROR_OUT, P);
     } else {//make sjNovel array in P
         P.sjNovelN=0;
         for (uint64 ii=0;ii<allSJ.N;ii++) {//count novel junctions

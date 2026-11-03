@@ -23,7 +23,7 @@ void SuperTranscriptome::sjCollapse()
         for(auto &sj1 : sjCollapsed[i])
             superTrSJstream << i <<"\t"<< sj1[0] <<"\t"<< sj1[1] << "\n";
     };
-    superTrSJstream.close();
+    ofstrClose(superTrSJstream, P.pGe.gDir+"/superTranscriptSJcollapsed.tsv", ERROR_OUT, P);
 
     P.inOut->logMain << "Number of splice junctions in superTranscripts = " << sj.size() <<endl;
     P.inOut->logMain << "Number of collapsed splice junctions in superTranscripts = " << sjCollapsed.size() <<endl;

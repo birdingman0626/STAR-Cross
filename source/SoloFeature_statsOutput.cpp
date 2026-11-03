@@ -81,10 +81,10 @@ void SoloFeature::statsOutput()
                 break;
             strOutUMIperCell << n <<'\n';
         };
-        strOutUMIperCell.close();
+        ofstrClose(strOutUMIperCell, outputPrefix+"UMIperCellSorted.txt", ERROR_OUT, P);
     };
     
-    strOut.close();
+    ofstrClose(strOut, outputPrefix+"Summary.csv", ERROR_OUT, P);
 
     ///////////////////////////////////////////////// readStatsOutput
     if (pSolo.readStatsYes[featureType]) {
@@ -120,7 +120,7 @@ void SoloFeature::statsOutput()
             };
             strOut <<'\n';
         };
-        strOut.close();
+        ofstrClose(strOut, outputPrefix+"CellReads.stats", ERROR_OUT, P);
     };
 
 };

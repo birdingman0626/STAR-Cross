@@ -41,5 +41,5 @@ void genomeParametersWrite(string fileName, Parameters& P, string errorOut, Geno
         genomePar << " " << mapGen.pGe.gFileSizes.at(ii) ;
     genomePar << "\n";
 
-    genomePar.close();
+    ofstrClose(genomePar, fileName, errorOut, P);
 };

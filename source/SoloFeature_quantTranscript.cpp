@@ -89,7 +89,7 @@ void distanceDistribution(Parameters &P, const Transcriptome &Trans, const vecto
         ff = ff/norm1;
         *streamTrDistFun << ff <<'\n';
     };
-    streamTrDistFun->close();
+    ofstrClose(*streamTrDistFun, outputPrefix+"transcriptEndDistanceDistribution.txt", ERROR_OUT, P);
 
     //normalization factors for all transcripts
     vector<double> trDistFunCum(trDistFun);
@@ -316,14 +316,14 @@ void writeTranscriptMatrix(Parameters &P, const Transcriptome &Trans, const stri
                 if (*itt>0)
                     countMatrixStream << itt-ctpm.second.begin()+1  <<' '<<  ctpm.first  <<' '<< *itt << '\n';
 
-        countMatrixStream.flush();
+        ofstrClose(countMatrixStream, matrixFileName, ERROR_OUT, P);
     };
 
     ofstream &outStr=ofstrOpen(outputPrefix+"/features.tsv",ERROR_OUT, P);
     std::unique_ptr<ofstream> featureStreamStorage(&outStr);
     for (uint32 ii=0; ii<Trans.nTr; ii++)
         outStr << Trans.trID[ii] <<"\t"<< Trans.trLen[ii] <<"\t"<< Trans.geName[Trans.trGene[ii]] << '\n';
-    outStr.close();
+    ofstrClose(outStr, outputPrefix+"/features.tsv", ERROR_OUT, P);
 };
 
 } // namespace

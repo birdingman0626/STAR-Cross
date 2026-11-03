@@ -139,7 +139,7 @@ void SoloFeature::loadRawMatrix()
         std::ofstream &outfeat = ofstrOpen(outputPrefixFiltered + pSolo.outFileNames[1], ERROR_OUT, P);
         std::unique_ptr<ofstream> featureOutputStorage(&outfeat);
         outfeat << infeat.rdbuf();
-        outfeat.close();
+        ofstrClose(outfeat, outputPrefixFiltered + pSolo.outFileNames[1], ERROR_OUT, P);
     };
     
     return;

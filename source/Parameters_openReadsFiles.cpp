@@ -1,4 +1,5 @@
 #include "Parameters.h"
+#include "streamFuns.h"
 #include "ErrorWarning.h"
 #include <fstream>
 #include <sys/stat.h>
@@ -162,7 +163,7 @@ void Parameters::writeReadsCommandScript(uint64 imate, const string &readsComman
     readsCommandFile.flush();
     readsCommandFile.seekg(0,ios::beg);
     inOut->logMain <<"\n   readsCommandsFile:\n"<<readsCommandFile.rdbuf()<<endl;
-    readsCommandFile.close();
+    ofstrClose(readsCommandFile, readsCommandFileName, ERROR_OUT, *this);
 
     chmod(readsCommandFileName.c_str(),S_IXUSR | S_IRUSR | S_IWUSR);
 };

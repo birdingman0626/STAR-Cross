@@ -82,14 +82,14 @@ void GTF::transcriptGeneSJwriteExonGeneInfo(const string &dirOutArg)
          exgeOut<<exgeLoci[GTF_exgeExStart(iex)] <<"\t"<<  exgeLoci[GTF_exgeExEnd(iex)] <<"\t"<< exgeLoci[GTF_exgeExStrand(iex)] \
           <<"\t"<< exgeLoci[GTF_exgeGeID(iex)] <<"\t"<< exgeLoci[GTF_exgeTrID(iex)] <<"\n"; //the last value, transript-number, is worng here since tranascripts are re-sorted later
     };
-    exgeOut.close();
+    ofstrClose(exgeOut, dirOutArg+"/exonGeTrInfo.tab", ERROR_OUT, P);
 
     ofstream geOut = ofstrOpenOwned(dirOutArg+"/geneInfo.tab",ERROR_OUT,P);
     geOut << geneID.size() << "\n";
     for (uint64 ig=0; ig<geneID.size(); ig++) {//just geneID for now
         geOut << geneID[ig] <<"\t"<< geneAttr[ig][0] <<"\t"<< geneAttr[ig][1] <<"\n";
     };
-    geOut.close();
+    ofstrClose(geOut, dirOutArg+"/geneInfo.tab", ERROR_OUT, P);
 
 };
 
@@ -143,8 +143,8 @@ void GTF::transcriptGeneSJwriteTranscriptInfo(const string &dirOutArg)
         exOut << extrLoci[GTF_extrExStart(iex)]-trstart <<"\t"<< extrLoci[GTF_extrExEnd(iex)]-trstart <<"\t"<< exlen <<"\n";
         exlen+=extrLoci[GTF_extrExEnd(iex)]-extrLoci[GTF_extrExStart(iex)]+1;
     };
-    trOut.close();
-    exOut.close();
+    ofstrClose(trOut, dirOutArg+"/transcriptInfo.tab", ERROR_OUT, P);
+    ofstrClose(exOut, dirOutArg+"/exonInfo.tab", ERROR_OUT, P);
 };
 
 //junctions between consecutive exons of each transcript (exonLoci sorted by transcript); returns their number
@@ -211,5 +211,5 @@ void GTF::transcriptGeneSJwriteList(const string &dirOutArg, uint64 sjdbN1)
             sjdbList <<","<< *gg;
         sjdbList<<"\n";
     };
-    sjdbList.close();
+    ofstrClose(sjdbList, dirOutArg+"/sjdbList.fromGTF.out.tab", ERROR_OUT, P);
 };

@@ -815,7 +815,7 @@ void Genome::finishSAchunk(const SAsortPlan &plan, uint64 *saChunk, uint64 iChun
         string chunkFileName=pGe.gDir+"/SA_"+to_string(iChunk);
         ofstream saChunkFile = ofstrOpenOwned(chunkFileName,ERROR_OUT, P);
         fstreamWriteBig(saChunkFile, (char*) saChunk, sizeof(saChunk[0])*chunkCount,chunkFileName,ERROR_OUT,P);
-        saChunkFile.close();
+        ofstrClose(saChunkFile, chunkFileName, ERROR_OUT, P);
     };
 };
 
@@ -873,7 +873,7 @@ void Genome::writeGenomeIndex()
 
     ofstream SAout = ofstrOpenOwned(pGe.gDir+"/SA",ERROR_OUT, P);
     fstreamWriteBig(SAout,(char*) SA.charArray, (streamsize) SA.lengthByte,pGe.gDir+"/SA",ERROR_OUT,P);
-    SAout.close();
+    ofstrClose(SAout, pGe.gDir+"/SA", ERROR_OUT, P);
 
     logStage(P," ... writing SAindex to disk\n");
 
@@ -881,7 +881,7 @@ void Genome::writeGenomeIndex()
     fstreamWriteBig(SAiOut, (char*) &pGe.gSAindexNbases, sizeof(pGe.gSAindexNbases),pGe.gDir+"/SAindex",ERROR_OUT,P);
     fstreamWriteBig(SAiOut, (char*) genomeSAindexStart, sizeof(genomeSAindexStart[0])*(pGe.gSAindexNbases+1),pGe.gDir+"/SAindex",ERROR_OUT,P);
     fstreamWriteBig(SAiOut,  SAi.charArray, SAi.lengthByte,pGe.gDir+"/SAindex",ERROR_OUT,P);
-    SAiOut.close();
+    ofstrClose(SAiOut, pGe.gDir+"/SAindex", ERROR_OUT, P);
 };
 
 void Genome::writeChrInfo(const string dirOut) 
@@ -898,11 +898,14 @@ void Genome::writeChrInfo(const string dirOut)
         chrNL<<chrName[ii]<<"\t"<<chrLength.at(ii)<<"\n";
     };
     chrS<<chrStart[nChrReal]<<"\n";//size of the genome
-    chrN.close();chrL.close();chrS.close(); chrNL.close();
+    ofstrClose(chrN, dirOut+"/chrName.txt", ERROR_OUT, P);
+    ofstrClose(chrL, dirOut+"/chrLength.txt", ERROR_OUT, P);
+    ofstrClose(chrS, dirOut+"/chrStart.txt", ERROR_OUT, P);
+    ofstrClose(chrNL, dirOut+"/chrNameLength.txt", ERROR_OUT, P);
 };
 void Genome::writeGenomeSequence(const string dirOut) 
 {//write genome sequence
     ofstream genomeOutStream = ofstrOpenOwned(dirOut+"/Genome",ERROR_OUT, P);
     fstreamWriteBig(genomeOutStream,G,nGenome,dirOut+"/Genome",ERROR_OUT,P);
-    genomeOutStream.close();
+    ofstrClose(genomeOutStream, dirOut+"/Genome", ERROR_OUT, P);
 };

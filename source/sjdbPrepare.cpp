@@ -1,4 +1,5 @@
 #include "sjdbPrepare.h"
+#include "streamFuns.h"
 #include "ErrorWarning.h"
 #include "serviceFuns.cpp"
 #include "uninitArray.h"
@@ -234,8 +235,8 @@ void writeJunctionSequences(Parameters &P, const string &outDir, Genome &mapGen,
                                     << "\t"<<  mapGen.sjdbEnd[ii]-mapGen.chrStart[chr1] + 1 + (mapGen.sjdbMotif[ii]>0 ? 0:mapGen.sjdbShiftLeft[ii]) \
                                     << "\t"<< strandChar[mapGen.sjdbStrand[ii]]<<"\n";
     };
-    sjdbInfo.close();
-    sjdbList.close();
+    ofstrClose(sjdbInfo, outDir+"/sjdbInfo.txt", ERROR_OUT, P);
+    ofstrClose(sjdbList, outDir+"/sjdbList.out.tab", ERROR_OUT, P);
 }
 }
 

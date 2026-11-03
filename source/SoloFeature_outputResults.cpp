@@ -71,7 +71,7 @@ void SoloFeature::outputFeatures(const string &outputPrefixMat)
                 };
                 geneStr << '\n';
             };
-            geneStr.close();
+            ofstrClose(geneStr, outputPrefixMat+pSolo.outFileNames[1], ERROR_OUT, P);
             break;
         };
         case SoloFeatureTypes::SJ :
@@ -113,7 +113,7 @@ uint64 SoloFeature::outputBarcodes(bool cellFilterYes, const string &outputPrefi
         };
     };
     writeBatch(outBatch, cbStr, true);
-    cbStr.flush();   
+    ofstrClose(cbStr, outputPrefixMat+pSolo.outFileNames[2], ERROR_OUT, P);
     return nCellGeneEntries;
 };
 
@@ -170,7 +170,7 @@ void SoloFeature::outputCountMatrices(bool cellFilterYes, const string &outputPr
         };
         writeBatch(outBatch, countMatrixStream, true);
 
-        countMatrixStream.close();
+        ofstrClose(countMatrixStream, matrixFileName, ERROR_OUT, P);
     };
 };
 
@@ -209,7 +209,7 @@ void SoloFeature::outputUniqueAndMultMatrices(const string &outputPrefixMat)
             countMatrixStream << featuresNumber <<' '<< pSolo.cbWLsize <<' '<< nCellGeneEntries << '\n';
             countMatrixStream << matOutStringStream.str();
 
-            countMatrixStream.close();
+            ofstrClose(countMatrixStream, matrixFileName, ERROR_OUT, P);
         };
     };
 };

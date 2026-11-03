@@ -195,5 +195,5 @@ void Transcriptome::quantsOutput() {
         };
         qOut << "\n";
     };
-    qOut.close();
+    ofstrClose(qOut, P.quant.geCount.outFile, ERROR_OUT, P);
 };

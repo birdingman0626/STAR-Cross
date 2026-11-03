@@ -17,6 +17,7 @@
 #include "Stats.h"
 #include "genomeGenerate.h"
 #include "outputSJ.h"
+#include "streamFuns.h"
 #include "ThreadControl.h"
 #include "GlobalVariables.h"
 #include "TimeFunctions.h"
@@ -206,6 +207,22 @@ void writeSignalAndCram(Parameters &P)
     };
 };
 
+void closeMappingOutputs(Parameters &P)
+{//close the run's mapping outputs and Log.progress.out; a failed write is fatal.
+ //Streams that were never opened are skipped; ~InOutStreams closes what is left on error paths.
+    InOutStreams &io=*P.inOut;
+    const string &prefix=P.outFileNamePrefix;
+    if (io.outSAMfile.is_open()) ofstrClose(io.outSAMfile, prefix+"Aligned.out.sam", ERROR_OUT, P);
+    if (io.outChimSAM.is_open()) ofstrClose(io.outChimSAM, prefix+"Chimeric.out.sam", ERROR_OUT, P);
+    if (io.outChimJunction.is_open()) ofstrClose(io.outChimJunction, prefix+"Chimeric.out.junction", ERROR_OUT, P);
+    if (io.outLocalChains.is_open()) ofstrClose(io.outLocalChains, prefix+"LocalChains.out.tab", ERROR_OUT, P);
+    for (int ii=0; ii<MAX_N_MATES; ii++) {
+        if (io.outUnmappedReadsStream[ii].is_open())
+            ofstrClose(io.outUnmappedReadsStream[ii], prefix+"Unmapped.out.mate"+to_string(ii+1), ERROR_OUT, P);
+    };
+    if (io.logProgress.is_open()) ofstrClose(io.logProgress, prefix+"Log.progress.out", ERROR_OUT, P);
+};
+
 void reportFinalStats(Parameters &P)
 {//chimeric junction footer, Log.progress.out, Log.final.out
     g_statsAll.writeLines(P.inOut->outChimJunction, P.pCh.outJunctionFormat, "#", STAR_VERSION + string("   ") + P.commandLine);
@@ -213,8 +230,10 @@ void reportFinalStats(Parameters &P)
     g_statsAll.progressReport(P.inOut->logProgress);
     P.inOut->logProgress << "ALL DONE!\n"
                          << flush;
+    closeMappingOutputs(P); //a failed output write stops here, before Log.final.out exists
     P.inOut->logFinal.open((P.outFileNamePrefix + "Log.final.out").c_str());
     g_statsAll.reportFinal(P.inOut->logFinal);
+    ofstrClose(P.inOut->logFinal, P.outFileNamePrefix + "Log.final.out", ERROR_OUT, P);
     *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeFinish) << " ..... finished successfully\n"
                         << flush;
 

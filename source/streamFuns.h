@@ -6,6 +6,10 @@
 
 unsigned long long fstreamReadBig(std::ifstream &S, char* A, unsigned long long N);
 void fstreamWriteBig(std::ofstream &S, char* A, unsigned long long N, std::string fileName, std::string errorID, Parameters &P) ;
+// Close a file STAR wrote. A failed open, write or final flush is fatal, so a
+// missing or truncated output never ends in "finished successfully".
+void ofstrClose(std::ofstream &S, const std::string &fileName, const std::string &errorID, Parameters &P);
+void ofstrClose(std::fstream &S, const std::string &fileName, const std::string &errorID, Parameters &P);
 
 std::fstream  &fstrOpen  (std::string fileName, std::string errorID, Parameters &P, bool flagDelete);
 std::ofstream &ofstrOpen (std::string fileName, std::string errorID, Parameters &P);

@@ -197,7 +197,7 @@ void GTF::superTranscriptNormalSequences() {
         };
         trSeqOut << "\n";
     };
-    trSeqOut.close();
+    ofstrClose(trSeqOut, P.pGe.gDir+"/transcriptSequences.fasta", ERROR_OUT, P);
     auto sutrSeqOut = ofstrOpenOwned(P.pGe.gDir+"/superTranscriptSequences.fasta",ERROR_OUT, P);
     for (uint64 ii = 0; ii < superTrome.seq.size(); ii++) {
         sutrSeqOut << ">st" << to_string(ii) << "\n";
@@ -206,7 +206,7 @@ void GTF::superTranscriptNormalSequences() {
         };
         sutrSeqOut << "\n";
     };
-    sutrSeqOut.close();
+    ofstrClose(sutrSeqOut, P.pGe.gDir+"/superTranscriptSequences.fasta", ERROR_OUT, P);
 }
 
 void GTF::superTranscriptJunctions(const SuperTranscriptLayout &layout) {
@@ -279,7 +279,7 @@ void GTF::superTranscriptWriteConversion(const SuperTranscriptLayout &layout) {
         convStream << genome.chrStart[iSuTr]+condGstart-superTrStartEnd[iSuTr][0] <<'\t'<< len1<<'\t'<< b[0] <<'\n';
         condGstart+=len1;
     };
-    convStream.close();
+    ofstrClose(convStream, P.pGe.gDir+"/fullGenome/conversionToFullGenome.tsv", ERROR_OUT, P);
 }
 
 void Genome::concatenateChromosomes(const vector<vector<uint8>> &vecSeq, const vector<string> &vecName, const uint64 padBin)

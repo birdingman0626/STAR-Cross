@@ -70,7 +70,7 @@ void SoloFeature::processRecords()
     ofstream *statsStream = &ofstrOpen(outputPrefix+"Features.stats",ERROR_OUT, P);
     std::unique_ptr<ofstream> statsStorage(statsStream);
     readFeatSum->statsOut(*statsStream);
-    statsStream->close();
+    ofstrClose(*statsStream, outputPrefix+"Features.stats", ERROR_OUT, P);
     
     time(&rawTime);
     P.inOut->logMain << timeMonthDayTime(rawTime) << " ... Solo: writing raw matrix" <<endl;

@@ -78,7 +78,7 @@ void Solo::processAndOutput()
         ofstream *statsStream = &ofstrOpen(P.outFileNamePrefix+pSolo.outFileNames[0]+"Barcodes.stats",ERROR_OUT, P);
         std::unique_ptr<ofstream> statsStorage(statsStream);
         readBarSum->statsOut(*statsStream);
-        statsStream->close();
+        ofstrClose(*statsStream, P.outFileNamePrefix+pSolo.outFileNames[0]+"Barcodes.stats", ERROR_OUT, P);
 
         //pseudocounts
         if (pSolo.CBmatchWL.mm1_multi_pc) {

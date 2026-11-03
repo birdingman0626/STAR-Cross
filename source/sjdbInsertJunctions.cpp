@@ -86,17 +86,17 @@ void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, Sjdb
 
         ofstream & genomeOut = ofstrOpen(P.sjdbInsert.outDir+"/Genome",ERROR_OUT, P);
         fstreamWriteBig(genomeOut,mapGen.G,mapGen.nGenome,P.sjdbInsert.outDir+"/Genome",ERROR_OUT,P);
-        genomeOut.close();
+        ofstrClose(genomeOut, P.sjdbInsert.outDir+"/Genome", ERROR_OUT, P);
 
         ofstream & saOut = ofstrOpen(P.sjdbInsert.outDir+"/SA",ERROR_OUT, P);
         fstreamWriteBig(saOut,(char*) mapGen.SA.charArray, (streamsize) mapGen.SA.lengthByte, P.sjdbInsert.outDir+"/SA",ERROR_OUT,P);
-        saOut.close();
+        ofstrClose(saOut, P.sjdbInsert.outDir+"/SA", ERROR_OUT, P);
 
         ofstream & saIndexOut = ofstrOpen(P.sjdbInsert.outDir+"/SAindex",ERROR_OUT, P);
         fstreamWriteBig(saIndexOut, (char*) &P.pGe.gSAindexNbases, sizeof(P.pGe.gSAindexNbases),P.sjdbInsert.outDir+"/SAindex",ERROR_OUT,P);
         fstreamWriteBig(saIndexOut, (char*) mapGen.genomeSAindexStart, sizeof(mapGen.genomeSAindexStart[0])*(P.pGe.gSAindexNbases+1),P.sjdbInsert.outDir+"/SAindex",ERROR_OUT,P);
         fstreamWriteBig(saIndexOut,  mapGen.SAi.charArray, mapGen.SAi.lengthByte,P.sjdbInsert.outDir+"/SAindex",ERROR_OUT,P);
-        saIndexOut.close();
+        ofstrClose(saIndexOut, P.sjdbInsert.outDir+"/SAindex", ERROR_OUT, P);
     };
 
     //re-calculate genome-related parameters

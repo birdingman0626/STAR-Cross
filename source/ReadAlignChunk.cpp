@@ -141,13 +141,19 @@ void ReadAlignChunk::chunkFstreamOpen(string filePrefix, int iChunk, fstream &fs
 
 void ReadAlignChunk::chunkFstreamCat (fstream &chunkOut, ofstream &allOut, bool mutexFlag, pthread_mutex_t &mutexVal){
     chunkOut.flush();
+    const bool chunkFailed=chunkOut.bad();
     chunkOut.seekg(0,ios::beg);
     if (mutexFlag) pthread_mutex_lock(&mutexVal);
     allOut << chunkOut.rdbuf();
-    allOut.clear();
+    allOut.clear(allOut.rdstate() & ios::badbit); //an empty chunk sets failbit; badbit is a write error
     allOut.flush();
-    allOut.clear();
+    const bool outFailed=allOut.bad();
     if (mutexFlag) pthread_mutex_unlock(&mutexVal);
+    if (chunkFailed || outFailed)
+        exitWithError("EXITING because of fatal OUTPUT FILE error: could not write chimeric, unmapped or filterBySJout output"
+                      + string(chunkFailed ? " to the per-thread temporary file in " + P.outFileTmp : " to its output file")
+                      + "\nSOLUTION: check that the disk is not full and that you have write permission for the output directory\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_FILE_WRITE, P);
     chunkOut.clear();
     chunkOut.seekp(0,ios::beg); //set put pointer at the beginning
 };
@@ -166,8 +172,12 @@ void ReadAlignChunk::chunkFilesCat(ostream *allOut, string filePrefix, uint64 &i
                         if (!fileChunkIn.eof()) throw std::runtime_error("ordered SAM chunk read failed");
                     } else {
                         *allOut << fileChunkIn.rdbuf();
+                        allOut->clear(allOut->rdstate() & ios::badbit); //an empty chunk sets failbit; badbit is a write error
                         allOut->flush();
-                        allOut->clear();
+                        if (allOut->bad())
+                            exitWithError("EXITING because of fatal OUTPUT FILE error: could not write the SAM output\n"
+                                          "SOLUTION: check that the disk is not full and that you have write permission for the output directory\n",
+                                          std::cerr, P.inOut->logMain, EXIT_CODE_FILE_WRITE, P);
                     }
                     fileChunkIn.close();
                     fileChunkIn.clear();
