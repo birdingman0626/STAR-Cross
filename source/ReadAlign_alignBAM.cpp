@@ -3,6 +3,8 @@
 #include "ErrorWarning.h"
 #include "IncludeDefine.h"
 # include "BAMfunctions.h"
+#include "BAMlimits.h"
+static_assert(BAM_CIGAR_OperationShift==4, "appendBAMcigarOp packs len<<4|op");
 
 #include <type_traits>
 using namespace std;
@@ -260,12 +262,12 @@ void ReadAlign::bamMappedMate(BamRecordContext &c, BamMateRecord &m, uint64 imat
                 m.packedCIGAR[m.nCIGAR++]=gapR<<BAM_CIGAR_OperationShift | BAM_CIGAR_I;
             };
             if (trOut.canonSJ[ii-1]>=0 || trOut.sjAnnot[ii-1]==1) {//junction: N
-                m.packedCIGAR[m.nCIGAR++]=gapG<<BAM_CIGAR_OperationShift | BAM_CIGAR_N;
+                m.nCIGAR=appendBAMcigarOp(m.packedCIGAR, m.nCIGAR, gapG, BAM_CIGAR_N); //gaps can exceed the 28-bit op length
                 m.SJmotif.push_back(trOut.canonSJ[ii-1] + (trOut.sjAnnot[ii-1]==0 ? 0 : SJ_SAM_AnnotatedMotifShift)); //record junction type
                 m.SJintron.push_back((int32) (trOut.exons[ii-1][EX_G] + trOut.exons[ii-1][EX_L] + 1 - c.trChrStart) );//record intron start
                 m.SJintron.push_back((int32) (trOut.exons[ii][EX_G] - c.trChrStart)); //record intron end
             } else if (gapG>0) {//deletion: D
-                m.packedCIGAR[m.nCIGAR++]=gapG<<BAM_CIGAR_OperationShift | BAM_CIGAR_D;
+                m.nCIGAR=appendBAMcigarOp(m.packedCIGAR, m.nCIGAR, gapG, BAM_CIGAR_D); //gaps can exceed the 28-bit op length
             };
         };
         if (trOut.exons[ii][EX_L]>0) //do not record 0-length blocks (which could appear near junctions followed by deletions)

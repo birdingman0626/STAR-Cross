@@ -17,4 +17,21 @@ inline std::size_t firstOversizedBAMreference(const std::vector<unsigned long lo
     return lengths.size();
 };
 
+// A packed BAM CIGAR operation is len<<4|op with a 28-bit length.
+constexpr unsigned int BAM_CIGAR_MAX_OP_LENGTH = (1u<<28) - 1;
+
+// Appends operation 'op' of length 'len' to packed[n...], splitting a length
+// above BAM_CIGAR_MAX_OP_LENGTH into consecutive operations of the same type
+// (e.g. 268435455N1000N), which SAM/BAM readers treat as one gap. Returns the
+// new operation count. An alignment spans at most one reference
+// (<= BAM_MAX_REFERENCE_LENGTH), so a split adds at most 8 operations.
+inline unsigned int appendBAMcigarOp(unsigned int *packed, unsigned int n, unsigned long long len, unsigned int op) {
+    while (len > BAM_CIGAR_MAX_OP_LENGTH) {
+        packed[n++] = BAM_CIGAR_MAX_OP_LENGTH<<4 | op;
+        len -= BAM_CIGAR_MAX_OP_LENGTH;
+    };
+    packed[n++] = static_cast<unsigned int>(len)<<4 | op;
+    return n;
+};
+
 #endif
