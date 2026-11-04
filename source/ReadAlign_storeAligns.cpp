@@ -60,8 +60,9 @@ void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, u
                 //decide whether to keep the new one
                 if ( (PC[iP1][PC_Nrep]==Nrep)) {//seeds map the same number of times  == to the same loci
                     if (nRemove>0) {//debug
-                        cout << "BUG: nRemove="<<nRemove<<" iRead="<<iRead<<flush;
-                        exit(-1);
+                        ostringstream errOut;
+                        errOut << "BUG: nRemove="<<nRemove<<" iRead="<<iRead;
+                        exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
                     };
                     return;//do not store the new piece
                 };
@@ -87,8 +88,9 @@ void ReadAlign::storeAligns (uint64 iDir, uint64 Shift, uint64 Nrep, uint64 L, u
 
     if (iP2==-1 && iP1==nP) iP2=nP;//    if (nP==0) iP2=0;
     if (iP2==-1) {//debug
-        cout << "BUG: iP2=-1 iRead="<<iRead<<flush;
-        exit(-1);
+        ostringstream errOut;
+        errOut << "BUG: iP2=-1 iRead="<<iRead;
+        exitWithError(errOut.str(), std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
     };
 
     int iP=iP2;

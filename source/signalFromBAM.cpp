@@ -188,8 +188,7 @@ void addAlignmentSignal(const bam1_t *bamA, Parameters &P, int sigN, std::vector
                 if (P.outWigFlags.type==0 || (P.outWigFlags.type==2 && (bamA->core.flag & 0x80)>0 )) {//full signal, or second mate onyl signal
                     for (uint32_t ig=0;ig<cigL;ig++) {
                         if (aG>=chrLen) {
-                            cerr << "BUG: alignment extends past chromosome in signalFromBAM.cpp\n";
-                            exit(-1);
+                            exitWithError("BUG: alignment extends past chromosome in signalFromBAM.cpp", std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
                         };
                         if (aNH==1) {//unique mappers
                             sigAll[aG*sigN+0+2*iStrand]++;

@@ -91,9 +91,8 @@ void Parameters::validateRunParameters()
     };
 
     if (limit.genomeGenerateRAM==0) {//must be >0
-        inOut->logMain <<"EXITING because of FATAL PARAMETER ERROR: limitGenomeGenerateRAM=0\n";
-        inOut->logMain <<"SOLUTION: please specify a >0 value for limitGenomeGenerateRAM\n"<<flush;
-        exit(1);
+        exitWithError("EXITING because of FATAL PARAMETER ERROR: limitGenomeGenerateRAM=0\nSOLUTION: please specify a >0 value for limitGenomeGenerateRAM\n",
+                      std::cerr, inOut->logMain, EXIT_CODE_PARAMETER, *this);
     } else if (limit.genomeGenerateRAM>1000000000000) {//
         inOut->logMain <<"WARNING: specified limitGenomeGenerateRAM="<<limit.genomeGenerateRAM<<" bytes appears to be too large, if you do not have enough memory the code will crash!\n"<<flush;
     };
