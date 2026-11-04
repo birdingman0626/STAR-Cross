@@ -332,11 +332,23 @@ def run_logged(cmd, log, timeout=None, **kw):
             timer.cancel()
 
 
+def remote_prep(remote_dir, tmp):
+    """Shell command that resets ~/remote_dir, unpacks the bundle and runs it.
+
+    Lanes that build inside a container (build-s390x) leave root-owned files the
+    CI user cannot delete; those are cleared through a container instead.
+    """
+    d = f'"$HOME/{remote_dir}"'
+    clear = (f"{{ rm -rf {d} 2>/dev/null || {{ docker run --rm -v {d}:/w debian:trixie "
+             f"find /w -mindepth 1 -delete && rm -rf {d}; }}; }}")
+    return (f"{clear} && mkdir -p {d} && tar xzf {tmp} -C {d} "
+            f"&& rm -f {tmp} && bash {d}/.local-ci/run.sh")
+
+
 def run_remote(lane, host, bundle, log, timeout):
     remote_dir = f"star-local-ci/{lane['id']}"
     tmp = f"/tmp/star-local-ci-{lane['id']}.tgz"
-    prep = (f"rm -rf ~/{remote_dir} && mkdir -p ~/{remote_dir} && tar xzf {tmp} -C ~/{remote_dir} "
-            f"&& rm -f {tmp} && bash ~/{remote_dir}/.local-ci/run.sh")
+    prep = remote_prep(remote_dir, tmp)
     target = host["target"]
     if host["type"] == "ssh":
         up = subprocess.run(ssh_base(host) + [target, f"cat > {tmp}"], input=bundle, capture_output=True)

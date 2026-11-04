@@ -33,6 +33,34 @@ WORKFLOW = {
 }
 
 
+class RemotePrepTests(unittest.TestCase):
+    @unittest.skipIf(shutil.which("bash") is None or os.name == "nt", "needs a POSIX shell")
+    def test_falls_back_to_container_when_rm_fails(self):
+        with tempfile.TemporaryDirectory() as home:
+            work = Path(home) / "star-local-ci" / "lane"
+            work.mkdir(parents=True)
+            (work / "stale.txt").write_text("x")
+            fake_bin = Path(home) / "bin"
+            fake_bin.mkdir()
+            calls = Path(home) / "calls"
+            # rm fails like it does on root-owned files; the fake docker records its call and clears the mount
+            (fake_bin / "rm").write_text('#!/bin/sh\n[ -e "$HOME/allow_rm" ] && exec /bin/rm "$@"; exit 1\n')
+            (fake_bin / "docker").write_text(f'#!/bin/sh\necho "$@" > {calls}\n/bin/rm -rf {work}/*; touch "$HOME/allow_rm"\n')
+            for f in ("rm", "docker"):
+                (fake_bin / f).chmod(0o755)
+            cmd = lc.remote_prep("star-local-ci/lane", "/tmp/x.tgz").split(" && mkdir")[0]
+            env = dict(os.environ, HOME=home, PATH=f"{fake_bin}:{os.environ['PATH']}")
+            proc = subprocess.run(["bash", "-c", cmd], env=env, capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn(f"-v {work}:/w", calls.read_text())
+            self.assertFalse(work.exists())
+
+    def test_runs_bundle_after_reset(self):
+        cmd = lc.remote_prep("star-local-ci/lane", "/tmp/x.tgz")
+        self.assertLess(cmd.index("docker run"), cmd.index("tar xzf /tmp/x.tgz"))
+        self.assertTrue(cmd.endswith('bash "$HOME/star-local-ci/lane"/.local-ci/run.sh'))
+
+
 class ExpressionTests(unittest.TestCase):
     def test_operators_and_contexts(self):
         ctx = {"matrix": {"a": "x", "p": {"arch": "arm"}}}
