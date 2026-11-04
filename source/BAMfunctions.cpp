@@ -1,4 +1,5 @@
 #include "BAMfunctions.h"
+#include "BAMlimits.h"
 #include "htslib/htslib/kstring.h"
 #include "samAux.h"
 #include "bamEndian.h"
@@ -63,16 +64,28 @@ bool outBAMwriteHeader (BGZF* fp, const string &samh, const vector <string> &chr
     int32 hlen=samh.size();
     ok = ok && bamWriteInt32LE(fp,hlen)==4;
     ok = ok && bgzf_write(fp,samh.c_str(),hlen)==hlen;
-    int32 nchr=(int32) chrn.size();
+    int32 nchr=static_cast<int32>(chrn.size()); //reference count and lengths were checked by requireBAMreferenceLengths
     ok = ok && bamWriteInt32LE(fp,nchr)==4;
     for (int32 ii=0; ok && ii<nchr; ii++) {
-        int32 rlen = (int32) (chrn.at(ii).size()+1);
-        int32 slen = (int32) chrl[ii];
+        int32 rlen = static_cast<int32>(chrn.at(ii).size()+1); //names are short header strings
+        int32 slen = static_cast<int32>(chrl[ii]);
         ok = ok && bamWriteInt32LE(fp,rlen)==4;
         ok = ok && bgzf_write(fp,chrn.at(ii).data(),rlen)==rlen; //this includes \0 at the end of the string
         ok = ok && bamWriteInt32LE(fp,slen)==4;
     };
     return ok && bgzf_flush(fp)==0;
+};
+
+void requireBAMreferenceLengths(const vector <string> &chrn, const vector <uint64> &chrl, const string &bamName, Parameters &P) {
+    if (chrn.size() > BAM_MAX_REFERENCE_LENGTH)
+        exitWithError("EXITING because of fatal PARAMETER error: too many references (" + to_string(chrn.size()) + ") for BAM output " + bamName +
+                      "\nSOLUTION: use --outSAMtype SAM.\n", std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
+    const size_t ii = firstOversizedBAMreference(chrl);
+    if (ii < chrl.size())
+        exitWithError("EXITING because of fatal PARAMETER error: reference " + chrn.at(ii) + " is " + to_string(chrl[ii]) +
+                      " bases long; BAM output " + bamName + " supports at most " + to_string(BAM_MAX_REFERENCE_LENGTH) + " bases per reference" +
+                      "\nSOLUTION: use --outSAMtype SAM, or split the reference into shorter sequences.\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
 };
 
 void exitBAMwriteError(const string &what, Parameters &P) {

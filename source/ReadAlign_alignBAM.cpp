@@ -524,7 +524,7 @@ uint64 ReadAlign::bamWriteRecord(const BamRecordContext &c, BamMateRecord &m, ui
     const uint64 trChrStart=c.trChrStart;
     //1: refID: Reference sequence ID, -1 <= refID <= n ref; -1 for a read without a mapping position.
     pBAM[1]= mapped ? trOut.Chr : (uint32) -1;
-    //2: pos: 0-based leftmost coordinate (= POS - 1): int32_t
+    //2: pos: 0-based leftmost coordinate (= POS - 1): int32_t; fits because samHeaders rejects references longer than BAM_MAX_REFERENCE_LENGTH
     pBAM[2]= mapped ? trOut.exons[m.iEx1][EX_G] - trChrStart : (uint32) -1;
     //3: bin<<16|MAPQ<<8|l_read_name; the name length includes the 0-char
     if (mapped) {

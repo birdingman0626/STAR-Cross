@@ -10,6 +10,10 @@
 
 // Writes and flushes the BAM header; returns false if any write or the flush failed.
 [[nodiscard]] bool outBAMwriteHeader (BGZF* fp, const std::string &samh, const std::vector <std::string> &chrn, const std::vector <uint64> &chrl);
+// BAM stores reference lengths and positions as int32. Exits with a parameter
+// error if any reference is longer than that, so a run never writes a BAM whose
+// header and positions have silently wrapped.
+void requireBAMreferenceLengths(const std::vector <std::string> &chrn, const std::vector <uint64> &chrl, const std::string &bamName, Parameters &P);
 // Fatal OUTPUT error for a failed BAM write, flush or close of 'what'.
 void exitBAMwriteError(const std::string &what, Parameters &P);
 int bam_read1_fromArray(char *bamChar, bam1_t *b);

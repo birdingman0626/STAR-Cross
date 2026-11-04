@@ -24,7 +24,7 @@ bool soloInputFeatureUMI(fstream *strIn, int32 featureType, bool readInfoYes, ar
         case SoloFeatureTypes::SJ : {
             uint64 sj[2]={0,0};
             readNumber(*strIn, sj[0]); readNumber(*strIn, sj[1]);
-            feature=(uint32) binarySearch2(sj[0],sj[1],sjAll[0].data(),sjAll[1].data(),sjAll[0].size());
+            feature=static_cast<uint32>(binarySearch2(sj[0],sj[1],sjAll[0].data(),sjAll[1].data(),sjAll[0].size())); //a miss (-1) becomes the (uint32)-1 "no feature" sentinel that callers skip
             break;
         };
 
