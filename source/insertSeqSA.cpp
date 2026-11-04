@@ -10,7 +10,6 @@
 #include "streamFuns.h"
 #include "binarySearch2.h"
 #include "funCompareUintAndSuffixes.h"
-#include "funCompareUintAndSuffixesMemcmp.h"
 #include <cmath>
 #include <memory>
 #include "genomeSAindex.h"
@@ -77,13 +76,10 @@ void sortInsertions(uint64 *indArray, uint64 nInd, char *seq, uint64 nG1, Genome
     if (mapGen.pGe.gSuffixLengthMax==static_cast<uint64>(-1)) {
         // The default means unlimited suffix length, not a memcmp byte count.
         // The existing numeric comparator stops at the chromosome separator.
-        g_funCompareUintAndSuffixes_G=seq;
-        qsort((void*) indArray,nInd,2*sizeof(uint64_t),funCompareUintAndSuffixes);
+        sortUintAndSuffixes(indArray,nInd,CompareUintAndSuffixes{seq});
     } else {
-        g_funCompareUintAndSuffixesMemcmp_G=seq;
-        g_funCompareUintAndSuffixesMemcmp_L=mapGen.pGe.gSuffixLengthMax/sizeof(uint64_t);
-        g_funCompareUintAndSuffixesMemcmp_N=2*nG1+GENOME_endFillL;
-        qsort((void*) indArray,nInd,2*sizeof(uint64_t),funCompareUintAndSuffixesMemcmp);
+        const uint64_t suffixLengthMax=mapGen.pGe.gSuffixLengthMax/sizeof(uint64_t);
+        sortUintAndSuffixes(indArray,nInd,CompareUintAndSuffixesMemcmp{seq,suffixLengthMax,2*nG1+GENOME_endFillL});
     }
 };
 

@@ -23,8 +23,6 @@ set(STAR_TEST_SOURCES
     ${STAR_SOURCE_DIR}/AsyncByteWriter.cpp
     ${STAR_SOURCE_DIR}/SequenceFuns.cpp
     ${STAR_SOURCE_DIR}/PairedReadMerger.cpp
-    ${STAR_SOURCE_DIR}/funCompareUintAndSuffixes.cpp
-    ${STAR_SOURCE_DIR}/funCompareUintAndSuffixesMemcmp.cpp
     ${STAR_SOURCE_DIR}/Parameters_register.cpp
     ${STAR_SOURCE_DIR}/InOutStreams.cpp
 )

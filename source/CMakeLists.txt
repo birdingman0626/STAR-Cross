@@ -421,8 +421,6 @@ set(STAR_SOURCES
     genomeSAindex.cpp
     Genome_insertSequences.cpp
     insertSeqSA.cpp
-    funCompareUintAndSuffixes.cpp
-    funCompareUintAndSuffixesMemcmp.cpp
     TimeFunctions.cpp
     ErrorWarning.cpp
     streamFuns.cpp

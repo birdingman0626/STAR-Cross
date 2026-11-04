@@ -28,10 +28,10 @@ static uint64 sjdbSortBucket(uint64 key, uint64 keyRange, uint64 bucketN)
 
 static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint64 nInd, uint64 keyRange, char* Gsj)
 {
-    g_funCompareUintAndSuffixes_G=Gsj;
+    const CompareUintAndSuffixes sjdbCompare{Gsj};
 
     if (P.runThreadN<4 || nInd<1000000 || keyRange==0) {
-        qsort((void*) indArray, nInd, 2*sizeof(uint64), funCompareUintAndSuffixes);
+        sortUintAndSuffixes(indArray, nInd, sjdbCompare);
         return false;
     };
 
@@ -44,14 +44,14 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint64 nInd
         while ((bucketN<<1)<=nInd) bucketN <<= 1;
     };
     if (bucketN<2) {
-        qsort((void*) indArray, nInd, 2*sizeof(uint64), funCompareUintAndSuffixes);
+        sortUintAndSuffixes(indArray, nInd, sjdbCompare);
         return false;
     };
 
     const uint64 indBytes=2*nInd*sizeof(uint64);
     const uint64 auxBytes=indBytes + (uint64) P.runThreadN*bucketN*2*sizeof(uint64) + (bucketN+1)*sizeof(uint64);
     if (P.limit.genomeGenerateRAM>0 && auxBytes>P.limit.genomeGenerateRAM/4) {
-        qsort((void*) indArray, nInd, 2*sizeof(uint64), funCompareUintAndSuffixes);
+        sortUintAndSuffixes(indArray, nInd, sjdbCompare);
         return false;
     };
 
@@ -101,9 +101,9 @@ static bool sjdbSortIndicesParallel(Parameters &P, uint64* indArray, uint64 nInd
 
     #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,1)
     for (int iBucket=0; iBucket<(int) bucketN; iBucket++) {
-        qsort((void*) (indArray1+2*bucketStart[(uint64) iBucket]),
-              bucketStart[(uint64) iBucket+1]-bucketStart[(uint64) iBucket],
-              2*sizeof(uint64), funCompareUintAndSuffixes);
+        sortUintAndSuffixes(indArray1+2*bucketStart[(uint64) iBucket],
+                            bucketStart[(uint64) iBucket+1]-bucketStart[(uint64) iBucket],
+                            sjdbCompare);
     };
 
     memcpy(indArray,indArray1,indBytes);
@@ -419,7 +419,7 @@ void sjdbBuildIndex (Parameters &P, char *Gsj, char *G, PackedArray &SA, PackedA
     bool parallelSort=sjdbSortIndicesParallel(P, s.indArray, s.nInd, mapGen1.nSA+1, Gsj);
     time ( &rawtime );
     P.inOut->logMain  << timeMonthDayTime(rawtime) << "   Finished sorting SA indicesL nInd="<<s.nInd
-                       << " strategy=" << (parallelSort ? "parallel-bucket" : "qsort") <<endl;
+                       << " strategy=" << (parallelSort ? "parallel-bucket" : "serial") <<endl;
 
     s.indArray[2*s.nInd]=(uint64) -999; //mark the last junction
     s.indArray[2*s.nInd+1]=(uint64) -999; //mark the last junction

@@ -21,15 +21,13 @@
 #include "sjdbInsertJunctions.h"
 #include "genomeScanFastaFiles.h"
 #include "genomeSAindex.h"
+#include "funCompareSuffixes.h"
 
 #include "serviceFuns.cpp"
 #include "streamFuns.h"
 #include "SequenceFuns.h"
 #include "uninitArray.h"
 using namespace std;
-
-char* globalG;
-uint64 globalL;
 
 static uint64 systemAvailableMemoryBytes()
 {
@@ -47,79 +45,6 @@ static uint64 systemAvailableMemoryBytes()
     return 0;
 };
 
-
-// Compare two suffixes starting from word offset wordStart (upstream PR #2687:
-// callers that share a known-equal prefix word skip it via wordStart=1). The
-// genome word loads go through loadUintLE so the comparison is byte-order safe
-// (native single-instruction load on little-endian; portable on big-endian).
-inline int funCompareSuffixesFromWord ( const void *a, const void *b, uint64 wordStart){
-
-    const char *ga=((globalG-7LLU)+(*((uint64*)a))) - 8*wordStart;
-    const char *gb=((globalG-7LLU)+(*((uint64*)b))) - 8*wordStart;
-
-    uint64 jj=0;
-    int  ii=0;
-    uint64 va=0,vb=0;
-
-    while (jj+wordStart < globalL) {
-        va=loadUintLE(ga-8*jj); // little-endian 8-byte load (native on LE)
-        vb=loadUintLE(gb-8*jj);
-
-        #define has5(v) ((((v)^0x0505050505050505) - 0x0101010101010101) & ~((v)^0x0505050505050505) & 0x8080808080808080)
-
-        if (has5(va) && has5(vb))
-        {//there is 5 in the sequence - only compare bytes before 5
-            for (ii=7;ii>=0;ii--)
-            {//extract byte ii via shift: portable regardless of host byte order
-                uchar va1=(uchar)((va>>(8*ii))&0xffLLU);
-                uchar vb1=(uchar)((vb>>(8*ii))&0xffLLU);
-                if (va1>vb1)
-                {
-                    return 1;
-                } else if (va1<vb1)
-                {
-                    return -1;
-                } else if (va1==5)
-                {//va=vb at the end of chr
-                    if ( *((uint64*)a) > *((uint64*)b) )
-                    {//anti-stable order,since indexes are sorted in the reverse order
-                        return  -1;
-                    } else
-                    {//a cannot be equal to b
-                        return 1;
-                    };
-                };
-            };
-        } else
-        {//no 5, simple comparison
-            if (va>vb)
-            {
-                return 1;
-            } else if (va<vb)
-            {
-                return -1;
-            };
-        };
-        jj++;
-    };
-
-    //suffixes are equal up to globalL, no simply compare the indexes
-    if ( *((uint64*)a) > *((uint64*)b) )
-    {//anti-stable order,since indexes are sorted in the reverse order
-        return  -1;
-    } else
-    {//a cannot be equal to b
-        return 1;
-    };
-};
-
-inline int funCompareSuffixes ( const void *a, const void *b){
-    return funCompareSuffixesFromWord(a,b,0);
-};
-
-inline int funCompareSuffixesSkipFirstWord ( const void *a, const void *b){
-    return funCompareSuffixesFromWord(a,b,1);
-};
 
 inline uint64 funG2strLocus (uint64 SAstr, uint64 const N, char const GstrandBit, uint64 const GstrandMask) {
     bool strandG = (SAstr>>GstrandBit) == 0;
@@ -209,6 +134,7 @@ struct Genome::SAsortPlan {
     bool inMemory=false;                    //sorted chunks retained in RAM rather than SA_* files
     unique_ptr<uint64[]> inMemoryChunks;
     uint64 genomeScanN=0;
+    uint64 suffixLengthWords=0;             //compared suffix length cap in 8-byte words
 };
 
 struct Genome::SAsortProfile {
@@ -350,10 +276,8 @@ void Genome::sortSuffixArray()
     for (uint64 ii=0;ii<nGenome;ii++) {//re-fill the array backwards for sorting
         swap(G[2*nGenome-1-ii],G[ii]);
     };
-    globalG=G;
-    globalL=pGe.gSuffixLengthMax/sizeof(uint64);
-
     SAsortPlan plan;
+    plan.suffixLengthWords=pGe.gSuffixLengthMax/sizeof(uint64);
     planSAchunks(plan);
 
     logStage(P," ... sorting Suffix Array chunks...\n");
@@ -423,7 +347,7 @@ void Genome::planSAchunks(SAsortPlan &plan)
     };
 
     uint64 saChunkSize=(P.limit.genomeGenerateRAM-nG1alloc)/8/P.runThreadN; //number of SA indexes per chunk
-    saChunkSize=saChunkSize*6/10; //allow extra space for qsort
+    saChunkSize=saChunkSize*6/10; //allow extra space for sorting
     if (P.runThreadN>1) saChunkSize=min(saChunkSize,nSA/(P.runThreadN-1));
     uint64 saChunkN = nSA / saChunkSize + 1;//estimate
     plan.chunkPrefStart.assign(saChunkN*2,0); //start and stop, *2 just in case
@@ -646,13 +570,13 @@ void Genome::sortSAchunkBatch(SAsortPlan &plan, SAsortProfile &prof, uint64 iChu
         uint64* saRange=saSortRange[iRange];
         uint64 saRangeN=saSortRangeN[iRange];
         if (saSortRangeSkipFirstWord[iRange]) {
-            qsort(saRange,saRangeN,sizeof(saRange[0]),funCompareSuffixesSkipFirstWord);
+            std::sort(saRange,saRange+saRangeN,CompareSuffixes{G,plan.suffixLengthWords,1});
             if (saSortProfile) {
                 skipFirstWordRangeN++;
                 skipFirstWordIndexN += saRangeN;
             };
         } else {
-            qsort(saRange,saRangeN,sizeof(saRange[0]),funCompareSuffixes);
+            std::sort(saRange,saRange+saRangeN,CompareSuffixes{G,plan.suffixLengthWords,0});
         };
     };
     prof.skipFirstWordRangeN += skipFirstWordRangeN;
@@ -674,10 +598,10 @@ void Genome::sortSAchunkBatch(SAsortPlan &plan, SAsortProfile &prof, uint64 iChu
 
 void Genome::collectSAsortRanges(const SAsortPlan &plan, SAsortProfile &prof, uint64 *saBatch, const vector<uint64> &saPrefStart, uint64 batchPrefStart,
                                  vector<uint64*> &saSortRange, vector<uint64> &saSortRangeN, vector<char> &saSortRangeSkipFirstWord)
-{//split the batch into independent qsort ranges, one per prefix bin or per 3-base sub-bin of a large bin
+{//split the batch into independent sort ranges, one per prefix bin or per 3-base sub-bin of a large bin
     const uint64 indPrefLen=plan.indPrefLen;
     const uint64 batchPrefN=saPrefStart.size()-1;
-    const bool saCanSkipFirstWord=indPrefLen>=(uint64) sizeof(uint64) && globalL>1;
+    const bool saCanSkipFirstWord=indPrefLen>=(uint64) sizeof(uint64) && plan.suffixLengthWords>1;
     const uint64 saSubBinExtraLen=3;
     const uint64 saSubBinN=216; // 6^3
     const uint64 saSubBinMinN=1000000;
@@ -764,7 +688,7 @@ void Genome::sortSAchunksSeparately(SAsortPlan &plan, SAsortProfile &prof)
     const bool saChunksInMemoryActive=plan.inMemory;
     double fillScatterSeconds=0.0, sortSeconds=0.0, finalizeSeconds=0.0;
     #pragma omp parallel for num_threads(P.runThreadN) schedule(dynamic,1) reduction(+:fillScatterSeconds,sortSeconds,finalizeSeconds)
-    for (int iChunk=0; iChunk < (int) plan.chunkN; iChunk++) {//start the chunk cycle: sort each chunk with qsort and write to a file
+    for (int iChunk=0; iChunk < (int) plan.chunkN; iChunk++) {//start the chunk cycle: sort each chunk and write to a file
         const uint64 chunkCount=plan.chunkCount[iChunk];
         std::unique_ptr<uint64[]> saChunkStorage;//local array for each chunk unless chunks are retained in RAM
         if (!saChunksInMemoryActive)
@@ -787,7 +711,7 @@ void Genome::sortSAchunksSeparately(SAsortPlan &plan, SAsortProfile &prof)
 
         saProfileTime0=omp_get_wtime();
         if (chunkCount>1) {
-            qsort(saChunk,chunkCount,sizeof(saChunk[0]),funCompareSuffixes);
+            std::sort(saChunk,saChunk+chunkCount,CompareSuffixes{G,plan.suffixLengthWords,0});
         };
         if (saSortProfile) {
             sortSeconds += omp_get_wtime()-saProfileTime0;
