@@ -118,9 +118,9 @@ void GTF::transcriptGeneSJwriteTranscriptInfo(const string &dirOutArg)
 
     qsort((void*) extrLoci, exonN, sizeof(uint64)*GTF_extrLoci_size, funCompareArrays<uint64,5>);
 
-    ofstream trOut ((dirOutArg+"/transcriptInfo.tab").c_str());
+    ofstream trOut = ofstrOpenOwnedText(dirOutArg+"/transcriptInfo.tab", ERROR_OUT, P);
     trOut<<transcriptID.size() << "\n";
-    ofstream exOut ((dirOutArg+"/exonInfo.tab").c_str());
+    ofstream exOut = ofstrOpenOwnedText(dirOutArg+"/exonInfo.tab", ERROR_OUT, P);
     exOut<<exonN<<"\n";
 
     uint64 trid=extrLoci[GTF_extrTrID(0)];
@@ -200,7 +200,7 @@ void GTF::transcriptGeneSJcollapse(const uint64 *sjLoci, uint64 sjN)
 
 void GTF::transcriptGeneSJwriteList(const string &dirOutArg, uint64 sjdbN1)
 {
-    ofstream sjdbList ((dirOutArg+"/sjdbList.fromGTF.out.tab").c_str());
+    ofstream sjdbList = ofstrOpenOwnedText(dirOutArg+"/sjdbList.fromGTF.out.tab", ERROR_OUT, P);
     for (uint64 ii=sjdbN1;ii<sjdbLoci.chr.size(); ii++) {
         sjdbList << sjdbLoci.chr.at(ii)<<"\t"<< sjdbLoci.start.at(ii) << "\t"<< sjdbLoci.end.at(ii)  <<"\t"<< sjdbLoci.str.at(ii);
 

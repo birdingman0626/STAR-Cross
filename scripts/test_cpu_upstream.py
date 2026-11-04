@@ -421,6 +421,38 @@ def main():
             assert "could not write" in (failed/"Log.out").read_text(), artifact
         checks.append("disk-full SJ.out.tab, SAM and unmapped-read outputs block scientific completion")
 
+    # An output that cannot be created must stop STAR before mapping, not at
+    # close time after the whole run. A directory in the file's place, or a
+    # prefix whose directory component is a regular file, cannot be opened.
+    blocked_prefix_file = root/"prefix-is-a-file"
+    blocked_prefix_file.write_text("not a directory\n")
+    open_cases = {
+        "prefix-is-a-file": (None, ["--outSAMtype", "None"]),
+        "Aligned.out.sam": ("Aligned.out.sam", ["--outSAMtype", "SAM"]),
+        "Unmapped.out.mate1": ("Unmapped.out.mate1", ["--outSAMtype", "None", "--outReadsUnmapped", "Fastx"]),
+        "Log.progress.out": ("Log.progress.out", ["--outSAMtype", "None"]),
+        "Chimeric.out.junction": ("Chimeric.out.junction", ["--outSAMtype", "None", "--chimSegmentMin", "12"]),
+    }
+    for label, (artifact, options) in open_cases.items():
+        failed = root/("unopenable-"+label.replace(".", "-"))
+        failed.mkdir()
+        prefix = str(blocked_prefix_file)+"/out_" if artifact is None else str(failed)+"/"
+        if artifact is not None:
+            (failed/artifact).mkdir()
+        command = [args.star_exe, "--runThreadN", str(args.threads), *common,
+                   "--readFilesIn", str(reads), *options, "--outFileNamePrefix", prefix]
+        (failed/"command.json").write_text(json.dumps(command))
+        print(f"Running fixture: unopenable {label}", flush=True)
+        process = run_fixture(command, failed / "console.log")
+        assert process.returncode != 0, f"{label}: unopenable output was accepted"
+        assert "started mapping" not in process.stdout, f"{label}: STAR mapped before failing"
+        if artifact is not None:
+            log = (failed/"Log.out").read_text(errors="replace")
+            assert "started mapping" not in log, label
+            assert "could not create output file" in log and artifact in log, label
+            assert not (failed/"Log.final.out").exists(), label
+    checks.append("unopenable output prefix, SAM, unmapped-read, progress and chimeric outputs fail before mapping")
+
     # FASTA uses a distinct input branch; C++20 removed unsafe char* extraction.
     fasta_reads = root / "reads.fasta"
     fasta_reads.write_text("".join(f">r{i} comment\n{s[:50]}\n{s[50:]}\n"

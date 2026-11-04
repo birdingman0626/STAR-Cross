@@ -210,8 +210,8 @@ void recordGenomeJunctions(SjdbClass &sjdbLoci, Genome &mapGen, const JunctionAr
 // junction flank sequences into Gsj, and sjdbInfo.txt / sjdbList.out.tab
 void writeJunctionSequences(Parameters &P, const string &outDir, Genome &mapGen, char *Gsj) {
     char *G=mapGen.G;
-    ofstream sjdbInfo((outDir+"/sjdbInfo.txt").c_str());
-    ofstream sjdbList ((outDir+"/sjdbList.out.tab").c_str());
+    ofstream sjdbInfo = ofstrOpenOwnedText(outDir+"/sjdbInfo.txt", ERROR_OUT, P);
+    ofstream sjdbList = ofstrOpenOwnedText(outDir+"/sjdbList.out.tab", ERROR_OUT, P);
     char strandChar[3]={'.','+','-'};
     //first line is some general useful information
     sjdbInfo << mapGen.sjdbN <<"\t"<< mapGen.sjdbOverhang <<"\n";

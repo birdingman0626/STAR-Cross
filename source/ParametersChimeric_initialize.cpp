@@ -2,6 +2,7 @@
 #include "Parameters.h"
 #include "ErrorWarning.h"
 #include "GlobalVariables.h"
+#include "streamFuns.h"
 using namespace std;
 void ParametersChimeric::initialize(Parameters *pPin)
 {
@@ -39,12 +40,12 @@ void ParametersChimeric::initialize(Parameters *pPin)
     };
     
     if (out.samOld) {
-        pP->inOut->outChimSAM.open((pP->outFileNamePrefix + "Chimeric.out.sam").c_str());
+        ofstrOpenText(pP->inOut->outChimSAM, pP->outFileNamePrefix + "Chimeric.out.sam", ERROR_OUT, *pP);
         pP->inOut->outChimSAM << pP->samHeader;
     };
     
     if (out.junctions) {
-        pP->inOut->outChimJunction.open((pP->outFileNamePrefix + "Chimeric.out.junction").c_str());
+        ofstrOpenText(pP->inOut->outChimJunction, pP->outFileNamePrefix + "Chimeric.out.junction", ERROR_OUT, *pP);
         
         if (multimapNmax>0)
             // column headers for Chimeric.out.junction file

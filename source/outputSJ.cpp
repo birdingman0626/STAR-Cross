@@ -127,8 +127,8 @@ void outputSJ(ReadAlignChunk** RAchunk, Parameters& P) {//collapses junctions fr
     // Avoids reserving allSJ.N entries for non-SJ STARsolo runs
 
     if (P.outFilterBySJoutStage!=1) {//output file
-        ofstream outSJfileStream((P.outFileNamePrefix+"SJ.out.tab").c_str());
-        ofstream outSJtmpStream((P.outFileTmp+"SJ.start_gap.tsv").c_str());
+        ofstream outSJfileStream = ofstrOpenOwnedText(P.outFileNamePrefix+"SJ.out.tab", ERROR_OUT, P);
+        ofstream outSJtmpStream = ofstrOpenOwnedText(P.outFileTmp+"SJ.start_gap.tsv", ERROR_OUT, P);
         for (uint64 ii=0;ii<allSJ.N;ii++) {//write to file
             if ( P.outFilterBySJoutStage==2 || sjFilter[ii]  ) {
                 oneSJ.junctionPointer(allSJ.data,ii);

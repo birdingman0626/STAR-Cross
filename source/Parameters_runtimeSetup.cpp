@@ -6,6 +6,7 @@
 #include "signalFromBAM.h"
 #include "bamRemoveDuplicates.h"
 #include "TimeFunctions.h"
+#include "streamFuns.h"
 #include SAMTOOLS_BGZF_H
 
 //for mkdir
@@ -156,7 +157,7 @@ void Parameters::runBAMinputMode()
 {//--runMode inputAlignmentsFromBAM runs here and exits; alignReads opens Log.progress.out
     runMode=runModeIn[0];
     if (runMode=="alignReads") {
-        inOut->logProgress.open((outFileNamePrefix + "Log.progress.out").c_str());
+        ofstrOpenText(inOut->logProgress, outFileNamePrefix + "Log.progress.out", ERROR_OUT, *this);
     } else if (runMode=="inputAlignmentsFromBAM") {
         //at the moment, only wiggle output is implemented
         if (outWigFlags.yes) {
@@ -203,7 +204,7 @@ void Parameters::openAlignmentOutput()
             if (outStd=="SAM") {
                 inOut->outSAM = & std::cout;
             } else {
-                inOut->outSAMfile.open((outFileNamePrefix + "Aligned.out.sam").c_str());
+                ofstrOpenText(inOut->outSAMfile, outFileNamePrefix + "Aligned.out.sam", ERROR_OUT, *this);
                 inOut->outSAM = & inOut->outSAMfile;
             };
         } else if (outSAMtype.at(0)=="None") {

@@ -2,6 +2,7 @@
 #include "Parameters.h"
 #include "ErrorWarning.h"
 #include "sysRemoveDir.h"
+#include "streamFuns.h"
 #include SAMTOOLS_BGZF_H
 
 //for mkdir
@@ -34,7 +35,7 @@ void Parameters::inputParameters_validate() {
 
     //open compilation-dependent streams
     #ifdef OUTPUT_localChains
-            inOut->outLocalChains.open((outFileNamePrefix + "LocalChains.out.tab").c_str());
+            ofstrOpenText(inOut->outLocalChains, outFileNamePrefix + "LocalChains.out.tab", ERROR_OUT, *this);
     #endif
 
     strcpy(genomeNumToNT,"ACGTN");
@@ -201,7 +202,7 @@ void Parameters::openReadsAndUnmappedFiles()
             for (uint64 imate=0;imate<readNends;imate++) {
                 ostringstream ff;
                 ff << outFileNamePrefix << "Unmapped.out.mate" << imate+1;
-                inOut->outUnmappedReadsStream[imate].open(ff.str().c_str());
+                ofstrOpenText(inOut->outUnmappedReadsStream[imate], ff.str(), ERROR_OUT, *this);
             };
         };
     };

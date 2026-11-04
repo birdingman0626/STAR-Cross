@@ -129,7 +129,7 @@ void Parameters::selectStdOutStream() {
     if (outStd=="Log") {
         inOut->logStdOut=& std::cout;
     } else if (outStd=="SAM" || outStd=="BAM_Unsorted" || outStd=="BAM_SortedByCoordinate" || outStd=="BAM_Quant") {
-        inOut->logStdOutFile.open((outFileNamePrefix + "Log.std.out").c_str());
+        ofstrOpenText(inOut->logStdOutFile, outFileNamePrefix + "Log.std.out", ERROR_OUT, *this);
         inOut->logStdOut= & inOut->logStdOutFile;
     } else {
         ostringstream errOut;

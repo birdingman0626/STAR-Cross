@@ -163,7 +163,7 @@ void Transcriptome::quantsAllocate() {
 };
 
 void Transcriptome::quantsOutput() {
-    ofstream qOut(P.quant.geCount.outFile);
+    ofstream qOut = ofstrOpenOwnedText(P.quant.geCount.outFile, ERROR_OUT, P);
     qOut << "N_unmapped";
     for (int itype=0; itype<quants->geneCounts.nType; itype++) {
         qOut << "\t" <<g_statsAll.unmappedMismatch + g_statsAll.unmappedShort + g_statsAll.unmappedOther + g_statsAll.unmappedMulti;

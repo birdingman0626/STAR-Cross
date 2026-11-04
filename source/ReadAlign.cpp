@@ -3,6 +3,7 @@
 #include "Transcript.h"
 #include "ReadAlign.h"
 #include "uninitArray.h"
+#include "streamFuns.h"
 using namespace std;
 // Allocation bases are distinct from the mutable views used by the mapper.
 // Large arenas remain uninitialized and retain their existing capacities/layout.
@@ -158,7 +159,7 @@ ReadAlign::ReadAlign (Parameters& Pin, Genome &genomeIn, Transcriptome *TrIn, in
     //debug
     {
     #ifdef DEBUG_OutputLastRead
-        lastReadStream.open((P.outFileTmp+"/lastRead_"+to_string(iChunk)).c_str());
+        ofstrOpenText(lastReadStream, P.outFileTmp+"/lastRead_"+to_string(iChunk), ERROR_OUT, P);
     #endif
     };
 };

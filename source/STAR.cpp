@@ -231,7 +231,7 @@ void reportFinalStats(Parameters &P)
     P.inOut->logProgress << "ALL DONE!\n"
                          << flush;
     closeMappingOutputs(P); //a failed output write stops here, before Log.final.out exists
-    P.inOut->logFinal.open((P.outFileNamePrefix + "Log.final.out").c_str());
+    ofstrOpenText(P.inOut->logFinal, P.outFileNamePrefix + "Log.final.out", ERROR_OUT, P);
     g_statsAll.reportFinal(P.inOut->logFinal);
     ofstrClose(P.inOut->logFinal, P.outFileNamePrefix + "Log.final.out", ERROR_OUT, P);
     *P.inOut->logStdOut << timeMonthDayTime(g_statsAll.timeFinish) << " ..... finished successfully\n"
@@ -380,15 +380,15 @@ try
         transcriptomeMain = transcriptomeStorage.get();
     };
 
-    // initialize Stats
-    startMappingStats(P);
-
     logTiming(P, "map_begin");
     // SAM headers
     samHeaders(P, *genomeMain.genomeOut.g, *transcriptomeMain);
 
     // initialize chimeric parameters here - note that chimeric parameters require samHeader
     P.pCh.initialize(&P);
+
+    // initialize Stats; after the chimeric outputs are open, so an unopenable one fails before "started mapping"
+    startMappingStats(P);
 
     // prepare chunks and spawn mapping threads
     vector<ReadAlignChunk*> RAchunk(P.runThreadN);
