@@ -348,8 +348,7 @@ void ParametersSolo::loadCBwhitelist()
             cbWLyes=false;
         } else {
             cbWLyes=true;
-            ifstream & cbWlStream = ifstrOpen(soloCBwhitelist[0], ERROR_OUT, "SOLUTION: check the path and permissions of the CB whitelist file: " + soloCBwhitelist[0], *pP);
-            std::unique_ptr<ifstream> whitelistStreamStorage(&cbWlStream);
+            ifstream cbWlStream = ifstrOpenOwned(soloCBwhitelist[0], ERROR_OUT, "SOLUTION: check the path and permissions of the CB whitelist file: " + soloCBwhitelist[0], *pP);
             string seq1;
             while (cbWlStream >> seq1) {
                 if (seq1.size() != cbL) {
@@ -414,7 +413,7 @@ void ParametersSolo::loadCBwhitelist()
         for (uint32 icb=0; icb<cbV.size(); icb++) {//cycle over WL files
             cbV[icb].adapterLength=adapterSeq.size();//one adapter for all
             
-            ifstream & cbWlStream = ifstrOpen(soloCBwhitelist[icb], ERROR_OUT, "SOLUTION: check the path and permissions of the CB whitelist file: " + soloCBwhitelist[icb], *pP);
+            ifstream cbWlStream = ifstrOpenOwned(soloCBwhitelist[icb], ERROR_OUT, "SOLUTION: check the path and permissions of the CB whitelist file: " + soloCBwhitelist[icb], *pP);
             
             string seq1;
             while (cbWlStream >> seq1) {//cycle over one WL file

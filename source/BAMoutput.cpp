@@ -48,7 +48,7 @@ BAMoutput::BAMoutput (int iChunk, string tmpDir, Parameters &Pin) : P(Pin){//all
     for (uint64 ii=0;ii<nBins;ii++) {
         binStart[ii]=bamArray.get()+bamArraySize/nBins*ii;
         binBytes[ii]=0;
-        binStream[ii].reset(&ofstrOpen((bamDir +"/"+to_string(ii)).c_str(), ERROR_OUT, P));
+        binStream[ii] = std::make_unique<std::ofstream>(ofstrOpenOwned((bamDir +"/"+to_string(ii)).c_str(), ERROR_OUT, P));
         binTotalN[ii]=0;
         binTotalBytes[ii]=0;
     };

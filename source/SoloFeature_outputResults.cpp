@@ -60,8 +60,7 @@ void SoloFeature::outputFeatures(const string &outputPrefixMat)
         case SoloFeatureTypes::Velocyto :
         case SoloFeatureTypes::VelocytoSimple :
         {
-            ofstream &geneStr=ofstrOpen(outputPrefixMat+pSolo.outFileNames[1],ERROR_OUT, P);
-            std::unique_ptr<ofstream> geneStreamStorage(&geneStr);
+            ofstream geneStr = ofstrOpenOwned(outputPrefixMat+pSolo.outFileNames[1],ERROR_OUT, P);
             for (uint32 ii=0; ii<Trans.nGe; ii++) {
                 geneStr << Trans.geID[ii] <<"\t"<< (Trans.geName[ii].empty() ? Trans.geID[ii] : Trans.geName[ii]);
                 if (pSolo.outFormat.featuresGeneField3!="-") {
@@ -91,8 +90,7 @@ void SoloFeature::outputFeatures(const string &outputPrefixMat)
 uint64 SoloFeature::outputBarcodes(bool cellFilterYes, const string &outputPrefixMat)
 {
     //write barcodes.tsv
-    ofstream &cbStr=ofstrOpen(outputPrefixMat+pSolo.outFileNames[2],ERROR_OUT, P);
-    std::unique_ptr<ofstream> barcodeStreamStorage(&cbStr);
+    ofstream cbStr = ofstrOpenOwned(outputPrefixMat+pSolo.outFileNames[2],ERROR_OUT, P);
     uint64 nCellGeneEntries=0;//total number of non-zero cell/gene combinations (entries in the output matrix)
     std::string outBatch;
     if (cellFilterYes) {//filtered cells
@@ -138,8 +136,7 @@ void SoloFeature::outputCountMatrices(bool cellFilterYes, const string &outputPr
         } else {
             matrixFileName += pSolo.outFileNames[3];
         };
-        ofstream &countMatrixStream=ofstrOpen(matrixFileName,ERROR_OUT, P);
-        std::unique_ptr<ofstream> matrixStreamStorage(&countMatrixStream);
+        ofstream countMatrixStream = ofstrOpenOwned(matrixFileName,ERROR_OUT, P);
         
         //header
         countMatrixStream <<"%%MatrixMarket matrix coordinate integer general\n";
@@ -200,8 +197,7 @@ void SoloFeature::outputUniqueAndMultMatrices(const string &outputPrefixMat)
             nGeneUMIperCBmultiFill = false; //arrays were filled - only do it once
 
 
-            ofstream &countMatrixStream=ofstrOpen(matrixFileName, ERROR_OUT, P);
-            std::unique_ptr<ofstream> matrixStreamStorage(&countMatrixStream);
+            ofstream countMatrixStream = ofstrOpenOwned(matrixFileName, ERROR_OUT, P);
             
             //header
             countMatrixStream <<"%%MatrixMarket matrix coordinate real general\n";

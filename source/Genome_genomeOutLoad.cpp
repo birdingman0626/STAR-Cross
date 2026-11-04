@@ -46,8 +46,7 @@ void Genome::genomeOutLoad(){//allocate and load *output* Genome
 
     chrBinFill();
 
-    std::unique_ptr<ifstream> convOwner(&ifstrOpen(genomeOut.convFile, ERROR_OUT, "SOLUTION: regenerate genome.", P));
-    ifstream &convStream = *convOwner;
+    ifstream convStream = ifstrOpenOwned(genomeOut.convFile, ERROR_OUT, "SOLUTION: regenerate genome.", P);
     uint32 nconv;
     convStream >> nconv >> genomeOut.nMinusStrandOffset;
     genomeOut.convBlocks.resize(nconv+1);

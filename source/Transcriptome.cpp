@@ -17,8 +17,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
         trInfoDir = P.pGeOut.gDir;
     };
 
-    ifstream &geStream = ifstrOpen(trInfoDir+"/geneInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotations.gtf option at the genome generation step or mapping step", P);
-    std::unique_ptr<ifstream> geneStreamStorage(&geStream);
+    ifstream geStream = ifstrOpenOwned(trInfoDir+"/geneInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotations.gtf option at the genome generation step or mapping step", P);
     geStream >> nGe;
     geID.resize(nGe);
     geName.resize(nGe);
@@ -34,8 +33,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
 
     if ( P.quant.trSAM.yes || P.quant.gene.yes || P.quant.geneFull_Ex50pAS.yes ) {//load exon-transcript structures
         //load tr and ex info
-        ifstream & trinfo = ifstrOpen(trInfoDir+"/transcriptInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotantions.gtf option at the genome generation step or mapping step",P);
-        std::unique_ptr<ifstream> transcriptStreamStorage(&trinfo);
+        ifstream trinfo = ifstrOpenOwned(trInfoDir+"/transcriptInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotantions.gtf option at the genome generation step or mapping step",P);
         trinfo >> nTr;
         metadataStorage->trS=makeUninitArray<uint64>(nTr); trS=metadataStorage->trS.get();
         metadataStorage->trE=makeUninitArray<uint64>(nTr); trE=metadataStorage->trE.get();
@@ -63,8 +61,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
         P.inOut->logMain << "Loaded transcript database, nTr="<<nTr<<endl;
         trinfo.close();
 
-        ifstream & exinfo = ifstrOpen(trInfoDir+"/exonInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotantions.gtf option at the genome generation step or mapping step", P);
-        std::unique_ptr<ifstream> exonStreamStorage(&exinfo);
+        ifstream exinfo = ifstrOpenOwned(trInfoDir+"/exonInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotantions.gtf option at the genome generation step or mapping step", P);
         exinfo >> nEx;
         metadataStorage->exSE=makeUninitArray<uint32>(2*nEx); exSE=metadataStorage->exSE.get();
         metadataStorage->exLenCum=makeUninitArray<uint32>(nEx); exLenCum=metadataStorage->exLenCum.get();
@@ -81,8 +78,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
     };
     //load exon-gene structures
     if ( P.quant.geCount.yes ) {
-        ifstream & exinfo = ifstrOpen(trInfoDir+"/exonGeTrInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotantions.gtf option at the genome generation step or mapping step", P);
-        std::unique_ptr<ifstream> exonGeneStreamStorage(&exinfo);
+        ifstream exinfo = ifstrOpenOwned(trInfoDir+"/exonGeTrInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotantions.gtf option at the genome generation step or mapping step", P);
         exinfo >> exG.nEx;
         metadataStorage->exonStart=makeUninitArray<uint64>(exG.nEx); exG.s=metadataStorage->exonStart.get();
         metadataStorage->exonEnd=makeUninitArray<uint64>(exG.nEx); exG.e=metadataStorage->exonEnd.get();
@@ -104,8 +100,7 @@ Transcriptome::Transcriptome (Parameters &Pin, bool load) : P(Pin){
     };
 
     if ( P.quant.geneFull.yes || P.quant.geneFull_ExonOverIntron.yes ) {
-        ifstream & exinfo = ifstrOpen(trInfoDir+"/exonGeTrInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotantions.gtf option at the genome generation step or mapping step", P);
-        std::unique_ptr<ifstream> fullGeneStreamStorage(&exinfo);
+        ifstream exinfo = ifstrOpenOwned(trInfoDir+"/exonGeTrInfo.tab", ERROR_OUT, "SOLUTION: utilize --sjdbGTFfile /path/to/annotantions.gtf option at the genome generation step or mapping step", P);
         exinfo >> exG.nEx;
 
         metadataStorage->geneStart=makeUninitArray<uint64>(nGe); geneFull.s=metadataStorage->geneStart.get();

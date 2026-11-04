@@ -15,8 +15,7 @@ void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, Sjdb
 
     if (mapGen.sjdbN>0 && sjdbLoci.chr.size()==0) {
         //load from the saved genome, only if the loading did not happen already (if sjdb insertion happens at the 1st pass, sjdbLoci will be populated
-        ifstream & sjdbStreamIn = ifstrOpen(P.pGe.gDir+"/sjdbList.out.tab", ERROR_OUT, "SOLUTION: re-generate the genome in pGe.gDir=" + P.pGe.gDir, P);
-        std::unique_ptr<ifstream> junctionStreamStorage(&sjdbStreamIn);
+        ifstream sjdbStreamIn = ifstrOpenOwned(P.pGe.gDir+"/sjdbList.out.tab", ERROR_OUT, "SOLUTION: re-generate the genome in pGe.gDir=" + P.pGe.gDir, P);
         sjdbLoadFromStream(sjdbStreamIn, sjdbLoci);
         sjdbLoci.priority.resize(sjdbLoci.chr.size(),30);
         time ( &rawtime );
@@ -84,15 +83,15 @@ void sjdbInsertJunctions(Parameters & P, Genome & mapGen, Genome & mapGen1, Sjdb
         mapGen.pGe.gFileSizes.push_back(mapGen.SA.lengthByte);
         genomeParametersWrite(P.sjdbInsert.outDir+("/genomeParameters.txt"), P, ERROR_OUT, mapGen);
 
-        ofstream & genomeOut = ofstrOpen(P.sjdbInsert.outDir+"/Genome",ERROR_OUT, P);
+        ofstream genomeOut = ofstrOpenOwned(P.sjdbInsert.outDir+"/Genome",ERROR_OUT, P);
         fstreamWriteBig(genomeOut,mapGen.G,mapGen.nGenome,P.sjdbInsert.outDir+"/Genome",ERROR_OUT,P);
         ofstrClose(genomeOut, P.sjdbInsert.outDir+"/Genome", ERROR_OUT, P);
 
-        ofstream & saOut = ofstrOpen(P.sjdbInsert.outDir+"/SA",ERROR_OUT, P);
+        ofstream saOut = ofstrOpenOwned(P.sjdbInsert.outDir+"/SA",ERROR_OUT, P);
         fstreamWriteBig(saOut,(char*) mapGen.SA.charArray, (streamsize) mapGen.SA.lengthByte, P.sjdbInsert.outDir+"/SA",ERROR_OUT,P);
         ofstrClose(saOut, P.sjdbInsert.outDir+"/SA", ERROR_OUT, P);
 
-        ofstream & saIndexOut = ofstrOpen(P.sjdbInsert.outDir+"/SAindex",ERROR_OUT, P);
+        ofstream saIndexOut = ofstrOpenOwned(P.sjdbInsert.outDir+"/SAindex",ERROR_OUT, P);
         fstreamWriteBig(saIndexOut, (char*) &P.pGe.gSAindexNbases, sizeof(P.pGe.gSAindexNbases),P.sjdbInsert.outDir+"/SAindex",ERROR_OUT,P);
         fstreamWriteBig(saIndexOut, (char*) mapGen.genomeSAindexStart, sizeof(mapGen.genomeSAindexStart[0])*(P.pGe.gSAindexNbases+1),P.sjdbInsert.outDir+"/SAindex",ERROR_OUT,P);
         fstreamWriteBig(saIndexOut,  mapGen.SAi.charArray, mapGen.SAi.lengthByte,P.sjdbInsert.outDir+"/SAindex",ERROR_OUT,P);

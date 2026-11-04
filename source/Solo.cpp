@@ -75,10 +75,9 @@ void Solo::processAndOutput()
             };
         };
 
-        ofstream *statsStream = &ofstrOpen(P.outFileNamePrefix+pSolo.outFileNames[0]+"Barcodes.stats",ERROR_OUT, P);
-        std::unique_ptr<ofstream> statsStorage(statsStream);
-        readBarSum->statsOut(*statsStream);
-        ofstrClose(*statsStream, P.outFileNamePrefix+pSolo.outFileNames[0]+"Barcodes.stats", ERROR_OUT, P);
+        ofstream statsStream = ofstrOpenOwned(P.outFileNamePrefix+pSolo.outFileNames[0]+"Barcodes.stats",ERROR_OUT, P);
+        readBarSum->statsOut(statsStream);
+        ofstrClose(statsStream, P.outFileNamePrefix+pSolo.outFileNames[0]+"Barcodes.stats", ERROR_OUT, P);
 
         //pseudocounts
         if (pSolo.CBmatchWL.mm1_multi_pc) {

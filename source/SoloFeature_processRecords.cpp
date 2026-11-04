@@ -27,8 +27,7 @@ void SoloFeature::processRecords()
      
     //prepare for feature-specific counting:
     if (featureType==SoloFeatureTypes::SJ && P.sjAll[0].empty()) {
-        ifstream &sjIn = ifstrOpen(P.outFileTmp+"SJ.start_gap.tsv",  ERROR_OUT, "SOLUTION: re-run STAR", P);
-        std::unique_ptr<ifstream> junctionInputStorage(&sjIn);
+        ifstream sjIn = ifstrOpenOwned(P.outFileTmp+"SJ.start_gap.tsv",  ERROR_OUT, "SOLUTION: re-run STAR", P);
         P.sjAll[0].reserve(10000000);
         P.sjAll[1].reserve(10000000);
         uint64 start1, gap1;
@@ -67,10 +66,9 @@ void SoloFeature::processRecords()
     // for multi-gene options, it's already done in _collapseUMI_ function
 
     //output
-    ofstream *statsStream = &ofstrOpen(outputPrefix+"Features.stats",ERROR_OUT, P);
-    std::unique_ptr<ofstream> statsStorage(statsStream);
-    readFeatSum->statsOut(*statsStream);
-    ofstrClose(*statsStream, outputPrefix+"Features.stats", ERROR_OUT, P);
+    ofstream statsStream = ofstrOpenOwned(outputPrefix+"Features.stats",ERROR_OUT, P);
+    readFeatSum->statsOut(statsStream);
+    ofstrClose(statsStream, outputPrefix+"Features.stats", ERROR_OUT, P);
     
     time(&rawTime);
     P.inOut->logMain << timeMonthDayTime(rawTime) << " ... Solo: writing raw matrix" <<endl;

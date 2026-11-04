@@ -9,7 +9,7 @@ Chain::Chain(Parameters &Pin, string chainFileNameIn) : P(Pin), chainFileName(ch
 
 void Chain::chainLoad()
 {
-    ifstream &streamIn = ifstrOpen(chainFileName, ERROR_OUT, "SOLUTION: check path and permission for the chain file" + chainFileName, P);
+    ifstream streamIn = ifstrOpenOwned(chainFileName, ERROR_OUT, "SOLUTION: check path and permission for the chain file" + chainFileName, P);
 
     string chr1;//current chromsome 1 (old)
 
@@ -57,9 +57,9 @@ void Chain::chainLoad()
 
 void Chain::liftOverGTF(string gtfFileName, string outFileName)
 {//simple arithmetic lift-over of the GTF file
-    ifstream &streamIn = ifstrOpen(gtfFileName, ERROR_OUT, "SOLUTION: check path and permission for the GTF file" + gtfFileName, P);
-    ofstream &streamOut = ofstrOpen(outFileName, ERROR_OUT, P);
-    ofstream &streamOutUnlifted = ofstrOpen(outFileName+".unlifted", ERROR_OUT, P);
+    ifstream streamIn = ifstrOpenOwned(gtfFileName, ERROR_OUT, "SOLUTION: check path and permission for the GTF file" + gtfFileName, P);
+    ofstream streamOut = ofstrOpenOwned(outFileName, ERROR_OUT, P);
+    ofstream streamOutUnlifted = ofstrOpenOwned(outFileName+".unlifted", ERROR_OUT, P);
 
     while (streamIn.good())
     {

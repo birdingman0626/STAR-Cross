@@ -145,8 +145,7 @@ void Parameters::readFilesInitManifest()
 {
     //TODO check that outSAMattrRGline and readFilesIn are not set, throw an error
     
-    ifstream & rfM = ifstrOpen(readFiles.manifest[0], ERROR_OUT, "SOLUTION: check the path and permissions for readFilesManifest = " + readFiles.manifest[0], *this);
-    std::unique_ptr<ifstream> manifestStorage(&rfM);
+    ifstream rfM = ifstrOpenOwned(readFiles.manifest[0], ERROR_OUT, "SOLUTION: check the path and permissions for readFilesManifest = " + readFiles.manifest[0], *this);
     inOut->logMain << "Reading input file names and read groups from readFileManifest " << readFiles.manifest[0] << endl;
 
     readFiles.names.resize(2);

@@ -81,8 +81,7 @@ void Variation::loadVCF(string fileIn) {
     P.inOut->logMain     << timeMonthDayTime(rawTime) <<" ..... loading variations VCF\n" <<flush;
     *P.inOut->logStdOut  << timeMonthDayTime(rawTime) <<" ..... loading variations VCF\n" <<flush;
 
-    ifstream & vcf = ifstrOpen(fileIn, ERROR_OUT, "SOLUTION: check the path and permissions of the VCF file: "+fileIn, P);
-    std::unique_ptr<ifstream> vcfStorage(&vcf);
+    ifstream vcf = ifstrOpenOwned(fileIn, ERROR_OUT, "SOLUTION: check the path and permissions of the VCF file: "+fileIn, P);
     scanVCF(vcf, P, snp, chrStart, chrNameIndex);
 
     snpLociStorage=makeUninitArray<uint64>(snp.N);

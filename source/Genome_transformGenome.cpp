@@ -39,7 +39,7 @@ void Genome::transformGenome(GTF *gtf)
         
     vector<map<string,vector<VariantInfo>>> vcfVariants(pGe.transform.type);
     {//load VCF file: per chromosome, 1 or 2 haplotypes
-        ifstream &vcfStream = ifstrOpen(pGe.transform.vcfFile, ERROR_OUT, "SOLUTION: check the path and permissions of the VCF file: "+pGe.transform.vcfFile, P);
+        ifstream vcfStream = ifstrOpenOwned(pGe.transform.vcfFile, ERROR_OUT, "SOLUTION: check the path and permissions of the VCF file: "+pGe.transform.vcfFile, P);
         string vcfLine;
         while (std::getline (vcfStream, vcfLine)) {
             string chr,id, ref, alt, dummy, sample;
@@ -269,7 +269,7 @@ void Genome::transformGandBlocks(map<string,vector<VariantInfo>> &vcfVariants, v
 
 void Genome::transformBlocksWrite(vector<array<uint64,3>> &transformBlocks)
 {//write out transformBlocks
-    ofstream & convStream = ofstrOpen(P.pGe.gDir+"/transformGenomeBlocks.tsv",ERROR_OUT, P);
+    ofstream convStream = ofstrOpenOwned(P.pGe.gDir+"/transformGenomeBlocks.tsv",ERROR_OUT, P);
     convStream << transformBlocks.size() <<'\t'<< "-1" <<'\n'; //no -strand
 
     for (auto &tb : transformBlocks) {

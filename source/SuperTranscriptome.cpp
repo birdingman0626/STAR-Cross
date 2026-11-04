@@ -38,8 +38,7 @@ void SuperTranscriptome::load(char *G, vector<uint64> &chrStart, vector<uint64> 
         superTrs[ii].seqP=(uint8*)G+chrStart[ii];
     };
     
-    std::unique_ptr<ifstream> superTrSJowner(&ifstrOpen(P.pGe.gDir+"/superTranscriptSJcollapsed.tsv", ERROR_OUT, "SOLUTION: re-generate the genome.", P));
-    ifstream & superTrSJstream = *superTrSJowner;
+    ifstream superTrSJstream = ifstrOpenOwned(P.pGe.gDir+"/superTranscriptSJcollapsed.tsv", ERROR_OUT, "SOLUTION: re-generate the genome.", P);
     
     uint32 sutr=0,sutr1=0;
     vector<array<uint32,3>> sjC1;

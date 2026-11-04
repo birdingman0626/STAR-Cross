@@ -134,36 +134,30 @@ std::ofstream ofstrOpenOwnedText (std::string fileName, std::string errorID, Par
     return ofStream;
 };
 
-// Compatibility for legacy callers that still manage heap stream lifetimes.
-std::ofstream &ofstrOpen (std::string fileName, std::string errorID, Parameters &P) {
-    return *new std::ofstream(ofstrOpenOwned(fileName,errorID,P));
-}
-
-std::fstream &fstrOpen (std::string fileName, std::string errorID, Parameters &P, bool flagDelete) {//open file 'fileName', generate error if cannot open
-
-    std::fstream *fStreamP;
+std::fstream fstrOpenOwned (std::string fileName, std::string errorID, Parameters &P, bool flagDelete) {//open file 'fileName' for reading and writing, generate error if cannot open
+    std::fstream fStream;
     if (flagDelete) {//truncate the file if it exists
-        fStreamP = new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc | std::fstream::binary);
+        fStream.open(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc | std::fstream::binary);
     } else {//try to open exising file
-        fStreamP=new std::fstream(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::binary );
-        if (fStreamP->fail()) { //does not exist: retry using the same stream owner
-            fStreamP->clear();
-            fStreamP->open(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc | std::fstream::binary);
+        fStream.open(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::binary );
+        if (fStream.fail()) { //does not exist: create it
+            fStream.clear();
+            fStream.open(fileName.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc | std::fstream::binary);
         }
     };
-    
-    if (fStreamP->fail()) {//
+
+    if (fStream.fail()) {//
         ostringstream errOut;
         errOut << errorID<<": exiting because of *OUTPUT FILE* error: could not create input/output file "<< fileName <<"\n";
         errOut << "Solution: check that the path exists and you have write permission for this file\n";
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_FILE_OPEN, P);
     };
-    return *fStreamP;
+    return fStream;
 };
 
-std::ifstream & ifstrOpen (std::string fileName, std::string errorID, std::string solutionString, Parameters &P) {
+std::ifstream ifstrOpenOwned (std::string fileName, std::string errorID, std::string solutionString, Parameters &P) {
     //open file 'fileName', generate error if cannot open
-    std::ifstream & ifStream = *new std::ifstream(fileName.c_str(), std::ios::binary);//binary mode: avoid Windows text-mode corruption of binary data (CRLF->LF, 0x1A as EOF)
+    std::ifstream ifStream(fileName.c_str(), std::ios::binary);//binary mode: avoid Windows text-mode corruption of binary data (CRLF->LF, 0x1A as EOF)
     if (ifStream.fail()) {//
         ostringstream errOut;
         errOut << errorID<<": exiting because of *INPUT FILE* error: could not open input file "<< fileName <<"\n";
@@ -174,11 +168,6 @@ std::ifstream & ifstrOpen (std::string fileName, std::string errorID, std::strin
         exitWithError(errOut.str(),std::cerr, P.inOut->logMain, EXIT_CODE_FILE_OPEN, P);
     };
     return ifStream;
-};
-
-ifstream & ifstrOpenGenomeFile (std::string fileName, std::string errorID, Parameters &P) {
-     //open one of the genome files
-     return ifstrOpen(P.pGe.gDir+"/"+fileName, errorID,  "if this file is missing from the genome directory, you will need to *re-generate the genome*", P);
 };
 
 void copyFile(string fileIn, string fileOut)

@@ -28,8 +28,7 @@ void invalidTranscript3pInput(Parameters &P, const string &reason)
 
 void loadClusterCBs(Parameters &P, const ParametersSolo &pSolo, std::unordered_map<uint32,uint32> &clusterCBind, std::set<uint32> &clusterInd)
 {//--soloClusterCBfile: CB sequence -> positive cluster index
-    ifstream &clusterStream = ifstrOpen(pSolo.clusterCBfile, ERROR_OUT, "SOLUTION: check the path and permissions of the cluster CB file: " + pSolo.clusterCBfile, P);
-    std::unique_ptr<ifstream> clusterInputStorage(&clusterStream);
+    ifstream clusterStream = ifstrOpenOwned(pSolo.clusterCBfile, ERROR_OUT, "SOLUTION: check the path and permissions of the cluster CB file: " + pSolo.clusterCBfile, P);
     string seq1;
     while (clusterStream >> seq1) {
         uint64 clusterIndex=0;
@@ -83,13 +82,12 @@ void distanceDistribution(Parameters &P, const Transcriptome &Trans, const vecto
     double norm1 = std::accumulate(trDistFun.begin(), trDistFun.end(), 0.0);
     if (!std::isfinite(norm1) || norm1<=0) invalidTranscript3pInput(P, "no usable uniquely mapped reads for the distance distribution");
 
-    ofstream *streamTrDistFun = &ofstrOpen(outputPrefix+"transcriptEndDistanceDistribution.txt",ERROR_OUT, P);
-    std::unique_ptr<ofstream> transcriptDistanceStorage(streamTrDistFun);
+    ofstream streamTrDistFun = ofstrOpenOwned(outputPrefix+"transcriptEndDistanceDistribution.txt",ERROR_OUT, P);
     for (auto & ff : trDistFun) {
         ff = ff/norm1;
-        *streamTrDistFun << ff <<'\n';
+        streamTrDistFun << ff <<'\n';
     };
-    ofstrClose(*streamTrDistFun, outputPrefix+"transcriptEndDistanceDistribution.txt", ERROR_OUT, P);
+    ofstrClose(streamTrDistFun, outputPrefix+"transcriptEndDistanceDistribution.txt", ERROR_OUT, P);
 
     //normalization factors for all transcripts
     vector<double> trDistFunCum(trDistFun);
@@ -299,8 +297,7 @@ void writeTranscriptMatrix(Parameters &P, const Transcriptome &Trans, const stri
                            const map<uint32, vector<double>> &clusterExpression, const std::set<uint32> &clusterInd)
 {//transcript x cluster MatrixMarket and features.tsv
     {
-        ofstream &countMatrixStream=ofstrOpen(matrixFileName,ERROR_OUT, P);
-        std::unique_ptr<ofstream> matrixStreamStorage(&countMatrixStream);
+        ofstream countMatrixStream = ofstrOpenOwned(matrixFileName,ERROR_OUT, P);
         countMatrixStream <<"%%MatrixMarket matrix coordinate real general\n%\n";
 
         uint32 nCellGeneEntries = 0;
@@ -319,8 +316,7 @@ void writeTranscriptMatrix(Parameters &P, const Transcriptome &Trans, const stri
         ofstrClose(countMatrixStream, matrixFileName, ERROR_OUT, P);
     };
 
-    ofstream &outStr=ofstrOpen(outputPrefix+"/features.tsv",ERROR_OUT, P);
-    std::unique_ptr<ofstream> featureStreamStorage(&outStr);
+    ofstream outStr = ofstrOpenOwned(outputPrefix+"/features.tsv",ERROR_OUT, P);
     for (uint32 ii=0; ii<Trans.nTr; ii++)
         outStr << Trans.trID[ii] <<"\t"<< Trans.trLen[ii] <<"\t"<< Trans.geName[Trans.trGene[ii]] << '\n';
     ofstrClose(outStr, outputPrefix+"/features.tsv", ERROR_OUT, P);
