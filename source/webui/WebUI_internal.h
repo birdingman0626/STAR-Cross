@@ -20,6 +20,8 @@ struct Job {
     std::string startTime;
     std::string endTime;
     int         exitCode       = -1;
+    std::string exitReason;    // meaning of exitCode for a failed job, e.g. "could not write an output file"
+    std::string errorMessage;  // STAR's own FATAL ERROR text, from Log.out or the console log
     bool        generateReport = false;
     std::string reportPath;
     std::vector<std::string> args;
@@ -45,3 +47,7 @@ std::string artifactType(const std::string& name);
 std::vector<std::string> listByExt(const std::string& dir,
                                    const std::vector<std::string>& exts);
 void writeReport(Job& job);
+// Plain-language meaning of a STAR exit code (EXIT_CODE_* in IncludeDefine.h); "" for 0.
+std::string exitReason(int exitCode);
+// The message STAR printed before "FATAL ERROR, exiting", or "" if none.
+std::string fatalMessage(const std::string& outputPrefix, const char* consoleLog);

@@ -188,6 +188,8 @@ static void persistJob(const Job& j) {
         {"startTime",    j.startTime},
         {"endTime",      j.endTime},
         {"exitCode",     j.exitCode},
+        {"exitReason",   j.exitReason},
+        {"errorMessage", j.errorMessage},
         {"reportPath",   j.reportPath},
         {"generateReport", j.generateReport},
     };
@@ -216,6 +218,8 @@ static void loadPersistedJobs(const std::string& path) {
             j.startTime    = rec.value("startTime", "");
             j.endTime      = rec.value("endTime", "");
             j.exitCode     = rec.value("exitCode", -1);
+            j.exitReason   = rec.value("exitReason", "");
+            j.errorMessage = rec.value("errorMessage", "");
             j.reportPath   = rec.value("reportPath", "");
             j.generateReport = rec.value("generateReport", false);
             if (j.id <= 0 || !kRunModes.count(j.runMode)) continue;
@@ -342,7 +346,11 @@ static void finishJob(Job& job, int exitCode) {
     job.exitCode = exitCode;
     job.state    = (exitCode == 0) ? "succeeded" : "failed";
     job.endTime  = nowISO();
-    if (exitCode == 0 && job.generateReport) writeReport(job);
+    if (exitCode != 0) {
+        job.exitReason   = exitReason(exitCode);
+        job.errorMessage = fatalMessage(job.outputPrefix, kJobConsole);
+    }
+    if (job.generateReport) writeReport(job); // a failed job's report says why it stopped
     persistJob(job);
 }
 
@@ -397,6 +405,7 @@ static json jobToJson(const Job& j) {
             {"cmdLine", j.cmdLine}, {"outputPrefix", j.outputPrefix},
             {"submitTime", j.submitTime}, {"startTime", j.startTime},
             {"endTime", j.endTime}, {"exitCode", j.exitCode},
+            {"exitReason", j.exitReason}, {"errorMessage", j.errorMessage},
             {"reportPath", j.reportPath}};
 }
 

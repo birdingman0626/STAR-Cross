@@ -37,6 +37,7 @@ tr:hover td{background:#fafbff}
 .s-running{background:#e3f2fd;color:#1565c0}
 .s-succeeded{background:#e8f5e9;color:#2e7d32}
 .s-failed{background:#ffebee;color:#c62828}
+.why{font-size:.72rem;color:#c62828;margin-top:3px;max-width:200px;cursor:help}
 .s-queued{background:#fff3e0;color:#e65100}
 .s-cancelled{background:#f0f0f0;color:#666}
 .hrow{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
@@ -692,7 +693,7 @@ async function refreshJobs(){
   const jobs = await fetch('/jobs').then(r=>r.json());
   document.getElementById('nojobs').style.display = jobs.length?'none':'block';
   document.getElementById('jtbody').innerHTML = jobs.slice().reverse().map(j=>`<tr>
-    <td>${Number(j.id)}</td><td>${badge(j.state)}</td><td>${esc(j.runMode)}</td>
+    <td>${Number(j.id)}</td><td>${badge(j.state)}${j.state==='failed'&&j.exitReason?`<div class="why" title="${esc(j.errorMessage||j.exitReason)}">${esc(j.exitReason)}</div>`:''}</td><td>${esc(j.runMode)}</td>
     <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem" title="${esc(j.outputPrefix)}">${esc(j.outputPrefix)}</td>
     <td style="font-size:.8rem">${esc(j.submitTime)}</td>
     <td style="font-size:.8rem">${dur(j.startTime,j.state==='running'?null:j.endTime)}</td>

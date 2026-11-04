@@ -1,5 +1,7 @@
 #include "WebUI.h"
 #include "WebUI_internal.h"
+#include "../IncludeDefine.h" // EXIT_CODE_*
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
@@ -130,7 +132,54 @@ std::vector<std::string> listByExt(const std::string& dir,
     return out;
 }
 
-// Generate an HTML report for a completed job and set job.reportPath.
+std::string exitReason(int exitCode) {
+    switch (exitCode) {
+        case 0:   return "";
+        case EXIT_CODE_BUG:              return "internal error in STAR (please report it)";
+        case EXIT_CODE_PARAMETER:        return "invalid parameter";
+        case EXIT_CODE_RUNTIME:          return "runtime error";
+        case EXIT_CODE_INPUT_FILES:      return "problem with an input file";
+        case EXIT_CODE_GENOME_FILES:     return "problem with the genome index";
+        case EXIT_CODE_SHM:              return "shared-memory error";
+        case EXIT_CODE_GENOME_LOADING_WAITED_TOO_LONG: return "timed out waiting for a shared genome";
+        case EXIT_CODE_MEMORY_ALLOCATION: return "not enough memory";
+        case EXIT_CODE_FILE_OPEN:        return "could not create an output file";
+        case EXIT_CODE_FILE_WRITE:       return "could not write an output file (disk full?)";
+        case EXIT_CODE_INCONSISTENT_DATA: return "inconsistent input data";
+        case EXIT_CODE_FIFO:             return "error with a named pipe (FIFO)";
+        case 127:                        return "STAR could not be started";
+        case -1:                         return "STAR could not be started or was stopped by a signal";
+        default:                         return "STAR exited with code " + std::to_string(exitCode);
+    }
+}
+
+std::string fatalMessage(const std::string& outputPrefix, const char* consoleLog) {
+    static const std::string marker = "FATAL ERROR, exiting";
+    const char* files[] = {"Log.out", consoleLog};
+    for (const char* file : files) {
+        std::string text = readFileTail(outputPrefix + file, 65536);
+        text.erase(std::remove(text.begin(), text.end(), '\r'), text.end()); // Windows logs use CRLF
+        const size_t end = text.rfind(marker);
+        if (end == std::string::npos) continue;
+        // exitWithError writes "\n<message>\n<time> ...... FATAL ERROR, exiting", and messages
+        // usually end in '\n' themselves: drop the timestamp line and the line breaks above
+        // it, then take the message block back to the blank line that precedes it.
+        size_t stop = text.rfind('\n', end);
+        if (stop == std::string::npos) continue;
+        while (stop > 0 && (text[stop-1] == '\n' || text[stop-1] == '\r')) --stop;
+        if (stop == 0) continue;
+        size_t start = text.rfind("\n\n", stop - 1);
+        start = (start == std::string::npos) ? 0 : start + 2;
+        if (start >= stop) continue;
+        std::string msg = text.substr(start, stop - start);
+        while (!msg.empty() && (msg.front() == '\n' || msg.front() == '\r')) msg.erase(0, 1);
+        if (msg.size() > 2000) msg = msg.substr(msg.size() - 2000);
+        if (!msg.empty()) return msg;
+    }
+    return "";
+}
+
+// Generate an HTML report for a finished job (succeeded or failed) and set job.reportPath.
 void writeReport(Job& job) {
     std::string logFinal = readFileTail(job.outputPrefix + "Log.final.out");
     std::string logOut   = readFileTail(job.outputPrefix + "Log.out", 4096);
@@ -183,6 +232,15 @@ void writeReport(Job& job) {
          "<span><b>Output:</b> " << esc(job.outputPrefix) << "</span>"
          "</div></div>"
          "<div class='card'><h2>Command</h2><pre>" << esc(job.cmdLine) << "</pre></div>";
+
+    if (job.state == "failed") {
+        f << "<div class='card'><h2>Why it stopped</h2><div class='meta'>"
+             "<span><b>Reason:</b> " << esc(job.exitReason) << "</span></div>";
+        if (!job.errorMessage.empty())
+            f << "<pre style='margin-top:10px'>" << esc(job.errorMessage) << "</pre>";
+        f << "<p style='font-size:.85rem;color:#666'>Outputs of a failed run may be missing "
+             "or incomplete; do not use them for analysis.</p></div>";
+    }
 
     // STARsolo summary table: parse Solo.out/Gene/Summary.csv if present
     std::string summaryPath = job.outputPrefix + "Solo.out/Gene/Summary.csv";

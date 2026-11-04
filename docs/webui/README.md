@@ -54,3 +54,33 @@ no browser is open. Queued and running jobs can be cancelled; cancelling stops
 STAR and every process it started, such as read decompression helpers (a process
 group on Linux and macOS, a Job Object on Windows). Each job's console output is written to `WebUI_console.log` under its
 output prefix and is included in the log view.
+
+## Failed jobs
+
+A job fails when STAR exits with a non-zero code. STAR stops with an error,
+rather than reporting success, when it cannot open or fully write an output
+file (for example on a full disk), so the outputs of a failed job may be missing
+or truncated and must not be used.
+
+The job table shows the reason under the `failed` badge; hover it for STAR's own
+error message. With "Generate HTML report" checked, failed jobs also get a
+report whose "Why it stopped" card repeats both. The same fields are available
+to API clients as `exitReason` and `errorMessage` in `GET /jobs/<id>`.
+
+| Exit code | Reason shown |
+| --- | --- |
+| 101 | internal error in STAR (please report it) |
+| 102 | invalid parameter |
+| 103 | runtime error |
+| 104 | problem with an input file |
+| 105 | problem with the genome index |
+| 106 | shared-memory error |
+| 107 | timed out waiting for a shared genome |
+| 108 | not enough memory |
+| 109 | could not create an output file |
+| 110 | could not write an output file (disk full?) |
+| 111 | inconsistent input data |
+| 112 | error with a named pipe (FIFO) |
+| 127, -1 | STAR could not be started, or was stopped by a signal |
+
+The screenshots above predate the reason line and are illustrative.

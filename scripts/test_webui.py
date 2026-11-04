@@ -134,6 +134,56 @@ def zombie_children(pid):
     return zombies
 
 
+def check_failure(server, executable):
+    """A failed job carries STAR's exit reason and message, and its report says why it stopped."""
+    root = server.directory / "failure"
+    root.mkdir()
+
+    def finished(job_id):
+        status, job = server.request(f"/jobs/{job_id}")
+        return job if status == 200 and job["state"] not in ("queued", "running") else None
+
+    status, job = server.post_json("/jobs", {
+        "runMode": "alignReads", "outFileNamePrefix": str(root / "missing-genome"),
+        "genomeDir": str(root / "no-such-genome"), "readFilesIn": [str(root / "none.fq")],
+        "generateReport": True})
+    assert status == 201, (status, job)
+    job = wait_for(lambda: finished(job["id"]), 60, "failed job to finish")
+    assert job["state"] == "failed" and job["exitCode"] != 0, job
+    assert job["exitReason"], job
+    assert "EXITING" in job["errorMessage"] or "ERROR" in job["errorMessage"], job
+    status, report = server.request(f"/jobs/{job['id']}/report")
+    assert status == 200 and b"Why it stopped" in report and job["exitReason"].encode() in report, status
+    checks = ["failed-job reason, message and report"]
+
+    if sys.platform.startswith("linux") and os.path.exists("/dev/full"):
+        # A full disk must surface as a write failure, not as success or a bare code.
+        genome = root / "genome"
+        genome.mkdir()
+        (root / "ref.fa").write_text(">chr1\n" + "ACGTTGCAAGCTTAGCCATGGATCCTTAAGG" * 400 + "\n")
+        subprocess.run([str(executable), "--runMode", "genomeGenerate", "--genomeDir", str(genome),
+                        "--genomeFastaFiles", str(root / "ref.fa"), "--genomeSAindexNbases", "4",
+                        "--outFileNamePrefix", str(root) + "/genome_"],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+        reads = root / "reads.fq"
+        seq = (root / "ref.fa").read_text().splitlines()[1]
+        reads.write_text("".join(f"@r{i}\n{seq[i*37:i*37+60]}\n+\n{'I'*60}\n" for i in range(50)))
+        full = root / "full"
+        full.mkdir()
+        (full / "Log.progress.out").symlink_to("/dev/full")
+        status, job = server.post_json("/jobs", {
+            "runMode": "alignReads", "outFileNamePrefix": str(full) + "/",
+            "genomeDir": str(genome), "readFilesIn": [str(reads)], "outSAMtype": "SAM",
+            "generateReport": True})
+        assert status == 201, (status, job)
+        job = wait_for(lambda: finished(job["id"]), 60, "disk-full job to finish")
+        assert job["state"] == "failed" and job["exitCode"] == 110, job
+        assert "could not write" in job["exitReason"] and "Log.progress.out" in job["errorMessage"], job
+        assert not (full / "Log.final.out").exists()
+        checks.append("disk-full job reported as a write failure")
+    return checks
+
+
 def check_queue(server, executable):
     """Blocking jobs read from a FIFO; nothing below polls GET /jobs while waiting."""
     root = server.directory
@@ -208,6 +258,7 @@ def main():
             check_endpoints(server)
             check_guard(server)
             checks = "health, properties, HTML, jobs, malformed JSON, Host/Origin/Content-Type guard, runMode allow-list"
+            checks += ", " + ", ".join(check_failure(server, executable))
             if hasattr(os, "mkfifo"):
                 check_queue(server, executable)
                 checks += ", queue promotion, queued/running cancel, reaping"
