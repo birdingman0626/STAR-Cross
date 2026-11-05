@@ -1,3 +1,25 @@
+STAR-Cross 0.0.1 (unreleased) ::: Output integrity
+===========================================
+Changes relative to STAR 2.7.11b. Successful runs write the same bytes as before these fixes on every platform; only runs that previously ended with damaged or truncated files behave differently. See also "Differences and limits" in [README.md](README.md).
+
+**Behavior changes: runs that used to report success now stop with an error**
+* Failed writes are fatal. A full disk or I/O error while writing SAM/BAM, SJ.out.tab, ReadsPerGene, Chimeric.out.*, Unmapped.out.mate*, STARsolo matrices, the genome index or the logs used to leave truncated files and exit 0 with "finished successfully". STAR now exits with code 110 (EXIT_CODE_FILE_WRITE), and Log.final.out is not written for a failed run.
+* Output files that cannot be opened (missing or read-only output directory, a prefix under a regular file) are reported before mapping starts, with exit code 109 (EXIT_CODE_FILE_OPEN), instead of after the whole run.
+* BAM output with a reference longer than 2,147,483,647 bases stops before mapping with exit code 102 (EXIT_CODE_PARAMETER). BAM stores reference lengths and positions as 32-bit signed integers, so such files were corrupt. SAM output is unaffected; use --outSAMtype SAM or split the reference.
+* A failing --readFilesCommand while reading the SAM header stops the run, reporting the command and its exit status.
+* Internal consistency failures ("BUG: ...") are written to Log.out and exit with code 101 (EXIT_CODE_BUG) instead of 255. --limitGenomeGenerateRAM 0 exits with 102 and is also reported on stderr.
+* bam_cat merging and BAM input for --inputBAMfile fail on read, write and close errors instead of producing partial output. Referenceless CRAM conversion keeps the BAM and removes the partial CRAM when closing the intermediate BAM fails.
+
+**Behavior changes: output records**
+* BAM CIGAR operations longer than 268,435,455 bases (a 28-bit field) are split into consecutive operations of the same type, e.g. 268435455N64545N. Earlier versions wrapped the length (268500000N became 64544N), which moved the alignment end and corrupted the record. SAM output writes the gap as one operation, as before; readers treat the split form as the same gap.
+* genomeGenerate with --runThreadN 16 or more now builds the same SAindex as upstream and as runs with fewer threads; before, it could differ on genomes with short runs of N.
+
+**Unchanged, now tested**
+* The BAM bin field for alignments past 2^29 bases (where the BAI scheme is undefined) equals what htslib writes for the same record. htslib and CSI indexing recompute it from POS and CIGAR on read; use `samtools index -c` (CSI) for chromosomes longer than 2^29 bases (about 537 Mb).
+
+**Web UI**
+* Failed jobs show the reason for the exit code and STAR's own error message, and a failed job with "Generate HTML report" set gets a report with a "Why it stopped" card. See [docs/webui/README.md](docs/webui/README.md#failed-jobs).
+
 STAR 2.7.11b --- 2024/01/24 ::: Minor in one parameter.
 ===========================================
 * Replaced --quantTranscriptomeBan parameter with --quantTranscriptomeSAMoutput with more explicit naming of options. The default behavior is not affected.

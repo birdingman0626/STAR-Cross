@@ -83,4 +83,3 @@ to API clients as `exitReason` and `errorMessage` in `GET /jobs/<id>`.
 | 112 | error with a named pipe (FIFO) |
 | 127, -1 | STAR could not be started, or was stopped by a signal |
 
-The screenshots above predate the reason line and are illustrative.

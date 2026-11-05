@@ -97,6 +97,11 @@ preview, queue status and logs. See [Web UI usage](docs/webui/README.md).
   without `--soloType` follow `--soloStrand` (default Forward), rB in
   Aligned.toTranscriptome.out.bam uses transcript coordinates like POS, and
   SuperTranscriptome seeds stay inside the read.
+- **Output errors stop the run:** a failed write (exit 110), an output file that
+  cannot be opened (109, before mapping) or BAM output for a reference longer
+  than 2,147,483,647 bases (102) is an error, where upstream could exit 0 with
+  truncated or corrupt files. BAM CIGAR gaps longer than 268,435,455 bases are
+  split into consecutive operations. See [CHANGES.md](CHANGES.md).
 - **Windows limits:** shared-memory genome loading is unavailable; use
   `--genomeLoad NoSharedMemory`. `--readFilesCommand` uses temporary files rather
   than FIFO streaming, which can require additional disk space.
