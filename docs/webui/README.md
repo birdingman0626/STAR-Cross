@@ -13,15 +13,26 @@ on a remote browser's computer.
 ## Submit a job
 
 Select `alignReads`, `genomeGenerate` or `soloCellFiltering`, supply the input
-and output paths, and check the generated command before submitting.
+and output paths, and check the generated command before submitting. Each field
+shows the STAR option it sets (for example `--genomeDir`); the `?` next to a
+label opens a short explanation, and Escape closes it. The command panel stays
+beside the form on wide screens and updates as you type.
 STARsolo presets provide starting barcode/UMI settings; verify that the preset
 matches the library chemistry and read layout.
 
+The page follows the system light or dark theme, works at phone width (jobs
+become cards) and can be used with the keyboard alone. It loads no external
+fonts or scripts, so it also works without internet access.
+
 ![Job submission form](webui-form.png)
 
-The job table shows queue state, timestamps and output locations. Completed
-jobs expose logs and available reports/artifacts. A completed process still
-needs output inspection and any validation required by your analysis.
+The job table shows queue state, timestamps and output locations, and refreshes
+every 3 seconds without moving keyboard focus. Completed jobs expose logs and
+available reports. The log view follows new output only while you are at its
+end. A completed process still needs output inspection and any validation
+required by your analysis. Cancelling a job asks for confirmation first. If the
+page loses contact with the server, the header shows "Disconnected" and a
+banner explains that the list may be stale.
 
 ![Job queue](webui-jobs.png)
 
@@ -62,9 +73,13 @@ rather than reporting success, when it cannot open or fully write an output
 file (for example on a full disk), so the outputs of a failed job may be missing
 or truncated and must not be used.
 
-The job table shows the reason under the `failed` badge; hover it for STAR's own
-error message. With "Generate HTML report" checked, failed jobs also get a
-report whose "Why it stopped" card repeats both. The same fields are available
+The job table shows the reason under the `failed` badge; "STAR's message"
+expands STAR's own error text. With "Write an HTML report when the job ends"
+checked, failed jobs also get a report that opens with a "Why it stopped" card
+repeating both.
+
+![Report of a failed job](webui-report.png)
+ The same fields are available
 to API clients as `exitReason` and `errorMessage` in `GET /jobs/<id>`.
 
 | Exit code | Reason shown |

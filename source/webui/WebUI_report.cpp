@@ -183,6 +183,9 @@ std::string fatalMessage(const std::string& outputPrefix, const char* consoleLog
 void writeReport(Job& job) {
     std::string logFinal = readFileTail(job.outputPrefix + "Log.final.out");
     std::string logOut   = readFileTail(job.outputPrefix + "Log.out", 4096);
+    // Windows logs use CRLF, and this text-mode stream would turn "\r\n" into "\r\r\n".
+    for (std::string* s : {&logFinal, &logOut})
+        s->erase(std::remove(s->begin(), s->end(), '\r'), s->end());
     std::string path     = job.outputPrefix + "WebUI_Report.html";
     std::ofstream f(path);
     if (!f) return;
@@ -193,82 +196,127 @@ void writeReport(Job& job) {
             if      (c=='<') r += "&lt;";
             else if (c=='>') r += "&gt;";
             else if (c=='&') r += "&amp;";
+            else if (c=='"') r += "&quot;";
             else             r += c;
         }
         return r;
     };
+    auto trim = [](std::string s) {
+        const char* ws = " \t\r\n";
+        s.erase(0, s.find_first_not_of(ws));
+        const size_t e = s.find_last_not_of(ws);
+        s.erase(e == std::string::npos ? 0 : e + 1);
+        return s;
+    };
+    auto when = [&](std::string s) { // ISO 8601 "2026-11-05T14:02:58" -> "2026-11-05 14:02:58"
+        if (s.size() > 10 && s[10] == 'T') s[10] = ' ';
+        return esc(s);
+    };
+    const bool failed = job.state == "failed";
+    const std::string badgeClass = (job.state == "succeeded" || job.state == "failed") ? job.state : std::string("cancelled");
 
     f << "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'>"
-         "<title>STAR Report - Job " << job.id << "</title><style>"
-         "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
-         "background:#f4f5f7;color:#333;margin:0}"
-         "header{background:#1a1a2e;color:#fff;padding:14px 24px}"
-         "header h1{font-size:1.1rem;font-weight:600;margin:0}"
-         ".wrap{max-width:960px;margin:0 auto;padding:24px}"
-         ".card{background:#fff;border-radius:6px;padding:20px;margin-bottom:16px;"
-         "box-shadow:0 1px 3px rgba(0,0,0,.1)}"
-         "h2{font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;"
-         "color:#666;margin:0 0 10px}"
-         ".meta{display:flex;flex-wrap:wrap;gap:14px 24px;font-size:.86rem}"
-         ".meta span b{color:#333}"
-         "pre{background:#1e1e1e;color:#d4d4d4;padding:14px;border-radius:4px;"
-         "font-family:Consolas,monospace;font-size:.78rem;white-space:pre-wrap;"
-         "overflow-x:auto;margin:0;max-height:500px;overflow-y:auto}"
-         "table{width:100%;border-collapse:collapse;font-size:.85rem}"
-         "th{text-align:left;padding:7px 10px;border-bottom:2px solid #eee;color:#666;"
-         "font-size:.74rem;text-transform:uppercase;font-weight:700}"
-         "td{padding:7px 10px;border-bottom:1px solid #f0f0f0}"
-         "tr:hover td{background:#fafbff}"
+         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+         "<meta name='color-scheme' content='light dark'>"
+         "<title>Job " << job.id << " report - STAR-Cross</title><style>"
+         ":root{--bg:#f5f6f8;--surface:#fff;--surface-2:#f0f2f5;--border:#dde1e7;--text:#1c222b;--muted:#596270;"
+         "--accent:#0b6b68;--ok:#1b7339;--ok-bg:#e5f3e9;--err:#b3261e;--err-bg:#fcebea;--neutral:#4a5260;--neutral-bg:#eceef2;"
+         "--term-bg:#11161c;--term-text:#d3dae3;"
+         "--sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,'Cascadia Mono',Menlo,Consolas,monospace}"
+         "@media (prefers-color-scheme:dark){:root{--bg:#0e1115;--surface:#161a20;--surface-2:#1d222a;--border:#2a3039;"
+         "--text:#e4e8ee;--muted:#9ba5b3;--accent:#52c2bb;--ok:#7fd396;--ok-bg:#132a1b;--err:#ff8f86;--err-bg:#33171a;"
+         "--neutral:#b4bcc8;--neutral-bg:#242a33;--term-bg:#0a0d11}}"
+         "*{box-sizing:border-box;margin:0}"
+         "body{font:14px/1.5 var(--sans);background:var(--bg);color:var(--text)}"
+         "a{color:var(--accent)}"
+         "header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border)}"
+         "header h1{font-size:1.05rem;font-weight:650}header h1 span{font-weight:500;color:var(--muted)}"
+         ".badge{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 8px;border-radius:999px;font-size:.78rem;font-weight:600}"
+         ".badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}"
+         ".s-succeeded{background:var(--ok-bg);color:var(--ok)}.s-failed{background:var(--err-bg);color:var(--err)}"
+         ".s-cancelled{background:var(--neutral-bg);color:var(--neutral)}"
+         ".wrap{max-width:980px;margin:0 auto;padding:20px 24px 40px;display:flex;flex-direction:column;gap:16px}"
+         ".card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}"
+         ".card h2{font-size:.95rem;font-weight:650;padding:14px 18px;border-bottom:1px solid var(--border)}"
+         ".body{padding:16px 18px}"
+         ".alert{border-color:var(--err)}.alert h2{color:var(--err);background:var(--err-bg);border-color:var(--err)}"
+         ".reason{font-size:1rem;font-weight:600;margin-bottom:10px}"
+         ".note{font-size:.85rem;color:var(--muted);margin-top:10px}"
+         "dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px 20px}"
+         "dt{font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}"
+         "dd{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}dd.mono{font:.82rem var(--mono)}"
+         "pre{font:.78rem/1.55 var(--mono);white-space:pre-wrap;word-break:break-word;margin:0}"
+         ".code{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px}"
+         ".term{background:var(--term-bg);color:var(--term-text);padding:14px 16px;max-height:480px;overflow:auto}"
+         "table{width:100%;border-collapse:collapse;font-size:.86rem}"
+         "td,th{padding:7px 18px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}"
+         "td:last-child{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}"
+         "th{font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);background:var(--surface-2);font-weight:600}"
+         "tr:last-child td{border-bottom:0}"
+         "@media (max-width:640px){header,.wrap{padding-left:12px;padding-right:12px}td,th{padding-left:14px;padding-right:14px}"
+         "td:last-child{white-space:normal}}"
          "</style></head><body>"
-         "<header><h1>STAR Run Report</h1></header>"
-         "<div class='wrap'>"
-         "<div class='card'><h2>Summary</h2><div class='meta'>"
-         "<span><b>Job&nbsp;ID:</b> " << job.id << "</span>"
-         "<span><b>Mode:</b> " << esc(job.runMode) << "</span>"
-         "<span><b>Status:</b> " << esc(job.state) << "</span>"
-         "<span><b>Exit&nbsp;code:</b> " << job.exitCode << "</span>"
-         "<span><b>Submitted:</b> " << esc(job.submitTime) << "</span>"
-         "<span><b>Finished:</b> " << esc(job.endTime) << "</span>"
-         "<span><b>Output:</b> " << esc(job.outputPrefix) << "</span>"
-         "</div></div>"
-         "<div class='card'><h2>Command</h2><pre>" << esc(job.cmdLine) << "</pre></div>";
+         "<header><h1>STAR-Cross <span>job " << job.id << " report</span></h1>"
+         "<span class='badge s-" << badgeClass << "'>" << esc(job.state) << "</span></header>"
+         "<main class='wrap'>";
 
-    if (job.state == "failed") {
-        f << "<div class='card'><h2>Why it stopped</h2><div class='meta'>"
-             "<span><b>Reason:</b> " << esc(job.exitReason) << "</span></div>";
+    if (failed) {
+        f << "<section class='card alert'><h2>Why it stopped</h2><div class='body'>"
+             "<p class='reason'>" << esc(job.exitReason) << " (exit code " << job.exitCode << ")</p>";
         if (!job.errorMessage.empty())
-            f << "<pre style='margin-top:10px'>" << esc(job.errorMessage) << "</pre>";
-        f << "<p style='font-size:.85rem;color:#666'>Outputs of a failed run may be missing "
-             "or incomplete; do not use them for analysis.</p></div>";
+            f << "<pre class='code'>" << esc(job.errorMessage) << "</pre>";
+        f << "<p class='note'>Outputs of a failed run may be missing or incomplete; do not use them for analysis.</p>"
+             "</div></section>";
     }
+
+    f << "<section class='card'><h2>Summary</h2><div class='body'><dl>"
+         "<div><dt>Mode</dt><dd>" << esc(job.runMode) << "</dd></div>"
+         "<div><dt>Status</dt><dd>" << esc(job.state) << "</dd></div>"
+         "<div><dt>Exit code</dt><dd>" << job.exitCode << "</dd></div>"
+         "<div><dt>Submitted</dt><dd>" << when(job.submitTime) << "</dd></div>"
+         "<div><dt>Finished</dt><dd>" << when(job.endTime) << "</dd></div>"
+         "<div><dt>Output</dt><dd class='mono'>" << esc(job.outputPrefix) << "</dd></div>"
+         "</dl></div></section>"
+         "<section class='card'><h2>Command</h2><div class='body'><pre class='code'>" << esc(job.cmdLine) << "</pre></div></section>";
 
     // STARsolo summary table: parse Solo.out/Gene/Summary.csv if present
     std::string summaryPath = job.outputPrefix + "Solo.out/Gene/Summary.csv";
     std::ifstream sumF(summaryPath);
     if (sumF) {
-        f << "<div class='card'><h2>STARsolo Gene Summary</h2>"
-             "<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>";
+        f << "<section class='card'><h2>STARsolo gene summary</h2>"
+             "<table><thead><tr><th scope='col'>Metric</th><th scope='col'>Value</th></tr></thead><tbody>";
         std::string sline;
         while (std::getline(sumF, sline)) {
             if (sline.empty()) continue;
             auto comma = sline.find(',');
             std::string key = (comma != std::string::npos) ? sline.substr(0, comma) : sline;
             std::string val = (comma != std::string::npos) ? sline.substr(comma+1) : "";
-            // strip CR
-            if (!key.empty() && key.back() == '\r') key.pop_back();
-            if (!val.empty() && val.back() == '\r') val.pop_back();
-            f << "<tr><td>" << esc(key) << "</td><td>" << esc(val) << "</td></tr>";
+            f << "<tr><td>" << esc(trim(key)) << "</td><td>" << esc(trim(val)) << "</td></tr>";
         }
-        f << "</tbody></table></div>";
+        f << "</tbody></table></section>";
     }
 
-    if (!logFinal.empty())
-        f << "<div class='card'><h2>Mapping Statistics (Log.final.out)</h2>"
-             "<pre>" << esc(logFinal) << "</pre></div>";
+    // Log.final.out: "key |\tvalue" lines, with "SECTION:" lines as group headers
+    if (!logFinal.empty()) {
+        f << "<section class='card'><h2>Mapping statistics</h2><table><tbody>";
+        std::istringstream in(logFinal);
+        std::string line;
+        while (std::getline(in, line)) {
+            const size_t bar = line.find('|');
+            const std::string text = trim(line);
+            if (bar != std::string::npos) {
+                f << "<tr><td>" << esc(trim(line.substr(0, bar))) << "</td><td>" << esc(trim(line.substr(bar + 1))) << "</td></tr>";
+            } else if (!text.empty()) {
+                std::string head = text;
+                if (head.back() == ':') head.pop_back();
+                f << "<tr><th scope='rowgroup' colspan='2'>" << esc(head) << "</th></tr>";
+            }
+        }
+        f << "</tbody></table></section>";
+    }
     if (!logOut.empty())
-        f << "<div class='card'><h2>Run Log tail (Log.out)</h2>"
-             "<pre>" << esc(logOut) << "</pre></div>";
-    f << "</div></body></html>";
+        f << "<section class='card'><h2>End of Log.out</h2><pre class='term'>" << esc(logOut) << "</pre></section>";
+    f << "</main></body></html>";
     f.close();
     job.reportPath = path;
 }
