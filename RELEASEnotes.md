@@ -1,6 +1,6 @@
-STAR-Cross 0.0.1 (unreleased) ::: Output integrity
-=================================================
-Runs that used to finish with truncated or corrupt files now stop with an error; long BAM CIGAR gaps are split. See [CHANGES.md](CHANGES.md).
+STAR-Cross --- 2026/11/05 ::: Output integrity
+==============================================
+Runs that used to finish with truncated or corrupt files now stop with an error; long BAM CIGAR gaps are split; transcriptomic rB, GX/GN without STARsolo and (-)strand transcriptome genomes are fixed; huge pages speed up Linux mapping. See [CHANGES.md](CHANGES.md).
 
 STAR 2.7.10a --- 2022/01/14 ::: New features, behavior changes and bug fixes
 ============================================================================

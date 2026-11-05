@@ -1,6 +1,6 @@
-STAR-Cross 0.0.1 (unreleased) ::: Output integrity
-===========================================
-Changes relative to STAR 2.7.11b. Successful runs write the same bytes as before these fixes on every platform; only runs that previously ended with damaged or truncated files behave differently. See also "Differences and limits" in [README.md](README.md).
+STAR-Cross --- 2026/11/05 ::: Output integrity
+==============================================
+Changes since the STAR-Cross e1da2d7 release (based on STAR 2.7.11b). The error-handling fixes leave successful runs byte-identical on every platform; only runs that previously ended with damaged or truncated files behave differently. The fixes under "output records" change the named fields or files only. See also "Differences and limits" in [README.md](README.md).
 
 **Behavior changes: runs that used to report success now stop with an error**
 * Failed writes are fatal. A full disk or I/O error while writing SAM/BAM, SJ.out.tab, ReadsPerGene, Chimeric.out.*, Unmapped.out.mate*, STARsolo matrices, the genome index or the logs used to leave truncated files and exit 0 with "finished successfully". STAR now exits with code 110 (EXIT_CODE_FILE_WRITE), and Log.final.out is not written for a failed run.
@@ -13,6 +13,15 @@ Changes relative to STAR 2.7.11b. Successful runs write the same bytes as before
 **Behavior changes: output records**
 * BAM CIGAR operations longer than 268,435,455 bases (a 28-bit field) are split into consecutive operations of the same type, e.g. 268435455N64545N. Earlier versions wrapped the length (268500000N became 64544N), which moved the alignment end and corrupted the record. SAM output writes the gap as one operation, as before; readers treat the split form as the same gap.
 * genomeGenerate with --runThreadN 16 or more now builds the same SAindex as upstream and as runs with fewer threads; before, it could differ on genomes with short runs of N.
+* rB in Aligned.toTranscriptome.out.bam is now the transcript coordinate and equals POS. It used to subtract a genome chromosome start indexed by the transcript number, which was wrong and, past the chromosome count, read out of range (values changed from run to run). Genomic rB is unchanged.
+* GX/GN with --soloType None no longer flip between a gene and "-" from run to run: --soloStrand (default Forward) is now read when STARsolo is off.
+* --genomeType Transcriptome/SuperTranscriptome: (-)strand transcripts are now built from real sequence. They used to consist of spacer bytes, so they were missing from the generated index and printed as garbage in transcriptSequences.fasta / superTranscriptSequences.fasta. --legacy keeps the 2.7.11b behavior.
+* SuperTranscriptome seeds no longer read past the read end, so seed counts and the per-superTranscript coverage diagnostics are reproducible.
+
+**Performance (output unchanged)**
+* Linux: the genome and suffix array are backed by transparent huge pages (madvise); 1M-pair STARsolo at 8 threads took 0.78x the time. Set STAR_NO_HUGEPAGES=1 to turn it off.
+* Windows: STARsolo temporary files are written and parsed without iostream operators, which were about 10x slower under MSVC than libstdc++.
+* An optional CUDA route (off by default, -DSTAR_ENABLE_CUDA=ON) runs batched seeding, stitching and barcode lookups on the GPU. It is an experiment: it is tested for identical output, but no whole-job speedup is claimed. See [docs/GPU_BATCHED_SEEDING.md](docs/GPU_BATCHED_SEEDING.md).
 
 **Unchanged, now tested**
 * The BAM bin field for alignments past 2^29 bases (where the BAI scheme is undefined) equals what htslib writes for the same record. htslib and CSI indexing recompute it from POS and CIGAR on read; use `samtools index -c` (CSI) for chromosomes longer than 2^29 bases (about 537 Mb).
