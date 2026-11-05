@@ -93,18 +93,6 @@ void exitBAMwriteError(const string &what, Parameters &P) {
                   "\nSOLUTION: check free disk space and write permissions.\n", std::cerr, P.inOut->logMain, EXIT_CODE_FILE_WRITE, P);
 };
 
-// calculate bin given an alignment covering [beg,end) (zero-based, half-close-half-open)
-int reg2bin(int beg, int end)
-{
-    --end;
-    if (beg>>14 == end>>14) return ((1<<15)-1)/7 + (beg>>14);
-    if (beg>>17 == end>>17) return ((1<<12)-1)/7 + (beg>>17);
-    if (beg>>20 == end>>20) return ((1<<9)-1)/7 + (beg>>20);
-    if (beg>>23 == end>>23) return ((1<<6)-1)/7 + (beg>>23);
-    if (beg>>26 == end>>26) return ((1<<3)-1)/7 + (beg>>26);
-    return 0;
-};
-
 int bamAttrArrayWrite(int32 attr, const char* tagName, char* attrArray ) {
     attrArray[0]=tagName[0];attrArray[1]=tagName[1];
     attrArray[2]='i';

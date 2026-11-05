@@ -530,10 +530,10 @@ uint64 ReadAlign::bamWriteRecord(const BamRecordContext &c, BamMateRecord &m, ui
     pBAM[2]= mapped ? trOut.exons[m.iEx1][EX_G] - trChrStart : (uint32) -1;
     //3: bin<<16|MAPQ<<8|l_read_name; the name length includes the 0-char
     if (mapped) {
-        pBAM[3]=( ( reg2bin(trOut.exons[m.iEx1][EX_G] - trChrStart,trOut.exons[m.iEx2][EX_G] + trOut.exons[m.iEx2][EX_L] - trChrStart) << 16 )
+        pBAM[3]=( ( bamBinField(trOut.exons[m.iEx1][EX_G] - trChrStart,trOut.exons[m.iEx2][EX_G] + trOut.exons[m.iEx2][EX_L] - trChrStart) << 16 )
                |( m.MAPQ<<8 ) | ( strlen(readName) ) );
     } else {
-        pBAM[3]=( reg2bin(-1,0) << 16 |  strlen(readName) );//4680=reg2bin(-1,0)
+        pBAM[3]=( bamBinField(-1,0) << 16 |  strlen(readName) );//4680=reg2bin(-1,0)
     };
     //4: FLAG<<16|n cigar op
     pBAM[4]=( ( ((m.samFLAG & P.outSAMflagAND) | P.outSAMflagOR) << 16 ) | (m.nCIGAR) );

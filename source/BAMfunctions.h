@@ -19,7 +19,6 @@ void exitBAMwriteError(const std::string &what, Parameters &P);
 int bam_read1_fromArray(char *bamChar, bam1_t *b);
 std::string bam_cigarString (bam1_t *b);
         
-int reg2bin(int beg, int end);
 int bamAttrArrayWrite(int32 attr, const char* tagName, char* attrArray );
 int bamAttrArrayWrite(float attr, const char* tagName, char* attrArray );
 int bamAttrArrayWrite(char attr, const char* tagName, char* attrArray );

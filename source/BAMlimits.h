@@ -34,4 +34,25 @@ inline unsigned int appendBAMcigarOp(unsigned int *packed, unsigned int n, unsig
     return n;
 };
 
+// BAI bin for an alignment covering [beg,end) (zero-based, half-open); same as
+// htslib's hts_reg2bin(beg,end,14,5). The scheme is only defined below 2^29;
+// past that the value is meaningless and, above ~1 Gb, exceeds 16 bits.
+inline int reg2bin(int beg, int end) {
+    --end;
+    if (beg>>14 == end>>14) return ((1<<15)-1)/7 + (beg>>14);
+    if (beg>>17 == end>>17) return ((1<<12)-1)/7 + (beg>>17);
+    if (beg>>20 == end>>20) return ((1<<9)-1)/7 + (beg>>20);
+    if (beg>>23 == end>>23) return ((1<<6)-1)/7 + (beg>>23);
+    if (beg>>26 == end>>26) return ((1<<3)-1)/7 + (beg>>26);
+    return 0;
+};
+
+// The 16-bit bin field of a BAM record. Keeps the low 16 bits, as htslib does
+// when writing (bam1_core_t::bin is uint16_t), so STAR's BAM matches samtools'
+// byte for byte. Readers (htslib, CSI indexing) recompute the bin from POS and
+// CIGAR, so the value past 2^29 has no effect on them.
+inline unsigned int bamBinField(int beg, int end) {
+    return static_cast<unsigned int>(reg2bin(beg, end)) & 0xFFFFu;
+};
+
 #endif
