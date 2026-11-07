@@ -120,9 +120,9 @@ void runNonMappingModes(Parameters &P)
     }
     else
     {
-        P.inOut->logMain << "EXITING because of INPUT ERROR: unknown value of input parameter runMode=" << P.runMode << endl
-                         << flush;
-        exit(1);
+        exitWithError("EXITING because of fatal PARAMETERS error: unknown value of input parameter runMode=" + P.runMode
+                      + "\nSOLUTION: use one of alignReads, genomeGenerate, inputAlignmentsFromBAM, liftOver, soloCellFiltering, webui\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_PARAMETER, P);
     };
 };
 

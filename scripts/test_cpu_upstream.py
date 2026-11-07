@@ -498,6 +498,10 @@ def main():
                        valid=False, expected_code=102)
     assert "--limitIObufferSize input buffer 150000 is too small for 2 read end(s)" in (small_buffer / "console.log").read_text()
     checks.append("input buffer smaller than one read per end rejected instead of overrunning the chunk")
+    bad_mode = run("unknown-run-mode", ["--runMode", "alignReadz"], valid=False, expected_code=102)
+    assert "unknown value of input parameter runMode=alignReadz" in (bad_mode / "console.log").read_text()
+    assert "unknown value of input parameter runMode=alignReadz" in (bad_mode / "Log.out").read_text()
+    checks.append("unknown --runMode reported on the console and in Log.out with EXIT_CODE_PARAMETER")
 
     sam = root / "input.sam"
     sam.write_text("@HD\tVN:1.6\nread\t4\t*\t0\t0\t*\t*\t0\t0\t" + sequence[100:200] +

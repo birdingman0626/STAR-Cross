@@ -246,6 +246,24 @@ def check_queue(server, executable):
         pass
 
 
+def check_busy_port(executable, directory):
+    """A port another process holds fails with EXIT_CODE_RUNTIME, before any "listening" line."""
+    with socket.socket() as holder:
+        holder.bind(("127.0.0.1", 0))
+        holder.listen(1)
+        port = holder.getsockname()[1]
+        prefix = Path(directory) / "busy_"
+        process = subprocess.run(
+            [str(executable), "--runMode", "webui", "--webuiHost", "127.0.0.1", "--webuiPort", str(port),
+             "--outFileNamePrefix", str(prefix)],
+            capture_output=True, text=True, timeout=60)
+    assert process.returncode == 103, (process.returncode, process.stdout, process.stderr)
+    assert "listening on" not in process.stdout, process.stdout
+    message = f"could not bind to 127.0.0.1:{port}"
+    assert message in process.stderr, process.stderr
+    assert message in (Path(directory) / "busy_Log.out").read_text(), "bind failure missing from Log.out"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--star-exe", required=True, type=Path)
@@ -259,6 +277,8 @@ def main():
             check_guard(server)
             checks = "health, properties, HTML, jobs, malformed JSON, Host/Origin/Content-Type guard, runMode allow-list"
             checks += ", " + ", ".join(check_failure(server, executable))
+            check_busy_port(executable, directory)
+            checks += ", busy port rejected with exit 103"
             if hasattr(os, "mkfifo"):
                 check_queue(server, executable)
                 checks += ", queue promotion, queued/running cancel, reaping"

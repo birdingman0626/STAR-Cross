@@ -44,6 +44,9 @@ banner explains that the list may be stale.
 | `--webuiHost` | `127.0.0.1` | Bind address |
 | `--outFileNamePrefix` | Supply explicitly | Initial output prefix in the form |
 
+If the port is already in use, STAR exits with code 103 and says so on the
+console and in `Log.out`, before printing the "listening" address.
+
 Keep the default loopback address for local use. Jobs run with your account and
 can execute commands (for example through `--readFilesCommand` in extra
 arguments), so the server only accepts requests from its own page:

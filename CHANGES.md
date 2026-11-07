@@ -1,5 +1,9 @@
 STAR-Cross --- unreleased
 =========================
+**Behavior changes: failures only**
+* An unknown `--runMode` value exits with code 102 (EXIT_CODE_PARAMETER) and is reported on the console as well as in Log.out. It used to exit with code 1 and write only to Log.out.
+* `--runMode webui` on a port that is already in use exits with code 103 (EXIT_CODE_RUNTIME), with the error in Log.out, and no longer prints "listening on" first. It used to exit with code 1.
+
 **Build**
 * `STAR --version`, the BAM `@PG VN` field and Log.out report the commit the binary was built from. An incremental build used to keep the commit read when the build directory was configured, so binaries rebuilt after `git commit` or `git checkout` named an older revision. Each build now reads the commit again and recompiles only the version file when it changes. `STAR-build-info-<configuration>.json` records the commit and clean-tree state at build time as well.
 

@@ -5,6 +5,7 @@
 #include "WebUI.h"
 #include "WebUI_internal.h"
 #include "../IncludeDefine.h"
+#include "../ErrorWarning.h"
 #include <atomic>
 #include <chrono>
 #include <ctime>
@@ -959,18 +960,26 @@ void WebUI::run() {
         }
     });
 
+    // Bind before announcing the address, so a busy port is reported as an
+    // error instead of after a "listening" line.
+    if (!srv.bind_to_port(host, port)) {
+        stopPoller = true;
+        poller.join();
+        exitWithError("EXITING because of fatal RUNTIME error: WebUI could not bind to " + host + ":" + std::to_string(port)
+                      + "\nSOLUTION: check that no other process uses this port, or choose another with --webuiPort\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_RUNTIME, P);
+    }
     std::cout << "STAR WebUI listening on http://" << host << ":" << port << "\n";
     if (!guard.token.empty()) {
         std::cout << "Non-loopback bind: open http://<this-host>:" << port << "/?token=" << guard.token
                   << "\n(API clients: send header X-STAR-WebUI-Token). This is not TLS; use a trusted network.\n";
     }
     std::cout << "Press Ctrl+C to stop.\n" << std::flush;
-    const bool listened = srv.listen(host, port);
+    const bool served = srv.listen_after_bind();
     stopPoller = true;
     poller.join();
-    if (!listened) {
-        std::cerr << "EXITING: WebUI failed to bind to " << host << ":" << port
-                  << " - check that the port is not already in use.\n";
-        exit(1);
+    if (!served) {
+        exitWithError("EXITING because of fatal RUNTIME error: WebUI server on " + host + ":" + std::to_string(port) + " stopped unexpectedly\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_RUNTIME, P);
     }
 }
