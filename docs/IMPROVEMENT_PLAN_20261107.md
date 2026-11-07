@@ -135,6 +135,23 @@ fa904fe against e1da2d7 when the host is quiet (llama-server, pytest,
 `pending_run`, `libgen_get` stopped). Until the A/A deviation is under 2% the
 release makes no speed claim; after P4 the same harness qualifies the Solo gain.
 
+**Harness done; trials not qualifying (2026-11-07).** Each run now also reads
+the Windows host's raw processor counter (WMI `Win32_PerfRawData_PerfOS_Processor`;
+`Get-Counter` names are localized on this host) and records
+`host_background_cpu_mean_percent`. Under WSL, unknown or high host load fails
+the environment gate. The user asked for the trials to run without a quiet host
+(another WSL job and downloads were active). 1M-pair fixture, 8 threads, genome
+in shared memory, both binaries GCC 15.2 Release:
+
+| Trial | Host load outside WSL | Load inside WSL | Result |
+| --- | --- | --- | --- |
+| A/A fa904fe | 51–65% | 7–29% | median deviation 15.5%, INCONCLUSIVE |
+| A/B fa904fe / e1da2d7, 10 pairs | 11–28% | 8–18% | median 0.993, 95% [0.936, 1.068], NONREGRESSION_NOT_ESTABLISHED |
+
+All 34 runs reproduced the reference artifacts exactly. The old gate would have
+seen only the "inside WSL" column. No speed claim for fa904fe; repeat on a quiet
+host. Receipts: `data/validation/p5-trials-20261107/` (local).
+
 ### P6. Broaden the real-data oracle (1 day of machine time)
 
 Correctness evidence is one 10x library with one Solo profile. Add one real

@@ -147,6 +147,13 @@ comparators and seed runners. Extend their contracts rather than creating a new
 parallel benchmark system. Native Windows is the primary local performance lane;
 Linux/WSL results are separate comparisons within each environment.
 
+Under WSL2, `/proc/stat` covers only the Linux VM, so a busy Windows host looks
+idle from inside it. `linux_paired_benchmark.py` therefore also reads the host's
+raw processor counter through WSL interop for every run and records
+`host_background_cpu_mean_percent`: host busy CPU minus the VM's busy CPU, as a
+share of all host CPUs. It includes the VM's own overhead, so it errs high. A WSL
+run with unknown host load fails the environment gate.
+
 ### Fixtures and controls
 
 - Keep the existing synchronized 1M-pair prefix as an engineering smoke fixture.

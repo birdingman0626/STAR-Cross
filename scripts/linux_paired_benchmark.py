@@ -10,6 +10,13 @@ same paired_assessment statistics as the Windows harness decide the verdict.
 Background load is the host's non-STAR busy CPU during each run, from
 /proc/stat minus STAR's own rusage. It is evidence, not an idle guarantee
 (hypervisor steal and frequency changes are recorded or out of scope).
+
+Under WSL2, /proc/stat covers the Linux VM only, so Windows programs on the
+same CPUs are invisible to it. The Windows host is then read too, through WSL
+interop (WMI raw counter Win32_PerfRawData_PerfOS_Processor, locale
+independent): host background = host busy CPU minus the VM's busy CPU, over the
+host's CPU count. It also counts the VM's own virtualization overhead, so it
+errs high. A WSL run whose host load cannot be read fails the environment gate.
 """
 import argparse
 import hashlib
@@ -43,8 +50,55 @@ def cpu_jiffies():
     return sum(values[:8]) - idle - steal, sum(values[:8]), steal
 
 
-def measured_run(command, console):
+def is_wsl():
+    return Path("/proc/sys/fs/binfmt_misc/WSLInterop").exists() or "microsoft" in platform.release().lower()
+
+
+HOST_QUERY = ("$p = Get-CimInstance Win32_PerfRawData_PerfOS_Processor -Filter \"Name='_Total'\"; "
+              "$n = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; "
+              "\"$($p.PercentProcessorTime) $($p.Timestamp_Sys100NS) $n\"")
+
+
+def windows_host_cpu():
+    """(idle 100 ns ticks averaged over CPUs, timestamp 100 ns, logical CPUs) of the Windows host, or None."""
+    try:
+        out = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", HOST_QUERY],
+                             capture_output=True, text=True, timeout=120).stdout.split()
+        idle, stamp, cpus = map(int, out)
+        return idle, stamp, cpus
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def host_background_percent(before, after, vm_busy_cpu_seconds):
+    """Windows host busy CPU not spent by the WSL VM, as a percent of all host CPUs."""
+    seconds = (after[1] - before[1]) / 1e7
+    if seconds <= 0 or after[2] <= 0:
+        return None
+    busy_fraction = min(1.0, max(0.0, 1 - (after[0] - before[0]) / (after[1] - before[1])))
+    other = max(0.0, busy_fraction * after[2] * seconds - vm_busy_cpu_seconds)
+    return 100 * other / (after[2] * seconds)
+
+
+def format_percent(value):
+    return "unknown" if value is None else f"{value:.2f}%"
+
+
+def environment_gate(runs, max_background, max_host_background=None):
+    """Every measured run under both limits; with a host limit (WSL), unknown host load fails."""
+    for run in runs:
+        if run["background_cpu_mean_percent"] > max_background:
+            return False
+        if max_host_background is not None:
+            host_bg = run.get("host_background_cpu_mean_percent")
+            if host_bg is None or host_bg > max_host_background:
+                return False
+    return True
+
+
+def measured_run(command, console, host=False):
     tick = os.sysconf("SC_CLK_TCK")
+    host0 = windows_host_cpu() if host else None
     busy0, total0, steal0 = cpu_jiffies()
     started = time.monotonic()
     process = subprocess.Popen(command, stdout=console, stderr=subprocess.STDOUT)
@@ -64,10 +118,15 @@ def measured_run(command, console):
     stop.set()
     sampler.join()
     busy1, total1, steal1 = cpu_jiffies()
+    host1 = windows_host_cpu() if host else None
     cpus = os.cpu_count()
     star_cpu = usage.ru_utime + usage.ru_stime
     other = max(0.0, (busy1 - busy0) / tick - star_cpu)
-    return os.waitstatus_to_exitcode(status), {
+    host_measure = {}
+    if host:
+        host_bg = host_background_percent(host0, host1, (busy1 - busy0) / tick) if host0 and host1 else None
+        host_measure = {"host_background_cpu_mean_percent": host_bg, "host_logical_cpus": host1[2] if host1 else None}
+    return os.waitstatus_to_exitcode(status), {**host_measure,
         "wall_seconds": wall, "peak_rss_bytes": usage.ru_maxrss * 1024,
         "user_seconds": usage.ru_utime, "system_seconds": usage.ru_stime,
         "major_faults": usage.ru_majflt, "voluntary_switches": usage.ru_nvcsw,
@@ -98,6 +157,8 @@ def main():
     parser.add_argument("--warmups", type=int, default=1)
     parser.add_argument("--threads", type=int, default=8)
     parser.add_argument("--max-background-cpu-percent", type=float, default=5.0)
+    parser.add_argument("--max-host-background-cpu-percent", type=float, default=None,
+                        help="WSL only: limit for Windows host load outside the VM (default: --max-background-cpu-percent)")
     parser.add_argument("--extra", nargs=argparse.REMAINDER, default=[], help="Extra STAR arguments, appended identically for all labels")
     args = parser.parse_args()
     specs = [b.split("=", 1) for b in args.binary]
@@ -121,6 +182,9 @@ def main():
               "GeneFull_Ex50pAS", "Velocyto", "--soloMultiMappers", "EM", "--soloCellFilter", "EmptyDrops_CR",
               "--outSAMtype", "BAM", "Unsorted", "--outSAMattributes", "NH", "HI", "AS", "nM", "CR", "UR",
               *args.extra]
+    host = is_wsl()
+    host_limit = (args.max_background_cpu_percent if args.max_host_background_cpu_percent is None
+                  else args.max_host_background_cpu_percent) if host else None
     genome_files = {name: sha256(args.genome_dir / name) for name in ("Genome", "SA", "SAindex", "genomeParameters.txt")}
     result = {"status": "RUNNING", "labels": labels, "pairs_in_fixture": manifest["pairs"],
               "fixture": str(args.fixture), "genome_sha256": genome_files,
@@ -128,6 +192,8 @@ def main():
               "machine_identity": machine_identity(), "kernel": platform.release(),
               "execution_environment": execution_environment(), "threads": args.threads,
               "max_background_cpu_percent": args.max_background_cpu_percent,
+              "host_load_source": "windows-wmi-raw" if host else None,
+              "max_host_background_cpu_percent": host_limit,
               "runner_sha256": sha256(__file__), "common_arguments": common, "runs": []}
     save = lambda: (args.output_dir / "result.json").write_text(json.dumps(result, indent=1))
     save()
@@ -140,7 +206,7 @@ def main():
             command = [path, *common, "--outFileNamePrefix", str(run_dir) + "/"]
             (run_dir / "command.json").write_text(json.dumps(command))
             with (run_dir / "console.log").open("w") as console:
-                code, measure = measured_run(command, console)
+                code, measure = measured_run(command, console, host)
             if code:
                 result["status"] = "RUN_FAILED"
                 result["error"] = f"{run_dir.name} exited {code}"
@@ -156,7 +222,9 @@ def main():
                                        binary_sha256=result["binaries"][label]["sha256"],
                                        scientific_identical=identical, **measure))
             print(f"{run_dir.name}: {measure['wall_seconds']:.2f}s rss={measure['peak_rss_bytes']/2**30:.2f}GiB "
-                  f"bg={measure['background_cpu_mean_percent']:.2f}% identical={identical}", flush=True)
+                  f"bg={measure['background_cpu_mean_percent']:.2f}%"
+                  + (f" host_bg={format_percent(measure['host_background_cpu_mean_percent'])}" if host else "")
+                  + f" identical={identical}", flush=True)
             if not identical:
                 result["status"] = "SCIENTIFIC_MISMATCH"
                 save()
@@ -166,7 +234,7 @@ def main():
                 (run_dir / bulky).unlink(missing_ok=True)
             save()
     measured = [run for run in result["runs"] if not run["warmup"]]
-    environment_ok = all(run["background_cpu_mean_percent"] <= args.max_background_cpu_percent for run in measured)
+    environment_ok = environment_gate(measured, args.max_background_cpu_percent, host_limit)
     assessment = paired_assessment(result["runs"], labels)
     result.update(status="COMPLETE", scientific_contract="PASS", environment_gate_pass=environment_ok,
                   paired_assessment=assessment)
