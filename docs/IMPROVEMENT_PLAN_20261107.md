@@ -159,6 +159,22 @@ sample each for two-pass mapping, chimeric detection and long reads, run with
 the e1da2d7 release binary and fa904fe, compared with the `full_library.py`
 method. Records which modes the next release can claim as unchanged.
 
+**Done (2026-11-07).** `scripts/real_data_modes.py` runs each profile with
+every binary and compares the BAM header (without @PG/@CO) and decompressed
+records, SJ.out.tab, ReadsPerGene.out.tab, Chimeric.out.junction (as a set of
+lines) and the scientific Log.final fields. WSL GCC 15.2, 10 threads,
+cynomolgus index; e1da2d7 is the reference, compared with fa904fe and the P4
+build (`537b407`):
+
+| Profile | Sample | Result | Notes |
+| --- | --- | --- | --- |
+| two-pass (`--twopassMode Basic`, GeneCounts) | SRR9924991, 15.6M pairs | IDENTICAL | 68.2% unique |
+| chimeric (STAR-Fusion settings, Junctions) | SRR9924991 | IDENTICAL | 3,284,268 junction lines |
+| long (STARlong build, long-read parameters) | SRR32700256, 621,673 reads | IDENTICAL | mean read length 265 bases, so the STARlong code path is covered, but not reads of several kb |
+
+The next release can claim these three modes unchanged against e1da2d7 on this
+evidence. Receipts: `data/validation/p6-20261107/` (local).
+
 ### P7. GPU route: decide the target before more kernels
 
 With mapping at 63%, the 3x whole-job gate in
@@ -167,6 +183,13 @@ also shrinking Solo (P4) and the BAM sort. Options, for the owner to choose:
 keep 3x and sequence P4 + a parallel sort first; or restate the gate as a
 mapping-stage ratio plus whole-job non-regression. No further GPU kernel work
 until that decision; the G0 timers in the plan are still the next GPU step.
+
+**Decided (2026-11-07): keep 3x; shorten the BAM sort first.** After P4 the
+full-library job is about 2575 s: mapping 1797 s, sort 392 s, Solo 337 s, setup
+46 s. Without mapping about 778 s would remain, a 3.65x ceiling against fa904fe;
+3x (≤ 946 s) then needs about 11x faster mapping, or about 4x once the sort is
+near 100 s. The sort work starts by measuring `--outBAMsortingThreadN` scaling,
+since the qualification profile used 4 of 10 threads.
 
 ## 3. Sequence and release
 
