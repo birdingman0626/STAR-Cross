@@ -283,12 +283,13 @@ void Parameters::openBAMoutput()
         // Sorting opens the final stream exactly once, after its bins
         // are ready. An unused early BGZF handle leaks and duplicates
         // file/stdout ownership.
-        if (outBAMsortingThreadN==0) {
-            outBAMsortingThreadNactual=min(6, runThreadN);
-        } else {
-            outBAMsortingThreadNactual=outBAMsortingThreadN;
-        };
-        outBAMcoordNbins=max((uint32)outBAMsortingThreadNactual*3,outBAMsortingBinsN);
+        // Default: sort with every mapping thread; --limitBAMsortRAM still caps
+        // the bins held in RAM at once. The bin count keeps the old
+        // min(6,runThreadN) basis, since each mapping thread holds one temporary
+        // file per bin open.
+        const int sortThreadsForBins = outBAMsortingThreadN==0 ? min(6, runThreadN) : outBAMsortingThreadN;
+        outBAMsortingThreadNactual = outBAMsortingThreadN==0 ? runThreadN : outBAMsortingThreadN;
+        outBAMcoordNbins=max((uint32)sortThreadsForBins*3,outBAMsortingBinsN);
         outBAMsortingBinStart.resize(outBAMcoordNbins);
         outBAMsortingBinStart[0]=1;//this initial value means that the bin sizes have not been determined yet
 

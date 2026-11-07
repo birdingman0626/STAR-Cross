@@ -191,6 +191,28 @@ full-library job is about 2575 s: mapping 1797 s, sort 392 s, Solo 337 s, setup
 near 100 s. The sort work starts by measuring `--outBAMsortingThreadN` scaling,
 since the qualification profile used 4 of 10 threads.
 
+**Sort, first step (2026-11-07).** Log.out now times each bin and the merge.
+50M-read prefix, 10 mapping threads, WSL GCC 15.2:
+
+| Sort threads | Sort | Merge (`bam_cat`) | Sum of bin times | Slowest bin |
+| --- | ---: | ---: | ---: | ---: |
+| 4 (`--outBAMsortingThreadN 4`) | 20 s | 1 s | 76 s | 1.8 s |
+| 10 (explicit) | 10 s | 2 s | 102 s | 2.6 s |
+| 10 (new default) | 12 s | 1 s | 109 s | 2.6 s |
+
+The bins are many and small, so the sort scales with threads; the merge is not
+the bottleneck. Per-bin time rises about 35% at 10 threads (memory and disk
+bandwidth). The default is now `--runThreadN` sort threads; the bin count
+keeps the old basis, so temporary files and the bins in RAM
+(`--limitBAMsortRAM`) are unchanged. BAM records and Solo files are identical
+at 50M reads. Compressed BAM bytes already differ between runs (the header
+carries the command line, and bin boundaries are sampled at run time), so the
+contract is the decompressed records. Expected on the full library: about
+392 s → 200 s, not yet measured; the qualification command sets 4 threads
+explicitly and needs `--outBAMsortingThreadN` dropped to benefit. Next, if the
+sort is still large: compress the remaining bins with `bgzf_mt` once fewer bins
+than threads are left.
+
 ## 3. Sequence and release
 
 P1 → P2 → P3 can land this week as separate commits, each after the Windows

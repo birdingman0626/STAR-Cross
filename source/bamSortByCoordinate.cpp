@@ -5,6 +5,7 @@
 #include "ErrorWarning.h"
 #include "bam_cat.h"
 #include "uninitArray.h"
+#include <chrono>
 using namespace std;
 void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genome, Solo &solo) {
     if (P.outBAMcoord) {//sort BAM if needed
@@ -48,6 +49,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
                 exitBAMwriteError("the sorted BAM file " + P.outBAMfileCoordName, P);
         } else {//sort
             uint64 totalMem=0;
+            std::vector<double> binSeconds(nBins, 0.0); //sort+compress time of each bin, for Log.out
             #pragma omp parallel num_threads(P.outBAMsortingThreadNactual)
             #pragma omp for schedule (dynamic,1)
             for (int ibin1=0; ibin1<(int)nBins; ibin1++) {
@@ -61,6 +63,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
 
                 if (binS==0) continue; //empty bin
 
+                const auto binStart=std::chrono::steady_clock::now();
                 if (ibin == nBins-1) {//last bin for unmapped reads
                     BAMbinSortUnmapped(ibin,P.runThreadN,P.outBAMsortTmpDir, P, genome, solo);
                 } else {
@@ -79,6 +82,17 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
                     #pragma omp critical
                     totalMem-=newMem;//"release" RAM
                 };
+                binSeconds[ibin]=std::chrono::duration<double>(std::chrono::steady_clock::now()-binStart).count();
+            };
+            {
+                uint32 slowest=0;
+                double binSum=0;
+                for (uint32 ibin=0; ibin<nBins; ibin++) {
+                    binSum += binSeconds[ibin];
+                    if (binSeconds[ibin]>binSeconds[slowest]) slowest=ibin;
+                };
+                P.inOut->logMain << timeMonthDayTime() << " ... finished sorting " << nBins << " bins with " << P.outBAMsortingThreadNactual
+                                 << " threads: sum of bin times " << binSum << " s, slowest bin " << slowest << " " << binSeconds[slowest] << " s" << endl;
             };
 
             //concatenate all BAM files, using bam_cat
@@ -97,6 +111,7 @@ void bamSortByCoordinate (Parameters &P, ReadAlignChunk **RAchunk, Genome &genom
             };
             if (bam_cat(bamBinNamesV.size(), bamBinNames.get(), 0, P.outBAMfileCoordName.c_str()) != 0)
                 exitBAMwriteError("the sorted BAM file " + P.outBAMfileCoordName + " (merging the sorted bins failed)", P);
+            P.inOut->logMain << timeMonthDayTime() << " ... finished merging the sorted bins" << endl;
         };
     };    
 };

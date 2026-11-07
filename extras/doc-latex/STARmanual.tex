@@ -411,7 +411,7 @@ STAR can output alignments directly in binary BAM format, thus saving time on co
 output unsorted \ofilen{Aligned.out.bam} file. The paired ends of an alignment are always adjacent, and multiple alignments of a read are adjacent as well. This "unsorted" file can be directly used with downstream software such as \code{HTseq}, without the need of name sorting. The order of the reads will match that of the input FASTQ(A) files only if one thread is used \opt{runThread} \optv{1}, and \opt{outFilterType} \opt{BySJout} is \textbf{not} used.
 \item[]
 \opt{outSAMtype} \optv{BAM SortedByCoordinate}\\
-output sorted by coordinate \ofilen{Aligned.sortedByCoord.out.bam} file, similar to \code{samtools sort} command. If this option causes problems, it is recommended to reduce \opt{outBAMsortingThreadN} from the default $6$ to lower values (as low as 1).
+output sorted by coordinate \ofilen{Aligned.sortedByCoord.out.bam} file, similar to \code{samtools sort} command. If this option causes problems, it is recommended to reduce \opt{outBAMsortingThreadN} from the default (\opt{runThreadN}) to lower values (as low as 1).
 \item[]
 \opt{outSAMtype} \optv{BAM Unsorted SortedByCoordinate}\\
 output both unsorted and sorted files.
