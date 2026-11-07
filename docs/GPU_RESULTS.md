@@ -5,7 +5,43 @@ complete-computation 3x gate. Current work: [GPU plan](GPU_FULL_PIPELINE_PLAN.md
 CLI/support contracts: [batched seeding](GPU_BATCHED_SEEDING.md).
 Earlier query/remap experiments: [GPU_EXPERIMENT.md](GPU_EXPERIMENT.md).
 
-## 2026-11-01: 5M-prefix progression
+## 2026-11-06: whole-job stage budget (G0, first pass)
+
+Stage times from the `Log.out`/console timestamps (1 s resolution) of runs
+already recorded for release candidate fa904fe; no new runs. Single runs on a
+host with about 20-25% unrelated CPU load, so shares are directional.
+Receipts: data/validation/rc-fa904fe-20261105/ (windows-gate/contract/{cpu,cuda},
+full-library/{base,cand}.console.log).
+
+| Stage | 5M CPU | 5M CUDA | Full library CPU |
+| --- | ---: | ---: | ---: |
+| Parameters, whitelist, genome load | 18 s | 18 s | 46 s |
+| GTF processing and junction re-insertion | 16 s | 15 s | not requested |
+| Mapping | 23 s | 19 s | 1797 s (63%) |
+| STARsolo counting | 8 s | 8 s | 601 s (21%) |
+| BAM coordinate sort | Unsorted BAM | Unsorted BAM | 392 s (14%) |
+| Whole job | 66 s | 60 s | 2839 s |
+
+5M: Windows, 8 threads, the 5M contract profile (`--sjdbGTFfile` at mapping,
+Gene + GeneFull_Ex50pAS + Velocyto, EM, EmptyDrops_CR). Full library:
+TMJ-condyle-1, 580,813,628 reads, WSL2 GCC build, 10 threads, the same Solo
+features with coordinate-sorted BAM and `--outBAMsortingThreadN 4`; CUDA was
+not run on the full library.
+
+Consequences for the 3x gate:
+
+- On the full library, removing mapping entirely leaves 1042 s, a 2.7x ceiling.
+  Mapping-only acceleration cannot pass the gate; STARsolo counting and the BAM
+  sort must also shrink.
+- STARsolo counting runs serially after mapping: `countCBgeneUMI`,
+  `countVelocyto` and `quantTranscript` loop over the per-thread read files one
+  at a time, so about 10 minutes use one of ten threads.
+- The 5M fixture overstates setup: genome load and GTF/junction work are about
+  half its wall time but under 2% of the full library. Use the full library, or a
+  larger prefix, for whole-job budgets.
+- In the 5M profile, re-inserting junctions takes about 5 s while reporting
+  `number of new junctions=0`.
+
 
 The initial eight-worker hit-expansion control took CPU62.785s/CUDA65.489s whole
 job, one sequential pair with background CPU about12.9%/14.9%.
