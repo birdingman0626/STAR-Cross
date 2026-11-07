@@ -622,6 +622,311 @@ static void jsonError(httplib::Response& res, int status, const std::string& mes
 }
 
 // ---------------------------------------------------------------------------
+// Route handlers (registered in WebUI::run)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+void handleIndex(const RequestGuard& guard, const httplib::Request& req, httplib::Response& res) {
+    if (!guard.token.empty() && req.get_param_value("token") == guard.token)
+        res.set_header("Set-Cookie", "star_webui_token=" + guard.token
+                                     + "; HttpOnly; SameSite=Strict; Path=/");
+    res.set_content(g_html, "text/html; charset=utf-8");
+}
+
+void handleHealth(const httplib::Request&, httplib::Response& res) {
+    res.set_content(json{{"status","ok"}}.dump(), "application/json");
+}
+
+void handleProps(const Parameters& P, httplib::Response& res) {
+    json body = {
+        {"version",      STAR_VERSION},
+        {"build",        COMPILATION_TIME_PLACE},
+        {"git",          GIT_BRANCH_COMMIT_DIFF},
+#ifdef _WIN32
+        {"platform",     "windows"},
+#elif defined(__APPLE__)
+        {"platform",     "macos"},
+#else
+        {"platform",     "linux"},
+#endif
+        {"runModes",     json::array({"alignReads","genomeGenerate","soloCellFiltering","webui"})},
+        {"webuiVersion", 5},
+        {"cpuCount",     (int)std::thread::hardware_concurrency()},
+        {"outDir",       P.outFileNamePrefix},
+    };
+    res.set_content(body.dump(2), "application/json");
+}
+
+// Prometheus text format; registered only with --webuiMetrics.
+void handleMetrics(const httplib::Request&, httplib::Response& res) {
+    std::lock_guard<std::mutex> lk(g_mu);
+    pollRunning();
+    int nQueued=0, nRunning=0, nSucceeded=0, nFailed=0, nCancelled=0;
+    for (const auto& [id, j] : g_jobs) {
+        if      (j.state == "queued")    ++nQueued;
+        else if (j.state == "running")   ++nRunning;
+        else if (j.state == "succeeded") ++nSucceeded;
+        else if (j.state == "failed")    ++nFailed;
+        else if (j.state == "cancelled") ++nCancelled;
+    }
+    auto upSec = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - g_startTime).count();
+    std::ostringstream ss;
+    ss << "# HELP star_jobs_total Number of STAR WebUI jobs by state\n"
+       << "# TYPE star_jobs_total gauge\n"
+       << "star_jobs_total{state=\"queued\"} "    << nQueued    << "\n"
+       << "star_jobs_total{state=\"running\"} "   << nRunning   << "\n"
+       << "star_jobs_total{state=\"succeeded\"} " << nSucceeded << "\n"
+       << "star_jobs_total{state=\"failed\"} "    << nFailed    << "\n"
+       << "star_jobs_total{state=\"cancelled\"} " << nCancelled << "\n"
+       << "# HELP star_server_uptime_seconds Seconds since server start\n"
+       << "# TYPE star_server_uptime_seconds counter\n"
+       << "star_server_uptime_seconds " << upSec << "\n";
+    res.set_content(ss.str(), "text/plain; version=0.0.4; charset=utf-8");
+}
+
+// Probe a directory: is it a STAR index, a CellRanger ref, or something else?
+void handleGenomeProbe(const httplib::Request& req, httplib::Response& res) {
+    std::string dir = req.get_param_value("dir");
+    auto j = [&](json r){ res.set_content(r.dump(), "application/json"); };
+
+    if (dir.empty()) { j({{"type","empty"}}); return; }
+    // Trim trailing separators for consistent probing
+    while (!dir.empty() && (dir.back()=='/' || dir.back()=='\\')) dir.pop_back();
+
+    // Valid STAR index: contains SA + genomeParameters.txt
+    if (pathExists(joinPath(dir,"SA")) && pathExists(joinPath(dir,"genomeParameters.txt"))) {
+        j({{"type","star_index"}}); return;
+    }
+
+    // CellRanger reference: has star/SA subdir (index) + genes/genes.gtf (annotation)
+    if (pathExists(joinPath(dir,"star/SA"))) {
+        json r{{"type","cellranger_ref"},
+               {"starDir", joinPath(dir,"star")}};
+        std::string gtf = joinPath(dir,"genes/genes.gtf");
+        if (pathExists(gtf)) r["gtfFile"] = gtf;
+        j(r); return;
+    }
+
+    if (!isDirectory(dir)) { j({{"type","not_found"}}); return; }
+
+    // Scan for FASTA and GTF source files the user might want for genomeGenerate
+    auto fastas = listByExt(dir, {".fa",".fasta",".fa.gz",".fasta.gz"});
+    auto gtfs   = listByExt(dir, {".gtf",".gff",".gff3"});
+    j({{"type","has_source"},
+       {"fastaFiles", fastas},
+       {"gtfFiles",   gtfs}});
+}
+
+// Scan a parent directory and return all valid STAR indexes / CellRanger refs inside it.
+void handleGenomeScan(const httplib::Request& req, httplib::Response& res) {
+    std::string base = req.get_param_value("base");
+    while (!base.empty() && (base.back()=='/' || base.back()=='\\')) base.pop_back();
+    if (!isDirectory(base)) {
+        res.set_content(json{{"error","Not a directory"}}.dump(), "application/json");
+        return;
+    }
+    json results = json::array();
+    auto probe = [&](const std::string& name, const std::string& sub) {
+        if (pathExists(joinPath(sub,"SA")) && pathExists(joinPath(sub,"genomeParameters.txt"))) {
+            results.push_back({{"name",name},{"path",sub},{"type","star_index"}});
+        } else if (pathExists(joinPath(sub,"star/SA"))) {
+            json e = {{"name",name},{"path",sub},{"type","cellranger_ref"},
+                      {"starDir",joinPath(sub,"star")}};
+            std::string gtf = joinPath(sub,"genes/genes.gtf");
+            if (pathExists(gtf)) e["gtfFile"] = gtf;
+            results.push_back(e);
+        }
+    };
+#ifdef _WIN32
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA((base + "\\*").c_str(), &fd);
+    if (h != INVALID_HANDLE_VALUE) {
+        do {
+            if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
+                strcmp(fd.cFileName,".") != 0 && strcmp(fd.cFileName,"..") != 0)
+                probe(fd.cFileName, joinPath(base, fd.cFileName));
+        } while (FindNextFileA(h, &fd));
+        FindClose(h);
+    }
+#else
+    DIR* dir = opendir(base.c_str());
+    if (dir) {
+        struct dirent* de;
+        while ((de = readdir(dir)))
+            if (de->d_type == DT_DIR && strcmp(de->d_name,".") != 0 && strcmp(de->d_name,"..") != 0)
+                probe(de->d_name, joinPath(base, de->d_name));
+        closedir(dir);
+    }
+#endif
+    res.set_content(results.dump(2), "application/json");
+}
+
+void handleSubmitJob(const httplib::Request& req, httplib::Response& res) {
+    json body;
+    try { body = json::parse(req.body); }
+    catch (...) { jsonError(res, 400, "Invalid JSON"); return; }
+    if (!body.is_object()) { jsonError(res, 400, "Invalid JSON"); return; }
+    std::string err;
+    std::vector<std::string> args;
+    std::string outPrefix;
+    try { std::tie(args, outPrefix) = buildArgs(body, err); }
+    catch (const json::exception&) { err = "Invalid parameter type"; }
+    if (!err.empty()) { jsonError(res, 400, err); return; }
+
+    Job job;
+    job.runMode        = body["runMode"].get<std::string>();
+    job.outputPrefix   = outPrefix;
+    job.submitTime     = nowISO();
+    job.generateReport = body.value("generateReport", true);
+    job.args           = std::move(args);
+
+    std::lock_guard<std::mutex> lk(g_mu);
+    pollRunning();
+    int running = 0, queued = 0;
+    for (const auto& [jid, jj] : g_jobs) {
+        if (jj.state == "running") ++running;
+        else if (jj.state == "queued") ++queued;
+    }
+    if (running >= 1 && queued >= MAX_QUEUED) { jsonError(res, 429, "Job queue full"); return; }
+    job.id = g_nextId.fetch_add(1);
+    const int jobId = job.id;
+    job.state = "queued";
+    g_jobs[jobId] = std::move(job);
+    promoteQueued(); // starts it now when idle; a failed spawn is recorded, not lost
+    Job& stored = g_jobs[jobId];
+    if (stored.state == "failed") {
+        // Only a failed spawn ends a just-queued job here; keep the record for the table.
+        res.status = 500;
+        json r = jobToJson(stored);
+        r["error"] = "Failed to spawn process";
+        res.set_content(r.dump(2), "application/json");
+        return;
+    }
+    res.status = 201;
+    res.set_content(jobToJson(stored).dump(2), "application/json");
+}
+
+void handleListJobs(const httplib::Request&, httplib::Response& res) {
+    std::lock_guard<std::mutex> lk(g_mu);
+    pollRunning();
+    json arr = json::array();
+    for (const auto& [id, j] : g_jobs) arr.push_back(jobToJson(j));
+    res.set_content(arr.dump(2), "application/json");
+}
+
+// Ids are bounded to 9 digits by the route pattern, so std::stoi cannot overflow.
+void handleGetJob(const httplib::Request& req, httplib::Response& res) {
+    int id = std::stoi(req.matches[1]);
+    std::lock_guard<std::mutex> lk(g_mu);
+    pollRunning();
+    auto it = g_jobs.find(id);
+    if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
+    res.set_content(jobToJson(it->second).dump(2), "application/json");
+}
+
+void handleCancelJob(const httplib::Request& req, httplib::Response& res) {
+    int id = std::stoi(req.matches[1]);
+    std::lock_guard<std::mutex> lk(g_mu);
+    pollRunning();
+    auto it = g_jobs.find(id);
+    if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
+    Job& j = it->second;
+    if (j.state == "queued") {
+        j.args.clear();
+        j.state = "cancelled"; j.endTime = nowISO();
+        persistJob(j);
+    } else if (j.state == "running") {
+#ifdef _WIN32
+        if (j.hProcess != INVALID_HANDLE_VALUE) {
+            // The Job Object ends STAR and every helper it started.
+            if (!j.hJob || !TerminateJobObject(j.hJob, 1)) TerminateProcess(j.hProcess, 1);
+            WaitForSingleObject(j.hProcess, 5000);
+            CloseHandle(j.hProcess);
+            j.hProcess = INVALID_HANDLE_VALUE;
+        }
+        if (j.hJob) { CloseHandle(j.hJob); j.hJob = nullptr; }
+#else
+        // Keep pid: pollRunning reaps the exiting child so no zombie remains.
+        if (j.pid > 0 && kill(-j.pid, SIGTERM) != 0) kill(j.pid, SIGTERM);
+#endif
+        j.state = "cancelled"; j.endTime = nowISO();
+        persistJob(j);
+    }
+    promoteQueued();
+    res.set_content(jobToJson(j).dump(2), "application/json");
+}
+
+void handleJobLogs(const httplib::Request& req, httplib::Response& res) {
+    int id = std::stoi(req.matches[1]);
+    std::string prefix;
+    { std::lock_guard<std::mutex> lk(g_mu);
+      auto it = g_jobs.find(id);
+      if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
+      prefix = it->second.outputPrefix; }
+    std::string logs;
+    for (const char* f : {"Log.out","Log.progress.out","Log.final.out",kJobConsole}) {
+        std::string c = readFileTail(prefix + f);
+        if (!c.empty()) { if (!logs.empty()) logs+="\n\n--- "+std::string(f)+" ---\n"; logs+=c; }
+    }
+    res.set_content(json{{"logs",logs}}.dump(), "application/json");
+}
+
+void handleJobReport(const httplib::Request& req, httplib::Response& res) {
+    int id = std::stoi(req.matches[1]);
+    std::string rpath;
+    { std::lock_guard<std::mutex> lk(g_mu);
+      auto it = g_jobs.find(id);
+      if (it == g_jobs.end()) { res.status=404; res.set_content("Not found","text/plain"); return; }
+      rpath = it->second.reportPath; }
+    if (rpath.empty()) { res.status=404; res.set_content("Report not generated","text/plain"); return; }
+    std::string html = readFileTail(rpath, 2*1024*1024);
+    if (html.empty()) { res.status=404; res.set_content("Report file missing","text/plain"); return; }
+    res.set_content(html, "text/html; charset=utf-8");
+}
+
+// Artifact discovery
+void handleJobArtifacts(const httplib::Request& req, httplib::Response& res) {
+    int id = std::stoi(req.matches[1]);
+    std::string prefix;
+    { std::lock_guard<std::mutex> lk(g_mu);
+      auto it = g_jobs.find(id);
+      if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
+      prefix = it->second.outputPrefix; }
+
+    json arr = json::array();
+    auto addFile = [&](const std::string& relName) {
+        std::string full = prefix + relName;
+        int64_t sz = fileSize(full);
+        if (sz < 0) return;
+        arr.push_back({{"name", relName}, {"size", sz}, {"type", artifactType(relName)}});
+    };
+
+    // Recurse into Solo.out/ for .tsv, .mtx, .csv, .stats files
+    std::string soloDir = prefix + "Solo.out";
+    if (isDirectory(soloDir)) {
+        std::vector<std::string> soloFiles;
+        int count = 0;
+        listDirRecursive(soloDir, "", {".tsv",".mtx",".csv",".stats"}, soloFiles, count, 100);
+        for (const auto& f : soloFiles)
+            addFile("Solo.out/" + f);
+    }
+
+    // Top-level known files
+    for (const char* name : {"Aligned.sortedByCoord.out.bam", "Aligned.out.bam",
+                              "Aligned.sortedByCoord.out.cram", "Aligned.out.cram",
+                              "Aligned.out.sam", "SJ.out.tab",
+                              "Log.final.out", "Log.out", "WebUI_Report.html", kJobConsole}) {
+        addFile(name);
+    }
+
+    res.set_content(arr.dump(2), "application/json");
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------
 // WebUI::run
 // ---------------------------------------------------------------------------
 
@@ -655,300 +960,19 @@ void WebUI::run() {
         res.set_header("X-Frame-Options", "DENY");
     });
 
-    srv.Get("/",  [&guard](const httplib::Request& req, httplib::Response& res) {
-        if (!guard.token.empty() && req.get_param_value("token") == guard.token)
-            res.set_header("Set-Cookie", "star_webui_token=" + guard.token
-                                         + "; HttpOnly; SameSite=Strict; Path=/");
-        res.set_content(g_html, "text/html; charset=utf-8");
-    });
-    srv.Get("/health", [](const httplib::Request&, httplib::Response& res) {
-        res.set_content(json{{"status","ok"}}.dump(), "application/json");
-    });
-    srv.Get("/props", [this](const httplib::Request&, httplib::Response& res) {
-        json body = {
-            {"version",      STAR_VERSION},
-            {"build",        COMPILATION_TIME_PLACE},
-            {"git",          GIT_BRANCH_COMMIT_DIFF},
-#ifdef _WIN32
-            {"platform",     "windows"},
-#elif defined(__APPLE__)
-            {"platform",     "macos"},
-#else
-            {"platform",     "linux"},
-#endif
-            {"runModes",     json::array({"alignReads","genomeGenerate","soloCellFiltering","webui"})},
-            {"webuiVersion", 5},
-            {"cpuCount",     (int)std::thread::hardware_concurrency()},
-            {"outDir",       P.outFileNamePrefix},
-        };
-        res.set_content(body.dump(2), "application/json");
-    });
-    if (P.webui.metrics) {
-        srv.Get("/metrics", [](const httplib::Request&, httplib::Response& res) {
-            std::lock_guard<std::mutex> lk(g_mu);
-            pollRunning();
-            int nQueued=0, nRunning=0, nSucceeded=0, nFailed=0, nCancelled=0;
-            for (const auto& [id, j] : g_jobs) {
-                if      (j.state == "queued")    ++nQueued;
-                else if (j.state == "running")   ++nRunning;
-                else if (j.state == "succeeded") ++nSucceeded;
-                else if (j.state == "failed")    ++nFailed;
-                else if (j.state == "cancelled") ++nCancelled;
-            }
-            auto upSec = std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::steady_clock::now() - g_startTime).count();
-            std::ostringstream ss;
-            ss << "# HELP star_jobs_total Number of STAR WebUI jobs by state\n"
-               << "# TYPE star_jobs_total gauge\n"
-               << "star_jobs_total{state=\"queued\"} "    << nQueued    << "\n"
-               << "star_jobs_total{state=\"running\"} "   << nRunning   << "\n"
-               << "star_jobs_total{state=\"succeeded\"} " << nSucceeded << "\n"
-               << "star_jobs_total{state=\"failed\"} "    << nFailed    << "\n"
-               << "star_jobs_total{state=\"cancelled\"} " << nCancelled << "\n"
-               << "# HELP star_server_uptime_seconds Seconds since server start\n"
-               << "# TYPE star_server_uptime_seconds counter\n"
-               << "star_server_uptime_seconds " << upSec << "\n";
-            res.set_content(ss.str(), "text/plain; version=0.0.4; charset=utf-8");
-        });
-    }
-
-    // Probe a directory: is it a STAR index, a CellRanger ref, or something else?
-    srv.Get("/genome/probe", [](const httplib::Request& req, httplib::Response& res) {
-        std::string dir = req.get_param_value("dir");
-        auto j = [&](json r){ res.set_content(r.dump(), "application/json"); };
-
-        if (dir.empty()) { j({{"type","empty"}}); return; }
-        // Trim trailing separators for consistent probing
-        while (!dir.empty() && (dir.back()=='/' || dir.back()=='\\')) dir.pop_back();
-
-        // Valid STAR index: contains SA + genomeParameters.txt
-        if (pathExists(joinPath(dir,"SA")) && pathExists(joinPath(dir,"genomeParameters.txt"))) {
-            j({{"type","star_index"}}); return;
-        }
-
-        // CellRanger reference: has star/SA subdir (index) + genes/genes.gtf (annotation)
-        if (pathExists(joinPath(dir,"star/SA"))) {
-            json r{{"type","cellranger_ref"},
-                   {"starDir", joinPath(dir,"star")}};
-            std::string gtf = joinPath(dir,"genes/genes.gtf");
-            if (pathExists(gtf)) r["gtfFile"] = gtf;
-            j(r); return;
-        }
-
-        if (!isDirectory(dir)) { j({{"type","not_found"}}); return; }
-
-        // Scan for FASTA and GTF source files the user might want for genomeGenerate
-        auto fastas = listByExt(dir, {".fa",".fasta",".fa.gz",".fasta.gz"});
-        auto gtfs   = listByExt(dir, {".gtf",".gff",".gff3"});
-        j({{"type","has_source"},
-           {"fastaFiles", fastas},
-           {"gtfFiles",   gtfs}});
-    });
-
-    // Scan a parent directory and return all valid STAR indexes / CellRanger refs inside it.
-    srv.Get("/genome/scan", [](const httplib::Request& req, httplib::Response& res) {
-        std::string base = req.get_param_value("base");
-        while (!base.empty() && (base.back()=='/' || base.back()=='\\')) base.pop_back();
-        if (!isDirectory(base)) {
-            res.set_content(json{{"error","Not a directory"}}.dump(), "application/json");
-            return;
-        }
-        json results = json::array();
-        auto probe = [&](const std::string& name, const std::string& sub) {
-            if (pathExists(joinPath(sub,"SA")) && pathExists(joinPath(sub,"genomeParameters.txt"))) {
-                results.push_back({{"name",name},{"path",sub},{"type","star_index"}});
-            } else if (pathExists(joinPath(sub,"star/SA"))) {
-                json e = {{"name",name},{"path",sub},{"type","cellranger_ref"},
-                          {"starDir",joinPath(sub,"star")}};
-                std::string gtf = joinPath(sub,"genes/genes.gtf");
-                if (pathExists(gtf)) e["gtfFile"] = gtf;
-                results.push_back(e);
-            }
-        };
-#ifdef _WIN32
-        WIN32_FIND_DATAA fd;
-        HANDLE h = FindFirstFileA((base + "\\*").c_str(), &fd);
-        if (h != INVALID_HANDLE_VALUE) {
-            do {
-                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
-                    strcmp(fd.cFileName,".") != 0 && strcmp(fd.cFileName,"..") != 0)
-                    probe(fd.cFileName, joinPath(base, fd.cFileName));
-            } while (FindNextFileA(h, &fd));
-            FindClose(h);
-        }
-#else
-        DIR* dir = opendir(base.c_str());
-        if (dir) {
-            struct dirent* de;
-            while ((de = readdir(dir)))
-                if (de->d_type == DT_DIR && strcmp(de->d_name,".") != 0 && strcmp(de->d_name,"..") != 0)
-                    probe(de->d_name, joinPath(base, de->d_name));
-            closedir(dir);
-        }
-#endif
-        res.set_content(results.dump(2), "application/json");
-    });
-
-    srv.Post("/jobs", [](const httplib::Request& req, httplib::Response& res) {
-        json body;
-        try { body = json::parse(req.body); }
-        catch (...) { jsonError(res, 400, "Invalid JSON"); return; }
-        if (!body.is_object()) { jsonError(res, 400, "Invalid JSON"); return; }
-        std::string err;
-        std::vector<std::string> args;
-        std::string outPrefix;
-        try { std::tie(args, outPrefix) = buildArgs(body, err); }
-        catch (const json::exception&) { err = "Invalid parameter type"; }
-        if (!err.empty()) { jsonError(res, 400, err); return; }
-
-        Job job;
-        job.runMode        = body["runMode"].get<std::string>();
-        job.outputPrefix   = outPrefix;
-        job.submitTime     = nowISO();
-        job.generateReport = body.value("generateReport", true);
-        job.args           = std::move(args);
-
-        std::lock_guard<std::mutex> lk(g_mu);
-        pollRunning();
-        int running = 0, queued = 0;
-        for (const auto& [jid, jj] : g_jobs) {
-            if (jj.state == "running") ++running;
-            else if (jj.state == "queued") ++queued;
-        }
-        if (running >= 1 && queued >= MAX_QUEUED) { jsonError(res, 429, "Job queue full"); return; }
-        job.id = g_nextId.fetch_add(1);
-        const int jobId = job.id;
-        job.state = "queued";
-        g_jobs[jobId] = std::move(job);
-        promoteQueued(); // starts it now when idle; a failed spawn is recorded, not lost
-        Job& stored = g_jobs[jobId];
-        if (stored.state == "failed") {
-            // Only a failed spawn ends a just-queued job here; keep the record for the table.
-            res.status = 500;
-            json r = jobToJson(stored);
-            r["error"] = "Failed to spawn process";
-            res.set_content(r.dump(2), "application/json");
-            return;
-        }
-        res.status = 201;
-        res.set_content(jobToJson(stored).dump(2), "application/json");
-    });
-
-    srv.Get("/jobs", [](const httplib::Request&, httplib::Response& res) {
-        std::lock_guard<std::mutex> lk(g_mu);
-        pollRunning();
-        json arr = json::array();
-        for (const auto& [id, j] : g_jobs) arr.push_back(jobToJson(j));
-        res.set_content(arr.dump(2), "application/json");
-    });
-
-    // Ids are bounded to 9 digits so std::stoi cannot overflow.
-    srv.Get(R"(/jobs/(\d{1,9}))", [](const httplib::Request& req, httplib::Response& res) {
-        int id = std::stoi(req.matches[1]);
-        std::lock_guard<std::mutex> lk(g_mu);
-        pollRunning();
-        auto it = g_jobs.find(id);
-        if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
-        res.set_content(jobToJson(it->second).dump(2), "application/json");
-    });
-
-    srv.Post(R"(/jobs/(\d{1,9})/cancel)", [](const httplib::Request& req, httplib::Response& res) {
-        int id = std::stoi(req.matches[1]);
-        std::lock_guard<std::mutex> lk(g_mu);
-        pollRunning();
-        auto it = g_jobs.find(id);
-        if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
-        Job& j = it->second;
-        if (j.state == "queued") {
-            j.args.clear();
-            j.state = "cancelled"; j.endTime = nowISO();
-            persistJob(j);
-        } else if (j.state == "running") {
-#ifdef _WIN32
-            if (j.hProcess != INVALID_HANDLE_VALUE) {
-                // The Job Object ends STAR and every helper it started.
-                if (!j.hJob || !TerminateJobObject(j.hJob, 1)) TerminateProcess(j.hProcess, 1);
-                WaitForSingleObject(j.hProcess, 5000);
-                CloseHandle(j.hProcess);
-                j.hProcess = INVALID_HANDLE_VALUE;
-            }
-            if (j.hJob) { CloseHandle(j.hJob); j.hJob = nullptr; }
-#else
-            // Keep pid: pollRunning reaps the exiting child so no zombie remains.
-            if (j.pid > 0 && kill(-j.pid, SIGTERM) != 0) kill(j.pid, SIGTERM);
-#endif
-            j.state = "cancelled"; j.endTime = nowISO();
-            persistJob(j);
-        }
-        promoteQueued();
-        res.set_content(jobToJson(j).dump(2), "application/json");
-    });
-
-    srv.Get(R"(/jobs/(\d{1,9})/logs)", [](const httplib::Request& req, httplib::Response& res) {
-        int id = std::stoi(req.matches[1]);
-        std::string prefix;
-        { std::lock_guard<std::mutex> lk(g_mu);
-          auto it = g_jobs.find(id);
-          if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
-          prefix = it->second.outputPrefix; }
-        std::string logs;
-        for (const char* f : {"Log.out","Log.progress.out","Log.final.out",kJobConsole}) {
-            std::string c = readFileTail(prefix + f);
-            if (!c.empty()) { if (!logs.empty()) logs+="\n\n--- "+std::string(f)+" ---\n"; logs+=c; }
-        }
-        res.set_content(json{{"logs",logs}}.dump(), "application/json");
-    });
-
-    srv.Get(R"(/jobs/(\d{1,9})/report)", [](const httplib::Request& req, httplib::Response& res) {
-        int id = std::stoi(req.matches[1]);
-        std::string rpath;
-        { std::lock_guard<std::mutex> lk(g_mu);
-          auto it = g_jobs.find(id);
-          if (it == g_jobs.end()) { res.status=404; res.set_content("Not found","text/plain"); return; }
-          rpath = it->second.reportPath; }
-        if (rpath.empty()) { res.status=404; res.set_content("Report not generated","text/plain"); return; }
-        std::string html = readFileTail(rpath, 2*1024*1024);
-        if (html.empty()) { res.status=404; res.set_content("Report file missing","text/plain"); return; }
-        res.set_content(html, "text/html; charset=utf-8");
-    });
-
-    // Artifact discovery endpoint
-    srv.Get(R"(/jobs/(\d{1,9})/artifacts)", [](const httplib::Request& req, httplib::Response& res) {
-        int id = std::stoi(req.matches[1]);
-        std::string prefix;
-        { std::lock_guard<std::mutex> lk(g_mu);
-          auto it = g_jobs.find(id);
-          if (it == g_jobs.end()) { jsonError(res, 404, "Not found"); return; }
-          prefix = it->second.outputPrefix; }
-
-        json arr = json::array();
-        auto addFile = [&](const std::string& relName) {
-            std::string full = prefix + relName;
-            int64_t sz = fileSize(full);
-            if (sz < 0) return;
-            arr.push_back({{"name", relName}, {"size", sz}, {"type", artifactType(relName)}});
-        };
-
-        // Recurse into Solo.out/ for .tsv, .mtx, .csv, .stats files
-        std::string soloDir = prefix + "Solo.out";
-        if (isDirectory(soloDir)) {
-            std::vector<std::string> soloFiles;
-            int count = 0;
-            listDirRecursive(soloDir, "", {".tsv",".mtx",".csv",".stats"}, soloFiles, count, 100);
-            for (const auto& f : soloFiles)
-                addFile("Solo.out/" + f);
-        }
-
-        // Top-level known files
-        for (const char* name : {"Aligned.sortedByCoord.out.bam", "Aligned.out.bam",
-                                  "Aligned.sortedByCoord.out.cram", "Aligned.out.cram",
-                                  "Aligned.out.sam", "SJ.out.tab",
-                                  "Log.final.out", "Log.out", "WebUI_Report.html", kJobConsole}) {
-            addFile(name);
-        }
-
-        res.set_content(arr.dump(2), "application/json");
-    });
+    srv.Get("/", [&guard](const httplib::Request& req, httplib::Response& res) { handleIndex(guard, req, res); });
+    srv.Get("/health", handleHealth);
+    srv.Get("/props", [this](const httplib::Request&, httplib::Response& res) { handleProps(P, res); });
+    if (P.webui.metrics) srv.Get("/metrics", handleMetrics);
+    srv.Get("/genome/probe", handleGenomeProbe);
+    srv.Get("/genome/scan", handleGenomeScan);
+    srv.Post("/jobs", handleSubmitJob);
+    srv.Get("/jobs", handleListJobs);
+    srv.Get(R"(/jobs/(\d{1,9}))", handleGetJob);
+    srv.Post(R"(/jobs/(\d{1,9})/cancel)", handleCancelJob);
+    srv.Get(R"(/jobs/(\d{1,9})/logs)", handleJobLogs);
+    srv.Get(R"(/jobs/(\d{1,9})/report)", handleJobReport);
+    srv.Get(R"(/jobs/(\d{1,9})/artifacts)", handleJobArtifacts);
 
     // Advance the queue even when no browser is polling.
     std::atomic<bool> stopPoller{false};
