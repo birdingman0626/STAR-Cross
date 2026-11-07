@@ -1,9 +1,9 @@
 # Dependency maintenance
 
 `dependencies.lock.json` records reviewed versions and source archive hashes.
-CMake verifies downloaded archives with `URL_HASH`; configuration emits
-`STAR-build-info-<configuration>.json` with the actual compiler, flags and
-system zlib/HTSlib versions. System libraries can differ from the fallback.
+CMake verifies downloaded archives with `URL_HASH`; each build writes
+`STAR-build-info-<configuration>.json` with the commit, whether the source tree
+was clean, the actual compiler, flags and system zlib/HTSlib versions. System libraries can differ from the fallback.
 Use `cmake --install` to collect the binary, build record and dependency notices.
 Release assets include per-platform build records and a notices archive.
 

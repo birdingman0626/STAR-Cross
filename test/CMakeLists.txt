@@ -127,7 +127,7 @@ else()
     target_link_libraries(star_tests PRIVATE pthread)
 endif()
 
-# STAR_VERSION and sanitizer flags share the production target's helpers.
+# Build and sanitizer flags share the production target's helpers.
 
 # ---------- Register with CTest ----------
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)

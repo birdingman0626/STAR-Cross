@@ -1,0 +1,6 @@
+// Generated on every build by cmake/StarVersionInfo.cmake; do not edit the copy
+// in the build directory.
+#include "STARVersion.h"
+
+const char* const starVersionString = "STAR-Cross @STAR_COMMIT@";
+const char* const starGitCommit = "@STAR_COMMIT@";

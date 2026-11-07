@@ -29,6 +29,11 @@ cmake --build build --parallel 8
 ./build/STAR --version
 ```
 
+`--version` prints `STAR-Cross <short commit>`. Every build reads the checked-out
+commit again, so an incremental build after `git commit` or `git checkout`
+reports the new revision without reconfiguring; only the version file
+recompiles. Source archives without git report `STAR-Cross unknown`.
+
 ## macOS (Apple Silicon or Intel)
 
 Use Homebrew GCC to provide OpenMP. Set both C and C++ compilers:

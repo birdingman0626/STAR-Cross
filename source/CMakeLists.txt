@@ -37,12 +37,18 @@ if(GIT_FOUND)
         OUTPUT_VARIABLE GIT_COMMIT_HASH
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()
 if(NOT GIT_COMMIT_HASH)
     set(GIT_COMMIT_HASH "unknown")
 endif()
+# The version source is refreshed on every build (target star_version_info), so
+# GIT_COMMIT_HASH above only names the revision in the configuration summary.
+set(STAR_VERSION_INFO_CPP "${CMAKE_CURRENT_BINARY_DIR}/STARVersionInfo.cpp")
+set(STAR_VERSION_SCRIPT_ARGS
+    "-DSTAR_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+    "-DSTAR_GIT_EXECUTABLE=${GIT_EXECUTABLE}")
 # Identify the exact source revision: "STAR-Cross <hash>".
 # STAR-Cross is derived from the preserved upstream boundary b1edc12.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/StarBuildOptions.cmake)
@@ -460,8 +466,23 @@ set(STAR_SOURCES
 # Prepend source directory
 list(TRANSFORM STAR_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
-add_executable(STAR ${STAR_SOURCES})
-add_dependencies(STAR generate_xxd)
+# Write the version source now so the first build has it, then refresh it
+# before every build; it is rewritten only when the commit or tree state changes.
+execute_process(COMMAND ${CMAKE_COMMAND} ${STAR_VERSION_SCRIPT_ARGS}
+    "-DSTAR_VERSION_OUTPUT=${STAR_VERSION_INFO_CPP}"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/StarVersionInfo.cmake")
+add_custom_target(star_version_info
+    COMMAND ${CMAKE_COMMAND} ${STAR_VERSION_SCRIPT_ARGS}
+        "-DSTAR_VERSION_OUTPUT=${STAR_VERSION_INFO_CPP}"
+        "-DSTAR_BUILD_INFO_TEMPLATE=${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json.in"
+        "-DSTAR_BUILD_INFO_OUTPUT=${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/StarVersionInfo.cmake"
+    BYPRODUCTS "${STAR_VERSION_INFO_CPP}"
+    COMMENT "Reading the STAR-Cross source revision"
+    VERBATIM)
+
+add_executable(STAR ${STAR_SOURCES} "${STAR_VERSION_INFO_CPP}")
+add_dependencies(STAR generate_xxd star_version_info)
 
 target_include_directories(STAR PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -492,7 +513,6 @@ endif()
 
 target_compile_definitions(STAR PRIVATE
     "COMPILATION_TIME_PLACE=\"${BUILD_DATE}\""
-    "GIT_BRANCH_COMMIT_DIFF=\"${GIT_COMMIT_HASH}\""
 )
 star_target_build_options(STAR)
 star_target_sanitizers(STAR)
@@ -610,9 +630,11 @@ endif()
 
 # ---------- Testing ----------
 enable_testing()
-add_test(NAME version_check COMMAND STAR --version)
-set_tests_properties(version_check PROPERTIES
-    PASS_REGULAR_EXPRESSION "^STAR-Cross ${GIT_COMMIT_HASH}[\r\n]*$")
+# Compares against the commit checked out when the test runs, so a binary that
+# missed a rebuild after a commit fails here.
+add_test(NAME version_check COMMAND ${CMAKE_COMMAND} ${STAR_VERSION_SCRIPT_ARGS}
+    "-DSTAR_CHECK_EXE=$<TARGET_FILE:STAR>"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/StarVersionInfo.cmake")
 
 option(STAR_BUILD_TESTS "Build unit tests (requires network access for doctest)" ON)
 if(STAR_BUILD_TESTS)
@@ -630,19 +652,6 @@ endif()
 if(NOT ZLIB_VERSION_STRING)
     set(ZLIB_VERSION_STRING "1.3.2")
 endif()
-set(STAR_SOURCE_TREE_CLEAN "null")
-if(GIT_FOUND)
-    execute_process(COMMAND ${GIT_EXECUTABLE} status --porcelain --untracked-files=normal
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE STAR_TREE_STATUS
-        RESULT_VARIABLE STAR_TREE_STATUS_RESULT ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(STAR_TREE_STATUS_RESULT EQUAL 0)
-        if(STAR_TREE_STATUS STREQUAL "")
-            set(STAR_SOURCE_TREE_CLEAN "true")
-        else()
-            set(STAR_SOURCE_TREE_CLEAN "false")
-        endif()
-    endif()
-endif()
 file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/../dependencies.lock.json" STAR_DEPENDENCY_LOCK_SHA256)
 if(MSVC)
     set(STAR_BUILD_INFO_LTO "msvc-release-default")
@@ -651,8 +660,9 @@ else()
     set(STAR_BUILD_INFO_LTO "${STAR_LTO}")
     set(STAR_BUILD_INFO_PGO "${STAR_PGO}")
 endif()
-file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json"
-    CONTENT "{\n  \"commit\": \"${GIT_COMMIT_HASH}\",\n  \"source_tree_clean\": ${STAR_SOURCE_TREE_CLEAN},\n  \"dependency_lock_sha256\": \"${STAR_DEPENDENCY_LOCK_SHA256}\",\n  \"configuration\": \"$<CONFIG>\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\n  \"cxx_standard\": ${STAR_CXX_STANDARD},\n  \"avx2\": \"${STAR_USE_AVX2}\",\n  \"asan\": \"${STAR_ASAN}\",\n  \"ubsan\": \"${STAR_UBSAN}\",\n  \"tsan\": \"${STAR_TSAN}\",\n  \"lto\": \"${STAR_BUILD_INFO_LTO}\",\n  \"pgo\": \"${STAR_BUILD_INFO_PGO}\",\n  \"htslib\": \"${STAR_HTSLIB_VERSION}\",\n  \"zlib\": \"${ZLIB_VERSION_STRING}\",\n  \"httplib\": \"0.60.0\",\n  \"json\": \"3.12.0\"\n}\n")
+# Template only: star_version_info fills in the commit and tree state at build time.
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json.in"
+    CONTENT "{\n  \"commit\": \"@STAR_COMMIT@\",\n  \"source_tree_clean\": @STAR_SOURCE_TREE_CLEAN@,\n  \"dependency_lock_sha256\": \"${STAR_DEPENDENCY_LOCK_SHA256}\",\n  \"configuration\": \"$<CONFIG>\",\n  \"compiler\": \"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\n  \"cxx_standard\": ${STAR_CXX_STANDARD},\n  \"avx2\": \"${STAR_USE_AVX2}\",\n  \"asan\": \"${STAR_ASAN}\",\n  \"ubsan\": \"${STAR_UBSAN}\",\n  \"tsan\": \"${STAR_TSAN}\",\n  \"lto\": \"${STAR_BUILD_INFO_LTO}\",\n  \"pgo\": \"${STAR_BUILD_INFO_PGO}\",\n  \"htslib\": \"${STAR_HTSLIB_VERSION}\",\n  \"zlib\": \"${ZLIB_VERSION_STRING}\",\n  \"httplib\": \"0.60.0\",\n  \"json\": \"3.12.0\"\n}\n")
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/STAR-build-info-$<CONFIG>.json" DESTINATION share/STAR-Cross COMPONENT STAR)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE" DESTINATION share/STAR-Cross/licenses RENAME STAR.txt COMPONENT STAR)
 if(NOT USE_SYSTEM_HTSLIB)

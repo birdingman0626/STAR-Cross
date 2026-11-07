@@ -1,3 +1,8 @@
+STAR-Cross --- unreleased
+=========================
+**Build**
+* `STAR --version`, the BAM `@PG VN` field and Log.out report the commit the binary was built from. An incremental build used to keep the commit read when the build directory was configured, so binaries rebuilt after `git commit` or `git checkout` named an older revision. Each build now reads the commit again and recompiles only the version file when it changes. `STAR-build-info-<configuration>.json` records the commit and clean-tree state at build time as well.
+
 STAR-Cross --- 2026/11/05 ::: Output integrity
 ==============================================
 Changes since the STAR-Cross e1da2d7 release (based on STAR 2.7.11b). The error-handling fixes leave successful runs byte-identical on every platform; only runs that previously ended with damaged or truncated files behave differently. The fixes under "output records" change the named fields or files only. See also "Differences and limits" in [README.md](README.md).
