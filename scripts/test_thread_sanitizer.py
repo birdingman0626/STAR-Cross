@@ -11,7 +11,8 @@ small I/O buffers, so hundreds of chunks are processed concurrently:
   - the opt-in chunk pipeline and asynchronous BAM/SAM writers;
   - transcriptome BAM with --quantTranscriptomeBAMprimary ReadIndex, compared
     exactly (the default Random primary flag is compared with 0x100 masked);
-  - STARsolo droplet (Gene/GeneFull/SJ/Velocyto, multimapper EM) and SmartSeq.
+  - STARsolo droplet (Gene/GeneFull/SJ/Velocyto, multimapper EM), per-cell
+    read statistics (CellReads.stats, compared as a set of lines) and SmartSeq.
 
 Every scenario is run with --runThreadN 1 and with --threads; outputs that must
 not depend on the thread count are compared. When the STAR binary is built with
@@ -344,6 +345,15 @@ def main():
         "--outSAMtype", "BAM", "SortedByCoordinate",
         "--outSAMattributes", "NH", "HI", "nM", "AS", "CR", "UR", "CB", "UB", "GX", "GN", "sS", "sQ", "sM"],
         solo_outputs)
+
+    # per-cell read statistics: each mapping thread's file is counted separately, then merged
+    scenario("solo_cell_read_stats", [
+        "--readFilesIn", str(root / "solo_R2.fq"), str(root / "solo_R1.fq"), "--limitIObufferSize", "250000",
+        "100000", "--soloType", "CB_UMI_Simple", "--soloCBwhitelist", str(root / "whitelist.txt"),
+        "--soloCBlen", "16", "--soloUMIstart", "17", "--soloUMIlen", "12", "--soloFeatures", "Gene", "GeneFull",
+        "--soloCellReadStats", "Standard", "--outSAMtype", "None"],
+        [(f"Solo.out/{f}/{n}", kind) for f in ("Gene", "GeneFull")
+         for n, kind in (("CellReads.stats", "lines"), ("Features.stats", "bytes"), ("raw/matrix.mtx", "bytes"))])
 
     scenario("solo_smartseq", [
         "--readFilesManifest", str(root / "manifest.tsv"), "--soloType", "SmartSeq", "--soloUMIdedup", "Exact",

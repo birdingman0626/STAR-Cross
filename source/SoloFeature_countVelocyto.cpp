@@ -6,6 +6,9 @@
 #include "SoloCommon.h"
 #include <unordered_map>
 #include <bitset>
+#include <exception>
+#include <memory>
+#include <mutex>
 
 #include "systemFunctions.h"
 using namespace std;
@@ -34,9 +37,18 @@ void intersectTranscripts(vector<trTypeStruct> &old, const vector<trTypeStruct> 
     old=trT1;//replace with intersection
 };
 
-//one thread's Velocyto records: transcripts of each read, intersected over the reads of each CB/UMI
+//guards cuTrTypes[iCB] while the files of all threads are read in parallel
+struct CBlocks {
+    static constexpr uint32 n=4096;
+    std::mutex m[n];
+    std::mutex &of(uint32 iCB) {return m[iCB % n];};
+};
+
+//one thread's Velocyto records: transcripts of each read, intersected over the reads of each CB/UMI.
+//The result does not depend on the order of the reads: a read lists each transcript at most once,
+//so the intersection and the OR of the types are the same in any order.
 void inputVelocytoRecords(fstream *streamReads, const vector<readInfoStruct> &geneReadInfo, const vector<uint32> &indCBwl,
-                          vector<uint32> &nReadPerCB, CBumiTranscripts &cuTrTypes)
+                          vector<uint32> &nReadPerCB, CBumiTranscripts &cuTrTypes, CBlocks &cbLocks)
 {
     streamReads->flush();
     streamReads->seekg(0,ios::beg);
@@ -51,9 +63,16 @@ void inputVelocytoRecords(fstream *streamReads, const vector<readInfoStruct> &ge
         };
 
         uint32 iCB=indCBwl[cb];
+        #pragma omp atomic
         nReadPerCB[iCB]++;//simple estimate
-        
-        if (cuTrTypes[iCB].count(umi)>0 && cuTrTypes[iCB][umi].empty()) {//intersection is empty, no need to load this transcript
+
+        bool emptyIntersection;
+        {
+            std::lock_guard<std::mutex> lock(cbLocks.of(iCB));
+            auto umiTr=cuTrTypes[iCB].find(umi);
+            emptyIntersection = umiTr!=cuTrTypes[iCB].end() && umiTr->second.empty();
+        };
+        if (emptyIntersection) {//intersection is empty, no need to load this transcript
             streamReads->ignore((uint32)-1, '\n');
             continue;
         };
@@ -67,12 +86,12 @@ void inputVelocytoRecords(fstream *streamReads, const vector<readInfoStruct> &ge
             tt.type=(uint8) ty;
         };
 
-        if (cuTrTypes[iCB].count(umi)==0) {//1st entry for this umi
-            cuTrTypes[iCB][umi]=trT;
+        std::lock_guard<std::mutex> lock(cbLocks.of(iCB));
+        auto umiTr=cuTrTypes[iCB].try_emplace(umi, trT);
+        if (umiTr.second) //1st entry for this umi
             continue;
-        };
-        
-        intersectTranscripts(cuTrTypes[iCB][umi], trT);//replace with intersection
+
+        intersectTranscripts(umiTr.first->second, trT);//replace with intersection
     };        
 };
 
@@ -130,10 +149,22 @@ void SoloFeature::countVelocyto()
     P.inOut->logMain << timeMonthDayTime(rawTime) << " ... Velocyto counting: allocated arrays" <<endl;
     
     //////////// input records
-    for (int iThread=0; iThread<P.runThreadN; iThread++) {//TODO: this can be parallelized
-        inputVelocytoRecords(readFeatAll[iThread]->streamReads, soloFeatAll[pSolo.featureInd[SoloFeatureTypes::Gene]]->readInfo, indCBwl,
-                             nReadPerCB, cuTrTypes);
-    };   
+    {//the files of all threads in parallel
+        auto cbLocks=std::make_unique<CBlocks>();
+        vector<std::exception_ptr> errors(P.runThreadN);
+        #pragma omp parallel for schedule(dynamic,1) num_threads(P.runThreadN)
+        for (int iThread=0; iThread<P.runThreadN; iThread++) {
+            try {
+                inputVelocytoRecords(readFeatAll[iThread]->streamReads, soloFeatAll[pSolo.featureInd[SoloFeatureTypes::Gene]]->readInfo, indCBwl,
+                                     nReadPerCB, cuTrTypes, *cbLocks);
+            } catch (...) {
+                errors[iThread]=std::current_exception();
+            };
+        };
+        for (auto &e: errors)
+            if (e)
+                std::rethrow_exception(e);
+    };
     
     time(&rawTime);
     P.inOut->logMain << timeMonthDayTime(rawTime) << " ... Velocyto counting: finished input" <<endl;

@@ -15,6 +15,16 @@ class SoloFeature;
 class ReadSoloFeatures; //per-read features, SoloReadFeature_record.cpp
 struct SoloInputRecord; //one temporary-file record, SoloReadFeature_inputRecords.cpp
 
+//where inputRecords puts the feature records of one temporary file: each CB has a slot of whole records in a shared array
+struct SoloRecordSlots {
+    bool countOnly=true;               //true: only count the records of each CB in pos[], store nothing
+    const uint32 *wlToSlot=nullptr;    //whitelist CB -> slot, (uint32)-1 if the CB has no slot
+    uint32 *const *slotStart=nullptr;  //slot -> its first record
+    uint32 stride=0;                   //uint32 values per record
+    std::vector<uint32> pos;           //per slot: record count (countOnly), or index in the slot of this file's next record
+    uint64 nNoSlot=0;                  //records whose CB has no slot; nonzero means the slots were sized wrong
+};
+
 class SoloReadFeature {
 public:
 
@@ -40,7 +50,7 @@ public:
     void addCounts(const SoloReadFeature &soloCBin);
     void addStats(const SoloReadFeature &soloCBin);
     void statsOut(std::ofstream &streamOut);
-    void inputRecords(uint32 **cbP, uint32 cbPstride, std::vector<uint32> &cbReadCountTotal, std::vector<readInfoStruct> &readInfo, SoloReadFlagClass &readFlagCounts,
+    void inputRecords(SoloRecordSlots &slots, std::vector<uint32> &cbReadCountTotal, std::vector<readInfoStruct> &readInfo, SoloReadFlagClass &readFlagCounts,
                       std::vector<uint32> &nReadPerCBunique1, std::vector<uint32> &nReadPerCBmulti1);
 
 private:
@@ -58,9 +68,9 @@ private:
     uint32 recordVelocyto(uint64 iRead, ReadAnnotations &readAnnot);
     void addCBreadCount(SoloReadBarcode &soloBar, uint32 nFeat);
     //inputRecords steps (SoloReadFeature_inputRecords.cpp)
-    bool inputSingleCB(SoloInputRecord &r, uint32 **cbP, uint32 cbPstride, std::vector<uint32> &cbReadCountTotal, std::vector<readInfoStruct> &readInfo);
-    void inputMultipleCB(SoloInputRecord &r, uint32 **cbP, uint32 cbPstride, std::vector<uint32> &cbReadCountTotal, std::vector<readInfoStruct> &readInfo);
-    void storeInputRecord(SoloInputRecord &r, uint32 **cbP, uint32 cbPstride, std::vector<readInfoStruct> &readInfo);
+    bool inputSingleCB(SoloInputRecord &r, SoloRecordSlots &slots, std::vector<uint32> &cbReadCountTotal, std::vector<readInfoStruct> &readInfo);
+    void inputMultipleCB(SoloInputRecord &r, SoloRecordSlots &slots, std::vector<uint32> &cbReadCountTotal, std::vector<readInfoStruct> &readInfo);
+    void storeInputRecord(SoloInputRecord &r, SoloRecordSlots &slots, std::vector<readInfoStruct> &readInfo);
     void countInputRead(const SoloInputRecord &r, SoloReadFlagClass &readFlagCounts, std::vector<uint32> &nReadPerCBunique1, std::vector<uint32> &nReadPerCBmulti1);
 };
 

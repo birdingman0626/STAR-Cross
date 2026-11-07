@@ -91,6 +91,7 @@ public:
     void sumThreads();
     void countSmartSeq();
     void countCBgeneUMI();
+    void inputRecordsAllFiles(const std::vector<uint32> &wlToSlot, uint32 **rCBpa, std::vector<uint32> &nReadPerCBunique1, std::vector<uint32> &nReadPerCBmulti1);
     void countVelocyto();
     void quantTranscript();
     

@@ -15,10 +15,13 @@ struct SoloInputRecord {
     bool readIsCounted, featGood, noMMtoWLwithoutExact, noTooManyWLmatches;
 };
 
-void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32> &cbReadCountTotal, vector<readInfoStruct> &readInfo, SoloReadFlagClass &readFlagCounts,
+//reads this file's records; slots.countOnly selects the count pass (record counts per CB only, no other side effects)
+//or the store pass (records, readInfo, read statistics)
+void SoloReadFeature::inputRecords(SoloRecordSlots &slots, vector<uint32> &cbReadCountTotal, vector<readInfoStruct> &readInfo, SoloReadFlagClass &readFlagCounts,
                                    vector<uint32> &nReadPerCBunique1, vector<uint32> &nReadPerCBmulti1)
 {   
     streamReads->flush();
+    streamReads->clear(); //the previous pass ended at end of file
     streamReads->seekg(0,std::ios::beg);
 
     //////////////////////////////////////////// standard features
@@ -40,11 +43,14 @@ void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32
         r.noTooManyWLmatches = false;
 
         if (r.cbmatch<=1) {//single match
-            if (!inputSingleCB(r, cbP, cbPstride, cbReadCountTotal, readInfo))
+            if (!inputSingleCB(r, slots, cbReadCountTotal, readInfo))
                 continue; //this cb was not in the tentative WL
         } else {//multiple matches
-            inputMultipleCB(r, cbP, cbPstride, cbReadCountTotal, readInfo);
+            inputMultipleCB(r, slots, cbReadCountTotal, readInfo);
         };
+
+        if ( slots.countOnly )
+            continue;
 
         if ( !readIndexYes || r.iread != prevIread ) {//no readindex (then only unique-gene reads are recorded) OR only for one align of each read, in case of multimappers
             prevIread = r.iread;
@@ -54,7 +60,7 @@ void SoloReadFeature::inputRecords(uint32 **cbP, uint32 cbPstride, vector<uint32
 };
 
 //single CB match; false if the CB is not in the tentative whitelist (no-WL), i.e. the record is skipped
-bool SoloReadFeature::inputSingleCB(SoloInputRecord &r, uint32 **cbP, uint32 cbPstride, vector<uint32> &cbReadCountTotal, vector<readInfoStruct> &readInfo)
+bool SoloReadFeature::inputSingleCB(SoloInputRecord &r, SoloRecordSlots &slots, vector<uint32> &cbReadCountTotal, vector<readInfoStruct> &readInfo)
 {
     readNumber(*streamReads, r.cb);
 
@@ -70,13 +76,13 @@ bool SoloReadFeature::inputSingleCB(SoloInputRecord &r, uint32 **cbP, uint32 cbP
         };
 
         //record feature
-        storeInputRecord(r, cbP, cbPstride, readInfo);
+        storeInputRecord(r, slots, readInfo);
     };
     return true;
 };
 
 //multiple CB matches: the CB with the highest posterior, if it is above cbMinP
-void SoloReadFeature::inputMultipleCB(SoloInputRecord &r, uint32 **cbP, uint32 cbPstride, vector<uint32> &cbReadCountTotal, vector<readInfoStruct> &readInfo)
+void SoloReadFeature::inputMultipleCB(SoloInputRecord &r, SoloRecordSlots &slots, vector<uint32> &cbReadCountTotal, vector<readInfoStruct> &readInfo)
 {
     #ifdef MATCH_CellRanger
     double ptot=0.0, pmax=0.0, pin;
@@ -101,28 +107,38 @@ void SoloReadFeature::inputMultipleCB(SoloInputRecord &r, uint32 **cbP, uint32 c
     };
     if (ptot>0.0 && pmax>=pSolo.cbMinP*ptot) {
         //record feature single-number feature
-        storeInputRecord(r, cbP, cbPstride, readInfo);
+        storeInputRecord(r, slots, readInfo);
     } else {
         r.noTooManyWLmatches = true;
     };
 };
 
 //record the feature in the CB array, or the CB/UMI of a read without feature in readInfo
-void SoloReadFeature::storeInputRecord(SoloInputRecord &r, uint32 **cbP, uint32 cbPstride, vector<readInfoStruct> &readInfo)
+void SoloReadFeature::storeInputRecord(SoloInputRecord &r, SoloRecordSlots &slots, vector<readInfoStruct> &readInfo)
 {
     if (r.featGood) {//good feature, will be counted
         r.readIsCounted = true;
 
-        cbP[r.cb][0]=r.feature;
-        cbP[r.cb][1]=r.umi;
-
-        if (readIndexYes) {
-            cbP[r.cb][2]=r.iread;
+        uint32 islot=slots.wlToSlot[r.cb];
+        if (islot==(uint32)-1) {
+            slots.nNoSlot++;
+            return;
+        };
+        if (slots.countOnly) {
+            slots.pos[islot]++;
+            return;
         };
 
-        cbP[r.cb]+=cbPstride;
+        uint32 *rec = slots.slotStart[islot] + (uint64)slots.pos[islot]*slots.stride;
+        slots.pos[islot]++;
+        rec[0]=r.feature;
+        rec[1]=r.umi;
 
-    } else if (readInfoYes) {//no feature - record readInfo
+        if (readIndexYes) {
+            rec[2]=r.iread;
+        };
+
+    } else if (readInfoYes && !slots.countOnly) {//no feature - record readInfo
         readInfo[r.iread].cb=r.cb;
         readInfo[r.iread].umi=r.umi;
     };
@@ -142,9 +158,12 @@ void SoloReadFeature::countInputRead(const SoloInputRecord &r, SoloReadFlagClass
     };
 
     if (r.readIsCounted) {
+        //files are read in parallel; other files may count the same CB
         if (r.feature<geneMultMark) {
+            #pragma omp atomic
             nReadPerCBunique1[r.cb]++;
         } else {
+            #pragma omp atomic
             nReadPerCBmulti1[r.cb]++;
         };
     };

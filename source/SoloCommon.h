@@ -3,6 +3,7 @@
 
 #include <array>
 #include <unordered_map>
+#include <vector>
 
 typedef struct{
     uint64 cb; 
@@ -55,12 +56,29 @@ public:
         return (flag>>ibit) & ((typeFlag)1);
     };
 
-    void countsAdd(uintCB cb) 
+    bool trackOrder=false; //record the first-insertion order of flagCounts keys, for mergeInOrder
+    std::vector<uintCB> insertOrder;
+
+    void countsAdd(uintCB cb)
     {//adds flag bits to the count for a given cb
         auto cbInserted = flagCounts.insert({cb, {} });
+        if (trackOrder && cbInserted.second)
+            insertOrder.push_back(cb);
         for (uint32 ibit=0; ibit<nBits; ibit++) {
             (*cbInserted.first).second[ibit] += (uint64) checkBit(ibit);
         };
+    };
+
+    void mergeInOrder(const SoloReadFlagClass &in)
+    {//adds counts of in (which tracked its order); keys are inserted in in's first-insertion order,
+     //so merging per-file objects in file order builds the same map, iteration order included, as counting all files into this one
+        for (auto cb: in.insertOrder) {
+            auto cbInserted = flagCounts.insert({cb, {} });
+            const auto &cIn = in.flagCounts.at(cb);
+            for (uint32 ibit=0; ibit<nBits; ibit++)
+                (*cbInserted.first).second[ibit] += cIn[ibit];
+        };
+        countsAddNoCBarray(in.flagCountsNoCB);
     };
 
     void countsAddNoCB()
@@ -69,7 +87,7 @@ public:
             flagCountsNoCB[ibit] += (uint64) checkBit(ibit);
     };
 
-    void countsAddNoCBarray(std::array<uint64,nBits> &arrIn)
+    void countsAddNoCBarray(const std::array<uint64,nBits> &arrIn)
     {
         for (uint32 ibit=0; ibit<nBits; ibit++)
             flagCountsNoCB[ibit] += arrIn[ibit];

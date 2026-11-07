@@ -4,6 +4,8 @@
 #include "SequenceFuns.h"
 #include "systemFunctions.h"
 #include "uninitArray.h"
+#include "ErrorWarning.h"
+#include <exception>
 using namespace std;
 void SoloFeature::countCBgeneUMI()
 {    
@@ -28,9 +30,11 @@ void SoloFeature::countCBgeneUMI()
     
     rCBp[0]=rGeneUMI;
     rCBpa[0]=rGeneUMI;
+    vector<uint32> wlToSlot(pSolo.cbWLsize, (uint32)-1); //WL index -> slot (index in rCBp)
     nCB=0;//will count it again below
     for (uint32 ii=0; ii<pSolo.cbWLsize; ii++) {
         if (readFeatSum->cbReadCount[ii]>0) {
+            wlToSlot[ii]=nCB;
             rCBp[nCB+1] = rCBp[nCB] + rguStride*readFeatSum->cbReadCount[ii];
             ++nCB;
         };
@@ -46,10 +50,7 @@ void SoloFeature::countCBgeneUMI()
     readFlagCounts.flagCounts.reserve(nCB*3/2);
     readFlagCounts.flagCountsNoCB = {};
     vector<uint32> nReadPerCBunique1(pSolo.cbWLsize), nReadPerCBmulti1(pSolo.cbWLsize); //temp arrays to record # of reads for all cells in the WL
-    for (int ii=0; ii<P.runThreadN; ii++) {//TODO: this can be parallelized
-        readFeatAll[ii]->inputRecords(rCBpa, rguStride, readBarSum->cbReadCountExact, readInfo, readFlagCounts, nReadPerCBunique1, nReadPerCBmulti1);
-        readFeatSum->addStats(*readFeatAll[ii]);//sum stats: has to be done after inputRecords, since the stats values are updated there
-    };
+    inputRecordsAllFiles(wlToSlot, rCBpa, nReadPerCBunique1, nReadPerCBmulti1);
     readFlagCounts.countsAddNoCBarray(readFeatSum->readFlag.flagCountsNoCB);//add no-CB counts calculated in SoloReadFeature_record.cpp and not recorded to temp Solo files
 
     nReadPerCBtotal.resize(nCB);
@@ -112,4 +113,75 @@ void SoloFeature::countCBgeneUMI()
     
     time(&rawTime);
     P.inOut->logMain << timeMonthDayTime(rawTime) << " ... Finished collapsing UMIs" <<endl;
+};
+
+//Reads the temporary files of all mapping threads in parallel, with the result of reading them one after another:
+//the records of each CB are in file order, readFlagCounts has the same keys in the same order.
+//Pass 1 counts each file's records per CB, which gives each file its own range in every CB slot; pass 2 stores them there.
+void SoloFeature::inputRecordsAllFiles(const vector<uint32> &wlToSlot, uint32 **rCBpa, vector<uint32> &nReadPerCBunique1, vector<uint32> &nReadPerCBmulti1)
+{
+    const int nFiles=P.runThreadN;
+    vector<SoloRecordSlots> slots(nFiles);
+    vector<SoloReadFlagClass> fileFlags(nFiles);
+    for (int ii=0; ii<nFiles; ii++) {
+        slots[ii].wlToSlot=wlToSlot.data();
+        slots[ii].slotStart=rCBp;
+        slots[ii].stride=rguStride;
+        slots[ii].pos.assign(nCB, 0);
+        fileFlags[ii].trackOrder=true;
+    };
+
+    auto inputPass = [&]() {
+        vector<std::exception_ptr> errors(nFiles);
+        #pragma omp parallel for schedule(dynamic,1) num_threads(nFiles)
+        for (int ii=0; ii<nFiles; ii++) {
+            try {
+                readFeatAll[ii]->inputRecords(slots[ii], readBarSum->cbReadCountExact, readInfo, fileFlags[ii], nReadPerCBunique1, nReadPerCBmulti1);
+            } catch (...) {
+                errors[ii]=std::current_exception();
+            };
+        };
+        for (auto &e: errors)
+            if (e)
+                std::rethrow_exception(e);
+    };
+
+    inputPass(); //count
+
+    //each file's start in each slot: the records of the files before it
+    uint64 nNoSlot=0;
+    for (auto &sl: slots)
+        nNoSlot += sl.nNoSlot;
+    for (uint32 islot=0; islot<nCB; islot++) {
+        uint64 nRec=0;
+        for (auto &sl: slots) {
+            uint32 nFile=sl.pos[islot];
+            sl.pos[islot]=(uint32)nRec;
+            nRec += nFile;
+        };
+        if (nRec > (uint64)(rCBp[islot+1]-rCBp[islot])/rguStride)
+            nNoSlot += nRec;
+    };
+    if (nNoSlot>0) {
+        exitWithError("BUG: Solo records do not fit the per-cell-barcode arrays, number of misplaced records=" + to_string(nNoSlot)
+                      + "\nSOLUTION: please report this error with the full Log.out file\n",
+                      std::cerr, P.inOut->logMain, EXIT_CODE_BUG, P);
+    };
+
+    for (auto &sl: slots)
+        sl.countOnly=false;
+    inputPass(); //store
+
+    //rCBpa: end of the records of each CB; after pass 2 the last file's pos is the slot's record count
+    for (uint32 ii=0; ii<pSolo.cbWLsize; ii++) {
+        if (wlToSlot[ii]!=(uint32)-1)
+            rCBpa[ii] = rCBp[wlToSlot[ii]] + (uint64)slots[nFiles-1].pos[wlToSlot[ii]]*rguStride;
+    };
+
+    for (int ii=0; ii<nFiles; ii++) {//in file order
+        readFeatSum->addStats(*readFeatAll[ii]);//sum stats: has to be done after inputRecords, since the stats values are updated there
+        readFlagCounts.mergeInOrder(fileFlags[ii]);
+        decltype(fileFlags[ii].flagCounts)().swap(fileFlags[ii].flagCounts); //release memory
+        vector<uintCB>().swap(fileFlags[ii].insertOrder);
+    };
 };
