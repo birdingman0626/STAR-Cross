@@ -5,6 +5,7 @@ for their recorded revision, not current release certification.
 
 | Task | Entry point |
 | --- | --- |
+| See what to work on next | [Improvement plan, 2026-11-07](IMPROVEMENT_PLAN_20261107.md) |
 | Install and run | [Project README](../README.md), [build](BUILD.md), [STARsolo](STARsolo.md), [web UI](webui/README.md) |
 | Validate a change | [Qualification plan](QUALIFICATION_PLAN.md), [CPU validation](CPU_VALIDATION.md), [local CI](LOCAL_CI.md) |
 | Understand recorded checks | [Qualification results](QUALIFICATION_RESULTS_20261007.md) |
