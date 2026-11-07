@@ -101,6 +101,26 @@ Ten minutes of every full-library run use one of ten threads.
    before/after from the same host. This is a stage time, not a qualified
    whole-job speedup (see P5).
 
+**Done (2026-11-07, `537b407`).** Measured at 50M reads, record input was 25 of
+42 Solo seconds (Gene 6 s, GeneFull_Ex50pAS 4 s, Velocyto 15 s). Design (b) was
+used: a count pass per file, a prefix sum per CB, then a store pass, so each CB
+keeps the serial record order. Velocyto reads in parallel under striped locks;
+its per-UMI intersection does not depend on order. `readClusterUMIs`
+(Transcript3p) was not in the profile and stays serial. Results:
+
+- Full library (580.8M reads, WSL GCC 15.2, 10 threads): **IDENTICAL** to the
+  stored fa904fe hashes (BAM records and header, SJ, Log.final fields, 33 Solo
+  files; genome re-hashed). Solo counting took 337 s, against 601 s in G0, on the
+  same host. Another user job was running in WSL, so 337 s is an upper bound.
+- 50M prefix: record input dropped from 25 s to 5 s; byte-identical to `d7d4a57`.
+- `--soloCellReadStats Standard` (not in any oracle): CellReads.stats has the
+  same rows. Their order already differs between two runs of the serial binary
+  (482k of 516k rows move), so the order is not a contract.
+  `test_thread_sanitizer.py` gained a `solo_cell_read_stats` scenario that
+  compares it as a set of lines.
+- Windows gate (ctest, upstream, 5M contract on CPU and CUDA) and TSan on both
+  solo scenarios pass.
+
 Side note for the same pass: `--outBAMsortingThreadN` defaulted to 4 in the
 qualification runs while 10 workers were available; document the setting or
 reconsider the default. Changing it does not change output.
