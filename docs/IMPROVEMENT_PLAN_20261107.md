@@ -207,11 +207,31 @@ keeps the old basis, so temporary files and the bins in RAM
 (`--limitBAMsortRAM`) are unchanged. BAM records and Solo files are identical
 at 50M reads. Compressed BAM bytes already differ between runs (the header
 carries the command line, and bin boundaries are sampled at run time), so the
-contract is the decompressed records. Expected on the full library: about
-392 s → 200 s, not yet measured; the qualification command sets 4 threads
-explicitly and needs `--outBAMsortingThreadN` dropped to benefit. Next, if the
-sort is still large: compress the remaining bins with `bgzf_mt` once fewer bins
-than threads are left.
+contract is the decompressed records.
+
+**Full library, default sort threads (2026-11-07, `cef3d34`).** Same command as
+P4 without `--outBAMsortingThreadN`, same host (WSL GCC 15.2, 10 threads),
+compared against the stored P4 hashes: **IDENTICAL** (BAM records and header,
+SJ, Log.final fields, 33 Solo files; genome re-hashed).
+
+| Run | Sort threads | Sort | Merge | Sort + merge | Peak RSS | Whole job |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| P4 `537b407` | 4 | | | 530 s | 34.9 GiB | 3087 s |
+| `cef3d34` | 10 | 385 s | 55 s | 440 s | 43.4 GiB | 3208 s |
+
+The sort step is 17% shorter, not the 2x seen at 50M reads, and peak memory is
+8.5 GiB higher. The bins are about 5 GB each here ("Max memory needed for
+sorting" 4.97 GB), and `--limitBAMsortRAM` defaults to the index size, so only
+about five bins fit in RAM at once and the other threads wait for room; the
+logged bin times include that wait (sum 3620 s, slowest bin 369 s). Mapping
+took 39 min instead of 34 min in this run, so the whole-job figure reflects
+host conditions, not the sort change. Neither run was on a quiet host.
+
+Next, in order: (1) more bins for large libraries (`--outBAMsortingBinsN`)
+so each bin is smaller and more fit under the RAM limit, measured against peak
+memory; (2) `bgzf_mt` for the last bins once fewer bins than threads remain;
+(3) a faster merge only if it grows (55 s now). Receipts:
+`data/validation/sort-cef3d34-20261107/full-library/` (local).
 
 ## 3. Sequence and release
 
